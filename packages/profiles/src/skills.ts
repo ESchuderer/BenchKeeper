@@ -27,8 +27,7 @@ type Listed = { part: string; source: Source };
 const nameOf = (source: Source): string =>
   "git" in source ? skillFolder(source) : source.path.slice(source.path.lastIndexOf("/") + 1);
 
-// The skills of a level, on or off: the machine's skill parts, or each skill entry of the packs a project's packs part
-// lists, once those packs are here.
+// A level's skills, on or off: the machine's skill parts, or each skill entry of a project's listed packs once fetched.
 const listed = (resolved: Resolved, fetched: Fetched, level: Level): Result<Listed[]> => {
   const parts = Object.entries(resolved.profile[level]);
   if (level === "machine")
@@ -100,12 +99,7 @@ const packOf = (resolved: Resolved, source: Source, { fetched, level }: { fetche
 // How a finding names a skill: its pack entry, or its repository.
 const labelOf = (source: Source): string => ("git" in source ? source.git : `${source.pack}/${source.path}`);
 
-/**
- * Each skill of a level that is on, its files in `<home>/skills/<name>/` (a project's `.claude` folder for a project),
- * made executable when Git has them so; and the files CedarLoom wrote in the skills folder that no skill that is on
- * wants now: a part switched off, a pack taken out of a list, or a file its source dropped. Two skills of one name
- * refuse the plan, as their files would mix in one folder.
- */
+// Each on skill's files in its folder (executable where Git says so), and our files there no on skill wants now.
 export const skillFiles = (
   resolved: Resolved,
   home: string,
@@ -124,9 +118,7 @@ export const skillFiles = (
     taken.set(folder, label);
     const files = filesOf(resolved, source, fetched);
     if (!files.ok) return files;
-    // Claude Code loads a skills folder with `.claude-plugin/` as a plugin, hooks and servers included, which a plugin
-    // part brings only with its approval by name (https://code.claude.com/docs/en/plugins/loading).
-    // In any case, as macOS's and Windows' file systems read `.Claude-Plugin` as `.claude-plugin`.
+    // A skills folder with `.claude-plugin/` (any case) loads as a plugin, which needs approval by name.
     const plugin = files.value.find(({ path }) =>
       path.split("/").some((segment) => segment.toLowerCase() === ".claude-plugin"),
     );

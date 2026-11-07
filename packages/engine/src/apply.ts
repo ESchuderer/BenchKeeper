@@ -60,10 +60,7 @@ const firstProblem = (op: FileOperation): Finding | undefined => {
   }
 };
 
-/**
- * Every operation before anything is written: a path's first one against the file now, each later one against the
- * hash the operations before it leave, so a plan whose chain breaks writes nothing.
- */
+// All operations are checked before any write, each against what the ones before leave: a broken chain writes none.
 const operationProblem = (
   op: FileOperation,
   index: number,

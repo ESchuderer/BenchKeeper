@@ -43,10 +43,7 @@ type Rules = { file: string; text: Text; pointer: string; on: boolean };
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
-/**
- * A text with this machine's values filled in, read as an entry of `kind` when it comes from a pack; a placeholder left
- * without a value stops the plan, named by the text's JSON Pointer in the composed profile.
- */
+// A text with this machine's values filled in; a placeholder left without one stops the plan, named by its pointer.
 export const textOf = (
   text: Text,
   { kind, pointer }: { kind: "rules" | "template"; pointer: string },
@@ -80,8 +77,7 @@ const rulesOf = ({ profile, on }: Resolved): Rules[] => [
   ),
 ];
 
-// Each rules part that is on as its file's text, and the files of the parts that are off. Of two parts on that name
-// one file, the later one's text is written, as a later value wins.
+// Each on rules part's file and text, and the files of parts that are off; of two on one file, the later's text wins.
 const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
   const folder = rulesFolder(home);
   const files = rulesOf(resolved).map((each): [string, Rules] => [join(folder, each.file), each]);
@@ -95,8 +91,7 @@ const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
   return { ok: true as const, value: { wanted, off } };
 };
 
-// The settings as an object with the hash of the text read; none yet is an empty one. A file that is no JSON object
-// is never rewritten.
+// The settings object with its text's hash; none yet is empty, and a file that is no JSON object is never rewritten.
 const readSettings = (path: string): Result<{ json: Json; before: string | null }> => {
   const file = readOptionalJson(path);
   if (!file.ok) {
@@ -111,11 +106,8 @@ const readSettings = (path: string): Result<{ json: Json; before: string | null 
   return { ok: true, value: { json: read.data, before: sha256(file.value.text) } };
 };
 
-/**
- * A settings file's write when merging changes it, and the merged value. shortcut: the file is written back as
- * two-space JSON with every key in its order, comments refused; a format-keeping edit is due once owners keep their own
- * formatting there.
- */
+// A settings file's write when merging changes it, and the merged value.
+// shortcut: written back as two-space JSON in key order, comments refused; keep formats once owners keep their own.
 export const fileWrite = (
   path: string,
   merge: (json: Json) => Json,
@@ -136,8 +128,7 @@ type Plugin = Extract<Resolved["profile"]["machine"][string], { type: "plugin" }
 /** What a plugin part of either level declares in a settings file. */
 export type Declared = Pick<Plugin, "plugin" | "marketplace">;
 
-// What a plugin part writes into the user settings: its marketplace when it names one, and the plugin switched on.
-// https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces
+// A plugin part's user settings: its marketplace (extraKnownMarketplaces, Claude Code docs) and the plugin switched on.
 const pluginSet = ({ plugin, marketplace }: Declared): Json => {
   const enabledPlugins = { [plugin]: true };
   if (marketplace === undefined) return { enabledPlugins };
@@ -151,10 +142,7 @@ const pluginSet = ({ plugin, marketplace }: Declared): Json => {
   };
 };
 
-/**
- * The plugins merged into the settings. Claude Code reads a marketplace entry whole, so the profile's replaces one of
- * the same name instead of mixing their fields.
- */
+// The plugins merged into the settings; a marketplace entry is replaced whole, as Claude Code reads it whole.
 export const withPlugins = (json: Json, plugins: readonly Declared[]): Json => {
   const names = new Set(plugins.flatMap(({ marketplace }) => (marketplace === undefined ? [] : [marketplace.name])));
   const known = isTree(json) ? json["extraKnownMarketplaces"] : undefined;
@@ -204,10 +192,7 @@ const optionsWrites = (plugins: [string, Plugin][], target: Target): Result<Oper
 const repository = (marketplace: NonNullable<Plugin["marketplace"]>): string =>
   "github" in marketplace ? marketplace.github : marketplace.git;
 
-/**
- * Each plugin part of a level not approved by name whose declaration would change the settings: a named approval
- * line, never preselected (owner, hub issue 130), as its plugin's hooks, MCP servers and commands run in every session.
- */
+// Each plugin part not approved by name that would change the settings: a named line, never preselected (#130).
 export const waiting = <P extends Declared>(
   { level, project }: { level: "machine" | "project"; project: string | null },
   plugins: readonly [string, P][],
@@ -246,11 +231,7 @@ const without = (json: Json, { plugins, marketplaces }: Removed): Json => {
   return { ...json, ...drop("enabledPlugins", plugins), ...drop("extraKnownMarketplaces", marketplaces) };
 };
 
-/**
- * The settings parts and the plugin parts `approved` names merged into the settings file, in that order, and those
- * plugins' options files. The settings parts may set no plugin key (the profile's allow list), so the order changes
- * nothing between them.
- */
+// The settings parts, then the approved plugin parts, merged into the settings file, and those plugins' options files.
 const settingsPlan = (
   { profile, on }: Resolved,
   target: Target,
@@ -277,8 +258,7 @@ const settingsPlan = (
   return { ok: true, value: { operations, findings } };
 };
 
-// The home's own files: each rules part's and skill's that is on, and the files of a part switched off or of a file a
-// skill's source dropped; `mine` are those paths, which no removal is offered for.
+// The home's own files: on rules parts' and skills', and those of parts now off or dropped; `mine` gets no removal.
 const ownedOf = (resolved: Resolved, home: string, fetched: Fetched, written: ReadonlyMap<string, string | null>) => {
   const rules = rulesFiles(resolved, home, fetched);
   if (!rules.ok) return rules;
@@ -291,8 +271,7 @@ const ownedOf = (resolved: Resolved, home: string, fetched: Fetched, written: Re
   return { ok: true as const, value: { ...files.value, mine } };
 };
 
-// What the home holds that no part that is on names: its settings' other plugins and marketplaces, and the rules
-// files and skill folders CedarLoom neither wants nor wrote (owner, PF4: each removal offered, none preselected).
+// What the home holds that no on part names, each removal offered, none preselected (owner, PF4).
 const offersOf = (
   { profile, on }: Resolved,
   home: string,

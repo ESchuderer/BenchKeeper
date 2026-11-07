@@ -75,3 +75,38 @@ Limits:
 - A parent reached twice applies once, at its first place. Renovate merges it again on each path, so the second application would take back the first branch's changes.
 - A cycle is refused. Renovate skips it.
 - Every list grows without duplicates. Renovate concatenates only its mergeable options, keeps duplicates and replaces other arrays.
+
+## Profiles
+
+`packages/profiles/src/`
+
+### Project links
+
+`project.ts`. A profile names its targets by portable paths, which cannot point outside the project, into its Git folder or onto a sealed file (Claude Code's settings, an MCP list, the manual's files). A link can, so the plan resolves each path on disk and is refused when a link leads a target, a `.claude` path or the files record there. Otherwise a skill's file could land in a user's Claude Code home, in Git's hooks or in the committed settings, and the record would be read and written outside the project.
+
+### Gates
+
+`project.ts`. A gates part writes, per bound workflow, a caller of the reusable workflow of that name at the bound commit, with read access only, on each pull request and merge queue entry, which every change to the default branch passes whatever its name (https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows). Dependabot updates the workflows' pins once a release is the cooldown's days old (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-). The bound gates repository is ignored there, so the binding stays the gates' one source and they move only by a new binding.
+
+### Settings writes
+
+`project.ts` (`settingsWrites`). Settings parts merge into the committed `.claude/settings.json` or the local `.claude/settings.local.json` by their `commit` field. Plugin parts that `approved` names go into the local file, the only one Claude Code downloads a plugin from. Every other plugin part that would change it waits for its approval by name and is held back with the parts that require it. Git ignores the local file while a part that writes it is on, also once its plugins are in place.
+
+## Ledger
+
+`packages/ledger/src/`
+
+### SQLite
+
+`store.ts`.
+- **`secure_delete` only around blanking.** It zeroes what an update leaves behind, such as a blanked plan's content, which SQLite otherwise keeps on freed pages (https://www.sqlite.org/pragma.html#pragma_secure_delete). On every write it kept another process's appends out longer, so it is on only there.
+- **The log is emptied as the store closes.** The checkpoint moves the log into the database and empties it, so the pages from before a blanking leave the log too; a checkpoint at each finish kept another process's appends out. It waits for nothing: while another connection reads the store, such as a graph run's, it stops short without an error, and the log keeps those pages until that connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+- **The 1 s busy wait (`SETTLE_MS`).** A writer's last close cleans up the WAL, and the next open recovers it. Without the wait, reads and opens beside another process's runs fail with "database is locked". It matches the store lock's own wait: 250 ms was too short on a loaded CI runner, where runs in a tight loop kept a reader out longer. The lock file's probe does not wait.
+
+## Engine
+
+`packages/engine/src/`
+
+### Write step
+
+`files.ts` (`writeStep`). A run step's write goes to a flushed temporary file. An existing target is first moved aside and checked there, then the new file is linked in. A change another process makes by path after the move lands in a new file at the path, which the step then finds, so such a change is refused, never overwritten. Only a write through a handle opened before the check, made after it, is lost. Between the two moves the path is absent for a moment; a crash there leaves the old file aside, and `recover()` puts it back.

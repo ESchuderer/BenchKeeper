@@ -14,8 +14,7 @@ export const PACK_ID = String.raw`[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}`;
 /** A pack's id: `publisher.name` in lower case, as an extension's. Packs of the `cedarloom` publisher ship with CedarLoom. */
 export const PackId = z.string().regex(new RegExp(`^${PACK_ID}$`));
 
-// Where Git fetches a folder (A29 b): a text-only one follows a branch or tag, taking a new commit once CedarLoom has
-// seen it there for 3 days (A94); one with a file that runs is pinned by commit and digest, as an extension is.
+// Where Git fetches a folder (A29 b): text-only follows a ref after 3 days (A94); one with a runnable file is pinned.
 const located = {
   git: GitUrl,
   path: PortablePath.optional().describe("The folder inside the repository; its root when absent"),
@@ -43,8 +42,7 @@ const Entry = z.discriminatedUnion("kind", [
   }),
 ]);
 
-// A skill's folder is its name: 1 to 64 of a-z, 0-9 and "-", no "-" at either end or twice in a row
-// (https://agentskills.io/specification). Claude Code reads rules from Markdown files only.
+// A skill's folder is its name (https://agentskills.io/specification); Claude Code reads rules from Markdown only.
 export const skillName = (name: string): boolean => /^[a-z0-9-]{1,64}$/.test(name) && !/^-|-$|--/.test(name);
 
 /** The folder a skill from Git installs into: the last part of its path, else of its repository's name. */
@@ -56,9 +54,7 @@ const fits = (path: string, kind: z.infer<typeof Entry>["kind"]): boolean => {
   return path.endsWith(kind === "rules" ? ".md" : ".json");
 };
 
-// Entries that collide on a file system that ignores case: two on one path, one inside another's folder or on the
-// manifest's own path, and two skills of one name, since a skill installs into a folder of its name. Each collision is
-// reported at the later or the inner entry.
+// Entries that collide when case is ignored: one path, one inside another or on the manifest, two skills of one name.
 const collisions = (entries: Record<string, { kind: string }>): string[] => {
   const all = new Set(Object.keys(entries).map((path) => path.toLowerCase()));
   const seen = new Set(["cedarloom-pack.json"]);

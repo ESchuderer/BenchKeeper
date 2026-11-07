@@ -34,9 +34,7 @@ export const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, m
     .meta(min > 0 ? { minProperties: min, maxProperties: max } : { maxProperties: max });
 
 /** An extension's id: `publisher.name` in lower case, the form of a VS Code extension id. Its actions are node types `<id>/<action>`. */
-// Publishers no extension takes: the first parts of the built-in node types (trigger, agent, command, file, human,
-// workflow, condition, join), so `trigger.acme/go` never counts as a trigger. `cedarloom` is first-party: the app ships
-// its extensions, and a Git install refuses the publisher, since trust comes from where the files are.
+// Publishers no extension takes: docs/agents/cedarloom-rationale.md#publishers
 const RESERVED = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0]))];
 export const ExtensionId = z
   .string()
@@ -57,8 +55,7 @@ export const isExtensionType = (type: string): boolean => {
 const CredentialId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const LanguageTag = z.string().regex(/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/);
 
-// The URL parser decides: an origin is canonical when it is its own `origin` (lower case, no default port, no path,
-// user or password), so `https://Example.com`, `https://a.com:443` and `https://0x7f.1` are refused.
+// An origin is canonical when it is its own URL origin: lower case, no default port, path, user or password.
 const isOrigin = (value: string): boolean => URL.canParse(value) && new URL(value).origin === value;
 // An https origin an extension reaches through the host; it has no network of its own (P7 a).
 const Origin = z
@@ -92,10 +89,7 @@ const HeaderName = z
   .regex(/^[A-Za-z0-9-]{1,64}$/)
   .refine((name) => !FORBIDDEN_HEADERS.includes(name.toLowerCase()), "not a header of the request's framing or coding");
 
-// How the host adds a credential to a request, after the OpenAPI Security Scheme Object
-// (https://spec.openapis.org/oas/v3.1.0#security-scheme-object), headers only: `Authorization: Bearer <value>`,
-// `Authorization: Basic <user:value>` with the user part the user enters, or a header of its own. It comes from the
-// manifest, never from the request, so an extension cannot place the value where a host would store and return it.
+// How the host adds a credential: docs/agents/cedarloom-rationale.md#credential-schemes
 const CredentialScheme = z
   .discriminatedUnion("type", [
     z.strictObject({ type: z.literal("http"), scheme: z.enum(["bearer", "basic"]) }),
@@ -113,9 +107,7 @@ const Credential = z.strictObject({
     .describe("The host adds the credential to requests to these hosts only; each is in `net`"),
 });
 
-// A program's name for the extension, and where the host looks for it on each platform, in order: a file name on PATH
-// (on Windows its .exe or .com, which run without a shell), or `~/` and a path in the user's home folder, such as
-// ~/.local/bin, which a desktop app's PATH often lacks.
+// A program's name and where the host looks for it: a file name on PATH (.exe or .com on Windows) or a `~/` path.
 const ProgramId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 // Each part of a home path starts with a letter, a digit or `_`, after one optional dot, so no part is `.` or `..`.
 const Candidate = z
@@ -144,15 +136,13 @@ export const Capabilities = z.strictObject({
 });
 
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
-// A keyword whose text would make a validator load or register a schema from elsewhere: a reference out of this
-// schema, another meta-schema, or an `$id`, which could also clash with a schema of the host or of another extension.
+// A keyword that loads or registers a schema from elsewhere: an outside `$ref`, another meta-schema, or an `$id`.
 const foreign = (key: string, item: unknown): boolean => {
   if (typeof item !== "string") return false;
   if (key === "$ref" || key === "$dynamicRef") return item !== "" && !item.startsWith("#");
   return key === "$id" || (key === "$schema" && item !== DRAFT_2020_12);
 };
-// Keywords whose values are data, not schemas, and keywords whose values map any names (a property called `$ref`)
-// to schemas.
+// Keywords whose values are data, and keywords that map any names (a property called `$ref`) to schemas.
 const LITERALS = new Set(["const", "enum", "default", "examples"]);
 // `dependencies` is draft 7's, which Ajv still compiles: a map to schemas (or to lists of names, which hold no text).
 const SCHEMA_MAPS = new Set([
@@ -296,8 +286,7 @@ export const ExtensionManifest = z
   .register(fileFormats, { id: "ExtensionManifest" });
 export type ExtensionManifest = z.infer<typeof ExtensionManifest>;
 
-// A name of the POSIX portable file name characters, not starting with "-", up to 255 of them; no `.git` in any case,
-// nothing Windows would rename or open as a device (a trailing dot, which also refuses `.` and `..`; CON, NUL, COM0).
+// A portable file name part: docs/agents/cedarloom-rationale.md#names
 const portable = (part: string): boolean =>
   !/^\.git$|\.$/i.test(part) && !/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part);
 
@@ -312,9 +301,7 @@ export const PortablePath = z
   .refine((path) => path.split("/").every(portable), "no .git, no trailing dot, no Windows device name")
   .describe("Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1");
 
-// The URL forms Git fetches over https and ssh, without a password and without a character a shell, a terminal or a
-// credential helper reads specially (control characters, spaces, non-ASCII); a user or host never starts with `-`,
-// which ssh would read as an option.
+// The Git URL forms CedarLoom fetches: docs/agents/cedarloom-rationale.md#git-urls
 const user = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 const host = /^[a-z0-9][a-z0-9.-]*$/;
 const scpLike = /^[A-Za-z0-9_][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9.-]*:(?!-)[!-~]+$/;

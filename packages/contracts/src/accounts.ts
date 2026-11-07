@@ -86,8 +86,7 @@ export const AccountRegistry = z
     pools: z.partialRecord(Agent, z.record(Name, Pool)),
   })
   .superRefine((registry, ctx) => {
-    // shortcut: folders compare without trailing separators but otherwise as written, so another case of a folder passes;
-    // compare real paths once a command adds folders other than CedarLoom's own homes.
+    // shortcut: folders compare without a trailing separator, else as written; compare real paths once others come.
     const names = new Set<string>();
     const taken = new Set<string>();
     const claim = (seen: Set<string>, value: string, path: (string | number)[]) => {
@@ -152,8 +151,7 @@ export const Reading = z.strictObject({
   account: Name,
   window: Quota,
   usedPercent: Percent,
-  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order. Null: the
-  // source gave a share without a reset, which counts until the next reading replaces it, as claude-swap judges it.
+  // Milliseconds, so the ledger's text order is time order; null: a share without a reset, kept until the next reading.
   resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),
   source: z.enum(["worker", "cswap"]),
@@ -180,8 +178,7 @@ export const UsageSample = z.strictObject({
   resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),
   runId: z.uuid().nullable(),
-  // The agent's line as canonical JSON. A longer line than USAGE_RAW_LIMIT_BYTES keeps its first bytes followed by
-  // USAGE_RAW_CUT_MARKER, and is then no JSON: a line that ends with the marker was cut.
+  // Canonical JSON; a line over USAGE_RAW_LIMIT_BYTES keeps its start plus USAGE_RAW_CUT_MARKER, and is then no JSON.
   raw: z.string(),
 });
 export type UsageSample = z.infer<typeof UsageSample>;

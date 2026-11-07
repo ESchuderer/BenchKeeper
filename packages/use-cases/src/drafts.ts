@@ -32,9 +32,7 @@ import { parseDocument } from "./use-cases.ts";
 /** The largest draft file: a workflow at the schema's bounds (1000 nodes, 5000 edges) takes about 1 MB. */
 export const DRAFT_LIMIT = 2 * 1024 * 1024;
 
-// The drafts are the working copies of the workflows the editor has open: one file per workflow id, in the canonical
-// file form, beside the run store. Lower case, since a case-insensitive file system (macOS, Windows) would join ids
-// that differ in case only anyway; the prefix keeps a Windows device name (con, nul) from being the file's name.
+// One lower-case file per workflow id, with a prefix: docs/agents/cedarloom-rationale.md#drafts
 const FOLDER = "drafts";
 const FILE = /^workflow-([a-z][a-z0-9_-]{0,63})\.json$/;
 // The temporary file of a draft's write (engine's tempPath), which only a crash leaves behind.
@@ -43,16 +41,12 @@ const pathOf = (state: string, id: string): string => {
   const name = `workflow-${id.toLowerCase()}.json`;
   const folder = resolve(state, FOLDER);
   const path = resolve(folder, name);
-  // The routes take workflow ids only; any other caller gets no path outside the folder either. The id's pattern (before
-  // lower case, which maps the Kelvin sign to k) ensures that; the prefix check is the form CodeQL recognizes.
+  // Only a workflow id gets a path, in CodeQL's prefix form: docs/agents/cedarloom-rationale.md#drafts
   if (!WorkflowId.safeParse(id).success || !path.startsWith(folder + sep)) throw new Error(`not a workflow id: ${id}`);
   return path;
 };
 
-/**
- * The draft's base: the id of the stored blob it was opened from or last saved as, in a file beside it, so a save can
- * tell a version stored meanwhile (P3 a).
- */
+// The draft's base beside it: the stored blob it was opened from or last saved as, so a save sees a newer one (P3 a).
 export const basePathOf = (state: string, id: string): string => pathOf(state, id).replace(/\.json$/, ".base");
 
 const tooLarge = (id: string, bytes: number): Result<never> => ({
@@ -88,14 +82,10 @@ export const listDrafts = (state: string): DraftInfo[] => {
   return drafts.toSorted((a, b) => b.savedAt.localeCompare(a.savedAt) || a.id.localeCompare(b.id));
 };
 
-// The open follows no link (Windows has no O_NOFOLLOW; a link there takes admin rights or developer mode to make) and
-// does not wait for a writer when the name is a FIFO.
+// No link and no wait on a FIFO (why: docs/agents/cedarloom-rationale.md#drafts).
 const READ = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
 
-/**
- * The file at `path`, its status and, under the draft limit, its bytes, all from one open file, so a write meanwhile is
- * never mixed in. Undefined when nothing is there; null when what is there is no file (a link, a FIFO, a folder).
- */
+// The file's status and, under the draft limit, its bytes, from one open file; undefined: none there; null: no file.
 export const load = (path: string): { info: Stats; bytes: Buffer | null } | null | undefined => {
   let file: number;
   try {
@@ -136,10 +126,7 @@ export const readDraft = (state: string, id: string): Result<Draft> => {
   };
 };
 
-/**
- * The hash of the draft a save replaces, from the capped read. Whatever else holds the name (a link, a FIFO, a file
- * over the limit) is no draft that could be restored: it goes, so the save can link its own file in.
- */
+// The replaced draft's hash; a link, FIFO or oversize file at the name is no draft and goes, so the save can link in.
 const current = (path: string): string | null => {
   const found = load(path);
   if (found === undefined) return null;

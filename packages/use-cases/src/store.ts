@@ -67,10 +67,7 @@ const baseOf = (state: string, id: string): string | null => {
   }
 };
 
-/**
- * The validator's first error that keeps a workflow out of the store, for a save and an import alike. An extension not
- * installed here yet is none: the stored workflow runs once it is.
- */
+// The validator's first error that keeps a workflow out of the store; an extension not installed yet is none.
 export const unstorable = (workflow: WorkflowDefinition): Finding | undefined =>
   validateWorkflow(workflow).find(
     (finding) => findingInfo[finding.code].severity === "error" && finding.code !== "workflow.extension-missing",
@@ -180,8 +177,7 @@ const storedFiles = (state: string, ids: string[]): Result<Stored> => {
   return { ok: true, value: stored };
 };
 
-// A link anywhere inside the folder, which a shared clone can hold, would redirect the write: from `workflows` into
-// the state folder's drafts, say. Apply refuses a link at the file itself; this refuses one on the way to it too.
+// A link inside the folder (a shared clone can hold one) would redirect the write; apply refuses one at the file only.
 export const linkIn = (folder: string, path: string): string | undefined => {
   const parts = path.split("/");
   return parts

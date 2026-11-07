@@ -26,10 +26,7 @@ const taken = (value: Taken): Result<Taken> => ({ ok: true, value });
 
 const recordPath = (state: string): string => join(state, "pack-sources.json");
 
-/**
- * This machine's record of the followed sources; none yet is empty. One CedarLoom cannot read, or a newer one, stops
- * the plan rather than skip a wait or lose its entries; deleting it takes each source's newest commit at once.
- */
+// The followed sources' record; an unreadable or newer one stops the plan; deleting it takes each newest commit now.
 export const readRecord = (state: string): Result<Followed> => {
   const path = recordPath(state);
   const file = readOptionalJson(path);
@@ -64,25 +61,19 @@ const pinned = async (state: string, source: Pinned, fetch: Fetch): Promise<Resu
   return { ok: false, finding: { code: "profile.source-digest", params } };
 };
 
-// A file that may run, in a source that follows a branch or tag: anything but .md and .txt at mode 100644 (Q2 a). A
-// pack's own manifest at 100644 is the one exception: CedarLoom reads it as data, and without it no pack could follow a
-// branch; in a skill's source it is no manifest and is refused too.
+// A file that may run in a branch or tag source: not .md or .txt at 100644 (Q2 a); a pack's own manifest is data.
 const runnable = (tree: Tree, pack: boolean): string | undefined =>
   tree.files.find(
     (file) =>
       file.mode !== "100644" || !(/\.(?:md|txt)$/i.test(file.path) || (pack && file.path === "cedarloom-pack.json")),
   )?.path;
 
-// Whether the commit at the ref is taken: the first one at once, the one in use always, a new one 3 days after it was seen.
+// Whether the ref's commit is taken: the first one at once, the one in use always, a new one 3 days after it was seen.
 const due = (known: Followed[string], seen: { commit: string; at: string }, now: number): boolean =>
   known.commit === seen.commit || now - Date.parse(seen.at) >= UPDATE_WAIT_MS;
 
-/**
- * A source that follows a branch or tag: the commit there, taken at once the first time, else once this machine has
- * seen it there for 3 days (A94); until then the commit in use, fetched again by its pin, or the plan stops when that
- * commit is gone. A commit with a file that may run is refused, as such a source needs a pin. shortcut: only the ref's
- * newest commit is fetched, as for extensions.
- */
+// A branch or tag source: its commit at once the first time, else after 3 days here (A94); runnable files need a pin.
+// shortcut: only the ref's newest commit is fetched, as for extensions.
 const followed = async (
   state: string,
   { source, pack }: { source: ByRef; pack: boolean },
@@ -106,10 +97,7 @@ const followed = async (
   return taken({ tree: kept.value.tree, entry: { ...known, seen }, waiting });
 };
 
-/**
- * Fetches each source once: a pinned one at its commit and digest, one that follows a branch or tag by this machine's
- * record. The trees by `sourceKey`, the record's entries for the followed sources, and the waits.
- */
+// Fetches each source once, pinned by commit and digest or followed by this machine's record: trees, record and waits.
 export const fetchSources = async (state: string, sources: Wanted[], fetch: Fetch, record: Followed) => {
   const trees = new Map<string, Tree>();
   const entries: Followed = {};

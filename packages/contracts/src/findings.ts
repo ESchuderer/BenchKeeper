@@ -50,8 +50,7 @@ export const Finding = z
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
     // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe).
     finding("run.shell-missing", {}),
-    // A report run's node that needs an OS sandbox where none runs: a command or precheck where the sandbox does not run
-    // sh (native Windows, a container that refuses bubblewrap), and on native Windows an agent (Q7); nothing starts.
+    // A report run's command, precheck or (on native Windows, Q7) agent where no OS sandbox runs; nothing starts.
     finding("run.sandbox-unavailable", { node: z.string(), reason: z.string() }),
     // A resume or cancel named another project folder than the run's own; its commands run only there.
     finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
@@ -142,14 +141,12 @@ export const Finding = z
     finding("doctor.plugin-not-loaded", { plugin: z.string(), errors: z.string() }),
     // A managed settings file the launcher cannot read or parse, so it cannot clear it.
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
-    // Git could not start, fetch, list, read or add a worktree; `error` is the end of its message. Never the URL: it may
-    // hold a token.
+    // Git could not start, fetch, list, read or add a worktree; `error` ends its message, never the URL (a token).
     finding("git.failed", {
       step: z.enum(["start", "fetch", "list", "read", "worktree", "commit", "update"]),
       error: z.string(),
     }),
-    // The workflow store (P3 a). A draft opened from another stored version than the one there now (an import changed
-    // it meanwhile): saved only on top of it, never merged.
+    // The draft was opened from another stored version than the one there now (P3 a): saved only on top, never merged.
     finding("store.conflict", { id: z.string() }),
     // A saved version must be above the stored one (semver precedence).
     finding("store.version-not-higher", { id: z.string(), stored: z.string(), found: z.string() }),
@@ -163,16 +160,12 @@ export const Finding = z
     // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
-    // An extension its trust level may not run here (P1 a, A31) or this Node (before 25), whose folder could widen its
-    // grant, that speaks another protocol or serves other actions than its manifest names (it is stopped at once), or a
-    // bundled one switched off.
+    // An extension its trust (P1 a, A31), this Node, its folder, protocol or actions refuse here, or a bundled one off.
     finding("extension.refused", {
       extension: z.string(),
       reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime", "off", "programs"]),
     }),
-    // An extension that is not installed or updated: no manifest at its folder's root, no entry file, another protocol
-    // than this CedarLoom speaks, one installed already, an update whose folder now holds another extension, or one of
-    // the `cedarloom` publisher, which only the app ships. Its id when the manifest names it.
+    // An extension not installed or updated: manifest, entry, protocol, a duplicate, a swapped folder, its publisher.
     finding("extension.install-refused", {
       extension: z.string().nullable(),
       reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id", "reserved", "programs"]),
@@ -221,8 +214,7 @@ export const Finding = z
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
-    // A drift line of `profiles check`, its plans and the doctor (plan section 2.9): what differs from the profile, the
-    // path, part, source or item it is about, and the item `apply --remove` takes when its removal is offered.
+    // A drift line of `profiles check`, its plans and doctor (plan 2.9), and what `apply --remove` takes when offered.
     finding("profile.drift", {
       status: z.enum(["missing", "outdated", "deselected-present", "not-run"]),
       subject: z.string(),
@@ -238,12 +230,9 @@ export const Finding = z
     finding("profile.newer-pack", { path: z.string(), recorded: z.string(), local: z.string() }),
     // An auto part that stays off until this machine names the binding it waits for.
     finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
-    // A part the selection switches on that stays off while its condition fails: for `orca`, the Orca extension is
-    // switched off or no orca program is found.
+    // A part switched on stays off while its condition fails: for `orca`, the extension is off or no program is found.
     finding("profile.when-unmet", { part: z.string(), when: z.enum(["orca"]) }),
-    // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
-    // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
-    // updates it by itself; no source: a marketplace Claude Code already knows.
+    // A plugin part not approved by name (its hooks, MCP servers and commands run in every session), with its source.
     finding("profile.approval-needed", {
       part: z.string(),
       plugin: z.string(),
@@ -254,8 +243,7 @@ export const Finding = z
       project: z.string().nullable(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
-    // A files part that writes targets that run as programs or configure tools, which wait for an approval by name (hub
-    // issue 130): the part with its title, the project, and its targets by class.
+    // A files part whose targets run as programs or configure tools waits for approval by name (hub issue 130).
     finding("profile.target-approval", {
       part: z.string(),
       title: z.string(),
@@ -265,8 +253,7 @@ export const Finding = z
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
-    // The Dev Containers CLI did not apply a devcontainer part's Template, which then writes nothing: the part, the
-    // Template and why.
+    // The Dev Containers CLI did not apply a part's Template, which then writes nothing.
     finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
     // A target two parts write, such as the Dependabot file of two gates parts: the later part and the target.
     finding("profile.target-twice", { part: z.string(), target: z.string() }),
@@ -302,8 +289,7 @@ export const Finding = z
     finding("outbox.status", { id: z.string(), status: z.string() }),
     // A sent entry with nothing to undo: it changed nothing on the issue, or it deleted a comment, which stays deleted.
     finding("outbox.not-undoable", { id: z.string(), reason: z.enum(["unchanged", "no-inverse"]) }),
-    // The tracker was not reached, or answered with a server error or a rate limit: the entry stays queued.
-    // A rate limit keeps GitHub's retry-after (seconds) and x-ratelimit-reset (epoch seconds) as sent, null without them.
+    // The tracker was unreachable, failed or rate-limited (its retry headers as sent); the entry stays queued.
     finding("tracker.unavailable", {
       error: z.string(),
       retryAfter: z.string().nullable(),
@@ -311,8 +297,7 @@ export const Finding = z
     }),
     // The tracker refused the write with an HTTP status, such as an issue that is gone or a token without the permission.
     finding("tracker.refused", { status: z.int(), error: z.string() }),
-    // The tracker's answer is not what CedarLoom reads, such as a comment without a link: the entry fails, as a retry
-    // would read the same answer; the write itself may have happened.
+    // An answer CedarLoom cannot read: the entry fails, as a retry reads the same; the write may have happened.
     finding("tracker.invalid-answer", { error: z.string() }),
   ])
   .register(contracts, { id: "Finding" });

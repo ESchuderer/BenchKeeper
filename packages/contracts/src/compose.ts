@@ -33,8 +33,7 @@ const inside = (value: Json | undefined, at: string): string[] => {
   if (typeof value !== "object" || value === null) return [];
   return Object.entries(value).flatMap(([key, item]) => [pointer(at, key), ...inside(item, pointer(at, key))]);
 };
-// Records the file that set the value at a pointer. A value replaced whole forgets who set what was inside it, by the
-// pointers of that value alone, so the cost follows the replaced value, never the whole record.
+// Records who set the value at a pointer; a value replaced whole forgets its inside, so the cost follows that value.
 /** Called with the JSON Pointer of each value a merge sets, and the value it replaces there. */
 export type Mark = (at: string, replaced?: Json) => void;
 type Level = "machine" | "workspace" | "project";
@@ -81,8 +80,7 @@ const wholes = (before: Json | undefined, after: Tree, at: string, mark: Mark): 
   return merged;
 };
 
-// Part fields that hold a source (a text, a pack or Git source, a marketplace) are one value, so `{ inline }` never
-// mixes with a parent's `{ pack, path }`; `files` maps paths to such texts. A list of texts grows as any list does.
+// Fields that hold a source are one value, so `{ inline }` never mixes with a parent's `{ pack, path }`.
 const SOURCES = new Set(["text", "rules", "source", "marketplace", "scaffold"]);
 const mergePart = (before: Tree, after: Tree, at: string, mark: Mark): Tree => {
   const merged = { ...before };
@@ -98,8 +96,7 @@ const mergePart = (before: Tree, after: Tree, at: string, mark: Mark): Tree => {
   return merged;
 };
 
-// The files in the order they apply: each parent after its own parents, a parent reached twice at its first place,
-// then the root; each read as a profile, so no file skips the reader's refusals.
+// The files in apply order: each parent after its own and once, at its first place, then the root; each a profile.
 const layersOf = (root: ProfileFile, load: LoadParent): Result<ProfileFile[]> => {
   const layers: ProfileFile[] = [];
   const done = new Set<string>();
@@ -164,13 +161,9 @@ const mergeLayer = (layer: ProfileFile, head: Tree, parts: Record<Level, Tree>, 
  * one field by field: lists grow, objects merge key by key, a source and any other value is replaced. A part of another
  * type replaces the earlier one whole, the one way a later file drops what an earlier one set (a deny list included);
  * otherwise nothing is removed, and a child switches a part off with `default: off`. The file's own `id`, `version`,
- * `name` and `minApp` are kept, a parent's are not.
- *
- * Three rules differ from Renovate on purpose: a parent reached twice applies once, at its first place (Renovate merges
- * it again on each path, so the second application would take back the first branch's changes); a cycle is refused
- * (Renovate skips it); every list grows without duplicates (Renovate concatenates only its mergeable options, keeps
- * duplicates and replaces other arrays). A pack id with two sources, a parent a pack lacks and more than
- * `MAX_PROFILE_FILES` files are refused too.
+ * `name` and `minApp` are kept, a parent's are not. A parent reached twice applies once, at its first place; a cycle,
+ * a pack id with two sources, a parent a pack lacks and more than `MAX_PROFILE_FILES` files are refused; lists grow
+ * without duplicates. Where this differs from Renovate, and why: docs/agents/cedarloom-rationale.md#profile-merge
  */
 export const composeProfile = (value: unknown, load: LoadParent): Result<Composed> => {
   const root = readProfile(value);

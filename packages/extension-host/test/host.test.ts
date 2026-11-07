@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { ExtensionManifest, type Result } from "@cedarloom/contracts";
 import {
@@ -827,5 +827,29 @@ test("a worker runner starts, shows and releases a worker within its contract; n
     failure("worker", "an answer the host refuses"),
     failure("worker", "a request outside its contract"),
     failure("worker", "a request outside its contract"),
+  ]);
+});
+
+// The fixture as a session provider whose program is `node`, which the host finds on PATH.
+const providing = (): ExtensionManifest => {
+  const plain = withPrograms({ node: ["node"] });
+  const sessionProviders = { claude: { agent: "claude", program: "node" } };
+  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, sessionProviders } });
+};
+
+test("a session line is the provider's program as the host finds it, then exactly run <number> --require-session --; another shape, a bad number or an unnamed provider fails", async () => {
+  const fixture = await extension({ manifest: providing() });
+  const bad = await extension({ manifest: providing(), locale: "x-bad-session" });
+  const line = await fixture.session({ provider: "claude", number: 2 });
+  expect([
+    line.ok ? [basename(line.value[0] ?? "").replace(/\.exe$/, ""), ...line.value.slice(1)] : line.finding,
+    codeOf(await bad.session({ provider: "claude", number: 2 })),
+    codeOf(await fixture.session({ provider: "claude", number: 0 })),
+    codeOf(await fixture.session({ provider: "elsewhere", number: 2 })),
+  ]).toEqual([
+    ["node", "run", "2", "--require-session", "--"],
+    failure("session", "a line of another shape"),
+    failure("session", "a request outside its contract"),
+    failure("session", "no session provider elsewhere"),
   ]);
 });

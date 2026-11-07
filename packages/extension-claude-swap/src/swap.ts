@@ -4,6 +4,7 @@ import {
   jsonAnswer,
   type ProgramVersion,
   programVersion,
+  type SessionHandlers,
   type TargetAccount,
   type TargetHandlers,
   type TargetProbe,
@@ -159,6 +160,17 @@ export const targets: TargetHandlers = {
       to,
       reason: typeof reason === "string" ? reason : "",
     };
+  },
+};
+
+/** The session provider `claude`: claude-swap's session mode runs Claude Code as one of its accounts, by number. */
+export const sessions: SessionHandlers = {
+  "session/line": async ({ number }, context) => {
+    const row = (await rowsOf(context)).find((each) => at(each, "number") === number);
+    if (row === undefined) throw new Error(`claude-swap has no account ${number}`);
+    if (HELD.has(String(at(row, "usageStatus"))))
+      throw new Error(`claude-swap holds account ${number} until a new login`);
+    return { argv: ["cswap", "run", String(number), "--require-session", "--"] };
   },
 };
 

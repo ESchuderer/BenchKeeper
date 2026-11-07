@@ -3270,7 +3270,8 @@
                 "run",
                 "doctor",
                 "target",
-                "worker"
+                "worker",
+                "session"
               ]
             },
             "error": {

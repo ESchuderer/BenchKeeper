@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { type ExtensionManifest as Manifest, type Finding, type Result, shown } from "@cedarloom/contracts";
 import {
   doctorRun,
@@ -13,6 +14,7 @@ import {
   log,
   PROTOCOL,
   runAction,
+  type SessionCallParams,
   shutdown,
   type TargetAnswers,
   type TargetCall,
@@ -30,7 +32,7 @@ import {
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
 import { z } from "zod";
-import { executor } from "./exec.ts";
+import { executor, resolvedProgram } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
 import { ANSWERS, PolicySet } from "./targets.ts";
@@ -134,10 +136,16 @@ export type RunningExtension = {
    * (step worker) on the same grounds.
    */
   worker: <C extends WorkerCall>(call: C, params: WorkerCallParams[C]) => Promise<Result<WorkerAnswers[C]>>;
+  /**
+   * Asks a session provider (`contributes.sessionProviders`) for the line that runs its agent as account `number`:
+   * its program as the host finds it, then `run <number> --require-session --`. `extension.failed` (step session) on
+   * the grounds of `target`, a line of another shape, or the program not found.
+   */
+  session: (params: SessionCallParams["session/line"]) => Promise<Result<string[]>>;
 };
 
 type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "programs";
-type Step = "start" | "initialize" | "run" | "doctor" | "target" | "worker";
+type Step = "start" | "initialize" | "run" | "doctor" | "target" | "worker" | "session";
 
 const refused = (extension: string, reason: Refusal): Finding => ({
   code: "extension.refused",
@@ -388,7 +396,7 @@ const DoctorAnswer = (checks: string[]) =>
 
 // What a contributed call names, in the extension's manifest, and its answer's contract.
 type Contributed<A> = {
-  step: "target" | "worker";
+  step: "target" | "worker" | "session";
   what: string;
   names: object | undefined;
   name: string;
@@ -439,6 +447,32 @@ const workerOf = (manifest: Manifest, trust: Trust, session: Session, limits: Ho
   };
 };
 
+const Line = z.strictObject({ argv: z.array(z.string().max(4096)).max(16) });
+
+const sessionOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
+  const ask = askOf(manifest, trust, session, limits);
+  return async (params: SessionCallParams["session/line"]): Promise<Result<string[]>> => {
+    const { provider, number } = params;
+    if (!Number.isInteger(number) || number < 1)
+      return failed(manifest.id, "session", "a request outside its contract");
+    const names = manifest.contributes.sessionProviders;
+    const what = "session provider";
+    const asked = await ask("session/line", params, { step: "session", what, names, name: provider, answer: Line });
+    const program = names?.[provider]?.program;
+    if (!asked.ok || program === undefined)
+      return asked.ok ? failed(manifest.id, "session", `no ${what} ${provider}`) : asked;
+    // claude-swap's session mode as decided: no sharing flags, no profile path (switching plan 14.6, S9b).
+    const expected = ["run", String(number), "--require-session", "--"];
+    if (!isDeepStrictEqual(asked.value.argv, [program, ...expected])) {
+      return failed(manifest.id, "session", "a line of another shape");
+    }
+    const file = resolvedProgram(manifest, program);
+    return file === undefined
+      ? failed(manifest.id, "session", `${program} is not installed`)
+      : { ok: true, value: [file, ...expected] };
+  };
+};
+
 const doctorOf = async (manifest: Manifest, session: Session, limits: HostLimits): Promise<Finding[]> => {
   const checks = Object.keys(manifest.contributes.doctor ?? {});
   if (checks.length === 0) return [];
@@ -467,6 +501,7 @@ const running = (
   doctor: () => doctorOf(manifest, session, limits),
   target: targetOf(manifest, trust, session, limits),
   worker: workerOf(manifest, trust, session, limits),
+  session: sessionOf(manifest, trust, session, limits),
   run: async (request, signal) => {
     const id = manifest.id;
     if (signal?.aborted === true) return failed(id, "run", "cancelled by the host");

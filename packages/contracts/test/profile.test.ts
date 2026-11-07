@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   composeProfile,
   type LoadParent,
+  MAX_PROFILE_FILES,
   Profile,
   PROFILE_SCHEMA_VERSION,
   ProfileFile,
@@ -313,9 +314,38 @@ test("a part left incomplete by every file, or an auto part without its probe, i
   ]).toEqual([["machine.x.title", "machine.x.set"], ["machine.x.when"]]);
 });
 
-test("a parent the reader refuses stops the composition with its finding", () => {
-  const finding = { code: "profile.foreign-kind", params: { kind: "benchkeeper-profile" } } as const;
-  expect(outcome(composeProfile(child, () => ({ ok: false, finding })))).toEqual(finding);
+const foreign = (kind: string) => ({ code: "profile.foreign-kind", params: { kind } });
+test("the root and each parent are read as profiles, so a file the reader refuses stops the composition", () => {
+  expect([
+    outcome(composeProfile(child, () => ({ ok: true, value: { kind: "benchkeeper-profile" } }))),
+    outcome(composeProfile({ kind: "benchkeeper-preset" }, library)),
+  ]).toEqual([foreign("benchkeeper-profile"), foreign("benchkeeper-preset")]);
+});
+
+const manual = (text: string) => ({
+  manual: { type: "manual", title: "m", default: "on", claudeImport: true, rules: [{ inline: text }] },
+});
+test("a list of texts grows like any list", () => {
+  const parent = file({ ...own, id: "acme.p", project: manual("a\n") });
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }], project: manual("b\n") });
+  const composed = composeProfile(root, loader({ "acme.x/p": parent }));
+  const part = composed.ok && composed.value.profile.project["manual"];
+  expect(part && part.type === "manual" && part.rules).toEqual([{ inline: "a\n" }, { inline: "b\n" }]);
+});
+
+test(`more than ${MAX_PROFILE_FILES} profile files through parents are refused, however deep they go`, () => {
+  const files = Object.fromEntries(
+    Array.from({ length: 60 }, (_, at) => [
+      `acme.x/${at}`,
+      file({ ...own, id: `acme.f${at}`, extends: [{ pack: "acme.x", path: String(at + 1) }] }),
+    ]),
+  );
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "0" }] });
+  const composed = composeProfile(root, loader(files));
+  expect(!composed.ok && composed.finding.code === "profile.parent-limit" && composed.finding.params).toEqual({
+    chain: Array.from({ length: 50 }, (_, at) => `acme.x/${at}`),
+    limit: 50,
+  });
 });
 
 test("a part replaced whole forgets who set its fields", () => {
@@ -352,22 +382,17 @@ test("a label named like a source field merges as a label", () => {
   expect(Object.keys(labels || {})).toEqual(["github", "extra"]);
 });
 
-test("one entry from two sources is two parents", () => {
-  const other = { "acme.x": { git: "https://x.example/other.git", ref: "main" } };
-  const p = file({ ...tier("acme.p", "full", ["base"]), packs: other });
-  const files: Record<string, ProfileFile> = {
-    "https://x.example/x.git/p": p,
-    "https://x.example/x.git/base": tier("acme.base-x", null),
-    "https://x.example/other.git/base": tier("acme.base-other", "quick"),
-  };
-  const bySource: LoadParent = (parent, from) => {
-    const source = from.packs?.[parent.pack];
-    const found = source !== undefined && "git" in source ? files[`${source.git}/${parent.path}`] : undefined;
-    return found === undefined ? undefined : { ok: true, value: found };
-  };
-  const root = tier("acme.root", "standard", ["p", "base"]);
-  const composed = composeProfile(ProfileFile.parse(set(root, ["project"], {})), bySource);
-  expect(composed.ok && composed.value.setBy["/project/tier/tier"]).toBe("acme.base-x");
+test("a pack id two files give different sources is refused, naming both files", () => {
+  const parent = file({
+    ...own,
+    id: "acme.p",
+    packs: { "acme.x": { git: "https://x.example/other.git", ref: "main" } },
+  });
+  const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }] });
+  expect(outcome(composeProfile(root, loader({ "acme.x/p": parent })))).toEqual({
+    code: "profile.pack-sources",
+    params: { pack: "acme.x", files: ["acme.p", "acme.root"] },
+  });
 });
 
 test("a selection names its profile file by an absolute path, also a UNC path", async () => {

@@ -1,11 +1,17 @@
 import { type Result, readDocument } from "./documents.ts";
+import type { Finding } from "./findings.ts";
 import { canonicalJson, type Json } from "./json.ts";
-import { PROFILE_SCHEMA_VERSION, Profile, type ProfileFile } from "./profile.ts";
+import { PROFILE_SCHEMA_VERSION, Profile, type ProfileFile, readProfile } from "./profile.ts";
 
 /** A parent profile as a file names it: an entry of one of the file's packs. */
 export type ParentRef = { pack: string; path: string };
-/** Reads a parent through the packs of the file that names it; undefined when the pack has no such entry. */
-export type LoadParent = (parent: ParentRef, child: ProfileFile) => Result<ProfileFile> | undefined;
+/**
+ * Reads a parent's file through the packs of the file that names it, as parsed JSON; `composeProfile` reads it as a
+ * profile. Undefined when the pack has no such entry.
+ */
+export type LoadParent = (parent: ParentRef, child: ProfileFile) => Result<unknown> | undefined;
+/** The most profile files one composition reads, the root among them: each parent may be a Git fetch. */
+export const MAX_PROFILE_FILES = 50;
 /**
  * The composed profile, and for each value the id of the profile file that set it last, keyed by JSON Pointer
  * (RFC 6901): a value's setter is the one at its longest listed pointer, the "set by" of a drift line.
@@ -21,13 +27,16 @@ const present = (tree: Tree): [string, Json][] =>
 const pointer = (at: string, key: string | number): string =>
   `${at}/${String(key).replaceAll("~", "~0").replaceAll("/", "~1")}`;
 
-type Mark = (at: string) => void;
+// Records the file that set the value at a pointer. An object or list replaced whole forgets who set what was inside
+// it; only then are the recorded pointers scanned, so merging two large settings sets stays linear.
+type Mark = (at: string, replaced?: Json) => void;
 type Level = "machine" | "workspace" | "project";
-// Records the file that set the value at a pointer; a value set whole forgets who set what was inside it.
 const recorder =
   (setBy: Record<string, string>, layer: string): Mark =>
-  (at) => {
-    for (const key of Object.keys(setBy)) if (key.startsWith(`${at}/`)) delete setBy[key];
+  (at, replaced) => {
+    if (typeof replaced === "object" && replaced !== null) {
+      for (const key of Object.keys(setBy)) if (key.startsWith(`${at}/`)) delete setBy[key];
+    }
     setBy[at] = layer;
   };
 
@@ -49,7 +58,7 @@ const union = (before: Json[], after: Json[], at: string, mark: Mark): Json[] =>
 const merge = (before: Json | undefined, after: Json, at: string, mark: Mark): Json => {
   if (Array.isArray(before) && Array.isArray(after)) return union(before, after, at, mark);
   if (!isTree(before) || !isTree(after)) {
-    mark(at);
+    mark(at, before);
     return after;
   }
   const merged = { ...before };
@@ -60,8 +69,8 @@ const merge = (before: Json | undefined, after: Json, at: string, mark: Mark): J
 // A record whose values are each one value: a later file's replaces an entry whole.
 const wholes = (before: Json | undefined, after: Tree, at: string, mark: Mark): Tree => {
   const merged = isTree(before) ? { ...before } : {};
-  for (const [key, item] of Object.entries(after)) {
-    mark(pointer(at, key));
+  for (const [key, item] of present(after)) {
+    mark(pointer(at, key), merged[key]);
     merged[key] = item;
   }
   return merged;
@@ -77,7 +86,7 @@ const mergePart = (before: Tree, after: Tree, at: string, mark: Mark): Tree => {
     if (key === "files" && isTree(item)) merged[key] = wholes(before[key], item, field, mark);
     else if (!SOURCES.has(key) || Array.isArray(item)) merged[key] = merge(before[key], item, field, mark);
     else {
-      mark(field);
+      mark(field, before[key]);
       merged[key] = item;
     }
   }
@@ -85,31 +94,46 @@ const mergePart = (before: Tree, after: Tree, at: string, mark: Mark): Tree => {
 };
 
 // The files in the order they apply: each parent after its own parents, a parent reached twice at its first place,
-// then the root.
+// then the root; each read as a profile, so no file skips the reader's refusals.
 const layersOf = (root: ProfileFile, load: LoadParent): Result<ProfileFile[]> => {
   const layers: ProfileFile[] = [];
   const done = new Set<string>();
-  const visit = (file: ProfileFile, chain: string[]): Result<undefined> => {
+  const visit = (file: ProfileFile, chain: string[]): Finding | undefined => {
     for (const parent of file.extends ?? []) {
-      // One parent is one entry of one source: two files may give a pack id different sources.
-      const key = `${parent.pack}/${parent.path} ${canonicalJson(file.packs?.[parent.pack] ?? null)}`;
-      if (chain.includes(key)) {
-        const names = [...chain, key].map((each) => each.slice(0, each.indexOf(" ")));
-        return { ok: false, finding: { code: "profile.parent-cycle", params: { chain: names } } };
-      }
+      const key = `${parent.pack}/${parent.path}`;
+      if (chain.includes(key)) return { code: "profile.parent-cycle", params: { chain: [...chain, key] } };
       if (done.has(key)) continue;
-      const read = load(parent, file);
-      if (read === undefined) return { ok: false, finding: { code: "profile.parent-unknown", params: parent } };
-      if (!read.ok) return read;
-      const parents = visit(read.value, [...chain, key]);
-      if (!parents.ok) return parents;
+      if (layers.length + chain.length + 1 >= MAX_PROFILE_FILES) {
+        return { code: "profile.parent-limit", params: { chain: [...chain, key], limit: MAX_PROFILE_FILES } };
+      }
+      const loaded = load(parent, file);
+      if (loaded === undefined) return { code: "profile.parent-unknown", params: parent };
+      const read = loaded.ok ? readProfile(loaded.value) : loaded;
+      if (!read.ok) return read.finding;
+      const failed = visit(read.value, [...chain, key]);
+      if (failed !== undefined) return failed;
       done.add(key);
       layers.push(read.value);
     }
-    return { ok: true, value: undefined };
+    return undefined;
   };
-  const visited = visit(root, []);
-  return visited.ok ? { ok: true, value: [...layers, root] } : visited;
+  const failed = visit(root, []);
+  return failed === undefined ? { ok: true, value: [...layers, root] } : { ok: false, finding: failed };
+};
+
+// A pack id names one source in every file of a composition, so a text a parent names comes from where it chose.
+const packConflict = (layer: ProfileFile, head: Tree, setBy: Record<string, string>): Finding | undefined => {
+  const packs = isTree(head["packs"]) ? head["packs"] : {};
+  for (const [pack, source] of Object.entries(layer.packs ?? {})) {
+    const before = packs[pack];
+    if (before !== undefined && canonicalJson(before) !== canonicalJson(source)) {
+      return {
+        code: "profile.pack-sources",
+        params: { pack, files: [setBy[pointer("/packs", pack)] ?? "", layer.id] },
+      };
+    }
+  }
+  return undefined;
 };
 
 const mergeLayer = (layer: ProfileFile, head: Tree, parts: Record<Level, Tree>, mark: Mark): void => {
@@ -122,7 +146,7 @@ const mergeLayer = (layer: ProfileFile, head: Tree, parts: Record<Level, Tree>, 
       if (isTree(before) && before["type"] === each.type) {
         parts[level][id] = mergePart(before, each, at, mark);
       } else {
-        mark(at);
+        mark(at, before);
         parts[level][id] = each;
       }
     }
@@ -130,21 +154,33 @@ const mergeLayer = (layer: ProfileFile, head: Tree, parts: Record<Level, Tree>, 
 };
 
 /**
- * Merges a profile file with its parents, Renovate-style: each parent in the order `extends` lists it, after its own
- * parents, then the file; a parent reached twice counts once, at its first place. Of two files, the later wins: a part
- * of the same type merges into the earlier one field by field (lists grow, objects merge key by key, a source and any
- * other value is replaced), a part of another type replaces it. The file's own `id`, `version`,
- * `name` and `minApp` are kept; a parent's are not. A parent that extends a file on the way to it is refused, the root's own entry
- * included once it is read as a parent.
+ * Reads a profile file and merges it with its parents, Renovate-style: each parent in the order `extends` lists it,
+ * after its own parents, then the file; of two files, the later wins. A part of the same type merges into the earlier
+ * one field by field: lists grow, objects merge key by key, a source and any other value is replaced. A part of another
+ * type replaces the earlier one whole, the one way a later file drops what an earlier one set (a deny list included);
+ * otherwise nothing is removed, and a child switches a part off with `default: off`. The file's own `id`, `version`,
+ * `name` and `minApp` are kept, a parent's are not.
+ *
+ * Three rules differ from Renovate on purpose: a parent reached twice applies once, at its first place (Renovate merges
+ * it again on each path, so the second application would take back the first branch's changes); a cycle is refused
+ * (Renovate skips it); every list grows without duplicates (Renovate concatenates only its mergeable options, keeps
+ * duplicates and replaces other arrays). A pack id with two sources, a parent a pack lacks and more than
+ * `MAX_PROFILE_FILES` files are refused too.
  */
-export const composeProfile = (root: ProfileFile, load: LoadParent): Result<Composed> => {
-  const layers = layersOf(root, load);
+export const composeProfile = (value: unknown, load: LoadParent): Result<Composed> => {
+  const root = readProfile(value);
+  if (!root.ok) return root;
+  const layers = layersOf(root.value, load);
   if (!layers.ok) return layers;
   const setBy: Record<string, string> = {};
   const head: Tree = { packs: {} };
   const parts: Record<Level, Tree> = { machine: {}, workspace: {}, project: {} };
-  for (const layer of layers.value) mergeLayer(layer, head, parts, recorder(setBy, layer.id));
-  const { schemaVersion, kind, id, version, name, description, license, minApp } = root;
+  for (const layer of layers.value) {
+    const conflict = packConflict(layer, head, setBy);
+    if (conflict !== undefined) return { ok: false, finding: conflict };
+    mergeLayer(layer, head, parts, recorder(setBy, layer.id));
+  }
+  const { schemaVersion, kind, id, version, name, description, license, minApp } = root.value;
   const own = { schemaVersion, kind, id, version, name, description, license, minApp };
   const read = readDocument(Profile, PROFILE_SCHEMA_VERSION, { ...head, ...parts, ...own });
   return read.ok ? { ok: true, value: { profile: read.value, setBy } } : read;

@@ -27,6 +27,7 @@ import {
   resumeRun,
   runWorkflow,
   showGraphRun,
+  switchMode,
   undoRun,
   waitsOf,
 } from "@cedarloom/use-cases";
@@ -423,6 +424,49 @@ const writing = () => {
   return { ...at, text: () => readFileSync(join(at.root, "out.txt"), "utf8") };
 };
 const idOf = (run: { ok: boolean; value?: { runId: string } }) => run.value?.runId ?? "";
+
+// A config folder whose default automation level is `level`.
+const configAt = (root: string, level: string): string => {
+  const config = join(root, "config");
+  mkdirSync(config);
+  writeFileSync(join(config, "automation.json"), JSON.stringify({ schemaVersion: 1, default: level, projects: {} }));
+  return config;
+};
+const pointsOf = (state: string, runId: string) => {
+  const waits = waitsOf(state, runId);
+  return waits.ok ? waits.value.waits.map((wait) => [wait.node, wait.point]) : waits.finding.code;
+};
+
+test("each level waits where Q10 has it: Supervised before a command and a plan, Checkpoint before a plan, Auto at neither", async () => {
+  const waited = await Promise.all(
+    ["supervised", "checkpoint", "auto"].map(async (level) => {
+      const at = writing();
+      const ran = await runWorkflow(at.state, at.file, {}, { ...at.options, config: configAt(at.root, level) });
+      return [level, idOf(ran) === "" ? ran : pointsOf(at.state, idOf(ran)), at.text()];
+    }),
+  );
+  expect(waited).toEqual([
+    ["supervised", [["say", "before-node"]], "old"],
+    ["checkpoint", [["out", "before-apply"]], "old"],
+    ["auto", [], "new"],
+  ]);
+});
+
+test("a level switched while a node runs takes effect at the next gate, not in that node", async () => {
+  const at = writing();
+  // The switch from Auto to Supervised comes once the command has started: it runs on, and the write waits at its own
+  // gate, which Auto would have passed.
+  const onEvent = (event: { type: string; node?: string }): void => {
+    if (event.type === "started" && event.node === "say") switchMode(at.state, "supervised");
+  };
+  const options = { ...at.options, config: configAt(at.root, "auto"), onEvent };
+  const runId = idOf(await runWorkflow(at.state, at.file, {}, options));
+  expect([eventsOf(at.state, runId).find((event) => event.type === "ended"), pointsOf(at.state, runId)]).toMatchObject([
+    { node: "say", outcome: "done" },
+    [["out", "before-node"]],
+  ]);
+  expect(at.text()).toBe("old");
+});
 
 test("a write waits without a runner for its plan's approval, then goes through one apply run that undo reverts", async () => {
   const at = writing();

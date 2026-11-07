@@ -78,8 +78,8 @@ export type Recovery = (left: Left) => Prepared | null | Promise<Prepared | null
 export type Gates = (point: GatePoint, node: string) => "pass" | "wait";
 
 /**
- * The gates until the levels' policy (M3 slice 4): a node of a run the user started goes, and a plan a run built waits
- * for the owner's approval of its hash (Q9 b).
+ * The gates without the levels' policy (M3 slice 4), which a caller passes as `gates`: a node of a run the user started
+ * goes, and a plan a run built waits for the owner's approval of its hash (Q9 b).
  */
 export const DEFAULT_GATES: Gates = (point) => (point === "before-apply" ? "wait" : "pass");
 

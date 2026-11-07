@@ -3,6 +3,7 @@ import { closeSync, constants, existsSync, lstatSync, openSync, readSync, realpa
 import { dirname, isAbsolute, join, relative, resolve as absolute, sep, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import {
+  type AutomationLevel,
   type Finding,
   type GatePoint,
   type GraphRun,
@@ -26,6 +27,7 @@ import {
   type ExecuteOptions,
   type Executors,
   errorCode,
+  type Gates,
   execute,
   hashFile,
   OUTPUT_CAP,
@@ -47,6 +49,7 @@ import { cleanEnv } from "@cedarloom/orchestration";
 import { stopTree } from "@cedarloom/extension-host";
 import { stopOrphans } from "./orphans.ts";
 import { type AgentOptions, agentRecover, agentRun } from "./agent-node.ts";
+import { type GateRun, levelAtGate } from "./automation.ts";
 import { readJson, retryBusy, withStore, withView } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
@@ -75,6 +78,8 @@ export interface RunOptions {
   readonly agents?: AgentOptions | undefined;
   /** A new run only reports (A28): it writes nothing but its record. A stored run keeps the mode it started with. */
   readonly report?: boolean | undefined;
+  /** The config folder whose automation levels set the run's gates; without it, a plan waits and every node goes. */
+  readonly config?: string | undefined;
 }
 
 // Stored outputs are blanked after 90 days, since a command's output can hold a secret.
@@ -291,6 +296,24 @@ const refusing = (code: string) => (): Prepared => ({
   run: () => Promise.resolve({ ok: false, values: { error: code } }),
 });
 
+// Where each level waits for the owner (Q10 a): Supervised before every node with effects and before a plan a run built
+// applies, Checkpoint only before such a plan, Auto at neither. A human.approval node waits at every level.
+const LEVEL_WAITS: Readonly<Record<AutomationLevel, readonly GatePoint[]>> = {
+  supervised: ["before-node", "before-apply"],
+  checkpoint: ["before-apply"],
+  auto: [],
+};
+
+// The levels' gates of a run, with the level read at each gate, so a switch takes effect at the next one. A report run
+// reaches none, having no effects; settings that cannot be read wait as Supervised does.
+const levelGates =
+  (config: string, state: string, run: GateRun, report: boolean): Gates =>
+  (point) => {
+    if (report) return "pass";
+    const level = levelAtGate(state, config, run);
+    return LEVEL_WAITS[level.ok ? level.value : "supervised"].includes(point) ? "wait" : "pass";
+  };
+
 // Opens the graph runs of `state`, runs `work` with them, and closes them again.
 const withGraphs = async <T>(state: string, work: (store: GraphStore) => Promise<Result<T>>): Promise<Result<T>> => {
   const store = openGraphStore(state);
@@ -328,9 +351,12 @@ const runHeld = async (
     "file.write": writeRecover(state),
     ...(agents === undefined ? {} : { "agent.run": agentRecover(run, agents) }),
   };
+  const startedAt = store.graphRun(lease.runId)?.startedAt ?? new Date().toISOString();
+  const { config } = options;
+  const gates = config === undefined ? undefined : levelGates(config, state, { project, startedAt }, run.report);
   try {
     const { signal, onEvent, sleep } = options;
-    const status = await execute(store, lease, held, { executors, signal, onEvent, sleep, recover });
+    const status = await execute(store, lease, held, { executors, signal, onEvent, sleep, recover, gates });
     return status.ok ? { ok: true, value: { runId: lease.runId, status: status.value } } : status;
   } finally {
     lease.release();

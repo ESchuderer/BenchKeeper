@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { AgentEvent, AgentRuntime, Launch } from "@cedarloom/agent-contracts";
-import type { Result } from "@cedarloom/contracts";
+import type { AccountRegistry, Result } from "@cedarloom/contracts";
 import type { Attempt, Prepared, Recovery } from "@cedarloom/engine";
 import { commonDir, worktreeOf } from "@cedarloom/git";
 import { readResult } from "@cedarloom/orchestration";
-import { loadRegistry } from "./accounts.ts";
+import { boundTarget, loadRegistry } from "./accounts.ts";
 import { levelAtGate } from "./automation.ts";
 import {
   type Decided,
@@ -80,11 +80,15 @@ const worktrees = (run: AgentRun) => {
   };
 };
 
-// shortcut: an agent runs on the registry's only Claude Code pool; give the run a choice once someone keeps two.
-const onlyPool = (config: string): string | null => {
-  const registry = loadRegistry(config);
-  const pools = Object.keys((registry.ok ? registry.value?.pools.claude : undefined) ?? {});
-  return pools.length === 1 ? (pools[0] ?? null) : null;
+// The pool an agent's worker chooses from: the one `accounts map` bound the run's folder to, else the registry's only
+// Claude Code pool. A folder bound to an account takes that account, and the only pool once the binding is removed.
+// shortcut: an unbound folder runs on the only pool; give the run a choice once someone keeps two pools unbound.
+const poolOf = (registry: AccountRegistry | null, project: string): string | null => {
+  const bound = registry === null ? null : boundTarget(registry, project);
+  if (bound !== null && "pool" in bound) return bound.pool;
+  const pools = Object.keys(registry?.pools.claude ?? {});
+  if (pools.length === 1) return pools[0] ?? null;
+  return bound === null ? null : "";
 };
 
 // The launcher's task of an attempt: a later runner finds the attempt's launches by it.
@@ -98,7 +102,9 @@ const requestOf = (
   options: AgentOptions,
   { resume, readOnly }: { resume: Resume | null; readOnly: readonly string[] | undefined },
 ): WorkerRequest<Launch> | string => {
-  const pool = onlyPool(options.config);
+  const registry = loadRegistry(options.config);
+  if (!registry.ok) return registry.finding.code;
+  const pool = poolOf(registry.value, run.project);
   if (pool === null) return "no-single-pool";
   const level = levelAtGate(run.state, options.config, { project: run.project, startedAt: new Date().toISOString() });
   if (!level.ok) return level.finding.code;
@@ -111,6 +117,7 @@ const requestOf = (
     pool,
     previous: null,
     model: options.model?.(phase),
+    project: run.project,
     ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
     runtime: options.runtime,

@@ -46,9 +46,11 @@ import { readOptionalJson, withView } from "./use-cases.ts";
 export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string =>
   onDisk(resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude")));
 
-const selectionPath = (config: string): string => join(config, "profile.json");
+export const selectionPath = (config: string): string => join(config, "profile.json");
 
-const readSelection = (config: string): Result<{ selection: ProfileSelection | null; before: string | null }> => {
+export const readSelection = (
+  config: string,
+): Result<{ selection: ProfileSelection | null; before: string | null }> => {
   const file = readOptionalJson(selectionPath(config));
   if (!file.ok) return file;
   if (file.value === null) return { ok: true, value: { selection: null, before: null } };
@@ -312,13 +314,18 @@ export const profileDoctor = async (
   return checked.ok ? checked.value.filter(({ code }) => !code.startsWith("git.")) : [checked.finding];
 };
 
-/** One change of the selection: a part on, off or back to its default (null), or one of this machine's bindings. */
+/**
+ * One change of the selection: a part on, off or back to its default (null), one of this machine's bindings, or the
+ * profile file it applies, by its absolute path.
+ */
 export type Choice =
   | { readonly part: string; readonly on: boolean | null }
   | { readonly hub: string }
-  | { readonly gates: string };
+  | { readonly gates: string }
+  | { readonly file: string };
 
 const chosen = (current: ProfileSelection, choice: Choice): unknown => {
+  if ("file" in choice) return { ...current, profile: { file: choice.file } };
   if (!("part" in choice)) return { ...current, bindings: { ...current.bindings, ...choice } };
   const select = Object.entries(current.select).filter(([part]) => part !== choice.part);
   return {

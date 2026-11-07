@@ -3018,7 +3018,8 @@
                 "actions",
                 "folder",
                 "runtime",
-                "off"
+                "off",
+                "programs"
               ]
             }
           },
@@ -3059,7 +3060,8 @@
                 "protocol",
                 "installed",
                 "id",
-                "reserved"
+                "reserved",
+                "programs"
               ]
             }
           },

@@ -655,6 +655,30 @@ test("workflows run runs a graph run; runs list and show show it with its attemp
   );
 });
 
+test("runs approve shows what a waiting node waits for, and with --yes approves it and runs the run on", async () => {
+  const { root, cli } = setup();
+  const asking = WorkflowDefinition.parse({
+    ...workflow,
+    nodes: [...workflow.nodes, { id: "go", type: "human.approval", with: { message: "Greet?" } }],
+    edges: [
+      { id: "e1", from: { node: "t", handle: "start" }, to: { node: "go", handle: "run" } },
+      { id: "e2", from: { node: "go", handle: "approved" }, to: { node: "a", handle: "run" } },
+    ],
+  });
+  const file = planFile(root, asking, "ask.json");
+  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
+  const runId = String(ran["runId"]);
+  const shown = json((await cli("--json", "runs", "approve", runId, "go")).out);
+  const other = await cli("--json", "runs", "reject", runId, "a");
+  const approved = json((await cli("--json", "runs", "approve", runId, "go", "--yes", "--project", root)).out);
+  expect([ran["status"], shown["wait"], other.code, approved["status"]]).toEqual([
+    "waiting",
+    { node: "go", point: "human.approval", planHash: null },
+    EXIT.refused,
+    "succeeded",
+  ]);
+});
+
 test("runs resume and cancel take over a graph run no process runs, and Ctrl+C cancels one this process runs", async () => {
   const { root, state, cli } = setup();
   const file = planFile(root, workflow, "greet.json");

@@ -11,9 +11,11 @@ export {
 export {
   type Attempt,
   capped,
+  DEFAULT_GATES,
   type ExecuteOptions,
   type Executors,
   execute,
+  type Gates,
   OUTPUT_CAP,
   type Prepared,
 } from "./execute.ts";

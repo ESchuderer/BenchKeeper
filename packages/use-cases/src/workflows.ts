@@ -1,15 +1,19 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from "node:fs";
-import { join, resolve as absolute, win32 } from "node:path";
+import { closeSync, constants, existsSync, openSync, readSync, realpathSync, statSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve as absolute, sep, win32 } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import {
   type Finding,
+  type GatePoint,
   type GraphRun,
   type JournalEvent,
   type NodeAttempt,
   type Json,
   JsonValue,
+  PLAN_SCHEMA_VERSION,
+  type Plan,
   type Result,
+  RunEvent,
   type RunStatus,
   readDocument,
   WORKFLOW_SCHEMA_VERSION,
@@ -17,25 +21,36 @@ import {
 } from "@cedarloom/contracts";
 import {
   type Attempt,
+  apply,
   type ExecuteOptions,
   type Executors,
+  errorCode,
   execute,
+  hashFile,
   OUTPUT_CAP,
   type Prepared,
+  replay,
   startRun,
 } from "@cedarloom/engine";
-import { type GraphStore, type GraphView, openGraphStore, openGraphView, type RunLease } from "@cedarloom/ledger";
+import {
+  type GraphStore,
+  type GraphView,
+  openGraphStore,
+  openGraphView,
+  planHash,
+  type RunLease,
+} from "@cedarloom/ledger";
 import { cleanEnv } from "@cedarloom/orchestration";
 import { stopOrphans, stopTree } from "./orphans.ts";
 import { type AgentOptions, agentRun } from "./agent-node.ts";
-import { readJson } from "./use-cases.ts";
+import { readJson, retryBusy, withStore } from "./use-cases.ts";
 
 type Values = Record<string, Json>;
 
-/** How a graph run ended. */
+/** How a graph run ended, or that it waits for the owner without a runner. */
 export interface GraphOutcome {
   readonly runId: string;
-  readonly status: RunStatus;
+  readonly status: RunStatus | "waiting";
 }
 
 export interface RunOptions {
@@ -59,8 +74,16 @@ export interface RunOptions {
 // Stored outputs are blanked after the same 90 days as plan contents, since a command's output can hold a secret.
 const OUTPUT_DAYS = 90;
 
-// The node types that run in this version, `agent.run` where agents are set up; writes and approvals come later.
-const RUNNABLE = new Set(["trigger.manual", "command.run", "file.read", "condition", "join"]);
+// The node types that run in this version, `agent.run` where agents are set up.
+const RUNNABLE = new Set([
+  "trigger.manual",
+  "command.run",
+  "file.read",
+  "file.write",
+  "condition",
+  "join",
+  "human.approval",
+]);
 
 /** The POSIX `sh` that runs commands: /bin/sh, or on Windows Git for Windows' sh.exe on PATH or in its usual folder. */
 const findShell = (platform: NodeJS.Platform = process.platform, env = process.env): string | null => {
@@ -141,7 +164,16 @@ const command =
     };
   };
 
-/** `file.read`: the file's text, up to just over the cap. Links are checked with the writes (pending). */
+// The file a node names, in the real path of the folder that holds it; null when that folder is outside the project's
+// real path, as through a link (review of #1076). Throws when the folder is not there. `project` is a real path.
+const inProject = (project: string, path: string): string | null => {
+  const folder = realpathSync.native(dirname(join(project, path)));
+  const below = relative(project, folder);
+  return below.split(sep)[0] === ".." || isAbsolute(below) ? null : join(folder, basename(path));
+};
+const OUTSIDE = { ok: false, values: { error: "file.outside-project" } } as const;
+
+/** `file.read`: the file's text, up to just over the cap; neither its folder nor the file itself may be a way out. */
 const fileRead =
   (project: string) =>
   ({ config }: Attempt): Prepared => ({
@@ -150,7 +182,9 @@ const fileRead =
       const buffer = Buffer.alloc(OUTPUT_CAP + 1);
       let fd: number | null = null;
       try {
-        fd = openSync(join(project, text(config["path"])), "r");
+        const path = inProject(project, text(config["path"]));
+        if (path === null) return Promise.resolve(OUTSIDE);
+        fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
         const read = readSync(fd, buffer, 0, buffer.length, 0);
         return Promise.resolve({ ok: true, values: { content: buffer.subarray(0, read).toString("utf8") } });
       } catch {
@@ -160,6 +194,47 @@ const fileRead =
       }
     },
   });
+
+// The plan of a `file.write`: the node's content (text as it is, any other value as its JSON) at its path, replacing
+// what is there now.
+const planOf = (project: string, { config, data }: Attempt): Plan | string => {
+  let path: string | null;
+  try {
+    path = inProject(project, text(config["path"]));
+  } catch (error) {
+    return errorCode(error);
+  }
+  if (path === null) return OUTSIDE.values.error;
+  const content = data["content"] === undefined ? "" : text(data["content"]);
+  return { schemaVersion: PLAN_SCHEMA_VERSION, operations: [{ kind: "write", path, before: hashFile(path), content }] };
+};
+
+/**
+ * `file.write`: a plan that waits at its gate for the owner's approval of its hash, then an apply run of the run store,
+ * which backs it up for undo, recorded on the attempt before it writes anything.
+ */
+const fileWrite =
+  (project: string, state: string) =>
+  (attempt: Attempt): Prepared => {
+    const plan = planOf(project, attempt);
+    if (typeof plan === "string")
+      return { pid: null, run: () => Promise.resolve({ ok: false, values: { error: plan } }) };
+    const hash = planHash(plan);
+    const onBegun = (applyRun: string): void => {
+      if (!attempt.applying(applyRun)) throw new Error("another runner took the run over");
+    };
+    return {
+      pid: null,
+      planHash: hash,
+      run: async () => {
+        const applied = await retryBusy(() =>
+          withStore(state, (store) => ({ ok: true, value: apply(store, plan, hash, { onBegun }) })),
+        );
+        const code = applied.ok ? applied.value.findings[0]?.code : applied.finding.code;
+        return code === undefined ? { ok: true } : { ok: false, values: { error: code } };
+      },
+    };
+  };
 
 // What a run needs before it starts: node types this version runs, and sh for commands and a precheck.
 const unready = (workflow: WorkflowDefinition, shell: string | null, agents: boolean): Finding | null => {
@@ -196,6 +271,7 @@ const runHeld = async (
   const executors: Executors = {
     "command.run": command(shell, project),
     "file.read": fileRead(project),
+    "file.write": fileWrite(project, state),
     ...(agents === undefined ? {} : { "agent.run": agentRun({ state, runId: lease.runId, project }, agents) }),
   };
   try {
@@ -305,6 +381,13 @@ const runOn = (store: GraphStore, { run, lease }: TakenOver, shell: string, opti
  * as failed (Q4). Refused when the version here does not run it, with the validator's finding when it changed.
  */
 export const resumeRun = (state: string, runId: string, options: RunOptions): Promise<Result<GraphOutcome>> =>
+  takenOver(state, runId, options, () => ({ ok: true, value: [] }));
+
+type First = (run: GraphRun, journal: readonly JournalEvent[]) => Result<JournalEvent[]>;
+
+// Takes over a stored run this version runs in its folder, appends what `first` tells it (or refuses with its finding),
+// and runs it on from its journal.
+const takenOver = (state: string, runId: string, options: RunOptions, first: First): Promise<Result<GraphOutcome>> =>
   withGraphs(state, async (store) => {
     const run = store.graphRun(runId);
     if (run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
@@ -312,10 +395,13 @@ export const resumeRun = (state: string, runId: string, options: RunOptions): Pr
     if (!shell.ok) return shell;
     const project = projectOf(run, options.project);
     if (!project.ok) return project;
+    const journal = store.events(runId);
+    const told = first(run, journal.ok ? journal.value : []);
+    if (!told.ok) return told;
     const lease = store.takeOver(runId);
-    return lease.ok
-      ? runOn(store, { run, lease: lease.value }, shell.value, { ...options, project: project.value, state })
-      : lease;
+    if (!lease.ok) return lease;
+    for (const event of told.value) store.append(runId, lease.value.epoch, event);
+    return runOn(store, { run, lease: lease.value }, shell.value, { ...options, project: project.value, state });
   });
 
 // Opens the graph runs of `state` for reading, runs `read` with them (null while there are none), and closes them.
@@ -387,8 +473,8 @@ export const cancelRun = (
   state: string,
   runId: string,
   options: RunOptions,
-): Promise<Result<{ runId: string; status: RunStatus | "cancelling" }>> =>
-  withGraphs<{ runId: string; status: RunStatus | "cancelling" }>(state, async (store) => {
+): Promise<Result<{ runId: string; status: GraphOutcome["status"] | "cancelling" }>> =>
+  withGraphs<{ runId: string; status: GraphOutcome["status"] | "cancelling" }>(state, async (store) => {
     const run = store.graphRun(runId);
     if (run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
     // A cancel starts nothing, so a folder that is gone does not stop it; another folder named does.
@@ -408,4 +494,57 @@ export const cancelRun = (
       project: project.ok ? project.value : "",
       state,
     });
+  });
+
+/** A node of a graph run that waits for the owner: an approval, or an attempt at a gate with the plan it would apply. */
+export interface Waiting {
+  readonly node: string;
+  readonly point: GatePoint | "human.approval";
+  readonly planHash: string | null;
+}
+
+// What waits in a run: approvals its replay leaves waiting, and attempts whose last record is a gate.
+const waitsIn = (run: GraphRun, journal: readonly JournalEvent[]): Waiting[] => {
+  const events = journal.flatMap((event) => {
+    const parsed = RunEvent.safeParse(event);
+    return parsed.success ? [parsed.data] : [];
+  });
+  const replayed = replay(run.definition, run.inputs, events);
+  const nodes = replayed.ok ? Object.entries(replayed.value.nodes) : [];
+  const approvals = nodes.flatMap(([node, { state }]) =>
+    state === "waiting" ? [{ node, point: "human.approval" as const, planHash: null }] : [],
+  );
+  const gates = new Map<string, Waiting>();
+  for (const event of journal) {
+    if (event.type === "gate")
+      gates.set(event.node, { node: event.node, point: event.point, planHash: event.planHash });
+    else if ("node" in event) gates.delete(event.node);
+  }
+  return [...approvals, ...gates.values()];
+};
+
+/** What a graph run waits for, read without a write. */
+export const waitsOf = (state: string, runId: string): Result<{ run: GraphRun; waits: Waiting[] }> =>
+  withGraphView(state, (view) => {
+    const run = view?.graphRun(runId);
+    if (view === null || run === undefined) return { ok: false, finding: { code: "run.not-found", params: { runId } } };
+    const journal = view.events(runId);
+    return journal.ok ? { ok: true, value: { run, waits: waitsIn(run, journal.value) } } : journal;
+  });
+
+/**
+ * Records the owner's decision for a node of a graph run that waits for it, takes the run over and runs it on. A
+ * decision at a gate before an apply holds the hash of the plan the gate recorded, so it approves that plan only.
+ */
+export const decideRun = (
+  state: string,
+  runId: string,
+  { node, approved }: { readonly node: string; readonly approved: boolean },
+  options: RunOptions,
+): Promise<Result<GraphOutcome>> =>
+  takenOver(state, runId, options, (run, journal) => {
+    const wait = waitsIn(run, journal).find((each) => each.node === node);
+    if (wait === undefined) return { ok: false, finding: { code: "run.not-waiting", params: { runId, node } } };
+    const plan = wait.planHash === null ? {} : { planHash: wait.planHash };
+    return { ok: true, value: [{ type: "decided", node, approved, ...plan }] };
   });

@@ -1,6 +1,15 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -9,12 +18,16 @@ import { OUTPUT_CAP } from "@cedarloom/engine";
 import { openGraphStore } from "@cedarloom/ledger";
 import {
   cancelRun,
+  decideRun,
   listGraphRuns,
+  listRuns,
   planGraphRun,
   type RunOptions,
   resumeRun,
   runWorkflow,
   showGraphRun,
+  undoRun,
+  waitsOf,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 
@@ -365,3 +378,81 @@ test("a project folder that is not there refuses a run and a resume before anyth
   expect(codeOf(await runWorkflow(at.state, at.file, {}, { ...recorded, project: work }))).toBe("run.project-missing");
   expect(listGraphRuns(at.state)).toMatchObject({ value: [{ id: dead.runId }] });
 }, 30_000);
+
+// say -> out: a write of say's output to out.txt, which holds "old".
+const writing = () => {
+  const out = { id: "out", type: "file.write", with: { path: "out.txt" } } as const;
+  const at = project([command("say", "printf new"), out], "t.start>say.run say.done>out.run say.stdout>out.content");
+  writeFileSync(join(at.root, "out.txt"), "old");
+  return { ...at, text: () => readFileSync(join(at.root, "out.txt"), "utf8") };
+};
+const idOf = (run: { ok: boolean; value?: { runId: string } }) => run.value?.runId ?? "";
+
+test("a write waits without a runner for its plan's approval, then goes through one apply run that undo reverts", async () => {
+  const at = writing();
+  const runId = idOf(await runWorkflow(at.state, at.file, {}, at.options));
+  const waits = waitsOf(at.state, runId);
+  expect([showGraphRun(at.state, runId), at.text(), waits.ok && waits.value.waits]).toMatchObject([
+    { value: { run: { status: "waiting" } } },
+    "old",
+    [{ node: "out", point: "before-apply", planHash: expect.any(String) }],
+  ]);
+  // Another process decides, as after a restart: nothing of the run waited in memory.
+  const decided = await decideRun(at.state, runId, { node: "out", approved: true }, at.options);
+  const applying = eventsOf(at.state, runId).find((event) => event.type === "applying");
+  const applyRun = applying?.type === "applying" ? applying.applyRun : "";
+  expect([decided, at.text(), listRuns(at.state)]).toMatchObject([
+    { value: { status: "succeeded" } },
+    "new",
+    { value: [{ id: applyRun, status: "applied" }] },
+  ]);
+  expect([undoRun(at.state, applyRun, { yes: true }), at.text()]).toMatchObject([
+    { value: { status: "applied" } },
+    "old",
+  ]);
+});
+
+test("an approval's answer picks its branch; a cancel ends a waiting write; a node that waits takes no other decision", async () => {
+  const ask = { id: "ask", type: "human.approval", with: { message: "Ship it?" } } as const;
+  const asking = project([ask, command("ship", "printf shipped")], "t.start>ask.run ask.approved>ship.run");
+  const asked = idOf(await runWorkflow(asking.state, asking.file, {}, asking.options));
+  const waits = waitsOf(asking.state, asked);
+  expect(waits.ok && waits.value.waits).toEqual([{ node: "ask", point: "human.approval", planHash: null }]);
+  expect(await decideRun(asking.state, asked, { node: "ask", approved: false }, asking.options)).toMatchObject({
+    value: { status: "succeeded" },
+  });
+  expect(showGraphRun(asking.state, asked)).toMatchObject({ value: { attempts: [] } });
+  const at = writing();
+  const runId = idOf(await runWorkflow(at.state, at.file, {}, at.options));
+  const other = await decideRun(at.state, runId, { node: "say", approved: true }, at.options);
+  expect(other).toEqual(refused("run.not-waiting", { runId, node: "say" }));
+  const cancelled = await cancelRun(at.state, runId, at.options);
+  expect([cancelled, at.text()]).toMatchObject([{ value: { status: "cancelled" } }, "old"]);
+});
+
+test.skipIf(process.platform === "win32")(
+  "a folder linked to outside the project is no way out for a read or a write",
+  async () => {
+    const outside = mkdtempSync(join(tmpdir(), "cedarloom-outside-"));
+    writeFileSync(join(outside, "secret.txt"), "secret");
+    const nodes = [
+      { id: "read", type: "file.read", with: { path: "linked/secret.txt" } },
+      { id: "out", type: "file.write", with: { path: "linked/new.txt" } },
+    ] as const;
+    const at = project([...nodes], "t.start>read.run t.start>out.run", {
+      execution: { failurePolicy: "continue_independent" },
+    });
+    symlinkSync(outside, join(at.root, "linked"));
+    const runId = idOf(await runWorkflow(at.state, at.file, {}, at.options));
+    const ends = eventsOf(at.state, runId).flatMap((event) =>
+      event.type === "ended" ? [[event.node, event.values]] : [],
+    );
+    expect([ends, existsSync(join(outside, "new.txt"))]).toEqual([
+      [
+        ["read", { error: "file.outside-project" }],
+        ["out", { error: "file.outside-project" }],
+      ],
+      false,
+    ]);
+  },
+);

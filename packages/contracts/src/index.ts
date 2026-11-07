@@ -49,6 +49,7 @@ export {
 export { Finding, type FindingCode, findingInfo } from "./findings.ts";
 export {
   AttemptOutcome,
+  GatePoint,
   GraphRun,
   NodeAttempt,
   JournalEvent,

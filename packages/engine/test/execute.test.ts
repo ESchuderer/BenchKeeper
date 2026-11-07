@@ -2,7 +2,15 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { JournalEvent, Json, WorkflowDefinition } from "@cedarloom/contracts";
-import { type Attempt, capped, type ExecuteOptions, type Executors, execute, OUTPUT_CAP } from "@cedarloom/engine";
+import {
+  type Attempt,
+  capped,
+  type ExecuteOptions,
+  type Executors,
+  execute,
+  type Gates,
+  OUTPUT_CAP,
+} from "@cedarloom/engine";
 import { type GraphStore, openGraphStore, type RunLease } from "@cedarloom/ledger";
 import { expect, test } from "vitest";
 
@@ -73,12 +81,16 @@ const start = async (
   return { result, store, lease, events: events.ok ? events.value : [] };
 };
 // Resumes a run of `definition` whose journal holds `journal`; the events it adds are the second item.
-const resume = async (definition: WorkflowDefinition, journal: JournalEvent[]) => {
+const resume = async (
+  definition: WorkflowDefinition,
+  journal: JournalEvent[],
+  options: Partial<ExecuteOptions> = {},
+) => {
   const store = graphs();
   const lease = created(store, definition);
   for (const event of journal) store.append(lease.runId, 1, event);
   const source = { workflow: definition, inputs: {}, journal };
-  const result = await execute(store, lease, source, { executors: scripted({}), sleep: now });
+  const result = await execute(store, lease, source, { executors: scripted({}), sleep: now, ...options });
   const events = store.events(lease.runId);
   return [result, trail(events.ok ? events.value.slice(journal.length) : [])];
 };
@@ -279,4 +291,72 @@ test("a run taken over goes on from its journal: started attempts end interrupte
     { type: "ended", node: "b", attempt: 1, outcome: "done" },
   ] as const;
   expect(await resume(workflow(), [started, { ...failed, outcome: "done" }, ...b])).toEqual([succeeded, "finished"]);
+});
+
+/** t -> ask, an approval -> a on `approved`. */
+const approval = (): WorkflowDefinition => ({
+  ...workflow(),
+  outputs: {},
+  nodes: [
+    { id: "t", type: "trigger.manual" },
+    { id: "ask", type: "human.approval", with: { message: "Go on?" } },
+    { id: "a", type: "command.run", with: { command: "a" } },
+  ],
+  edges: [
+    { id: "e1", from: { node: "t", handle: "start" }, to: { node: "ask", handle: "run" } },
+    { id: "e2", from: { node: "ask", handle: "approved" }, to: { node: "a", handle: "run" } },
+  ],
+});
+
+test("an approval waits without its runner: the run ends waiting, a decision runs it on, a cancel ends it", async () => {
+  const asked = await start(approval(), {});
+  expect([asked.result, trail(asked.events)]).toEqual([{ ok: true, value: "waiting" }, "waiting"]);
+  const decided = { type: "decided", node: "ask", approved: true } as const;
+  const on = await resume(approval(), [{ type: "waiting" }, decided]);
+  expect(on).toEqual([{ ok: true, value: "succeeded" }, "started a#1, ended a#1, finished"]);
+  const cancelled = await resume(approval(), [{ type: "waiting" }, { type: "cancel" }]);
+  expect(cancelled).toEqual([{ ok: true, value: "cancelled" }, "finished"]);
+});
+
+// Node a applies a plan of the hash `planHash`, which waits at the gate before the apply.
+const HASH = "a".repeat(64);
+const planning = (planHash: string): Executors => ({
+  "command.run": (attempt: Attempt) => ({
+    pid: null,
+    ...(attempt.node === "a" ? { planHash } : {}),
+    run: () => Promise.resolve({ ok: true }),
+  }),
+});
+const decision = (approved: boolean, planHash: string) => ({ type: "decided", node: "a", approved, planHash }) as const;
+// A policy that holds nodes with effects before they start: the hook the levels plug into.
+const beforeNode: Gates = (point) => (point === "before-node" ? "wait" : "pass");
+
+test("a plan waits at its gate until the owner approves that very plan; a rejection fails the node", async () => {
+  const gate: JournalEvent = { type: "gate", node: "a", attempt: 1, point: "before-apply", planHash: HASH };
+  const gated = await start(workflow(), {}, { executors: planning(HASH) });
+  expect([gated.result, gated.events[0]]).toEqual([{ ok: true, value: "waiting" }, gate]);
+  const executors = planning(HASH);
+  expect(await resume(workflow(), [gate, decision(true, HASH)], { executors })).toEqual([
+    { ok: true, value: "succeeded" },
+    "started a#1, ended a#1, started b#1, ended b#1, finished",
+  ]);
+  // An approval of another plan, such as one built before the file changed, approves nothing.
+  expect(await resume(workflow(), [gate, decision(true, "b".repeat(64))], { executors })).toEqual([
+    { ok: true, value: "waiting" },
+    "gate a#1, waiting",
+  ]);
+  expect(await resume(workflow(), [gate, decision(false, HASH)], { executors })).toEqual([
+    { ok: true, value: "failed" },
+    "started a#1, ended a#1, finished",
+  ]);
+  // A cancel ends the attempt that waits at its gate.
+  expect(await resume(workflow(), [gate, { type: "cancel" }], { executors })).toEqual([
+    { ok: true, value: "cancelled" },
+    "started a#1, ended a#1, finished",
+  ]);
+  const before = await start(workflow(), {}, { gates: beforeNode });
+  expect([before.result, before.events[0]]).toMatchObject([
+    { value: "waiting" },
+    { point: "before-node", planHash: null },
+  ]);
 });

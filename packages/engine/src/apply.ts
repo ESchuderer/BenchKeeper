@@ -24,6 +24,8 @@ export interface ApplyOptions {
   undoes?: string | null;
   /** Called after each phase; tests use it to crash or race at every point. */
   onPhase?: (index: number, phase: Phase) => void;
+  /** Called with the run's id once it is recorded, before it writes anything; a throw stops the run, failed. */
+  onBegun?: (runId: string) => void;
 }
 
 export interface Outcome {
@@ -198,6 +200,7 @@ const steps = (run: Run, plan: Plan): Finding | undefined => {
 };
 
 const onPhaseOf = (options: ApplyOptions): Run["onPhase"] => options.onPhase ?? (() => undefined);
+const onBegunOf = (options: ApplyOptions): Required<ApplyOptions>["onBegun"] => options.onBegun ?? (() => undefined);
 
 /** Applies an approved plan as one run; stops at the first operation that fails and leaves the run for undo. */
 export const apply = (store: RunStore, plan: Plan, approvedHash: string, options: ApplyOptions = {}): Outcome => {
@@ -209,6 +212,7 @@ export const apply = (store: RunStore, plan: Plan, approvedHash: string, options
   const runId = begun.value;
   let finding: Finding | undefined;
   try {
+    onBegunOf(options)(runId);
     store.prune(BACKUP_DAYS);
     finding = steps({ store, runId, branch, onPhase: onPhaseOf(options) }, plan);
   } catch (error) {

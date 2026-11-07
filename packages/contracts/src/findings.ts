@@ -202,7 +202,7 @@ export const Finding = z
     finding("profile.entry-unknown", {
       pack: z.string(),
       path: z.string(),
-      kind: z.enum(["rules", "template", "profile"]),
+      kind: z.enum(["rules", "template", "profile", "skill"]),
     }),
     finding("profile.app-too-old", { minApp: z.string(), app: z.string() }),
     // A part the selection or a `requires` names that the profile does not hold, both as `level.id`.
@@ -224,6 +224,13 @@ export const Finding = z
       autoUpdate: z.boolean(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
+    // A Git source that follows a branch or tag holds a file that may run (anything but .md and .txt at mode 100644).
+    finding("profile.pack-unpinned", { source: z.string(), path: z.string() }),
+    finding("profile.source-digest", { source: z.string(), expected: z.string(), found: z.string() }),
+    // A new commit at a followed ref, taken once this machine has seen it there for 3 days.
+    finding("profile.source-waiting", { source: z.string(), commit: z.string(), offered: z.string() }),
+    // The commit in use of a followed source, which its new commit waits to replace, can no longer be fetched.
+    finding("profile.source-unavailable", { source: z.string(), commit: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -361,6 +368,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.binding-missing": { severity: "error", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
+  "profile.pack-unpinned": { severity: "error", effort: "manual" },
+  "profile.source-digest": { severity: "error", effort: "manual" },
+  "profile.source-waiting": { severity: "info", effort: "manual" },
+  "profile.source-unavailable": { severity: "error", effort: "manual" },
 };
 
 /** A finding's severity: an extension's own finding carries its own, every other code has one. */

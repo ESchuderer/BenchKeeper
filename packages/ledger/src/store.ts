@@ -36,8 +36,8 @@ import {
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
 const BASELINE = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
-// Its number follows every schema before 0.1.0 (1 to 14), so a store from before it is never read as this one.
-const SCHEMA = 15;
+// Its number follows every schema before 0.1.0 (1 to 15), so a store from before it is never read as this one.
+const SCHEMA = 16;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);

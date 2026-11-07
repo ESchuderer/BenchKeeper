@@ -31,7 +31,7 @@ CREATE TABLE steps (
 export const ACCOUNT_TABLES = `
 CREATE TABLE readings (
   account TEXT NOT NULL,
-  "window" TEXT NOT NULL CHECK ("window" IN ('fiveHour', 'sevenDay')),
+  "window" TEXT NOT NULL CHECK ("window" IN ('fiveHour', 'sevenDay') OR "window" GLOB 'sevenDay:[a-z]*'),
   usedPercent REAL NOT NULL,
   resetsAt TEXT NOT NULL,
   readAt TEXT NOT NULL,
@@ -96,7 +96,7 @@ CREATE TABLE usage_samples (
   agent TEXT NOT NULL,
   agentVersion TEXT NOT NULL,
   "window" TEXT NOT NULL,
-  quota TEXT CHECK (quota IN ('fiveHour', 'sevenDay')),
+  quota TEXT CHECK (quota IN ('fiveHour', 'sevenDay') OR quota GLOB 'sevenDay:[a-z]*'),
   usedPercent REAL CHECK (usedPercent BETWEEN 0 AND 100),
   resetsAt TEXT,
   readAt TEXT NOT NULL,

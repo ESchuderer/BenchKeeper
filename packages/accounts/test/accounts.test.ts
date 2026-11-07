@@ -112,6 +112,21 @@ test("an account claude-swap disabled is skipped, and its active one is passed o
   expect(chosen({ active: "one", disabled: new Set(["two"]) })).toMatchObject({ account: { name: "one" } });
 });
 
+test("the worker model's own weekly window counts once read, against the 7-day minimum; another model's does not", () => {
+  const opus = { account: "one", window: "sevenDay:opus", usedPercent: 98, resetsAt: LATER };
+  const readings = [...used("one", 50, 20), opus, ...used("two", 30, 60)];
+  // For an Opus worker, one's Opus window leaves -1 above its 3 percent: two is chosen.
+  expect(selectAccount(registry, { ...main, model: "claude-opus-5-5" }, readings, NOW)).toMatchObject({
+    account: { name: "two" },
+    candidates: [{ margin: -1 }, { margin: 37 }, { margin: null }],
+  });
+  // A Sonnet worker does not look at it; two, without a Sonnet window, is not unknown.
+  expect(selectAccount(registry, { ...main, model: "claude-sonnet-5-5" }, readings, NOW)).toMatchObject({
+    account: { name: "one" },
+    candidates: [{ margin: 42 }, { margin: 37 }, { margin: null }],
+  });
+});
+
 test("an account whose leases are all taken is passed over; with every one taken, the pool yields none", () => {
   const readings = [...used("one", 50, 20), ...used("two", 30, 90), ...used("three", 30, 10)];
   const passedOver = selectAccount(registry, { ...main, busy: new Set(["one"]) }, readings, NOW);

@@ -112,16 +112,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 15 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 16 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 14 is the last schema before 0.1.0, whose switches knew only two reasons.
-  const dir = storeAt(14);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 14, known: 15 } } };
+  // 15 is the last schema before 0.1.0, whose switches knew only two reasons.
+  const dir = storeAt(15);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 15, known: 16 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 14 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 15 });
   after.close();
 });
 

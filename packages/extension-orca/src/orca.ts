@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import {
   type ActionContext,
   type DoctorFinding,
+  jsonAnswer,
   programVersion,
   shellWord,
   valueAt as at,
@@ -26,16 +27,10 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
 // Orca's JSON answer to a command, its `result`; an answer that is not `ok` throws with Orca's message.
 const orca = async ({ exec }: Exec, args: string[], timeoutMs: number): Promise<unknown> => {
   const command = `orca ${args.slice(0, 2).join(" ")}`;
-  const { code, stdout } = await exec({ program: "orca", args: [...args, "--json"], timeoutMs });
-  let answer: unknown;
-  try {
-    answer = JSON.parse(stdout);
-  } catch (error) {
-    // A failing run's exit code says more than its empty output.
-    throw new Error(code === 0 ? `${command}: no JSON answer` : `${command} exited with ${code}`, { cause: error });
-  }
+  const ran = await exec({ program: "orca", args: [...args, "--json"], timeoutMs });
+  const answer = jsonAnswer(command, ran);
   if (at(answer, "ok") !== true) throw new Error(`${command}: ${String(at(answer, "error", "message"))}`);
-  if (code !== 0) throw new Error(`${command} exited with ${code}`);
+  if (ran.code !== 0) throw new Error(`${command} exited with ${ran.code}`);
   return at(answer, "result");
 };
 const majorOf = (version: string): string | undefined => /^v?(\d+)\.\d+/.exec(version)?.[1];

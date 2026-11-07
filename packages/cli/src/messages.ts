@@ -81,6 +81,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.lease-held": (p) =>
     `Process ${p.pid} holds run ${p.runId}; resuming the run takes it over once that process has ended.`,
   "run.finished": (p) => `Run ${p.runId} has ended (${p.status}); nothing of it runs any more.`,
+  "run.not-waiting": (p) => `Node ${p.node} of run ${p.runId} waits for no decision.`,
   "run.report-only-apply": (p) =>
     `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
   "run.node-unsupported": (p) => `Node ${p.node} is a ${p.type} node, which this version does not run yet.`,

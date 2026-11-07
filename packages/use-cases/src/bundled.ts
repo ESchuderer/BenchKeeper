@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -85,6 +86,9 @@ export const planSwitch = (app: string, config: string, id: string, state: Switc
   return { ok: true, value: { schemaVersion: PLAN_SCHEMA_VERSION, operations: [write] } };
 };
 
+/** The state folder, the app's folder of its own extensions, and the config folder. */
+type Paths = { state: string; app: string; config: string };
+
 /** Where an extension starts from, and the trust that follows from there. */
 export type Startable = { manifest: ExtensionManifest; folder: string; trust: Trust };
 
@@ -93,10 +97,7 @@ export type Startable = { manifest: ExtensionManifest; folder: string; trust: Tr
  * installed in the state folder, a community extension. Trust comes from where its files are, never from its manifest,
  * so a copy of a bundled extension in the state folder is a community extension.
  */
-export const extensionToStart = (
-  paths: { state: string; app: string; config: string },
-  id: string,
-): Result<Startable> => {
+export const extensionToStart = (paths: Paths, id: string): Result<Startable> => {
   const bundled = bundledExtensions(paths.app, paths.config);
   if (!bundled.ok) return bundled;
   const own = bundled.value.find((each) => each.id === id);
@@ -117,15 +118,39 @@ export const extensionToStart = (
  * extensionToStart, asked once (doctor/run, within the host's limit) and stopped, so no extension outlives the doctor.
  * Their texts are in English, the CLI's language for now.
  */
-export const extensionChecks = async (paths: { state: string; app: string; config: string }): Promise<Finding[]> => {
+// The app's own extension `id` started in English, the CLI's language for now.
+const startBundled = async (paths: Paths, id: string) => {
+  const startable = extensionToStart(paths, id);
+  return startable.ok ? startExtension({ ...startable.value, locale: "en" }) : startable;
+};
+
+/**
+ * Runs the action `action` of the app's own extension `id` once, as a CLI verb of its noun: without config or inputs,
+ * within a minute, and stops it.
+ */
+export const runBundled = async (
+  paths: Paths,
+  id: string,
+  action: string,
+): Promise<Result<Record<string, unknown>>> => {
+  const started = await startBundled(paths, id);
+  if (!started.ok) return started;
+  try {
+    const request = { action, config: {}, inputs: {}, run: randomUUID() };
+    return await started.value.run(request, AbortSignal.timeout(60_000));
+  } finally {
+    await started.value.stop();
+  }
+};
+
+export const extensionChecks = async (paths: Paths): Promise<Finding[]> => {
   const bundled = bundledExtensions(paths.app, paths.config);
   if (!bundled.ok) return [bundled.finding];
   const findings: Finding[] = [];
   for (const { id } of bundled.value.filter(
     (each) => each.state !== "off" && each.manifest.contributes.doctor !== undefined,
   )) {
-    const startable = extensionToStart(paths, id);
-    const started = startable.ok ? await startExtension({ ...startable.value, locale: "en" }) : startable;
+    const started = await startBundled(paths, id);
     if (!started.ok) {
       findings.push(started.finding);
       continue;

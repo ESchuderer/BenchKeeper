@@ -3,6 +3,8 @@
 # CedarLoom workspace (pnpm)
 node_modules/
 packages/*/dist/
+# The app's own extensions, built into the CLI package (pnpm --filter @cedarloom/extension-orca run build)
+packages/cli/extensions/
 packages/*/test-results/
 packages/*/playwright-report/
 coverage/

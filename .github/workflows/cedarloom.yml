@@ -208,6 +208,16 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: command -v rg || brew install ripgrep
       - run: if [ "$FILTER" = '*' ]; then pnpm run test; else pnpm --filter "$FILTER" run test; fi
+      # The app's own Orca extension as the CLI package ships it: rolldown's one file starts under the host's permission
+      # flags and answers (no Orca on the runner: not installed), and the package's files hold it.
+      - if: runner.os == 'Linux'
+        name: The bundled Orca extension
+        env:
+          CEDARLOOM_STATE_DIR: ${{ runner.temp }}/cedarloom-state
+        run: |
+          pnpm --filter @cedarloom/extension-orca run build
+          node packages/cli/src/bin.ts orca status --json | tee /dev/stderr | grep -q '"installed":false'
+          (cd packages/cli && npm pack --dry-run --json --ignore-scripts) | grep -q '"path": "extensions/cedarloom.orca/main.mjs"'
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed
   # OpenAPI document. oasdiff, the other API contract gate, follows once a released document exists to compare against.

@@ -1092,6 +1092,32 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "import.not-found"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "draft.too-large"
         },
         "params": {
@@ -3114,6 +3140,32 @@
         "code": {
           "type": "string",
           "const": "extension.unknown"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "extension": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "extension"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "extension.digest-mismatch"
         },
         "params": {
           "type": "object",

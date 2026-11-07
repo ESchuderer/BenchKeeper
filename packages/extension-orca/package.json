@@ -1,0 +1,25 @@
+{
+  "name": "@cedarloom/extension-orca",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CedarLoom's own Orca extension, cedarloom.orca: whether Orca is installed and running, for the doctor and cedarloom orca status. The reference example of the extension SDK.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/orca.ts"
+  },
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "typecheck": "tsc -b test",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@cedarloom/extension-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "rolldown": "1.2.16"
+  }
+}

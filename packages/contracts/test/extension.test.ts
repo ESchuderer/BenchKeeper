@@ -82,6 +82,8 @@ const jira = ["extensions", "acme.jira"];
 type Change = [label: string, path: (string | number)[], value: unknown, schemaToo: boolean, issue?: string];
 
 const manifestChanges: Change[] = [
+  ["a command that is none of its actions", ["contributes", "commands"], ["status"], false],
+  ["a command twice", ["contributes", "commands"], ["search-issues", "search-issues"], true],
   [
     "a credential host outside net",
     ["capabilities", "credentials", "jira-token", "hosts"],

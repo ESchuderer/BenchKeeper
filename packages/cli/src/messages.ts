@@ -3,8 +3,11 @@ import { type Finding, type FindingCode, shown } from "@cedarloom/contracts";
 type Params = { [F in Finding as F["code"]]: F["params"] };
 
 const short = (hash: string | null): string => (hash === null ? "no file" : hash.slice(0, 12));
-// A folder as a command's argument, quoted when it has a space.
-const folderArgument = (path: string): string => (/\s/.test(path) ? `"${path}"` : path);
+// A folder as a shell argument, as Python's shlex.quote makes one: as it is when it holds only safe characters, else in
+// single quotes with each embedded quote closed, escaped and reopened, so pasting the command runs nothing of the path.
+// shortcut: PowerShell reads an embedded quote as doubled (''), not \'; due once a Windows folder name holds one.
+const folderArgument = (path: string): string =>
+  /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`;
 // An undo run that stopped is not undone itself: planning the undo of its target again starts from the files as they are.
 const undoHint = (p: { runId: string; undoes: string | null }): string =>
   p.undoes === null
@@ -99,6 +102,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "store.network-filesystem": (p) =>
     `The state folder ${p.dir} is on a network filesystem (${p.fsType}); use a local folder.`,
   "draft.not-found": (p) => `No draft of workflow ${p.id} in this state folder.`,
+  "import.not-found": (p) => `No planned import ${p.id}: it was applied, or is too old; review the import again.`,
   "draft.too-large": (p) => `The draft of workflow ${p.id} has ${p.bytes} bytes; a draft holds at most ${p.limit}.`,
   "store.newer-schema": (p) => `The run store has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
   "store.older-schema": (p) =>
@@ -202,6 +206,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
   "extension.finding": (p) => `${p.extension}: ${p.message}`,
   "extension.unknown": (p) => `Extension ${p.extension} is not installed.`,
+  "extension.digest-mismatch": (p) =>
+    `The lock pins ${p.extension} at a commit whose files are not the ones it names; nothing is imported.`,
   "extension.consent-needed": (p) =>
     `Extension ${p.extension} asks for more than you approved; nothing changed. Read what it adds, then apply exactly that plan with --approve <hash>.`,
   "extension.install-refused": (p) =>

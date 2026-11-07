@@ -32,7 +32,7 @@ test("a commit stays inert until the branch moves to it, and the branch moves on
   );
   const dir = join(root, "store.git");
   const store = openStore(dir);
-  const { commit } = ok(store.commit(null, "workflows/workflow-w.json", "{}\n", "w 1.0.0\n"));
+  const { commit } = ok(store.commit(null, [["workflows/workflow-w.json", "{}\n"]], "w 1.0.0\n"));
   const inert = store.head();
   const wrong = "1".repeat(40);
   const moved = (after: string | null, before: string | null): boolean => store.move(after, before).ok;
@@ -50,7 +50,7 @@ test("a commit stays inert until the branch moves to it, and the branch moves on
 test("a commit needs the user's Git identity", () => {
   home("[user]\n\temail = ada@example.org\n");
   const store = openStore(join(root, "nameless.git"));
-  expect(store.commit(null, "a.json", "{}\n", "a\n")).toEqual({
+  expect(store.commit(null, [["a.json", "{}\n"]], "a\n")).toEqual({
     ok: false,
     finding: { code: "store.identity-missing", params: { key: "user.name" } },
   });

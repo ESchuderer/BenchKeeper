@@ -14,22 +14,14 @@ import {
   storeHistory,
   undoRun,
 } from "@cedarloom/use-cases";
-import { afterAll, afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterAll, expect, test } from "vitest";
+import { gitIdentity } from "./harness.ts";
 
 const root = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-saves-"));
 afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
-// Store commits carry the user's Git identity: a home folder of the tests' own gives one.
-beforeEach(() => {
-  const home = mkdtempSync(join(root, "home-"));
-  writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
-  vi.stubEnv("HOME", home);
-  vi.stubEnv("XDG_CONFIG_HOME", home);
-});
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
+gitIdentity(root);
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const sample = (name: string) => JSON.parse(readFileSync(join(corpus, name), "utf8"));
@@ -88,7 +80,7 @@ test("a draft opened from another stored version than the one there now is store
   const store = openStore(join(dir, "store.git"));
   const head = store.head();
   const { commit } = ok(
-    store.commit(head, "workflows/workflow-w.json", `${JSON.stringify(at("1.5.0"))}\n`, "w 1.5.0\n"),
+    store.commit(head, [["workflows/workflow-w.json", `${JSON.stringify(at("1.5.0"))}\n`]], "w 1.5.0\n"),
   );
   store.move(commit, head);
   ok(saveDraft(dir, "w", at("2.0.0"), null));

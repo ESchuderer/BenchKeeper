@@ -59,6 +59,8 @@ export const Finding = z
     finding("store.busy", { dir: z.string() }),
     finding("store.network-filesystem", { dir: z.string(), fsType: z.string() }),
     finding("draft.not-found", { id: z.string() }),
+    // An import the server keeps no plan for: applied already, older than its latest reviews, or from before a restart.
+    finding("import.not-found", { id: z.string() }),
     finding("draft.too-large", { id: z.string(), bytes: z.int(), limit: z.int() }),
     finding("store.newer-schema", { found: z.int(), known: z.int() }),
     // A run store from before 0.1.0, which is not carried over (pre-release only).
@@ -173,6 +175,8 @@ export const Finding = z
     }),
     // An extension to update or remove that is not installed.
     finding("extension.unknown", { extension: z.string() }),
+    // An import whose lock pins an extension at a commit whose files are not the ones the lock names.
+    finding("extension.digest-mismatch", { extension: z.string() }),
     // An update that asks for capabilities the user has not approved: only an approval of its exact plan applies it.
     finding("extension.consent-needed", { extension: z.string() }),
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
@@ -300,6 +304,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "store.busy": { severity: "error", effort: "manual" },
   "store.network-filesystem": { severity: "error", effort: "manual" },
   "draft.not-found": { severity: "error", effort: "manual" },
+  "import.not-found": { severity: "error", effort: "command" },
   "draft.too-large": { severity: "error", effort: "manual" },
   "store.newer-schema": { severity: "error", effort: "manual" },
   "store.older-schema": { severity: "error", effort: "manual" },
@@ -358,6 +363,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "extension.finding": { severity: "warning", effort: "manual" },
   "extension.install-refused": { severity: "error", effort: "manual" },
   "extension.unknown": { severity: "error", effort: "manual" },
+  "extension.digest-mismatch": { severity: "error", effort: "manual" },
   "extension.consent-needed": { severity: "error", effort: "command" },
   "git.failed": { severity: "error", effort: "manual" },
   "store.conflict": { severity: "error", effort: "command" },

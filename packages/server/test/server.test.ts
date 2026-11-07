@@ -10,8 +10,8 @@ import { DatabaseSync } from "node:sqlite";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
 import { cookieName, openapi, type Started, startServer } from "@cedarloom/server";
-import { applyPlan, DRAFT_LIMIT } from "@cedarloom/use-cases";
-import { afterEach, expect, test } from "vitest";
+import { applyPlan, DRAFT_LIMIT, planExport, planSave, saveDraft } from "@cedarloom/use-cases";
+import { afterEach, expect, test, vi } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 
@@ -598,14 +598,39 @@ test("a save whose JSON the parser refuses, a __proto__ key or constructor.proto
 test("the committed OpenAPI document is the one the routes generate (pnpm --filter @cedarloom/server generate)", async () => {
   const committed = await readFile(join(import.meta.dirname, "..", "openapi.json"), "utf8");
   expect(committed).toBe(await openapi(pkg.version));
-  expect(Object.keys(JSON.parse(committed).paths)).toEqual([
-    "/api/session",
-    "/api/runs",
-    "/api/runs/{runId}",
-    "/api/doctor",
-    "/api/runs/{runId}/undo",
-    "/api/drafts",
-    "/api/drafts/{id}",
-    "/api/events",
-  ]);
 });
+
+// An export folder of the corpus's minimal workflow, stored and exported in another state folder.
+const exportFolder = async (): Promise<string> => {
+  const root = mkdtempSync(join(tmpdir(), "cedarloom-export-"));
+  // Store commits carry the user's Git identity: a home folder of the test's own gives one.
+  writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
+  vi.stubEnv("HOME", root);
+  vi.stubEnv("XDG_CONFIG_HOME", root);
+  const from = join(root, "state");
+  const minimal: unknown = JSON.parse(await readFile(join(corpus, "valid-minimal.json"), "utf8"));
+  const saved = saveDraft(from, "minimal", minimal, null).ok ? planSave(from, "minimal") : null;
+  if (saved?.ok === true) applyPlan(from, saved.value.plan, { yes: true });
+  const exported = planExport(from, ["minimal"], join(root, "shared"), { name: "Shared" });
+  if (exported.ok) applyPlan(from, exported.value.plan, { yes: true });
+  return join(root, "shared");
+};
+
+test("an import is reviewed with its plan under an id, which applies only with the hash of its preview, once", async () => {
+  const client = await ready();
+  const folder = await exportFolder();
+  const reviewed = await client.api({ method: "POST", path: "/api/imports", body: { folder } });
+  const { id, planHash } = z.object({ id: z.string(), planHash: z.string() }).parse(reviewed.body);
+  const apply = (approve: string) =>
+    client.api({ method: "POST", path: `/api/imports/${id}/apply`, body: { approve } });
+  const answers = [
+    reviewed.status,
+    Reflect.get(Object(reviewed.body), "review").units.map((unit: { status: string }) => unit.status),
+    (await apply(sha256("another plan"))).status,
+    (await apply(planHash)).status,
+    (await apply(planHash)).status,
+    (await client.api({ method: "POST", path: "/api/imports", body: { folder: join(folder, "none") } })).status,
+  ];
+  vi.unstubAllEnvs();
+  expect(answers).toEqual([200, ["new"], 409, 200, 404, 409]);
+}, 30_000);

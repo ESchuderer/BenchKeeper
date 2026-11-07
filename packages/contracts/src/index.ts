@@ -29,6 +29,7 @@ export {
   Draft,
   DraftInfo,
   DraftSaved,
+  ImportPreview,
   PlanPreview,
   Refusal,
   Run,
@@ -63,6 +64,7 @@ export {
   RunStatus,
 } from "./run.ts";
 export {
+  AbsolutePath,
   DeleteFile,
   GitOid,
   Operation,

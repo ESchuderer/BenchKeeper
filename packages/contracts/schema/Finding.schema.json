@@ -90,6 +90,9 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [

@@ -60,7 +60,7 @@ const ENTRY_KINDS = {
 const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "document.unreadable": (p) => `${p.path} cannot be read (${p.error}).`,
   "document.newer-schema": (p) => `The document has schema version ${p.found}; this CedarLoom reads up to ${p.known}.`,
-  "document.invalid": (p) => `The document does not match its schema: ${issueList(p.issues)}.`,
+  "document.invalid": (p) => `${p.path ?? "The document"} does not match its schema: ${issueList(p.issues)}.`,
   "plan.not-approved": (p) => `The approval names plan ${short(p.approvedHash)}, not ${short(p.planHash)}.`,
   "plan.path-not-absolute": (p) =>
     `${p.path} is not an absolute, normalized path; plans name every file by its full path.`,

@@ -888,3 +888,29 @@ test("committed files another machine's profile wrote and recorded stay where a 
     deletes((await projectPlan(off, project)).plan),
   ]).toEqual([null, []]);
 });
+
+// The test's packs with CRLF line endings in their Markdown, as a pack written on Windows may have.
+const crlf: Fetch = async (source, options) => {
+  const fetched = await packs(source, options);
+  if (!fetched.ok) return fetched;
+  const files = fetched.value.files.map((file) =>
+    file.path.endsWith(".md") ? treeFile(file.path, file.content.toString().replaceAll("\n", "\r\n")) : file,
+  );
+  return { ok: true, value: { ...fetched.value, files } };
+};
+
+test("a CedarLoom text with CRLF line endings is CedarLoom's on another machine by the record", async () => {
+  const project = projectWith();
+  const first = custom(packsPart(["acme.skills"]), SKILLS);
+  applied(first.state, ok(await planned(first, project, crlf)).plan);
+  const other = custom(packsPart(["acme.skills"]), SKILLS);
+  expect(ok(await planned(other, project, crlf))).toEqual({ plan: null, findings: [] });
+});
+
+test("a record a Git conflict left unreadable stops the plan, named", async () => {
+  const box = machine();
+  const project = projectWith({ ".cedarloom/profile-files.json": "<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> theirs\n" });
+  const path = join(realpathSync.native(project), ".cedarloom", "profile-files.json");
+  const params = { issues: expect.any(Array), path };
+  expect(await planned(box, project)).toEqual({ ok: false, finding: { code: "document.invalid", params } });
+});

@@ -911,6 +911,7 @@ export interface components {
                     path: string;
                     code: string;
                 }[];
+                path?: string;
             };
         } | {
             /** @constant */
@@ -2121,6 +2122,7 @@ export interface components {
                     path: string;
                     code: string;
                 }[];
+                path?: string;
             };
         } | {
             /** @constant */

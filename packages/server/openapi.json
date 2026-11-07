@@ -244,6 +244,9 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "path": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -5882,6 +5885,9 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "path": {
+                    "type": "string"
                   }
                 },
                 "required": [

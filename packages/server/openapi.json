@@ -1021,10 +1021,14 @@
                 "properties": {
                   "node": {
                     "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
                   }
                 },
                 "required": [
-                  "node"
+                  "node",
+                  "reason"
                 ],
                 "additionalProperties": false
               }
@@ -6629,10 +6633,14 @@
                 "properties": {
                   "node": {
                     "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
                   }
                 },
                 "required": [
-                  "node"
+                  "node",
+                  "reason"
                 ],
                 "additionalProperties": false
               }

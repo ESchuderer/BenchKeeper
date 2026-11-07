@@ -42,6 +42,7 @@ const ACTIONS = [
   "wait",
   "fetch",
   "fetch-cancel",
+  "fetch-cancelled",
   "fetch-then-crash",
   "exec",
 ];
@@ -514,6 +515,17 @@ test("S10: cancels of requests the host is still handling count as read, so they
   expect(codeOf(await run(fetcher, "fetch-cancel", undefined, { count: 60 }))).toEqual({});
 });
 
+test("a request whose cancel comes before the host has started on it is not sent, and answers at once", async () => {
+  const fetcher = await extension({
+    manifest: manifestOf(ACTIONS, "1.0", capabilities),
+    transport: fake,
+    limits: { fetchMs: 1000 },
+  });
+  expect(codeOf(await run(fetcher, "fetch-cancelled"))).toEqual({
+    error: { code: HOST_FAILED, message: "not sent: the request was cancelled or the extension ended" },
+  });
+});
+
 test("an extension that ends stops the requests the host sends for it", async () => {
   const ended: string[] = [];
   const hanging: Transport = (hop) =>
@@ -581,10 +593,11 @@ test("host/exec runs a program its manifest names, found by the host, without a 
 test("host/exec stops a program at its time limit and at its output cap, and says when a program is not installed", async () => {
   const fixture = await extension({
     manifest: withPrograms({ node: ["node"], absent: ["cedarloom-no-such-program"] }),
-    limits: { execMs: 300, execBytes: 1000 },
+    limits: { execBytes: 1000 },
   });
+  // The time limit is the first request's own, so a slow start of node never stops the second before its output.
   const answers = await execs(fixture, [
-    { program: "node", args: ["-e", "setTimeout(() => {}, 10000)"] },
+    { program: "node", args: ["-e", "setTimeout(() => {}, 10000)"], timeoutMs: 300 },
     { program: "node", args: ["-e", "process.stdout.write('x'.repeat(5000))"] },
     { program: "absent" },
   ]);

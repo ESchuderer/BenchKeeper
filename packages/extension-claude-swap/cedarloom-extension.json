@@ -14,6 +14,16 @@
         "darwin": ["cswap", "~/.local/bin/cswap"],
         "linux": ["cswap", "~/.local/bin/cswap"],
         "win32": ["cswap"]
+      },
+      "uv": {
+        "darwin": ["uv", "~/.local/bin/uv", "~/.cargo/bin/uv"],
+        "linux": ["uv", "~/.local/bin/uv", "~/.cargo/bin/uv"],
+        "win32": ["uv"]
+      },
+      "pipx": {
+        "darwin": ["pipx", "~/.local/bin/pipx"],
+        "linux": ["pipx", "~/.local/bin/pipx"],
+        "win32": ["pipx"]
       }
     }
   },
@@ -27,10 +37,19 @@
           "accounts": { "type": "number", "description": "The accounts claude-swap manages" },
           "active": { "type": "number", "description": "The account interactive sessions use; absent when none" }
         }
+      },
+      "install": {
+        "title": "Install claude-swap",
+        "outputs": {
+          "installed": { "type": "boolean" },
+          "version": { "type": "string", "description": "Absent while claude-swap is not installed" },
+          "runs": { "type": "string", "description": "The command the install runs once allowed" },
+          "approve": { "type": "string", "description": "The command line that allows it" }
+        }
       }
     },
     "switchTargets": { "interactive": { "agent": "claude" } },
     "doctor": { "claude-swap": { "title": "claude-swap" } },
-    "commands": ["status"]
+    "commands": ["status", "install"]
   }
 }

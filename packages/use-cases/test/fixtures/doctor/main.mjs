@@ -21,6 +21,7 @@ const answers = {
       ...(alias === undefined ? {} : { alias }),
       active: number === 1,
       disabled: false,
+      held: false,
       threshold: null,
       windows: [{ window: "fiveHour", usedPercent, resetsAt, readAt }],
     });

@@ -123,18 +123,6 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     ["project.packs.packs.0"],
   ],
   [
-    "Claude Code's project settings as a file",
-    ["project", "agent-docs", "files", ".claude/settings.json"],
-    { inline: "{}" },
-    ["project.agent-docs.files..claude/settings.json"],
-  ],
-  [
-    "a Git hook as a file",
-    ["project", "agent-docs", "files", ".git/hooks/pre-commit"],
-    { inline: "#!/bin/sh" },
-    ["project.agent-docs.files..git/hooks/pre-commit"],
-  ],
-  [
     "a project plugin that would be committed",
     ["project", "plugin"],
     { type: "plugin", commit: true },
@@ -142,6 +130,21 @@ test.for<[string, (string | number)[], unknown, unknown]>([
   ],
 ])("a profile file with %s is refused", ([, path, value, expected]) => {
   expect(outcome(readProfile(set(defaults, path, value)))).toEqual(expected);
+});
+
+// Claude Code's settings, MCP lists and Git's folder in every spelling a file system would read as them.
+test.for([
+  ".claude/settings.json",
+  "sub/.claude/settings.local.json",
+  "sub/.MCP.json",
+  "./.claude/settings.json",
+  ".claude//settings.json",
+  ".mcp.json.",
+  ".git/hooks/pre-commit",
+  ".git./hooks/pre-commit",
+])("a files part may not write %s", (target) => {
+  const changed = set(defaults, ["project", "agent-docs", "files", target], { inline: "{}" });
+  expect(outcome(readProfile(changed))).toEqual([`project.agent-docs.files.${target}`]);
 });
 
 test.for<[string, (string | number)[], unknown]>([
@@ -171,9 +174,9 @@ test.for<[string, (string | number)[], unknown, string]>([
     "machine.plugin.ponytail.options.file",
   ],
   [
-    "a plugin's options in gh's credential folder",
-    ["machine", "plugin.ponytail", "plugin"],
-    "gh@x",
+    "a plugin's options in gh's credential folder, its own by name",
+    ["machine", "plugin.ponytail"],
+    { type: "plugin", title: "x", default: "on", plugin: "gh@x", options: { file: ".config/gh/hosts.yml", set: {} } },
     "machine.plugin.ponytail.options.file",
   ],
 ])("a composed profile with %s is refused", ([, path, value, issue]) => {
@@ -315,6 +318,15 @@ test("the root and each parent are read as profiles, so a file the reader refuse
 const manual = (text: string) => ({
   manual: { type: "manual", title: "m", default: "on", claudeImport: true, rules: [{ inline: text }] },
 });
+const withOptions = (options: object) => set(defaults, ["machine", "plugin.ponytail", "options", "set"], options);
+test("a plugin's options hold at most 1,000 values, since a file of them would merge value by value", () => {
+  const full = Object.fromEntries(Array.from({ length: 1000 }, (_, at) => [`k${at}`, at]));
+  expect([outcome(readProfile(withOptions(full))), outcome(readProfile(withOptions({ ...full, more: 1 })))]).toEqual([
+    "ok",
+    ["machine.plugin.ponytail.options.set"],
+  ]);
+});
+
 test("a list of texts grows like any list", () => {
   const parent = file({ ...own, id: "acme.p", project: manual("a\n") });
   const root = file({ ...own, id: "acme.root", extends: [{ pack: "acme.x", path: "p" }], project: manual("b\n") });

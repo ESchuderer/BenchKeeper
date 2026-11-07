@@ -27,16 +27,19 @@ const present = (tree: Tree): [string, Json][] =>
 const pointer = (at: string, key: string | number): string =>
   `${at}/${String(key).replaceAll("~", "~0").replaceAll("/", "~1")}`;
 
-// Records the file that set the value at a pointer. An object or list replaced whole forgets who set what was inside
-// it; only then are the recorded pointers scanned, so merging two large settings sets stays linear.
+// The pointer of every value inside a value, as setBy keys them.
+const inside = (value: Json | undefined, at: string): string[] => {
+  if (typeof value !== "object" || value === null) return [];
+  return Object.entries(value).flatMap(([key, item]) => [pointer(at, key), ...inside(item, pointer(at, key))]);
+};
+// Records the file that set the value at a pointer. A value replaced whole forgets who set what was inside it, by the
+// pointers of that value alone, so the cost follows the replaced value, never the whole record.
 type Mark = (at: string, replaced?: Json) => void;
 type Level = "machine" | "workspace" | "project";
 const recorder =
   (setBy: Record<string, string>, layer: string): Mark =>
   (at, replaced) => {
-    if (typeof replaced === "object" && replaced !== null) {
-      for (const key of Object.keys(setBy)) if (key.startsWith(`${at}/`)) delete setBy[key];
-    }
+    for (const key of inside(replaced, at)) delete setBy[key];
     setBy[at] = layer;
   };
 

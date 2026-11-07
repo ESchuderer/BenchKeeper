@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
 import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
-import { ProjectPath } from "./nodes.ts";
 import { GitSource, PackId } from "./pack.ts";
 import { fileFormats } from "./registry.ts";
 import { PlainText, shown, UNSAFE } from "./text.ts";
@@ -19,6 +18,11 @@ const PartId = z.string().regex(new RegExp(`^${PART}$`));
 /** A part with its level, as `requires` and the selection name it: `machine.rules.global`, `workspace.hub`. */
 const QualifiedPartId = z.string().regex(new RegExp(`^(?:machine|workspace|project)\\.${PART}$`));
 const JsonObject = z.record(z.string(), JsonValue);
+// How many values a JSON value holds inside it, at every depth.
+const values = (value: unknown): number =>
+  typeof value === "object" && value !== null
+    ? Object.values(value).reduce((count: number, item: unknown) => count + 1 + values(item), 0)
+    : 0;
 const Color = z.string().regex(/^[0-9a-f]{6}$/);
 
 /** A pack's entry by its path inside the pack; the pack is one this profile names in `packs`. */
@@ -65,7 +69,10 @@ const plugin = part("plugin", {
     .describe("`<plugin>@<marketplace>`"),
   marketplace: Marketplace.optional().describe("Declared when Claude Code does not know it; named as in the plugin id"),
   options: z
-    .strictObject({ file: PortablePath.describe("Relative to the user's home"), set: JsonObject })
+    .strictObject({
+      file: PortablePath.describe("Relative to the user's home"),
+      set: JsonObject.refine((set) => values(set) <= 1000, "at most 1,000 values").describe("At most 1,000 values"),
+    })
     .optional()
     .describe("The plugin's own config file, merged as a settings `set` is"),
 });
@@ -91,7 +98,7 @@ const rules = z.array(Text).min(1).max(50);
 const manual = part("manual", { rules, claudeImport: z.boolean() });
 const localManual = part("local-manual", { rules });
 const files = part("files", {
-  files: sized(z.record(ProjectPath, Text), 100, 1),
+  files: sized(z.record(PortablePath, Text), 100, 1),
   commit: z.boolean(),
   onlyIfAbsent: z.boolean().optional(),
 });
@@ -173,19 +180,17 @@ type FileShape = z.infer<typeof FileShape>;
 
 const LEVELS = ["machine", "workspace", "project"] as const;
 
-// Project files only their own parts write: a settings part, where the allowed settings apply, never a `files` part,
-// whose text would bring hooks or MCP servers past them; and Git's own folder, whose hooks run on commit.
-const SEALED = "not .claude/settings.json, .claude/settings.local.json, .mcp.json or a file of .git";
+// Files only their own parts write, at any depth: Claude Code's settings, where a settings part's allowed settings
+// apply, and MCP server lists; a `files` part's text would bring hooks or servers past them. Targets are portable
+// paths, so `./`, `//` and trailing dots cannot spell them another way, and none has a `.git` part.
+const SEALED = "not a .claude/settings.json, .claude/settings.local.json or .mcp.json at any depth";
 const sealed = (target: string): boolean => {
-  const path = target.toLowerCase();
-  return (
-    [".claude/settings.json", ".claude/settings.local.json", ".mcp.json", ".git"].includes(path) ||
-    path.startsWith(".git/")
-  );
+  const [file = "", folder] = target.toLowerCase().split("/").toReversed();
+  return file === ".mcp.json" || (folder === ".claude" && ["settings.json", "settings.local.json"].includes(file));
 };
 
 /**
- * What a project file a profile writes is, for the plan preview (pending owner decision, hub issue 130): `executable`
+ * What a project file a profile writes is, for the plan preview (owner, 2026-11-07, hub issue 130): `executable`
  * starts with `#!` or has a script's extension, `configuration` lies in a dot folder, is a dotfile or is JSON, YAML or
  * TOML, which tools read to decide what to run; `text` is anything else.
  */
@@ -322,7 +327,7 @@ const secretAt = (value: unknown, path: string[] = []): string | undefined => {
 };
 
 /**
- * The settings a profile may set (pending owner decision, hub issue 126): the default profile's keys, the model, deny
+ * The settings a profile may set (owner, 2026-11-07, hub issue 126): the default profile's keys, the model, deny
  * and ask rules, sandbox keys that only tighten it, and named environment variables of the kinds Claude Code applies
  * at startup (feature toggles, limits and timeouts; https://code.claude.com/docs/en/settings-reference). Anything else,
  * a hook, a status line, a plugin, a login or a base URL among it, is refused. `true` allows any value there.

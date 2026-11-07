@@ -1,7 +1,6 @@
 export {
   type Candidate,
   counted,
-  headroom,
   isConfirmed,
   type Move,
   type Selection,

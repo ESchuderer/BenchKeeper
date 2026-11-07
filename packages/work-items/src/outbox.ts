@@ -3,6 +3,7 @@ import type { WorkItemStore } from "@cedarloom/ledger";
 import type { Tracker } from "./tracker.ts";
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
+const notHub = (id: string, repo: string): Finding => ({ code: "outbox.not-hub", params: { id, repo } });
 
 // The idempotency marker of a comment: an HTML comment, which GitHub keeps in the body and does not show.
 const marker = (id: string): string => `<!-- cedarloom-outbox:${id} -->`;
@@ -41,6 +42,11 @@ export const send = async (store: WorkItemStore, tracker: Tracker, id: string): 
   const claim = store.claim(id);
   if (!claim.ok) return claim;
   try {
+    const { repo } = claim.value.entry.intent.issue;
+    // GitHub names repositories without case.
+    if (repo.toLowerCase() !== tracker.hub.toLowerCase()) {
+      return { ok: true, value: store.settle(id, { status: "failed", finding: notHub(id, repo) }) };
+    }
     const done = await perform(store, tracker, claim.value.entry);
     if (done.ok) return { ok: true, value: store.settle(id, { status: "sent", remote: done.value }) };
     const status = done.finding.code === "tracker.unavailable" ? "pending" : "failed";
@@ -53,10 +59,10 @@ export const send = async (store: WorkItemStore, tracker: Tracker, id: string): 
 /** Sends the due entries, oldest first, and stops at the first that finds the tracker unavailable; each as it ended. */
 export const drain = async (store: WorkItemStore, tracker: Tracker): Promise<OutboxEntry[]> => {
   const ended: OutboxEntry[] = [];
-  for (const { id } of store.due()) {
+  for (const { id } of store.unsent()) {
     const sent = await send(store, tracker, id);
-    // Another process took the entry after it was listed.
-    if (!sent.ok) continue;
+    // Another process drains the outbox too: the rest is left to it, in its order.
+    if (!sent.ok) break;
     ended.push(sent.value);
     if (sent.value.status === "pending") break;
   }

@@ -322,6 +322,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "outbox.not-approved": (p) =>
     `The approval names intent ${short(p.approvedHash)}, not ${short(p.hash)}; nothing was queued under ${p.key}.`,
   "outbox.not-found": (p) => `No outbox entry ${p.id} in this state folder.`,
+  "outbox.not-hub": (p) =>
+    `Outbox entry ${p.id} writes to ${p.repo}, which is not the hub; CedarLoom writes to hub issues only, so it failed.`,
   "outbox.status": (p) =>
     p.status === "sending"
       ? `Another CedarLoom process is sending outbox entry ${p.id}.`

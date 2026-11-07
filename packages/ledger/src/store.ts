@@ -50,7 +50,7 @@ const BASELINE = [
 const SCHEMA = 18;
 
 // A JSON column's value; null for SQL NULL.
-const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
+export const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 
 // A stored plan with every file content blanked; kinds, paths and hashes remain. The store's SQL calls it as blanked().
 const blanked = (plan: unknown): string =>

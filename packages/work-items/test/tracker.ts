@@ -13,6 +13,7 @@ const OUTAGE = { ok: false, finding: { code: "tracker.unavailable", params: { er
 
 /** A tracker in memory: issues with labels and comments, and one fault for the next write. */
 export class FakeTracker implements Tracker {
+  readonly hub = "acme/tracker";
   readonly #issues = new Map<string, Issue>();
   #lastId = 1000;
   fault: Fault | null = null;
@@ -29,7 +30,7 @@ export class FakeTracker implements Tracker {
   }
 
   async hasLabel(ref: IssueRef, label: string): Promise<Result<boolean>> {
-    return { ok: true, value: this.issue(ref).labels.has(label) };
+    return { ok: true, value: [...this.issue(ref).labels].some((name) => name.toLowerCase() === label.toLowerCase()) };
   }
 
   async findComment(ref: IssueRef, marker: string): Promise<Result<RemoteComment | null>> {

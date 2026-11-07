@@ -1897,6 +1897,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "outbox.not-hub";
+            params: {
+                id: string;
+                repo: string;
+            };
+        } | {
+            /** @constant */
             code: "outbox.status";
             params: {
                 id: string;
@@ -3154,6 +3161,13 @@ export interface components {
             code: "outbox.not-found";
             params: {
                 id: string;
+            };
+        } | {
+            /** @constant */
+            code: "outbox.not-hub";
+            params: {
+                id: string;
+                repo: string;
             };
         } | {
             /** @constant */

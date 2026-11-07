@@ -12,7 +12,7 @@ import {
 } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
-import { connect, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
+import { column, connect, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
 
 /** The hash an approval of an intent names: SHA-256 of its canonical JSON. */
 export const intentHash = (intent: Intent): string => sha256(canonicalJson(Intent.parse(intent)));
@@ -28,7 +28,6 @@ export interface OutboxClaim extends LeaseLock {
 }
 
 const COLUMNS = `id, "key", intent, intentHash, approvedBy, status, attempts, unchanged, remote, finding, createdAt, settledAt`;
-const json = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
 // Each attempt takes a lease of its own: a probe or a release removes a lease's file, which a second taker would miss.
 const leaseOf = (id: string, attempt: number): string => `outbox-${id}.${attempt}`;
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
@@ -74,11 +73,9 @@ export class WorkItemStore {
     return this.#where("id = ?", id)[0];
   }
 
-  /** The entries due for a send, oldest first: pending ones, and ones whose sender ended before it settled them. */
-  due(): OutboxEntry[] {
-    return this.#where("status IN ('pending', 'sending')").filter(
-      (entry) => entry.status === "pending" || !leaseHeld(this.#dir, leaseOf(entry.id, entry.attempts)),
-    );
+  /** The entries not sent yet, oldest first, with those a live sender holds, whose claim is refused. */
+  unsent(): OutboxEntry[] {
+    return this.#where("status IN ('pending', 'sending')");
   }
 
   /**
@@ -166,10 +163,10 @@ export class WorkItemStore {
       .map((row) =>
         OutboxEntry.parse({
           ...row,
-          intent: json(row["intent"]),
+          intent: column(row["intent"]),
           unchanged: row["unchanged"] === null ? null : row["unchanged"] === 1,
-          remote: json(row["remote"]),
-          finding: json(row["finding"]),
+          remote: column(row["remote"]),
+          finding: column(row["finding"]),
         }),
       );
   }

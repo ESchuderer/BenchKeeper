@@ -3606,11 +3606,29 @@
             },
             "plugin": {
               "type": "string"
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "autoUpdate": {
+              "type": "boolean"
             }
           },
           "required": [
             "part",
-            "plugin"
+            "plugin",
+            "source",
+            "ref",
+            "autoUpdate"
           ],
           "additionalProperties": false
         }

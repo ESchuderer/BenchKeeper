@@ -107,7 +107,7 @@ const plugins =
         title: "b",
         default: "on",
         plugin: "b@shop",
-        marketplace: { name: "shop", github: "acme/shop", autoUpdate: false },
+        marketplace: { name: "shop", github: "acme/shop", autoUpdate: true },
       },
       ...more,
     };
@@ -125,17 +125,30 @@ test("a plugin part waits for approval by name; approved, the settings declare i
   const waiting = planOf(plugins(), home);
   const approved = writes(planOf(plugins(), home, { allow: BOTH }));
   expect([
-    "findings" in waiting
-      ? waiting.findings.map(({ code, params }) => [code, "part" in params ? params.part : null])
-      : null,
+    "findings" in waiting ? waiting.findings.map(({ code, params }) => [code, params]) : null,
     approved.get(join(home, "settings.json")),
     approved.get(join(home, ".config", "a", "config.json")),
   ]).toMatchObject([
-    BOTH.map((part) => ["profile.approval-needed", part]),
+    [
+      [
+        "profile.approval-needed",
+        {
+          part: "machine.plugin.a",
+          plugin: "a@tools",
+          source: "https://x.example/tools.git",
+          ref: "v1",
+          autoUpdate: false,
+        },
+      ],
+      [
+        "profile.approval-needed",
+        { part: "machine.plugin.b", plugin: "b@shop", source: "acme/shop", ref: null, autoUpdate: true },
+      ],
+    ],
     {
       extraKnownMarketplaces: {
         tools: { source: { source: "git", url: "https://x.example/tools.git", ref: "v1" } },
-        shop: { source: { source: "github", repo: "acme/shop" }, autoUpdate: false },
+        shop: { source: { source: "github", repo: "acme/shop" }, autoUpdate: true },
       },
       enabledPlugins: { "a@tools": true, "b@shop": true },
     },

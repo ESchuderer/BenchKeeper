@@ -204,7 +204,15 @@ export const Finding = z
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
-    finding("profile.approval-needed", { part: z.string(), plugin: z.string() }),
+    // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
+    // updates it by itself; no source: a marketplace Claude Code already knows.
+    finding("profile.approval-needed", {
+      part: z.string(),
+      plugin: z.string(),
+      source: z.string().nullable(),
+      ref: z.string().nullable(),
+      autoUpdate: z.boolean(),
+    }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),

@@ -1426,6 +1426,9 @@ export interface components {
             params: {
                 part: string;
                 plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
             };
         } | {
             /** @constant */
@@ -2373,6 +2376,9 @@ export interface components {
             params: {
                 part: string;
                 plugin: string;
+                source: string | null;
+                ref: string | null;
+                autoUpdate: boolean;
             };
         } | {
             /** @constant */

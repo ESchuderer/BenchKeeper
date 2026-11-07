@@ -201,6 +201,10 @@ const optionsWrites = (plugins: [string, Plugin][], target: Target): Result<Oper
   return { ok: true, value: operations };
 };
 
+// A marketplace's repository: `owner/repo` on GitHub, else its Git URL.
+const repository = (marketplace: NonNullable<Plugin["marketplace"]>): string =>
+  "github" in marketplace ? marketplace.github : marketplace.git;
+
 // A plugin part not approved by name whose writes would change something: a named approval line, never preselected
 // (owner, hub issue 130), as its plugin's hooks, MCP servers and commands run in every session.
 const waiting = (plugins: [string, Plugin][], settings: Json, target: Target): Finding[] =>
@@ -212,7 +216,11 @@ const waiting = (plugins: [string, Plugin][], settings: Json, target: Target): F
         options === null ? null : fileWrite(join(target.user, options.file), (json) => mergeSet(json, options.set));
       return changed || (write !== null && (!write.ok || write.value.operations.length > 0));
     })
-    .map(([id, { plugin }]) => ({ code: "profile.approval-needed", params: { part: `machine.${id}`, plugin } }));
+    .map(([id, { plugin, marketplace }]): Finding => {
+      const source = marketplace === undefined ? null : repository(marketplace);
+      const params = { ref: marketplace?.ref ?? null, autoUpdate: marketplace?.autoUpdate === true };
+      return { code: "profile.approval-needed", params: { part: `machine.${id}`, plugin, source, ...params } };
+    });
 
 /**
  * The settings parts and the plugin parts `approved` names merged into the settings file, in that order, and those

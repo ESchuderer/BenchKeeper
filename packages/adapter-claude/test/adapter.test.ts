@@ -270,6 +270,20 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   }
 });
 
+test("a read-only launch denies every write in the working folder and any git push", async () => {
+  const settings = z
+    .object({
+      permissions: z.object({ ask: z.array(z.string()), deny: z.array(z.string()) }),
+      sandbox: z.object({ filesystem: z.object({ denyWrite: z.array(z.string()) }) }),
+    })
+    .parse(JSON.parse(started(await events(runtime.start(launch({}, { readOnly: true })))).args[12] ?? ""));
+  // The file tools by a deny rule, shell commands by the sandbox; the result file lies outside the working folder.
+  expect([settings.permissions.ask, settings.sandbox.filesystem.denyWrite]).toEqual([[], [fixtures]]);
+  expect(settings.permissions.deny).toEqual(
+    expect.arrayContaining([expect.stringMatching(/^Edit\(\/\/.*fixtures\/\*\*\)$/), "Bash(git push *)"]),
+  );
+});
+
 test("the worker's own home stays closed to its file tools only where the login and the account's state live", async () => {
   const own = launch({}, { denyRead: [fixtures, "/accounts/other"] });
   const settings = z

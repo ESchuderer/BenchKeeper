@@ -1,6 +1,7 @@
 import {
   type ActionContext,
   type DoctorFinding,
+  jsonAnswer,
   type ProgramVersion,
   programVersion,
   type TargetAccount,
@@ -47,17 +48,11 @@ const withoutEmails = (text: string): string =>
 
 const cswap = async ({ exec }: Exec, args: string[], timeoutMs = FETCH_MS): Promise<unknown> => {
   const command = `cswap ${args.join(" ")}`;
-  const { code, stdout } = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs });
-  let answer: unknown;
-  try {
-    answer = JSON.parse(stdout);
-  } catch (error) {
-    // A failing run's exit code says more than its empty output.
-    throw new Error(code === 0 ? `${command}: no JSON answer` : `${command} exited with ${code}`, { cause: error });
-  }
+  const ran = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs });
+  const answer = jsonAnswer(command, ran);
   const message = at(answer, "error", "message");
   if (typeof message === "string") throw new Error(`${command}: ${withoutEmails(message)}`);
-  if (code !== 0) throw new Error(`${command} exited with ${code}`);
+  if (ran.code !== 0) throw new Error(`${command} exited with ${ran.code}`);
   const version = at(answer, "schemaVersion");
   if (version !== 1) throw new Error(`${command} answered schemaVersion ${String(version)}, not 1`);
   return answer;

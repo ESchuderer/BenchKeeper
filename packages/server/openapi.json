@@ -3423,7 +3423,8 @@
                       "initialize",
                       "run",
                       "doctor",
-                      "target"
+                      "target",
+                      "worker"
                     ]
                   },
                   "error": {
@@ -9574,7 +9575,8 @@
                       "initialize",
                       "run",
                       "doctor",
-                      "target"
+                      "target",
+                      "worker"
                     ]
                   },
                   "error": {

@@ -262,6 +262,11 @@ export const ExtensionManifest = z
       switchTargets: sized(z.record(ActionId, z.strictObject({ agent: Agent })), 8)
         .optional()
         .describe("Where it switches an agent's account (the target/* calls); bundled extensions only"),
+      workerRunners: sized(z.record(ActionId, z.strictObject({ agent: Agent })), 8)
+        .optional()
+        .describe(
+          "Where it starts a supervised worker on a given launch line (the worker/* calls); bundled extensions only",
+        ),
     }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()

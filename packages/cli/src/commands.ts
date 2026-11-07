@@ -493,14 +493,19 @@ const changeLines = (planned: useCases.ProfilePlan["changes"]): string =>
 
 /** Shows the profile's plan for this machine with who set each change, or with --yes applies it as one run. */
 export const profilesApply = (ctx: Context, { yes }: { yes?: true }): number => {
-  const profile = useCases.planProfile(ctx.config, ctx.state);
+  const profile = useCases.planProfile(ctx.config, ctx.state, useCases.claudeHome(ctx.io.env));
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, changes: setters, findings } = profile.value;
   if (findings.some((finding) => findingInfo[finding.code].severity === "error")) {
     return fail(ctx, "plan", findings, EXIT.refused);
   }
   if (plan === null) {
-    emit(ctx, "plan", { planHash: null, plan: null, changes: setters, findings }, "This machine matches the profile.");
+    emit(
+      ctx,
+      "plan",
+      { planHash: null, plan: null, changes: setters, findings },
+      "Nothing to change in this machine's rules and settings.",
+    );
     report(ctx, findings);
     return EXIT.ok;
   }

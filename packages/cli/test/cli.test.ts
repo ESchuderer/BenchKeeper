@@ -426,50 +426,47 @@ test("level shows the default and each project's level, and sets one of them by 
   expect((await cli("level", "auto")).code).toBe(EXIT.data);
 });
 
-// Sample params for the findings whose params are no plain strings.
-const PARAMS: Record<string, Record<string, unknown>> = {
-  "document.invalid": { issues: [{ path: "", code: "invalid_json" }] },
-  "plan.chain-broken": { path: "/a.md", index: 1, expected: sha256("a"), found: null },
-  "draft.too-large": { id: "w", bytes: 3_000_000, limit: 2_097_152 },
-  "run.input-invalid": { input: "focus", type: "number" },
-  "run.event-invalid": { runId: "r", seq: 3, issues: [{ path: "attempt", code: "too_small" }] },
-  "run.lease-held": { runId: "r", pid: 4242 },
-  "run.node-unsupported": { node: "ask", type: "agent.run" },
-  "workflow.duplicate-id": { kind: "node", id: "lint" },
-  "workflow.trigger-count": { count: 0 },
-  "workflow.invalid-config": { node: "j", issues: [{ path: "", code: "invalid_value" }] },
-  "workflow.dangling-edge": { edge: "e1", end: "from", ref: "gone" },
-  "workflow.unknown-handle": { edge: "e1", end: "to", handle: "lint.nope" },
-  "workflow.incompatible-handles": { edge: "e1", from: "number", to: "string" },
-  "workflow.unchecked-handles": { edge: "e1", from: "json", to: "string" },
-  "workflow.many-sources": { node: null, handle: "report", count: 2 },
-  "workflow.missing-source": { node: "check", handle: "value" },
-  "workflow.cycle": { nodes: ["a", "b"] },
-  "workflow.join-branches": { node: "j", count: 1 },
-  "workflow.stray-entry": { section: "layout", node: "gone" },
-  "workflow.exclusive-sources": { node: "notes", handle: "run", from: "gate" },
-  "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
-  "workflow.schedule-input": { input: "branch" },
-  "launch.account-full": { account: "work", max: 2 },
-  "extension.refused": { extension: "acme.jira", reason: "sandbox-unavailable" },
-  "extension.failed": { extension: "acme.jira", step: "run", error: "a message over 1048576 bytes" },
-  "extension.install-refused": { extension: null, reason: "no-manifest" },
-  "git.failed": { step: "fetch", error: "fatal: couldn't find remote ref v9" },
-  "git.refused-source": { field: "url" },
-  "git.unsafe-entry": { path: "dist/link", kind: "link" },
-  "git.too-large": { path: null, found: 2001, limit: 2000, unit: "files" },
-  "profile.parent-cycle": { chain: ["acme.x/a.json", "acme.x/b.json", "acme.x/a.json"] },
-  "profile.parent-limit": { chain: ["acme.x/a.json", "acme.x/b.json"], limit: 50 },
-  "profile.pack-sources": { pack: "acme.x", files: ["acme.a", "acme.b"] },
-  "profile.binding-missing": { part: "workspace.hub", binding: "hub" },
-  "store.version-not-higher": { id: "w", stored: "1.9.0", found: "1.9.0" },
-  "store.identity-missing": { key: "user.email" },
-};
-
 test("every finding code has an English sentence", () => {
   const examples = Finding.options.map((option) => option.shape.code.value);
+  const params: Record<string, Record<string, unknown>> = {
+    "document.invalid": { issues: [{ path: "", code: "invalid_json" }] },
+    "plan.chain-broken": { path: "/a.md", index: 1, expected: sha256("a"), found: null },
+    "draft.too-large": { id: "w", bytes: 3_000_000, limit: 2_097_152 },
+    "run.input-invalid": { input: "focus", type: "number" },
+    "run.event-invalid": { runId: "r", seq: 3, issues: [{ path: "attempt", code: "too_small" }] },
+    "run.lease-held": { runId: "r", pid: 4242 },
+    "run.node-unsupported": { node: "ask", type: "agent.run" },
+    "workflow.duplicate-id": { kind: "node", id: "lint" },
+    "workflow.trigger-count": { count: 0 },
+    "workflow.invalid-config": { node: "j", issues: [{ path: "", code: "invalid_value" }] },
+    "workflow.dangling-edge": { edge: "e1", end: "from", ref: "gone" },
+    "workflow.unknown-handle": { edge: "e1", end: "to", handle: "lint.nope" },
+    "workflow.incompatible-handles": { edge: "e1", from: "number", to: "string" },
+    "workflow.unchecked-handles": { edge: "e1", from: "json", to: "string" },
+    "workflow.many-sources": { node: null, handle: "report", count: 2 },
+    "workflow.missing-source": { node: "check", handle: "value" },
+    "workflow.cycle": { nodes: ["a", "b"] },
+    "workflow.join-branches": { node: "j", count: 1 },
+    "workflow.stray-entry": { section: "layout", node: "gone" },
+    "workflow.exclusive-sources": { node: "notes", handle: "run", from: "gate" },
+    "workflow.optional-input": { node: "gate", handle: "value", input: "flag" },
+    "workflow.schedule-input": { input: "branch" },
+    "launch.account-full": { account: "work", max: 2 },
+    "extension.refused": { extension: "acme.jira", reason: "sandbox-unavailable" },
+    "extension.failed": { extension: "acme.jira", step: "run", error: "a message over 1048576 bytes" },
+    "extension.install-refused": { extension: null, reason: "no-manifest" },
+    "git.failed": { step: "fetch", error: "fatal: couldn't find remote ref v9" },
+    "git.refused-source": { field: "url" },
+    "git.unsafe-entry": { path: "dist/link", kind: "link" },
+    "git.too-large": { path: null, found: 2001, limit: 2000, unit: "files" },
+    "profile.parent-cycle": { chain: ["acme.x/a.json", "acme.x/b.json", "acme.x/a.json"] },
+    "profile.parent-limit": { chain: ["acme.x/a.json", "acme.x/b.json"], limit: 50 },
+    "profile.pack-sources": { pack: "acme.x", files: ["acme.a", "acme.b"] },
+    "store.version-not-higher": { id: "w", stored: "1.9.0", found: "1.9.0" },
+    "store.identity-missing": { key: "user.email" },
+  };
   for (const code of examples) {
-    const finding = Finding.parse({ code, params: PARAMS[code] ?? sampleParams(code) });
+    const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });
     expect(text(finding)).toMatch(/^\S.{20,}/s);
   }
   // The other forms of two git findings: a file name, and one file over its size.
@@ -481,9 +478,14 @@ test("every finding code has an English sentence", () => {
   ]);
 });
 
+// An enum's first option, a count for found and known, else a string.
+const sampleValue = (key: string, schema: unknown): unknown => {
+  if (schema instanceof z.ZodEnum) return schema.options[0];
+  return /found|known/.test(key) ? 2 : sha256(key);
+};
 const sampleParams = (code: string): Record<string, unknown> => {
   const shape = Finding.options.find((option) => option.shape.code.value === code)?.shape.params.shape ?? {};
-  return Object.fromEntries(Object.keys(shape).map((key) => [key, /found|known/.test(key) ? 2 : sha256(key)]));
+  return Object.fromEntries(Object.entries(shape).map(([key, schema]) => [key, sampleValue(key, schema)]));
 };
 
 test("the installed command runs the same program and sets the process exit code", () => {

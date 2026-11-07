@@ -3540,11 +3540,20 @@
                   },
                   "path": {
                     "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "rules",
+                      "template",
+                      "profile"
+                    ]
                   }
                 },
                 "required": [
                   "pack",
-                  "path"
+                  "path",
+                  "kind"
                 ],
                 "additionalProperties": false
               }
@@ -3661,6 +3670,36 @@
                 },
                 "required": [
                   "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.placeholder-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "placeholder": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "placeholder"
                 ],
                 "additionalProperties": false
               }
@@ -7801,11 +7840,20 @@
                   },
                   "path": {
                     "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "rules",
+                      "template",
+                      "profile"
+                    ]
                   }
                 },
                 "required": [
                   "pack",
-                  "path"
+                  "path",
+                  "kind"
                 ],
                 "additionalProperties": false
               }
@@ -7922,6 +7970,36 @@
                 },
                 "required": [
                   "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.placeholder-unknown"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "placeholder": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "placeholder"
                 ],
                 "additionalProperties": false
               }

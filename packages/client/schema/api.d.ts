@@ -1375,6 +1375,8 @@ export interface components {
             params: {
                 pack: string;
                 path: string;
+                /** @enum {string} */
+                kind: "rules" | "template" | "profile";
             };
         } | {
             /** @constant */
@@ -1402,6 +1404,13 @@ export interface components {
             code: "profile.owner-changed";
             params: {
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.placeholder-unknown";
+            params: {
+                at: string;
+                placeholder: string;
             };
         } | {
             /** @constant */
@@ -2299,6 +2308,8 @@ export interface components {
             params: {
                 pack: string;
                 path: string;
+                /** @enum {string} */
+                kind: "rules" | "template" | "profile";
             };
         } | {
             /** @constant */
@@ -2326,6 +2337,13 @@ export interface components {
             code: "profile.owner-changed";
             params: {
                 path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.placeholder-unknown";
+            params: {
+                at: string;
+                placeholder: string;
             };
         } | {
             /** @constant */

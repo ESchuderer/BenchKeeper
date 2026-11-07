@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import {
   canonicalJson,
@@ -11,7 +10,7 @@ import {
 } from "@cedarloom/contracts";
 import { errorCode, hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
-import { readEntry, type Resolved } from "./resolve.ts";
+import { jsonFile, readEntry, type Resolved } from "./resolve.ts";
 
 /** A planned change and the profile file that set it: a whole file (`key` null) or one settings value by its pointer. */
 export interface Change {
@@ -32,11 +31,18 @@ export const HUB_RULES = "cedarloom-hub.md";
 export const rulesFolder = (home: string): string => join(home, "rules") + sep;
 
 type Text = { pack: string; path: string } | { inline: string };
-type Wanted = { file: string; text: Text; pointer: string };
+type Wanted = { file: string; text: Text; pointer: string; on: boolean };
 
-const textOf = (text: Text, hub: string | undefined): Result<string> => {
-  const read: Result<string> = "inline" in text ? { ok: true, value: text.inline } : readEntry(text);
-  return read.ok && hub !== undefined ? { ok: true, value: read.value.replaceAll("{{hub}}", hub) } : read;
+const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
+
+// The text with this machine's values filled in; a placeholder left without one stops the plan.
+const textOf = ({ text, pointer }: Wanted, hub: string | undefined): Result<string> => {
+  const read: Result<string> = "inline" in text ? { ok: true, value: text.inline } : readEntry(text, "rules");
+  if (!read.ok) return read;
+  const filled = hub === undefined ? read.value : read.value.replaceAll("{{hub}}", hub);
+  const left = /\{\{([^{}\n]{0,40})\}\}/.exec(filled)?.[1];
+  if (left === undefined) return { ok: true, value: filled };
+  return refuse({ code: "profile.placeholder-unknown", params: { at: pointer, placeholder: left } });
 };
 
 /** The file that set the value at a profile pointer: the one setBy lists at the pointer or the nearest above it. */
@@ -48,83 +54,80 @@ const setterOf = (setBy: Record<string, string>, pointer: string): string | null
   return null;
 };
 
-const rulesWanted = ({ profile, on }: Resolved): Wanted[] => {
-  const wanted: Wanted[] = [
-    ...Object.entries(profile.machine).flatMap(([id, part]) =>
-      part.type === "rules" && on.has(`machine.${id}`)
-        ? [{ file: part.file, text: part.text, pointer: `/machine/${id}/text` }]
-        : [],
-    ),
-    ...Object.entries(profile.workspace).flatMap(([id, part]) =>
-      part.type === "hub" && part.rules !== undefined && on.has(`workspace.${id}`)
-        ? [{ file: HUB_RULES, text: part.rules, pointer: `/workspace/${id}/rules` }]
-        : [],
-    ),
-  ];
-  // One file per name: of two parts naming the same file, the later one's text is written, as a later value wins.
-  return [...new Map(wanted.map((each): [string, Wanted] => [each.file, each])).values()];
-};
+// Every rules file the profile names, on or off: each rules part's, and the hub's question rule.
+const rulesOf = ({ profile, on }: Resolved): Wanted[] => [
+  ...Object.entries(profile.machine).flatMap(([id, part]) =>
+    part.type === "rules"
+      ? [{ file: part.file, text: part.text, pointer: `/machine/${id}/text`, on: on.has(`machine.${id}`) }]
+      : [],
+  ),
+  ...Object.entries(profile.workspace).flatMap(([id, part]) =>
+    part.type === "hub" && part.rules !== undefined
+      ? [{ file: HUB_RULES, text: part.rules, pointer: `/workspace/${id}/rules`, on: on.has(`workspace.${id}`) }]
+      : [],
+  ),
+];
 
 const ownerChanged = (path: string): Finding => ({ code: "profile.owner-changed", params: { path } });
 
+// A file's hash, null when it is absent; one that cannot be read, a folder among them, stops the plan by name.
+const hashOf = (path: string): Result<string | null> => {
+  try {
+    return { ok: true, value: hashFile(path) };
+  } catch (error) {
+    return refuse({ code: "document.unreadable", params: { path, error: errorCode(error) } });
+  }
+};
+
 // A rules file is written while it is absent or as CedarLoom last left it; a file the owner changed or made stays.
-const rulesWrites = (resolved: Resolved, folder: string, written: ReadonlyMap<string, string | null>) => {
+const rulesWrites = (resolved: Resolved, wanted: Map<string, Wanted>, written: ReadonlyMap<string, string | null>) => {
   const plan: LevelPlan = { operations: [], changes: [], findings: [] };
-  for (const { file, text, pointer } of rulesWanted(resolved)) {
-    const path = join(folder, file);
-    const content = textOf(text, resolved.hub);
+  for (const [path, each] of wanted) {
+    const content = textOf(each, resolved.hub);
     if (!content.ok) return content;
-    const now = hashFile(path);
+    const hashed = hashOf(path);
+    if (!hashed.ok) return hashed;
+    const now = hashed.value;
     if (now === sha256(content.value)) continue;
-    if (now !== (written.get(path) ?? null)) plan.findings.push(ownerChanged(path));
+    if (now !== null && now !== written.get(path)) plan.findings.push(ownerChanged(path));
     else {
       plan.operations.push({ kind: "write", path, before: now, content: content.value });
-      plan.changes.push({ path, key: null, setBy: setterOf(resolved.setBy, pointer) });
+      plan.changes.push({ path, key: null, setBy: setterOf(resolved.setBy, each.pointer) });
     }
   }
   return { ok: true as const, value: plan };
 };
 
-// A rules file CedarLoom wrote for a part that is off now goes, while it is still as CedarLoom left it.
-const rulesRemovals = (plan: LevelPlan, wanted: ReadonlySet<string>, written: ReadonlyMap<string, string | null>) => {
-  for (const [path, last] of written) {
-    const now = wanted.has(path) || last === null ? null : hashFile(path);
-    if (now === null) continue;
-    if (now !== last) plan.findings.push(ownerChanged(path));
+// The file of a rules part that is off goes while it is as CedarLoom last left it; other files are never touched.
+const rulesRemovals = (plan: LevelPlan, off: Set<string>, written: ReadonlyMap<string, string | null>) => {
+  for (const path of off) {
+    const last = written.get(path);
+    const now = last === undefined || last === null ? null : hashOf(path);
+    if (now?.ok === false) return now;
+    if (now === null || now.value === null) continue;
+    if (now.value !== last) plan.findings.push(ownerChanged(path));
     else {
-      plan.operations.push({ kind: "delete", path, before: now });
+      plan.operations.push({ kind: "delete", path, before: now.value });
       plan.changes.push({ path, key: null, setBy: null });
     }
   }
+  return { ok: true as const, value: plan };
 };
-
-const unreadable = (path: string, error: string): Result<never> => ({
-  ok: false,
-  finding: { code: "document.unreadable", params: { path, error } },
-});
 
 // The settings as an object with the hash of the text read; none yet is an empty one. A file that is no JSON object
 // is never rewritten.
 const readSettings = (path: string): Result<{ json: Json; before: string | null }> => {
-  let text: string;
-  try {
-    text = readFileSync(path, "utf8");
-  } catch (error) {
-    return errorCode(error) === "ENOENT"
-      ? { ok: true, value: { json: {}, before: null } }
-      : unreadable(path, errorCode(error));
+  const file = jsonFile(path);
+  if (!file.ok) {
+    if (file.finding.code !== "document.invalid") return file;
+    return refuse({ code: "document.unreadable", params: { path, error: "not JSON" } });
   }
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    return unreadable(path, "not JSON");
+  if (file.value === null) return { ok: true, value: { json: {}, before: null } };
+  const read = JsonValue.safeParse(file.value.json);
+  if (!read.success || typeof read.data !== "object" || read.data === null || Array.isArray(read.data)) {
+    return refuse({ code: "document.unreadable", params: { path, error: "not a JSON object" } });
   }
-  const read = JsonValue.safeParse(json);
-  const object = read.success && typeof read.data === "object" && read.data !== null && !Array.isArray(read.data);
-  return object
-    ? { ok: true, value: { json: read.data, before: sha256(text) } }
-    : unreadable(path, "not a JSON object");
+  return { ok: true, value: { json: read.data, before: sha256(file.value.text) } };
 };
 
 const valueAt = (value: Json | undefined, pointer: string): Json | undefined =>
@@ -145,32 +148,30 @@ const same = (a: Json | undefined, b: Json | undefined): boolean =>
 /**
  * Merges each settings part that is on into the settings file, in profile order, by the rule of every `set`. Each
  * changed value names the file that set it; an item a list gains, the file that set the list. shortcut: the file is
- * written back as two-space JSON, as Claude Code writes it; a format-keeping edit is due once owners keep their own.
+ * written back as two-space JSON with every key in its order, comments refused; a format-keeping edit is due once
+ * owners keep their own formatting there.
  */
 const settingsPlan = ({ profile, on, setBy }: Resolved, path: string): Result<LevelPlan> => {
   const parts = Object.entries(profile.machine).flatMap(([id, part]) =>
     part.type === "settings" && on.has(`machine.${id}`) ? [{ id, set: part.set }] : [],
   );
-  if (parts.length === 0) return { ok: true, value: { operations: [], changes: [], findings: [] } };
-  const current = readSettings(path);
-  if (!current.ok) return current;
-  const { json, before } = current.value;
+  const current = parts.length === 0 ? null : readSettings(path);
+  if (current?.ok === false) return current;
+  const { json, before } = current?.value ?? { json: {}, before: null };
   let merged: Json = json;
   const marked = new Map<string, string>();
-  for (const { id, set } of parts)
+  for (const { id, set } of parts) {
     merged = mergeJson(merged, set, "", (at) => marked.set(at, `/machine/${id}/set${at}`));
+  }
   const changes = [...marked]
     .filter(([at]) => !same(valueAt(json, at), valueAt(merged, at)))
     .map(([at, pointer]): Change => {
       const list = Array.isArray(valueAt(merged, at.slice(0, at.lastIndexOf("/"))));
       return { path, key: at, setBy: setterOf(setBy, list ? pointer.slice(0, pointer.lastIndexOf("/")) : pointer) };
     });
-  if (changes.length === 0) return { ok: true, value: { operations: [], changes: [], findings: [] } };
   const content = `${JSON.stringify(merged, null, 2)}\n`;
-  return {
-    ok: true,
-    value: { operations: [{ kind: "write", path, before, content }], changes, findings: [] },
-  };
+  const operations: Operation[] = changes.length === 0 ? [] : [{ kind: "write", path, before, content }];
+  return { ok: true, value: { operations, changes, findings: [] } };
 };
 
 /**
@@ -184,18 +185,21 @@ export const planMachine = (
   written: ReadonlyMap<string, string | null>,
 ): Result<LevelPlan> => {
   const folder = rulesFolder(home);
-  const rules = rulesWrites(resolved, folder, written);
+  const files = rulesOf(resolved).map((each): [string, Wanted] => [join(folder, each.file), each]);
+  // One file per name: of two parts on that name it, the later one's text is written, as a later value wins.
+  const wanted = new Map(files.filter(([, each]) => each.on));
+  const writes = rulesWrites(resolved, wanted, written);
+  if (!writes.ok) return writes;
+  const off = new Set(files.map(([path]) => path).filter((path) => !wanted.has(path)));
+  const rules = rulesRemovals(writes.value, off, written);
   if (!rules.ok) return rules;
-  rulesRemovals(rules.value, new Set(rulesWanted(resolved).map(({ file }) => join(folder, file))), written);
   const settings = settingsPlan(resolved, join(home, "settings.json"));
   if (!settings.ok) return settings;
   const { operations, changes, findings } = rules.value;
-  return {
-    ok: true,
-    value: {
-      operations: [...operations, ...settings.value.operations],
-      changes: [...changes, ...settings.value.changes],
-      findings,
-    },
+  const merged: LevelPlan = {
+    operations: [...operations, ...settings.value.operations],
+    changes: [...changes, ...settings.value.changes],
+    findings,
   };
+  return { ok: true, value: merged };
 };

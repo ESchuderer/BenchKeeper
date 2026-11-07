@@ -14,10 +14,11 @@ import { type Change, DEFAULT_PROFILE, planMachine, resolveProfile, rulesFolder 
 import { readOptionalJson, withView } from "./use-cases.ts";
 
 /**
- * The Claude Code home the machine level writes: `CLAUDE_CONFIG_DIR`, else `~/.claude`. The accounts' homes are
- * CedarLoom's worker homes, which get their settings per launch, and their aliases are only read.
+ * The Claude Code home the machine level writes: `CLAUDE_CONFIG_DIR`, else `~/.claude`
+ * (https://code.claude.com/docs/en/env-vars). The accounts' homes are CedarLoom's worker homes, which get their
+ * settings per launch, and their aliases are only read.
  */
-export const claudeHome = (env: NodeJS.ProcessEnv = process.env): string =>
+export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string =>
   resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude"));
 
 const selectionPath = (config: string): string => join(config, "profile.json");
@@ -38,7 +39,7 @@ export interface ProfilePlan {
 }
 
 /** Plans the selected profile's machine level for `home`; a profile with problems gets no plan, only its findings. */
-export const planProfile = (config: string, state: string, home = claudeHome()): Result<ProfilePlan> => {
+export const planProfile = (config: string, state: string, home: string): Result<ProfilePlan> => {
   const read = readSelection(config);
   if (!read.ok) return read;
   const resolved = resolveProfile(read.value.selection);

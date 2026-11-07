@@ -5,9 +5,12 @@ import {
   composeProfile,
   type Finding,
   type LoadParent,
+  PACK_SCHEMA_VERSION,
+  PackManifest,
   type Profile,
   type ProfileSelection,
   type Result,
+  readDocument,
   semverAbove,
 } from "@cedarloom/contracts";
 import { errorCode } from "@cedarloom/engine";
@@ -26,46 +29,70 @@ export const APP_VERSION: string = JSON.parse(
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
-/**
- * A pack's entry as text. shortcut: only bundled packs, which ship in this release, are read; a Git pack's entries are
- * unknown until pack fetching lands.
- */
-export const readEntry = (ref: Ref): Result<string> => {
-  try {
-    return { ok: true, value: readFileSync(join(BUNDLED, ref.pack, ref.path), "utf8") };
-  } catch {
-    return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path } });
-  }
-};
+/** What a reference names in a pack's manifest: a rules text, a template or a profile. */
+export type EntryKind = "rules" | "template" | "profile";
 
-const parsed = (text: Result<string>): Result<unknown> => {
-  if (!text.ok) return text;
+/** A JSON file's text and value, null when it is missing: `document.unreadable` or `document.invalid` otherwise. */
+export const jsonFile = (path: string): Result<{ text: string; json: unknown } | null> => {
+  let text: string;
   try {
-    return { ok: true, value: JSON.parse(text.value) };
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return { ok: true, value: null };
+    return refuse({ code: "document.unreadable", params: { path, error: errorCode(error) } });
+  }
+  try {
+    return { ok: true, value: { text, json: JSON.parse(text) } };
   } catch {
     return refuse({ code: "document.invalid", params: { issues: [{ path: "", code: "invalid_json" }] } });
   }
 };
 
+/**
+ * Where a pack's entry is, only as an entry of the kind its manifest lists. shortcut: only bundled packs, which ship
+ * in this release, are read; a Git pack's entries are unknown until pack fetching lands.
+ */
+const entryPath = (ref: Ref, kind: EntryKind): Result<string> => {
+  const file = jsonFile(join(BUNDLED, ref.pack, "cedarloom-pack.json"));
+  if (!file.ok) return file;
+  const manifest = file.value === null ? null : readDocument(PackManifest, PACK_SCHEMA_VERSION, file.value.json);
+  if (manifest?.ok === false) return manifest;
+  const entry = Object.entries(manifest?.value.entries ?? {}).find(([path]) => path === ref.path)?.[1];
+  if (entry?.kind !== kind)
+    return refuse({ code: "profile.entry-unknown", params: { pack: ref.pack, path: ref.path, kind } });
+  return { ok: true, value: join(BUNDLED, ref.pack, ref.path) };
+};
+
+/** A pack's entry of that kind as text. */
+export const readEntry = (ref: Ref, kind: EntryKind): Result<string> => {
+  const path = entryPath(ref, kind);
+  if (!path.ok) return path;
+  try {
+    return { ok: true, value: readFileSync(path.value, "utf8") };
+  } catch (error) {
+    return refuse({ code: "document.unreadable", params: { path: path.value, error: errorCode(error) } });
+  }
+};
+
+// A file's JSON; a missing one is unreadable.
+const jsonAt = (path: string): Result<unknown> => {
+  const file = jsonFile(path);
+  if (!file.ok) return file;
+  if (file.value === null) return refuse({ code: "document.unreadable", params: { path, error: "ENOENT" } });
+  return { ok: true, value: file.value.json };
+};
+
 const loadParent: LoadParent = (parent) => {
-  const read = parsed(readEntry(parent));
-  return !read.ok && read.finding.code === "profile.entry-unknown" ? undefined : read;
+  const path = entryPath(parent, "profile");
+  if (path.ok) return jsonAt(path.value);
+  return path.finding.code === "profile.entry-unknown" ? undefined : path;
 };
 
 // The selected profile file as JSON, and whether it ships in this release; the default without a selection.
 const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; bundled: boolean }> => {
-  if ("pack" in profile) {
-    const read = parsed(readEntry(profile));
-    return read.ok ? { ok: true, value: { json: read.value, bundled: true } } : read;
-  }
-  let text: string;
-  try {
-    text = readFileSync(profile.file, "utf8");
-  } catch (error) {
-    return refuse({ code: "document.unreadable", params: { path: profile.file, error: errorCode(error) } });
-  }
-  const read = parsed({ ok: true, value: text });
-  return read.ok ? { ok: true, value: { json: read.value, bundled: false } } : read;
+  const path = "pack" in profile ? entryPath(profile, "profile") : { ok: true as const, value: profile.file };
+  const json = path.ok ? jsonAt(path.value) : path;
+  return json.ok ? { ok: true, value: { json: json.value, bundled: "pack" in profile } } : json;
 };
 
 /** A composed profile with the parts switched on (`level.id`), this machine's hub, and what keeps it from applying. */

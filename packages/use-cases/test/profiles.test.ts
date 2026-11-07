@@ -41,9 +41,11 @@ test("a second apply has nothing left to do, and the question rule names the hub
   ]);
 });
 
-test("a part switched off takes away the file CedarLoom wrote for it, never the owner's own", () => {
+test("a part switched off takes away the file CedarLoom wrote for it, never another file in the folder", () => {
   const { config, state, home, plan } = setUp();
-  writeFileSync(join(home, "rules", "mine.md"), "- mine\n");
+  // The owner's own rules file, written by a plan of their own: CedarLoom wrote it, but for no part.
+  const mine = { kind: "write" as const, path: join(home, "rules", "mine.md"), before: null, content: "- mine\n" };
+  applied(state, { schemaVersion: 1, operations: [mine] });
   applied(state, ok(planChoice(config, { part: "machine.rules.global", on: false })));
   const operations = plan().plan?.operations.map(({ kind, ...rest }) => [kind, "path" in rest ? rest.path : null]);
   expect(operations).toEqual([["delete", join(home, "rules", "00-global.md")]]);
@@ -54,6 +56,13 @@ test("a rules file the owner changed is left as it is and reported", () => {
   const path = join(home, "rules", "00-global.md");
   writeFileSync(path, "- my own rules\n");
   expect(plan()).toEqual({ plan: null, changes: [], findings: [{ code: "profile.owner-changed", params: { path } }] });
+});
+
+test("a rules file the owner deleted is written again", () => {
+  const { home, plan } = setUp();
+  const path = join(home, "rules", "00-global.md");
+  rmSync(path);
+  expect(plan().plan?.operations.map((op) => [op.kind, "path" in op ? op.path : null])).toEqual([["write", path]]);
 });
 
 const DISABLED = "1";

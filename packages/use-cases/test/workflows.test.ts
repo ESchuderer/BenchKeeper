@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { type Json, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
 import { OUTPUT_CAP } from "@cedarloom/engine";
+import { type SandboxPolicy, sandboxRuntime, unavailable } from "@cedarloom/extension-host";
 import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import {
   applyPlan,
@@ -209,13 +210,14 @@ test("a run is refused before it starts: no shell, a node type that does not run
   expect(codeOf(listGraphRuns(read.state))).toBe("store.newer-schema");
 });
 
-test("a report run with a node that may write, a command or a precheck is refused before it starts (A28)", async () => {
+test("a report run is refused before it starts with a node that may write, or a command or precheck where no OS sandbox runs (A28)", async () => {
   const write = project([{ id: "w", type: "file.write", with: { path: "out.txt" } }], "t.start>w.run");
   expect(await runWorkflow(write.state, write.file, {}, { ...write.options, report: true })).toEqual(
     refused("workflow.report-only-write", { node: "w" }),
   );
   const touch = project([command("a", "touch touched")], "t.start>a.run");
-  expect(await runWorkflow(touch.state, touch.file, {}, { ...touch.options, report: true })).toEqual(
+  const none = { ...touch.options, report: true, sandbox: unavailable };
+  expect(await runWorkflow(touch.state, touch.file, {}, none)).toMatchObject(
     refused("run.sandbox-unavailable", { node: "a" }),
   );
   expect(existsSync(join(touch.root, "touched"))).toBe(false);
@@ -223,11 +225,11 @@ test("a report run with a node that may write, a command or a precheck is refuse
   const prechecked = project([], "t.start>r.run", {
     nodes: [{ id: "t", type: "trigger.manual", with: { precheck: "true" } }, read],
   });
-  expect(await runWorkflow(prechecked.state, prechecked.file, {}, { ...prechecked.options, report: true })).toEqual(
+  expect(await runWorkflow(prechecked.state, prechecked.file, {}, { ...none, project: prechecked.root })).toMatchObject(
     refused("run.sandbox-unavailable", { node: "t" }),
   );
   expect(listGraphRuns(touch.state)).toMatchObject({ ok: true, value: [] });
-  // A stored report run that no start checked, resumed without the option, still runs no command.
+  // A stored report run that no start checked, resumed without the option, runs no command outside the sandbox.
   const created = openGraphStore(touch.state);
   if (!created.ok) throw new Error(created.finding.code);
   const definition = WorkflowDefinition.parse(JSON.parse(readFileSync(touch.file, "utf8")));
@@ -235,7 +237,9 @@ test("a report run with a node that may write, a command or a precheck is refuse
   const lease = created.value.create({ ...run, definition, project: realpathSync(touch.root) });
   lease.release();
   created.value.close();
-  expect(await resumeRun(touch.state, lease.runId, touch.options)).toMatchObject({ value: { status: "failed" } });
+  expect(await resumeRun(touch.state, lease.runId, { ...touch.options, sandbox: unavailable })).toMatchObject({
+    value: { status: "failed" },
+  });
   expect(eventsOf(touch.state, lease.runId).find((event) => event.type === "ended")).toMatchObject({
     node: "a",
     outcome: "failed",
@@ -243,6 +247,44 @@ test("a report run with a node that may write, a command or a precheck is refuse
   });
   expect(existsSync(join(touch.root, "touched"))).toBe(false);
 });
+
+// Whether a sandboxed sh starts here; a machine where none does (the rootless dev container) skips, CI's runners do not.
+const sandboxHere = async (root: string): Promise<string | null> => {
+  const nothing = { command: "/bin/sh", args: ["-c", ""], cwd: root, env: {} };
+  const policy: SandboxPolicy = { read: [root], write: [], network: "none", probe: ["-c", ""] };
+  const inside = await sandboxRuntime()
+    .wrap(nothing, policy)
+    .catch((error: unknown) => String(error));
+  return typeof inside === "object" || process.env["CI"] === "true" ? null : String(inside);
+};
+
+test.skipIf(process.platform === "win32")(
+  "a report run's commands and precheck run in the OS sandbox: they read the project and write only their own temporary folder",
+  async ({ skip }) => {
+    const read = command("a", 'cat w.json > /dev/null && printf ok > "$TMPDIR/t" && cat "$TMPDIR/t"');
+    const at = project([read, command("b", "touch touched")], "t.start>a.run a.done>b.run");
+    const why = await sandboxHere(realpathSync(at.root));
+    if (why !== null) skip(why);
+    const ran = await runWorkflow(at.state, at.file, {}, { ...at.options, report: true });
+    expect(ran).toMatchObject({ value: { status: "failed" } });
+    const ended = eventsOf(at.state, idOf(ran)).filter((event) => event.type === "ended");
+    expect(ended).toMatchObject([
+      { node: "a", outcome: "done", values: { stdout: "ok" } },
+      { node: "b", outcome: "failed" },
+    ]);
+    expect(existsSync(join(at.root, "touched"))).toBe(false);
+    // A precheck that tries to write is refused in the sandbox too: it fails, and the run is skipped.
+    const checked = project([command("a", "true")], "t.start>a.run", {
+      nodes: [{ id: "t", type: "trigger.manual", with: { precheck: "touch prechecked" } }, command("a", "true")],
+    });
+    const skipped = await runWorkflow(checked.state, checked.file, {}, { ...checked.options, report: true });
+    expect([skipped, existsSync(join(checked.root, "prechecked"))]).toMatchObject([
+      { value: { status: "skipped" } },
+      false,
+    ]);
+  },
+  60_000,
+);
 
 test("a resume says why a stored run no longer starts, and refuses a journal it cannot trust", async () => {
   const at = project([command("a", "true")], "t.start>a.run");

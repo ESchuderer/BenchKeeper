@@ -745,7 +745,7 @@ test.runIf(process.platform === "win32")(
     const { state, config, work } = setup();
     const file = agentWorkflow(work, REVIEW);
     const agents = { config, host, runtime: agentRuntime(), launch: phaseLaunch };
-    expect(await runWorkflow(state, file, {}, { project: work, agents, report: true })).toEqual({
+    expect(await runWorkflow(state, file, {}, { project: work, agents, report: true })).toMatchObject({
       ok: false,
       finding: { code: "run.sandbox-unavailable", params: { node: "a" } },
     });

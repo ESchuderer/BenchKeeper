@@ -2,14 +2,15 @@
 // provokes must match the committed OpenAPI document. The Schemathesis command comes as the arguments, for example
 // `node scripts/schemathesis.ts .venv/bin/schemathesis` (CI installs it from .github/schemathesis/requirements.txt).
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CSRF_HEADER, WorkflowDefinition } from "@cedarloom/contracts";
 import { openGraphStore } from "@cedarloom/ledger";
 import { startServer } from "@cedarloom/server";
-import { applyPlan, type Fetch, saveDraft } from "@cedarloom/use-cases";
+import { applyPlan, saveDraft } from "@cedarloom/use-cases";
 import { z } from "zod";
+import { FLOWS, flowsExport } from "../test/flows-export.ts";
 
 const [command = "schemathesis", ...prefix] = process.argv.slice(2);
 const root = mkdtempSync(join(tmpdir(), "cedarloom-schemathesis-"));
@@ -35,13 +36,13 @@ const graphRun = graphs.value.create({
   project: root,
 });
 graphRun.release();
-const config = join(root, "schemathesis.toml");
-const ids = `"path.runId" = "${run.value.runId}"\n"path.graphRunId" = "${graphRun.runId}"\n`;
-writeFileSync(config, `[parameters]\n${ids}"path.id" = "minimal"\n`);
+// An import's store commit carries a Git identity: the run's own, which git reads beside the user's configuration.
+mkdirSync(join(root, "git"));
+writeFileSync(join(root, "git", "config"), "[user]\n\tname = Schemathesis\n\temail = schemathesis@example.org\n");
+process.env["XDG_CONFIG_HOME"] = root;
 
-// An import of a generated Git URL fetches nothing: the run never reaches the network.
-const offline: Fetch = async () => ({ ok: false, finding: { code: "git.refused-source", params: { field: "url" } } });
-const server = await startServer({ state, fetch: offline, log: (text) => process.stderr.write(text) });
+// Only the export at FLOWS is fetched, as data; any other Git URL fetches nothing, so the run never reaches the network.
+const server = await startServer({ state, fetch: await flowsExport(), log: (text) => process.stderr.write(text) });
 const { origin, hash } = new URL(server.url);
 const exchanged = await fetch(`${origin}/api/session`, {
   method: "POST",
@@ -50,6 +51,20 @@ const exchanged = await fetch(`${origin}/api/session`, {
 });
 const cookie = exchanged.headers.get("set-cookie")?.split(";")[0] ?? "";
 const { csrf } = z.object({ csrf: z.string() }).parse(await exchanged.json());
+// One reviewed import, whose id every {importId} parameter gets, so its apply answers from a plan and not only 404.
+const imported = await fetch(`${origin}/api/imports`, {
+  method: "POST",
+  headers: { "content-type": "application/json", cookie, [CSRF_HEADER]: csrf },
+  body: JSON.stringify({ git: FLOWS, ref: "main" }),
+});
+const { id: importId } = z.object({ id: z.uuid() }).parse(await imported.json());
+const config = join(root, "schemathesis.toml");
+const ids = [
+  `"path.runId" = "${run.value.runId}"`,
+  `"path.graphRunId" = "${graphRun.runId}"`,
+  `"path.importId" = "${importId}"`,
+];
+writeFileSync(config, `[parameters]\n${ids.join("\n")}\n"path.id" = "minimal"\n`);
 const document = join(import.meta.dirname, "..", "openapi.json");
 const session = ["-H", `cookie: ${cookie}`, "-H", `${CSRF_HEADER}: ${csrf}`];
 // The event stream never ends, so Schemathesis would wait on it until its timeout; the server tests cover it.

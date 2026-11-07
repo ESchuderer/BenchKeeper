@@ -49,9 +49,9 @@ export const Finding = z
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
     // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe).
     finding("run.shell-missing", {}),
-    // A report run's node that needs an OS sandbox where none runs: a command or precheck until it runs in one, and on
-    // native Windows also an agent (Q7); nothing of the run starts.
-    finding("run.sandbox-unavailable", { node: z.string() }),
+    // A report run's node that needs an OS sandbox where none runs: a command or precheck where the sandbox does not run
+    // sh (native Windows, a container that refuses bubblewrap), and on native Windows an agent (Q7); nothing starts.
+    finding("run.sandbox-unavailable", { node: z.string(), reason: z.string() }),
     // A resume or cancel named another project folder than the run's own; its commands run only there.
     finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
     // The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts.
@@ -220,6 +220,8 @@ export const Finding = z
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
+    // An auto part that stays off until this machine names the binding it waits for.
+    finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -402,6 +404,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.owner-changed": { severity: "warning", effort: "manual" },
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
+  "profile.binding-waiting": { severity: "info", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },

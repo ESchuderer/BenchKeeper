@@ -1,9 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { realpathSync } from "node:fs";
-import { homedir } from "node:os";
-import { resolve, sep } from "node:path";
 import {
-  AbsolutePath,
   Draft,
   DraftInfo,
   DraftSaved,
@@ -169,24 +165,9 @@ export const draftRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app,
 const KEPT = 16;
 
 /**
- * An import's folder from a request, only inside the user's home: first as given, then as its real path, so a link in
- * home that leads out of it is refused too. Null otherwise, before anything is read; the CLI takes any folder.
- */
-const homeFolder = (folder: string): string | null => {
-  const home = homedir();
-  const given = resolve(folder);
-  if (!given.startsWith(home + sep)) return null;
-  try {
-    const real = realpathSync(given);
-    return real.startsWith(realpathSync(home) + sep) ? real : null;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Imports (P6 a): the review of an export folder or a Git ref, fetched as data, with its plan kept under an id, and that
- * plan applied only with the hash of the preview the user approved, once.
+ * Imports (P6 a): the review of a Git ref, fetched as data, with its plan kept under an id, and that plan applied only
+ * with the hash of the preview the user approved, once. An export folder is imported through its Git URL, or with the
+ * CLI: the API reads no folder a request names.
  */
 export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCases.Fetch | undefined }> = async (
   app,
@@ -194,15 +175,12 @@ export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCase
 ) => {
   const planned = new Map<string, Plan>();
   // The fetch refuses a Git URL or ref it does not take, with its finding (409): their rules are no request schema's.
-  const git = z.strictObject({ git: z.string().max(2048), ref: z.string().max(255) });
-  const source = z.union([z.strictObject({ folder: AbsolutePath }), git]);
+  const source = z.strictObject({ git: z.string().max(2048), ref: z.string().max(255) });
   app.post(
     "/api/imports",
     { schema: { body: source, response: answers({ 200: ImportPreview, 409: Refusal }) } },
     async (req, reply) => {
-      const folder = "folder" in req.body ? homeFolder(req.body.folder) : undefined;
-      if (folder === null) return reply.code(403).send({ error: "folder" });
-      const read = await useCases.planImport(state, folder === undefined ? req.body : { folder }, fetch);
+      const read = await useCases.planImport(state, req.body, fetch);
       if (!read.ok) return reply.code(409).send(refusal(read.finding));
       const { review, plan } = read.value;
       if (plan === null) return { id: null, review, planHash: null, plan: null };

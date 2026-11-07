@@ -64,7 +64,6 @@ export {
   RunStatus,
 } from "./run.ts";
 export {
-  AbsolutePath,
   DeleteFile,
   GitOid,
   Operation,

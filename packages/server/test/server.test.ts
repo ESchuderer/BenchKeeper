@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { type IncomingHttpHeaders, request } from "node:http";
 import { connect } from "node:net";
@@ -8,9 +8,9 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
 import { openRunStore, sha256 } from "@cedarloom/ledger";
-import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
+import { CSRF_HEADER, formatExport, formatLock, type Plan } from "@cedarloom/contracts";
 import { cookieName, openapi, type Started, startServer } from "@cedarloom/server";
-import { applyPlan, DRAFT_LIMIT, planExport, planSave, saveDraft } from "@cedarloom/use-cases";
+import { applyPlan, DRAFT_LIMIT, type Fetch } from "@cedarloom/use-cases";
 import { afterEach, expect, test, vi } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
@@ -72,11 +72,13 @@ const serve = async (
   tokenMs?: number,
   state = join(mkdtempSync(join(tmpdir(), "cedarloom-server-")), "state"),
   ui?: string,
+  fetch?: Fetch,
 ): Promise<Client> => {
   const log: string[] = [];
   const server = await startServer({
     state,
     ui,
+    fetch,
     every: 25,
     log: (text) => log.push(text),
     ...(tokenMs === undefined ? {} : { tokenMs }),
@@ -600,27 +602,42 @@ test("the committed OpenAPI document is the one the routes generate (pnpm --filt
   expect(committed).toBe(await openapi(pkg.version));
 });
 
-// An export folder of the corpus's minimal workflow, stored and exported in another state folder.
-const exportFolder = async (): Promise<string> => {
-  const root = mkdtempSync(join(tmpdir(), "cedarloom-export-"));
-  // Store commits carry the user's Git identity: a home folder of the test's own gives one.
-  writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
-  vi.stubEnv("HOME", root);
-  vi.stubEnv("USERPROFILE", root);
-  vi.stubEnv("XDG_CONFIG_HOME", root);
-  const from = join(root, "state");
-  const minimal: unknown = JSON.parse(await readFile(join(corpus, "valid-minimal.json"), "utf8"));
-  const saved = saveDraft(from, "minimal", minimal, null).ok ? planSave(from, "minimal") : null;
-  if (saved?.ok === true) applyPlan(from, saved.value.plan, { yes: true });
-  const exported = planExport(from, ["minimal"], join(root, "shared"), { name: "Shared" });
-  if (exported.ok) applyPlan(from, exported.value.plan, { yes: true });
-  return join(root, "shared");
+// A shared export at a Git URL: its files at a commit, as the fetch hands them over (nothing of it runs); any other
+// URL is refused as the real fetch refuses one.
+const SHARED = "https://git.example.org/acme/flows.git";
+const sharedExport = async (): Promise<Fetch> => {
+  const texts: [string, string][] = [
+    [
+      "cedarloom-export.json",
+      formatExport({ schemaVersion: 1, kind: "cedarloom.export", name: "Shared", workflows: ["minimal"] }),
+    ],
+    ["cedarloom.lock.json", formatLock({ schemaVersion: 1, kind: "cedarloom.lock", extensions: {} })],
+    ["workflows/workflow-minimal.json", await readFile(join(corpus, "valid-minimal.json"), "utf8")],
+  ];
+  const files = texts.map(([path, text]) => ({
+    path,
+    mode: "100644" as const,
+    sha256: sha256(text),
+    content: Buffer.from(text),
+  }));
+  const tree = { commit: "c".repeat(40), files, digest: "d".repeat(64) };
+  return async (source) =>
+    source.url === SHARED
+      ? { ok: true, value: tree }
+      : { ok: false, finding: { code: "git.refused-source", params: { field: "url" } } };
 };
 
-test("an import is reviewed with its plan under an id, which applies only with the hash of its preview, once; the API reads folders in home only", async () => {
-  const client = await ready();
-  const folder = await exportFolder();
-  const reviewed = await client.api({ method: "POST", path: "/api/imports", body: { folder } });
+test("an import of a Git ref is reviewed with its plan under an id, which applies only with the hash of its preview, once", async () => {
+  // Store commits carry the user's Git identity: a home folder of the test's own gives one.
+  const home = mkdtempSync(join(tmpdir(), "cedarloom-home-"));
+  writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
+  vi.stubEnv("HOME", home);
+  vi.stubEnv("XDG_CONFIG_HOME", home);
+  const client = await serve(undefined, undefined, undefined, await sharedExport());
+  started.push(client);
+  await client.login();
+  const imports = (body: object) => client.api({ method: "POST", path: "/api/imports", body });
+  const reviewed = await imports({ git: SHARED, ref: "main" });
   const { id, planHash } = z.object({ id: z.string(), planHash: z.string() }).parse(reviewed.body);
   const apply = (approve: string) =>
     client.api({ method: "POST", path: `/api/imports/${id}/apply`, body: { approve } });
@@ -630,13 +647,10 @@ test("an import is reviewed with its plan under an id, which applies only with t
     (await apply(sha256("another plan"))).status,
     (await apply(planHash)).status,
     (await apply(planHash)).status,
+    (await imports({ git: "https://git.example.org/acme/other.git", ref: "main" })).status,
+    // The API reads no folder a request names: an export folder is imported through its Git URL, or with the CLI.
+    (await imports({ folder: home })).status,
   ];
-  // Outside home, through a link in home that leads out, or nowhere: refused before anything is read.
-  const out = join(folder, "..", "out");
-  symlinkSync(tmpdir(), out, "junction");
-  for (const elsewhere of [tmpdir(), out, join(folder, "none")]) {
-    answers.push((await client.api({ method: "POST", path: "/api/imports", body: { folder: elsewhere } })).status);
-  }
   vi.unstubAllEnvs();
-  expect(answers).toEqual([200, ["new"], 409, 200, 404, 403, 403, 403]);
+  expect(answers).toEqual([200, ["new"], 409, 200, 404, 409, 400]);
 }, 30_000);

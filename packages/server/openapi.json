@@ -10843,39 +10843,22 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "folder": {
-                        "type": "string",
-                        "pattern": "^(\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)"
-                      }
-                    },
-                    "required": [
-                      "folder"
-                    ],
-                    "additionalProperties": false
+                "type": "object",
+                "properties": {
+                  "git": {
+                    "type": "string",
+                    "maxLength": 2048
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "git": {
-                        "type": "string",
-                        "maxLength": 2048
-                      },
-                      "ref": {
-                        "type": "string",
-                        "maxLength": 255
-                      }
-                    },
-                    "required": [
-                      "git",
-                      "ref"
-                    ],
-                    "additionalProperties": false
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 255
                   }
-                ]
+                },
+                "required": [
+                  "git",
+                  "ref"
+                ],
+                "additionalProperties": false
               }
             }
           }

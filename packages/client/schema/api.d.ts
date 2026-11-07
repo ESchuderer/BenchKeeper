@@ -570,8 +570,6 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        folder: string;
-                    } | {
                         git: string;
                         ref: string;
                     };

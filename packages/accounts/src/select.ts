@@ -8,8 +8,8 @@ import {
   type Reading,
 } from "@cedarloom/contracts";
 
-/** What the choice reads of a reading: the time it was read is not needed. */
-type Current = Omit<Reading, "readAt">;
+/** What the choice reads of a reading: the time it was read and its source are not needed. */
+type Current = Omit<Reading, "readAt" | "source">;
 
 /**
  * The headroom a new worker needs in each window, in percent, the same for every account: claude-swap's lines replace
@@ -43,22 +43,11 @@ export type Selection =
     };
 
 /**
- * The readings as a choice at `now` counts them. A window whose reset time has passed since its last reading counts as
- * 0 percent used, with the source `assumed-after-reset`, until the next reading replaces it; the restart-on-limit rule
- * bounds a wrong guess (owner decision "Idle window after reset", 2026-11-06). A reading whose reset time does not
- * parse is left out, so its window is unknown, as is a window never read.
+ * The readings a choice at `now` counts: a window whose reset time has passed since its last reading is unknown until
+ * the next reading replaces it, as is a window whose reset time does not parse, or one never read.
  */
-export const counted = <T extends Current>(readings: readonly T[], now: number): Counted<T>[] =>
-  readings.flatMap((reading): Counted<T>[] => {
-    const resetsAt = Date.parse(reading.resetsAt);
-    if (Number.isNaN(resetsAt)) return [];
-    return resetsAt > now
-      ? [{ ...reading, source: "reported" }]
-      : [{ ...reading, usedPercent: 0, source: "assumed-after-reset" }];
-  });
-
-/** A reading with the source of its share: reported by the agent, or assumed after its window's reset. */
-export type Counted<T extends Current> = T & { readonly source: "reported" | "assumed-after-reset" };
+export const counted = <T extends Current>(readings: readonly T[], now: number): T[] =>
+  readings.filter((reading) => Date.parse(reading.resetsAt) > now);
 
 // A window without a counted reading is unknown: it never makes an account qualify. A known window below its minimum
 // disqualifies the account even when the other window is unknown. The worker model's own weekly window counts when it

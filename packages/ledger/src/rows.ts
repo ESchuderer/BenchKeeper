@@ -27,7 +27,7 @@ CREATE TABLE steps (
 ) STRICT;
 `;
 
-/** The latest reading per account and usage window, and one row per launch-time account choice. */
+/** The latest reading per account and usage window, from any source, and one row per launch-time account choice. */
 export const ACCOUNT_TABLES = `
 CREATE TABLE readings (
   account TEXT NOT NULL,
@@ -35,6 +35,7 @@ CREATE TABLE readings (
   usedPercent REAL NOT NULL,
   resetsAt TEXT NOT NULL,
   readAt TEXT NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('worker', 'cswap')),
   PRIMARY KEY (account, "window")
 ) STRICT;
 CREATE TABLE switches (

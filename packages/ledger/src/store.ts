@@ -36,8 +36,8 @@ import {
 const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
 const BASELINE = [TABLES, ACCOUNT_TABLES, CHECK_TABLES, LAUNCH_TABLES, MODE_TABLES, USAGE_TABLES, GRAPH_TABLES];
-// Its number follows every schema before 0.1.0 (1 to 15), so a store from before it is never read as this one.
-const SCHEMA = 16;
+// Its number follows every schema before 0.1.0 (1 to 16), so a store from before it is never read as this one.
+const SCHEMA = 17;
 
 // A JSON column's value; null for SQL NULL.
 const column = (value: unknown): unknown => (typeof value === "string" ? JSON.parse(value) : null);
@@ -421,18 +421,18 @@ export class RunStore extends RunView {
   }
 
   /**
-   * Keeps the latest reading per account and window: a reading older than the stored one is dropped. A reading that is
-   * no Reading throws here, so one bad row cannot break every later choice.
+   * Keeps the latest reading per account and window, whichever source read it: a reading older than the stored one is
+   * dropped. A reading that is no Reading throws here, so one bad row cannot break every later choice.
    */
   recordReading(input: Reading): void {
-    const reading = Reading.parse(input);
+    const r = Reading.parse(input);
     this.db
       .prepare(
-        `INSERT INTO readings VALUES (?, ?, ?, ?, ?) ON CONFLICT (account, "window") DO UPDATE SET
-         usedPercent = excluded.usedPercent, resetsAt = excluded.resetsAt, readAt = excluded.readAt
+        `INSERT INTO readings VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (account, "window") DO UPDATE SET
+         usedPercent = excluded.usedPercent, resetsAt = excluded.resetsAt, readAt = excluded.readAt, source = excluded.source
          WHERE excluded.readAt >= readings.readAt`,
       )
-      .run(reading.account, reading.window, reading.usedPercent, reading.resetsAt, reading.readAt);
+      .run(r.account, r.window, r.usedPercent, r.resetsAt, r.readAt, r.source);
   }
 
   /**
@@ -458,7 +458,7 @@ export class RunStore extends RunView {
         );
         const { quota: window, usedPercent, resetsAt } = s;
         if (window !== null && usedPercent !== null && resetsAt !== null) {
-          this.recordReading({ account: s.account, window, usedPercent, resetsAt, readAt: s.readAt });
+          this.recordReading({ account: s.account, window, usedPercent, resetsAt, readAt: s.readAt, source: "worker" });
         }
       }
     });
@@ -481,7 +481,7 @@ export class RunStore extends RunView {
   /** The latest readings; a row the contract refuses, written before a bound or by hand, is left out. */
   readings(): Reading[] {
     return this.db
-      .prepare(`SELECT account, "window", usedPercent, resetsAt, readAt FROM readings ORDER BY account, "window"`)
+      .prepare(`SELECT account, "window", usedPercent, resetsAt, readAt, source FROM readings ORDER BY account, "window"`)
       .all()
       .flatMap((row) => {
         const reading = Reading.safeParse(row);

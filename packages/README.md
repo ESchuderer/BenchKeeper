@@ -1,4 +1,4 @@
-# CedarLoom packages
+# CedarLoom packages (probe)
 
 The CedarLoom packages (`@cedarloom/*`), developed in this repository until CedarLoom has its own. They form a pnpm workspace on Node 26 with strict TypeScript 7; the BenchKeeper app (`app/`) and the site (`web/`) stay separate npm projects outside it. The commands below need pnpm 12.16.1 on the `PATH` (`npm install -g pnpm@12.16.1`); `package.json` names no `packageManager`, because GitHub's dependency graph does not read the lockfile that field produces.
 

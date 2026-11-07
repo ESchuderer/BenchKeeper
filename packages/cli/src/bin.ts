@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { claudeAuthStatus, claudeLogin } from "@cedarloom/adapter-claude";
+import { claudeAuthStatus, claudeLogin, claudeRuntime } from "@cedarloom/adapter-claude";
 import { main } from "./main.ts";
 
 // Only a long-running command asks to be stopped, so Ctrl+C ends every other one as usual.
@@ -15,4 +15,5 @@ process.exitCode = await main(process.argv.slice(2), {
   untilStopped,
   login: claudeLogin(),
   authStatus: claudeAuthStatus(),
+  agent: claudeRuntime(),
 });

@@ -49,6 +49,9 @@ export const Finding = z
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
     // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe).
     finding("run.shell-missing", {}),
+    // A report run's node that needs an OS sandbox where none runs: a command or precheck until it runs in one, and on
+    // native Windows also an agent (Q7); nothing of the run starts.
+    finding("run.sandbox-unavailable", { node: z.string() }),
     // A resume or cancel named another project folder than the run's own; its commands run only there.
     finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
     // The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts.
@@ -182,7 +185,7 @@ export const Finding = z
     // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
     finding("extension.failed", {
       extension: z.string(),
-      step: z.enum(["stage", "start", "initialize", "run", "doctor"]),
+      step: z.enum(["stage", "start", "initialize", "run", "doctor", "target"]),
       error: z.string(),
     }),
     // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.
@@ -228,6 +231,19 @@ export const Finding = z
       autoUpdate: z.boolean(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
+    // A files part that writes targets that run as programs or configure tools, which wait for an approval by name (hub
+    // issue 130): the part with its title, the project, and its targets by class.
+    finding("profile.target-approval", {
+      part: z.string(),
+      title: z.string(),
+      project: z.string(),
+      programs: z.array(z.string()),
+      configs: z.array(z.string()),
+    }),
+    // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
+    finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
+    // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.
+    finding("profile.agents-unread", { path: z.string() }),
     // A Git source that follows a branch or tag holds a file that may run (anything but .md and .txt at mode 100644).
     finding("profile.pack-unpinned", { source: z.string(), path: z.string() }),
     finding("profile.source-digest", { source: z.string(), expected: z.string(), found: z.string() }),
@@ -279,6 +295,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.report-only-apply": { severity: "error", effort: "manual" },
   "run.node-unsupported": { severity: "error", effort: "manual" },
   "run.shell-missing": { severity: "error", effort: "manual" },
+  "run.sandbox-unavailable": { severity: "error", effort: "manual" },
   "run.project-mismatch": { severity: "error", effort: "manual" },
   "run.project-missing": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
@@ -374,6 +391,9 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.binding-missing": { severity: "error", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
+  "profile.target-approval": { severity: "warning", effort: "command" },
+  "profile.target-linked": { severity: "error", effort: "manual" },
+  "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },
   "profile.source-waiting": { severity: "info", effort: "manual" },

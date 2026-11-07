@@ -32,4 +32,4 @@ export {
   step,
 } from "./schedule.ts";
 export { planUndo, type UndoPlan } from "./undo.ts";
-export { validateWorkflow } from "./validate.ts";
+export { reportOnly, validateWorkflow } from "./validate.ts";

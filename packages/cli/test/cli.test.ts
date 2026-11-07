@@ -537,11 +537,21 @@ test("every finding code has an English sentence", () => {
   ]);
 });
 
+test("a project folder with shell syntax in its name is one quoted argument, so pasting the command runs none of it", () => {
+  const project = "/work/it's $(id) `x`;";
+  const approval = Finding.parse({
+    code: "profile.target-approval",
+    params: { part: "project.dc", title: "dc", project, programs: ["scripts/dc"], configs: [] },
+  });
+  expect(text(approval)).toContain(`--project '/work/it'\\''s $(id) \`x\`;' --allow project.dc`);
+});
+
 // An enum's first option, a count for found and known, else a string.
 const sampleValue = (key: string, schema: unknown): unknown => {
   if (schema instanceof z.ZodEnum) return schema.options[0];
   if (schema instanceof z.ZodBoolean) return true;
   if (schema instanceof z.ZodString) return sha256(key);
+  if (schema instanceof z.ZodArray) return [sha256(key)];
   return /found|known/.test(key) ? 2 : sha256(key);
 };
 const sampleParams = (code: string): Record<string, unknown> => {
@@ -716,7 +726,12 @@ test("workflows run runs a graph run; runs list and show show it with its attemp
   expect((await cli("runs", "list")).out).toContain(`${runId}  graph  succeeded`);
   expect((await cli("runs", "show", runId)).out).toMatch(
     /^Run .*: graph greet, succeeded,.*\n {2}a#1 +done +pid \d+\n$/,
-  );
+  ); // A report run runs no command outside an OS sandbox.
+  const report = await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root, "--report");
+  expect([report.code, json(report.out)]).toMatchObject([
+    EXIT.refused,
+    { findings: [{ code: "run.sandbox-unavailable", params: { node: "a" } }] },
+  ]);
 });
 
 test("runs approve shows what a waiting node waits for, and with --yes approves it and runs the run on", async () => {

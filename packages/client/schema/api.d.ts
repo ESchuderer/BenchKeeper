@@ -1075,6 +1075,12 @@ export interface components {
             params: Record<string, never>;
         } | {
             /** @constant */
+            code: "run.sandbox-unavailable";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
             code: "run.project-mismatch";
             params: {
                 runId: string;
@@ -1609,7 +1615,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
                 error: string;
             };
         } | {
@@ -1734,6 +1740,30 @@ export interface components {
             code: "profile.options-guarded";
             params: {
                 part: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                programs: string[];
+                configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-linked";
+            params: {
+                part: string;
+                target: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.agents-unread";
+            params: {
                 path: string;
             };
         } | {
@@ -2186,6 +2216,12 @@ export interface components {
             /** @constant */
             code: "run.shell-missing";
             params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "run.sandbox-unavailable";
+            params: {
+                node: string;
+            };
         } | {
             /** @constant */
             code: "run.project-mismatch";
@@ -2722,7 +2758,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target";
                 error: string;
             };
         } | {
@@ -2847,6 +2883,30 @@ export interface components {
             code: "profile.options-guarded";
             params: {
                 part: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                programs: string[];
+                configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.target-linked";
+            params: {
+                part: string;
+                target: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.agents-unread";
+            params: {
                 path: string;
             };
         } | {

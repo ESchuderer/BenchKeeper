@@ -116,6 +116,7 @@ export {
   ProfileSelection,
   readProfile,
   SELECTION_SCHEMA_VERSION,
+  sealedTarget,
   targetClass,
 } from "./profile.ts";
 export {

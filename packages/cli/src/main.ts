@@ -114,8 +114,14 @@ const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .argument("<file>")
     .option("--input <name=value>", "a value for one of the workflow's inputs; repeat for more", input, {})
     .option("--project <folder>", PROJECT)
+    .option("--report", "only report: the run writes nothing but its record, and its agents change no file")
     .action(async (file, options) =>
-      done(await workflowsRun(ctx(), file, options.input, resolve(options.project ?? "."))),
+      done(
+        await workflowsRun(ctx(), file, options.input, {
+          project: resolve(options.project ?? "."),
+          report: options.report === true,
+        }),
+      ),
     );
 };
 
@@ -298,7 +304,11 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
   profiles
     .command("apply")
     .description("show the profile's plan for this machine's Claude Code home; with --yes, apply it as one run")
-    .option("--allow <part...>", "include a plugin part, which --yes alone never does, such as machine.plugin.ponytail")
+    .option("--project <folder>", "plan this project's level instead of the machine's")
+    .option(
+      "--allow <part...>",
+      "include a plugin or files part, which --yes alone never does, such as machine.plugin.ponytail",
+    )
     .option("--yes", "apply the plan as computed now")
     .action(async (options) => done(await profilesApply(ctx(), options)));
   profiles

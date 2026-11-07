@@ -255,9 +255,10 @@ export const ProfileFile = FileShape.superRefine((file, ctx) =>
   .register(fileFormats, { id: "CedarLoomProfile" });
 export type ProfileFile = z.infer<typeof ProfileFile>;
 
-// Config folders under `.config/` a plugin's options never write: CedarLoom's own and the credential stores the worker
-// launcher denies (packages/orchestration/src/env.ts). A plugin's options file lives in its own folder.
-const RESERVED = ["cedarloom", "gh", "gcloud", "git"];
+// Config folders under `.config/` a plugin's options never write: CedarLoom's own, Claude Code's by its XDG name (a
+// `CLAUDE_CONFIG_DIR` there; any other folder that variable names is refused when the file is written) and the
+// credential stores the worker launcher denies (packages/orchestration/src/env.ts).
+const RESERVED = ["cedarloom", "claude", "gh", "gcloud", "git"];
 const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
   Object.entries(machine).flatMap(([id, each]): Issue[] => {
     if (each.type !== "plugin" || each.options === undefined) return [];
@@ -324,6 +325,12 @@ const secretAt = (value: unknown, path: string[] = []): string | undefined => {
     if (found !== undefined) return found;
   }
   return undefined;
+};
+
+// A path stops before a token-shaped key, as secretKey reports it, so a finding never repeats the key.
+const untokened = (path: string): string => {
+  const at = TOKEN.exec(path)?.index;
+  return at === undefined ? path : path.slice(0, Math.max(0, path.lastIndexOf(".", at)));
 };
 
 /**
@@ -397,6 +404,10 @@ export const readProfile = (value: unknown): Result<ProfileFile> => {
     return { ok: false, finding: { code: "profile.foreign-kind", params: { kind: shown(kind.data.kind, 100) } } };
   }
   const read = readDocument(ProfileFile, PROFILE_SCHEMA_VERSION, value);
+  if (!read.ok && read.finding.code === "document.invalid") {
+    const issues = read.finding.params.issues.map(({ path, code }) => ({ path: untokened(path), code }));
+    return { ok: false, finding: { code: "document.invalid", params: { issues } } };
+  }
   if (!read.ok) return read;
   const secret = secretAt(read.value);
   if (secret !== undefined)

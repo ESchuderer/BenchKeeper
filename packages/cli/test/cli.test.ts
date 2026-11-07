@@ -5,10 +5,10 @@ import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Fetch, LoginStatus } from "@cedarloom/use-cases";
-import { Finding, formatRegistry, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
+import { Finding, formatRegistry, formatWorkflow, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
 import { configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 
@@ -462,6 +462,8 @@ test("every finding code has an English sentence", () => {
     "profile.parent-cycle": { chain: ["acme.x/a.json", "acme.x/b.json", "acme.x/a.json"] },
     "profile.parent-limit": { chain: ["acme.x/a.json", "acme.x/b.json"], limit: 50 },
     "profile.pack-sources": { pack: "acme.x", files: ["acme.a", "acme.b"] },
+    "store.version-not-higher": { id: "w", stored: "1.9.0", found: "1.9.0" },
+    "store.identity-missing": { key: "user.email" },
   };
   for (const code of examples) {
     const finding = Finding.parse({ code, params: params[code] ?? sampleParams(code) });
@@ -885,4 +887,33 @@ test("extensions: a manifest's unknown key reaches the terminal escaped, never a
     false,
   ]);
   expect(refused.err).toContain("\\u001b[2K\\u001b]8;;https://evil.example\\u0007x");
+});
+
+test("workflows save stores a draft as a version, history lists it, and an id that is none exits 64", async () => {
+  const { root, state, cli } = setup();
+  // Store commits carry the user's Git identity, from a home folder of the test's own.
+  writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
+  vi.stubEnv("HOME", root);
+  vi.stubEnv("XDG_CONFIG_HOME", root);
+  const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
+  const sample = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
+  const draft = WorkflowDefinition.parse({ ...sample, metadata: { ...sample.metadata, id: "w" } });
+  mkdirSync(join(state, "drafts"), { recursive: true });
+  writeFileSync(join(state, "drafts", "workflow-w.json"), formatWorkflow(draft));
+  const saved = await cli("workflows", "save", "w", "--yes", "--json");
+  const history = json((await cli("workflows", "history", "w", "--json")).out);
+  const none = await cli("workflows", "history", "9w");
+  vi.unstubAllEnvs();
+  expect([saved.code, history["versions"], none.code]).toEqual([
+    EXIT.ok,
+    [
+      {
+        commit: expect.stringMatching(/^[0-9a-f]{40}$/),
+        savedAt: expect.any(String),
+        author: "Ada",
+        version: draft.metadata.version,
+      },
+    ],
+    EXIT.usage,
+  ]);
 });

@@ -12,6 +12,7 @@ export {
   type TreeFile,
   worktreeOf,
 } from "./git.ts";
+export { type Commit, openStore, type Store } from "./store.ts";
 
 /** Fetches a tree over https and ssh only; see `fetchTreeOver`. */
 export const fetchTree = fetchTreeOver(["https", "ssh"]);

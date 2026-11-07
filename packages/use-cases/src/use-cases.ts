@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
   type Finding,
@@ -13,6 +14,7 @@ import {
   type UndoPreview,
 } from "@cedarloom/contracts";
 import { apply, errorCode, type Outcome, planUndo, recover } from "@cedarloom/engine";
+import { openStore } from "@cedarloom/git";
 import { openRunStore, openRunView, planHash, type RunStore, type RunView, sha256 } from "@cedarloom/ledger";
 import { pluginProblems } from "./plugins.ts";
 
@@ -117,18 +119,21 @@ export const previewPlan = (plan: Plan): PlanPreview => ({
   plan: {
     schemaVersion: plan.schemaVersion,
     operations: plan.operations.map((op) => {
-      if (op.kind === "delete") return op;
+      if (op.kind !== "write") return op;
       const { content, ...rest } = op;
       return { ...rest, after: sha256(content), bytes: Buffer.byteLength(content) };
     }),
   },
 });
 
+/** The workflow store (P3 a) beside the run store: a bare repository, made at the first save. */
+export const storeOf = (state: string) => openStore(join(state, "store.git"));
+
 /** Applies an approved plan as one run; fails only when the store cannot be opened. */
 export const applyPlan = (state: string, plan: Plan, approval: Approval): Result<RunResult> =>
   withStore(state, (store) => ({
     ok: true,
-    value: settled(apply(store, plan, approvedHash(approval, plan)), [], null),
+    value: settled(apply(store, plan, approvedHash(approval, plan), { branch: storeOf(state) }), [], null),
   }));
 
 /** The runs, newest first; one still marked running while no process holds the store shows as interrupted. */
@@ -146,7 +151,7 @@ export const showRun = (state: string, runId: string): Result<{ run: Run; steps:
 /** Plans the undo of a run and writes nothing. */
 export const previewUndo = (state: string, runId: string): Result<UndoPreview> =>
   withView(state, (view) => {
-    const planned = view === null ? notFound(runId) : planUndo(view, runId);
+    const planned = view === null ? notFound(runId) : planUndo(view, runId, storeOf(state));
     if (!planned.ok) return planned;
     const { plan, skipped: findings } = planned.value;
     return { ok: true, value: { ...(plan === null ? { planHash: null, plan: null } : previewPlan(plan)), findings } };
@@ -163,12 +168,13 @@ export const undoRun = (
   onPlan: (preview: PlanPreview) => void = () => undefined,
 ): Result<RunResult> =>
   withStore<RunResult>(state, (store) => {
-    const planned = planUndo(store, runId);
+    const branch = storeOf(state);
+    const planned = planUndo(store, runId, branch);
     if (!planned.ok) return planned;
     const { plan, skipped } = planned.value;
     if (plan === null) return { ok: true, value: { runId: null, status: "nothing-to-undo", findings: skipped } };
     onPlan(previewPlan(plan));
-    const outcome = apply(store, plan, approvedHash(approval, plan), { kind: "undo", undoes: runId });
+    const outcome = apply(store, plan, approvedHash(approval, plan), { kind: "undo", undoes: runId, branch });
     return { ok: true, value: settled(outcome, skipped, runId) };
   });
 

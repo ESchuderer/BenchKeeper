@@ -4,7 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CSRF_HEADER } from "@cedarloom/contracts";
-import { type Started, startServer } from "@cedarloom/server";
+import type { Started } from "@cedarloom/server";
 import {
   type APIResponse,
   type BrowserContext,
@@ -14,7 +14,7 @@ import {
   type Route,
   test,
 } from "@playwright/test";
-import { accessible as check, openPage } from "./browser.ts";
+import { accessible as check, openPage, serve } from "./browser.ts";
 
 // One server per file, started inside the worker: its URL token works once.
 test.describe.configure({ mode: "serial" });
@@ -28,7 +28,7 @@ const errors: string[] = [];
 
 test.beforeAll(async ({ browser }) => {
   state = join(mkdtempSync(join(tmpdir(), "cedarloom-editor-")), "state");
-  server = await startServer({ state, ui: join(import.meta.dirname, "..", "dist"), log: (text) => errors.push(text) });
+  server = await serve(state, errors);
   ({ context, page } = await openPage(browser, errors, { width: 1280, height: 1000 }));
 });
 

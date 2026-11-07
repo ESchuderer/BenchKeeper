@@ -5,7 +5,7 @@ import { fastifySSE } from "@fastify/sse";
 import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
-import { type Fetch, sweepDrafts } from "@cedarloom/use-cases";
+import { type Fetch, type Machine, sweepDrafts } from "@cedarloom/use-cases";
 import fp from "fastify-plugin";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
@@ -16,12 +16,26 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { eventRoutes } from "./events.ts";
-import { draftRoutes, graphRunRoutes, importRoutes, runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
+import {
+  draftRoutes,
+  graphRunRoutes,
+  importRoutes,
+  profileRoutes,
+  runRoutes,
+  sessionRoutes,
+  undoRoutes,
+} from "./routes.ts";
 import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
   /** The run store's folder. */
   state: string;
+  /** CedarLoom's config folder, which holds the profile selection. */
+  config: string;
+  /** The Claude Code home and the user's home that the profile's machine level writes. */
+  machine: Machine;
+  /** The app's folder of its own extensions, where the profile finds Orca (without it, no Orca is found). */
+  app?: string | undefined;
   session: Session;
   /** Where errors the client does not see go, such as the server's terminal. */
   log: (text: string) => void;
@@ -29,7 +43,7 @@ export interface AppOptions {
   ui?: string | undefined;
   /** How often the event streams read the run store, in ms (default 1000). */
   every?: number | undefined;
-  /** How an import fetches a Git ref (default: over https and ssh). */
+  /** How an import and the profile fetch a Git ref (default: over https and ssh). */
   fetch?: Fetch | undefined;
 }
 
@@ -101,7 +115,7 @@ const methods = (app: FastifyInstance): void => {
 
 /** The local server's routes over the use cases, with the session guard on every request. */
 export const buildApp = async (options: AppOptions): Promise<FastifyInstance> => {
-  const { state, session, log, ui, every = 1000, fetch } = options;
+  const { state, config, machine, session, log, ui, every = 1000, fetch } = options;
   // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
   // Closing ends the open event streams too, so a stopped `cedarloom ui` exits at once.
   const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000, forceCloseConnections: true });
@@ -147,6 +161,7 @@ export const buildApp = async (options: AppOptions): Promise<FastifyInstance> =>
   await app.register(draftRoutes, { state });
   await app.register(graphRunRoutes, { state });
   await app.register(importRoutes, { state, fetch });
+  await app.register(profileRoutes, { config, state, machine, app: options.app, fetch });
   // The package is CommonJS typed as ESM: its typed export is the bare plugin, so it gets the same fastify-plugin wrap
   // as its own module.exports, which shares reply.sse with the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));
@@ -159,7 +174,8 @@ export const buildApp = async (options: AppOptions): Promise<FastifyInstance> =>
 
 /** The OpenAPI document of the routes as @fastify/swagger generates it from their zod schemas, as JSON text. */
 export const openapi = async (version: string): Promise<string> => {
-  const app = await buildApp({ state: "", session: new Session(), log: console.error });
+  const machine = { home: "", user: "" };
+  const app = await buildApp({ state: "", config: "", machine, session: new Session(), log: console.error });
   await app.ready();
   const document = app.swagger();
   await app.close();

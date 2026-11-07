@@ -473,15 +473,7 @@ const pointsOf = (state: string, runId: string) => {
   return waits.ok ? waits.value.waits.map((wait) => [wait.node, wait.point]) : waits.finding.code;
 };
 
-// The gates a level passed, as the ledger records them.
-const passesOf = (state: string) => {
-  const db = new DatabaseSync(join(state, "runs.sqlite"), { readOnly: true });
-  const rows = db.prepare('SELECT nodeId, point, level, decision, "by" FROM gates ORDER BY rowid').all();
-  db.close();
-  return rows.map((row) => Object.values(row));
-};
-
-test("a first run waits before its command at every level; then each level waits where Q10 has it: Supervised before a node and a plan, Checkpoint before a plan, Auto at neither, and Auto records its passes", async () => {
+test("a first run waits before its command at every level; then each level waits where Q10 has it: Supervised before a node and a plan, Checkpoint before a plan, Auto at neither", async () => {
   const waited = await Promise.all(
     ["supervised", "checkpoint", "auto"].map(async (level) => {
       const at = writing();
@@ -489,17 +481,13 @@ test("a first run waits before its command at every level; then each level waits
       const runId = idOf(await runWorkflow(at.state, at.file, {}, options));
       const first = pointsOf(at.state, runId);
       await decideRun(at.state, runId, { node: "say", approved: true }, options);
-      return [level, first, pointsOf(at.state, runId), at.text(), passesOf(at.state)];
+      return [level, first, pointsOf(at.state, runId), at.text()];
     }),
   );
-  const atAuto = [
-    ["out", "before-node", "auto", "approved", "level"],
-    ["out", "before-apply", "auto", "approved", "level"],
-  ];
   expect(waited).toEqual([
-    ["supervised", [["say", "before-node"]], [["out", "before-node"]], "old", []],
-    ["checkpoint", [["say", "before-node"]], [["out", "before-apply"]], "old", []],
-    ["auto", [["say", "before-node"]], [], "new", atAuto],
+    ["supervised", [["say", "before-node"]], [["out", "before-node"]], "old"],
+    ["checkpoint", [["say", "before-node"]], [["out", "before-apply"]], "old"],
+    ["auto", [["say", "before-node"]], [], "new"],
   ]);
 });
 

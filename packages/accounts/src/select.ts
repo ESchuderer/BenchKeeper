@@ -19,8 +19,12 @@ export type Selection =
   | {
       readonly ok: true;
       readonly account: Account;
-      /** `no-readings`: no pool account had both windows known, so the task stays on its account and nothing switches. */
-      readonly reason: "most-headroom" | "no-readings";
+      /**
+       * Why this account, by claude-swap's strategy: `most-headroom` (`best`), `soonest-weekly-reset` (`weekly-first`,
+       * `consume-first`), `highest-tier` (`priority-consume-first`). `no-readings`: no pool account had both windows
+       * known, so the task stays on its account and nothing switches.
+       */
+      readonly reason: "most-headroom" | "soonest-weekly-reset" | "highest-tier" | "no-readings";
       readonly candidates: readonly Candidate[];
     }
   | {
@@ -61,13 +65,46 @@ const margin = (account: Account, readings: readonly Current[]) => {
   return unknown && smallest >= 0 ? null : smallest;
 };
 
-// The candidate with the largest margin of at least 0, the first one on a tie.
-const most = <T extends { readonly margin: number | null }>(scored: readonly T[]): T | undefined => {
-  let best: T | undefined;
-  for (const each of scored) {
-    if (each.margin !== null && each.margin >= 0 && each.margin > (best?.margin ?? -1)) best = each;
-  }
-  return best;
+/**
+ * What claude-swap says of the pool's accounts, which a new worker's choice honors (owner decision, 2026-11-07): its
+ * `autoswitch.strategy`, each account's priority tier (0 when it has none), the accounts it has disabled, and the one
+ * it has active for interactive sessions. Without it: `best`, no tiers, none disabled, none active.
+ */
+interface Swap {
+  readonly strategy?: "best" | "weekly-first" | "consume-first" | "priority-consume-first";
+  readonly tiers?: Readonly<Record<string, number>>;
+  readonly disabled?: ReadonlySet<string>;
+  readonly active?: string | null;
+}
+
+const REASONS = {
+  best: "most-headroom",
+  "weekly-first": "soonest-weekly-reset",
+  "consume-first": "soonest-weekly-reset",
+  "priority-consume-first": "highest-tier",
+} as const;
+
+// When the account's 7-day window resets next, in milliseconds; never for one unknown or already reset.
+const weeklyReset = (account: Account, readings: readonly Current[], now: number): number => {
+  const reading = readings.find((each) => each.account === account.name && each.window === "sevenDay");
+  const at = reading === undefined ? Number.NaN : Date.parse(reading.resetsAt);
+  return at > now ? at : Number.POSITIVE_INFINITY;
+};
+
+// The candidate with a margin of at least 0 the strategy ranks first, the first one listed on a tie: `best` by the
+// most headroom; the others by the soonest weekly reset, then headroom, `priority-consume-first` within the highest
+// tier first. claude-swap's active account is passed over while another account qualifies.
+const ranked = <T extends { readonly account: Account; readonly margin: number | null; readonly reset: number }>(
+  scored: readonly T[],
+  { strategy = "best", tiers = {}, active = null }: Swap,
+): (T & { readonly reason: (typeof REASONS)[keyof typeof REASONS] }) | undefined => {
+  const qualifying = scored.filter((each) => each.margin !== null && each.margin >= 0);
+  const others = qualifying.filter((each) => each.account.name !== active);
+  const tier = (each: T): number => (strategy === "priority-consume-first" ? (tiers[each.account.name] ?? 0) : 0);
+  const reset = (each: T): number => (strategy === "best" ? 0 : each.reset);
+  const order = (a: T, b: T): number => tier(b) - tier(a) || reset(a) - reset(b) || (b.margin ?? 0) - (a.margin ?? 0);
+  const [first] = (others.length > 0 ? others : qualifying).toSorted(order);
+  return first === undefined ? undefined : { ...first, reason: REASONS[strategy] };
 };
 
 // The confirmation that one person holds and pays for every account of the pool covers the accounts it named; once the
@@ -102,35 +139,53 @@ export const isConfirmed = (registry: AccountRegistry, ref: PoolRef): boolean =>
   return ref.agent !== "codex" && settings !== undefined && confirmed(settings, membersOf(registry, ref));
 };
 
+// No account qualifies. With no known reading in the pool nothing switches: the task stays on `previous`, else on the
+// first account; otherwise there is no account with headroom.
+const unread = (members: readonly Account[], candidates: readonly Candidate[], previous: string | null): Selection => {
+  const [first] = members;
+  if (first === undefined || candidates.some((each) => each.margin !== null)) {
+    return { ok: false, reason: "no-headroom", candidates };
+  }
+  return {
+    ok: true,
+    account: members.find((member) => member.name === previous) ?? first,
+    reason: "no-readings",
+    candidates,
+  };
+};
+
 /**
- * Chooses the account a new worker starts on: the pool account with the most headroom above both minimums, the
- * first one listed on a tie. When no pool account has a known reading, nothing switches: the task stays on `previous`,
- * or on the pool's first account (owner decision, 2026-11-06). An account in `busy` runs its most workers at
- * once and is passed over. `readings` holds the latest reading per account and window, counted at `now` (milliseconds).
+ * Chooses the account a new worker starts on: the pool account with headroom above both minimums that claude-swap's
+ * strategy ranks first (`swap`), the first one listed on a tie. When no pool account has a known reading, nothing
+ * switches: the task stays on `previous`, or on the pool's first account (owner decision, 2026-11-06). An account in
+ * `busy` runs its most workers at once and is passed over, as is one claude-swap has disabled. `readings` holds the
+ * latest reading per account and window, counted at `now` (milliseconds).
  */
 export const selectAccount = (
   registry: AccountRegistry,
   {
     previous = null,
     busy,
+    swap = {},
     ...ref
-  }: PoolRef & { readonly previous?: string | null; readonly busy?: ReadonlySet<string> },
+  }: PoolRef & { readonly previous?: string | null; readonly busy?: ReadonlySet<string>; readonly swap?: Swap },
   readings: readonly Current[],
   now: number,
 ): Selection => {
   if (settingsOf(registry, ref) === undefined) return { ok: false, reason: "unknown-pool", candidates: [] };
   if (!isConfirmed(registry, ref)) return { ok: false, reason: "unconfirmed-pool", candidates: [] };
-  const members = freeMembers(registry, ref, busy ?? new Set());
-  if (members === null) return { ok: false, reason: "all-leased", candidates: [] };
+  const free = freeMembers(registry, ref, busy ?? new Set());
+  if (free === null) return { ok: false, reason: "all-leased", candidates: [] };
+  const disabled = swap.disabled ?? new Set();
+  const members = free.filter((account) => !disabled.has(account.name));
   const current = counted(readings, now);
-  const scored = members.map((account) => ({ account, margin: margin(account, current) }));
+  const scored = members.map((account) => ({
+    account,
+    margin: margin(account, current),
+    reset: weeklyReset(account, current, now),
+  }));
   const candidates = scored.map(({ account, margin: value }) => ({ account: account.name, margin: value }));
-  const best = most(scored);
-  if (best !== undefined) return { ok: true, account: best.account, reason: "most-headroom", candidates };
-  const [first] = members;
-  if (first !== undefined && scored.every((each) => each.margin === null)) {
-    const stay = members.find((member) => member.name === previous) ?? first;
-    return { ok: true, account: stay, reason: "no-readings", candidates };
-  }
-  return { ok: false, reason: "no-headroom", candidates };
+  const best = ranked(scored, swap);
+  if (best !== undefined) return { ok: true, account: best.account, reason: best.reason, candidates };
+  return unread(members, candidates, previous);
 };

@@ -112,16 +112,16 @@ const storeAt = (version: number): string => {
   db.close();
   return dir;
 };
-const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 14 } } };
+const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { found: 99, known: 15 } } };
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too, which stays as it is", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 13 is the last schema before 0.1.0, whose launches kept no totals.
-  const dir = storeAt(13);
-  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 13, known: 14 } } };
+  // 14 is the last schema before 0.1.0, whose switches knew only two reasons.
+  const dir = storeAt(14);
+  const older = { ok: false, finding: { code: "store.older-schema", params: { dir, found: 14, known: 15 } } };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
   const after = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true });
-  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 13 });
+  expect(after.prepare("PRAGMA user_version").get()).toEqual({ user_version: 14 });
   after.close();
 });
 
@@ -371,7 +371,10 @@ test("a switch row keeps its time, task, from, to, reason, readings and candidat
     candidates: [],
   };
   store.recordSwitch(stayed);
-  expect(store.switches()).toEqual([row, stayed]);
+  // The reasons of claude-swap's other strategies are kept too.
+  const others = (["soonest-weekly-reset", "highest-tier"] as const).map((reason) => ({ ...row, reason }));
+  for (const other of others) store.recordSwitch(other);
+  expect(store.switches()).toEqual([row, stayed, ...others]);
 });
 
 test("one contract check per agent CLI version: a check of the same version again replaces it", () => {

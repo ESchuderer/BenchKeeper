@@ -65,6 +65,53 @@ test("a new worker gets the pool account with the most headroom above both minim
   expect(tie.ok && tie.account.name).toBe("one");
 });
 
+// Each account's windows, the 7-day one resetting at `weekly`; two days out unless given.
+const week = (name: string, fiveHour: number, sevenDay: number, weekly = "2026-11-07T12:00:00.000Z"): Reading[] => [
+  { account: name, window: "fiveHour", usedPercent: fiveHour, resetsAt: LATER },
+  { account: name, window: "sevenDay", usedPercent: sevenDay, resetsAt: weekly },
+];
+
+test("claude-swap's weekly-first and consume-first take the qualifying account whose 7-day window resets soonest", () => {
+  // One has the most headroom; two resets sooner; three resets soonest but has none left.
+  const readings = [
+    ...week("one", 10, 10),
+    ...week("two", 50, 50, "2026-11-06T12:00:00.000Z"),
+    ...week("three", 0, 99, "2026-11-05T13:00:00.000Z"),
+  ];
+  for (const strategy of ["weekly-first", "consume-first"] as const) {
+    expect(selectAccount(registry, { ...main, swap: { strategy } }, readings, NOW)).toMatchObject({
+      account: { name: "two" },
+      reason: "soonest-weekly-reset",
+    });
+  }
+  // Without claude-swap's strategy, the most headroom.
+  expect(selectAccount(registry, main, readings, NOW)).toMatchObject({
+    account: { name: "one" },
+    reason: "most-headroom",
+  });
+});
+
+test("priority-consume-first takes the highest tier first, then the soonest weekly reset; tiers default to 0", () => {
+  const readings = [...week("one", 10, 10), ...week("two", 50, 50, "2026-11-06T12:00:00.000Z"), ...week("three", 0, 0)];
+  const priority = (tiers: Record<string, number>) =>
+    selectAccount(registry, { ...main, swap: { strategy: "priority-consume-first", tiers } }, readings, NOW);
+  expect(priority({ three: 500 })).toMatchObject({ account: { name: "three" }, reason: "highest-tier" });
+  expect(priority({})).toMatchObject({ account: { name: "two" }, reason: "highest-tier" });
+});
+
+test("an account claude-swap disabled is skipped, and its active one is passed over while another qualifies", () => {
+  const readings = [...week("one", 10, 10), ...week("two", 50, 50)];
+  const chosen = (swap: { disabled?: ReadonlySet<string>; active?: string }) =>
+    selectAccount(registry, { ...main, swap }, readings, NOW);
+  expect(chosen({ disabled: new Set(["one"]) })).toMatchObject({
+    account: { name: "two" },
+    candidates: [{ account: "two" }, { account: "three" }],
+  });
+  expect(chosen({ active: "one" })).toMatchObject({ account: { name: "two" } });
+  // The active account still serves when no other qualifies.
+  expect(chosen({ active: "one", disabled: new Set(["two"]) })).toMatchObject({ account: { name: "one" } });
+});
+
 test("an account whose leases are all taken is passed over; with every one taken, the pool yields none", () => {
   const readings = [...used("one", 50, 20), ...used("two", 30, 90), ...used("three", 30, 10)];
   const passedOver = selectAccount(registry, { ...main, busy: new Set(["one"]) }, readings, NOW);

@@ -180,7 +180,7 @@ export const AccountSwitch = z.strictObject({
   task: z.string(),
   from: Name.nullable(),
   to: Name,
-  reason: z.enum(["most-headroom", "no-readings"]),
+  reason: z.enum(["most-headroom", "soonest-weekly-reset", "highest-tier", "no-readings"]),
   readings: z.array(CountedReading),
   candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),
 });

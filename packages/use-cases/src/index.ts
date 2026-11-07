@@ -103,12 +103,14 @@ export {
   type Choice,
   checkProfile,
   claudeHome,
+  heldBack,
   type Machine,
   type PlanOptions,
   planChoice,
   planProfile,
   type ProfilePlan,
   profileDoctor,
+  showProfile,
 } from "./profiles.ts";
 export { diffProfile, planProfileCopy } from "./profile-copy.ts";
 export { programPath } from "@cedarloom/orchestration";

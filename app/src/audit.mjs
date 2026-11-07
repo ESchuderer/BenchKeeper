@@ -3,7 +3,7 @@
 // Decisions: checks are data (id, group, needs, run). A check whose need is missing is skipped and listed with the one-line way
 // to enable it, never a failure, and a project is never told to install a tool. A finding has the shape of the Insights
 // findings (id, signal, severity, message, evidence with file and line, fix) plus an effort. No check suggests lowering a
-// threshold, raising a budget, removing a check or adding a suppression: a fix only removes waste or raises a floor.
+// threshold, raising a budget, removing a check or adding a suppression: a fix only removes waste.
 // Not built (they need run history, the network or a project tool): jobs whose time dominates, required checks no workflow
 // produces, workflows idle for 90 days, slowest and flaky tests, test count against coverage, mutation score, unused code
 // and dependencies, large functions, quality gate and code scanning findings.
@@ -16,7 +16,7 @@ export const GROUPS = ['workflows', 'tests', 'code', 'findings'];
 const SEVERITY = ['error', 'warning', 'info'];
 // shortcut: a file over 512 KiB is not read (so a very large generated file is not reported), at most 5000 files and 500000 tokens per scan are read; upgrade when a project needs more.
 const MAX_FILES = 5000, MAX_BYTES = 512 * 1024, MAX_TOKENS = 500000, MAX_FINDINGS = 20;
-const COVERAGE_GAP = 10, SNAPSHOT_BYTES = 1024 * 1024, FILE_LINES = 1000, MATRIX_SIZE = 8;
+const SNAPSHOT_BYTES = 1024 * 1024, FILE_LINES = 1000, MATRIX_SIZE = 8;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage']);
 
 // ---- the project: its file list and the files a check reads, each bounded
@@ -70,8 +70,6 @@ function load(ctx, dir) {
   const tests = files.filter((f) => SOURCE.test(f) && TEST.test(f));
   const sized = (re) => files.filter((f) => re.test(f)).map((f) => ({ file: f, bytes: info(f)?.size ?? 0 }));
   const p = { dir, files, workflows, source, tests, text, snapshots: sized(SNAPSHOT), fixtures: sized(FIXTURE) };
-  p.floors = floorsOf(p);
-  p.coverage = measuredCoverage(p);
   return p;
 }
 
@@ -246,62 +244,7 @@ function lintNonFailing(p) {
 
 // ---- tests
 
-const METRICS = ['lines', 'branches', 'functions', 'statements'];
-const num = (v) => (typeof v === 'number' ? v : typeof v === 'string' && /^\d+(?:\.\d+)?$/.test(v) ? Number(v) : null);
 const json = (t) => { try { return JSON.parse(t); } catch { return null; } };
-const lineIn = (t, needle) => t.slice(0, Math.max(0, t.indexOf(needle))).split('\n').length;
-
-// Floors the project enforces: flags of node's test runner, c8 and nyc in package.json scripts, c8 and nyc configuration, jest thresholds.
-function floorsOf(p) {
-  const out = [], add = (metric, floor, file, line) => { if (floor !== null) out.push({ metric, floor, file, line }); };
-  const pkgText = p.text('package.json'), pkg = pkgText && json(pkgText);
-  if (pkg) {
-    for (const cmd of Object.values(pkg.scripts ?? {})) {
-      for (const m of String(cmd).matchAll(/--test-coverage-(lines|branches|functions)=(\d+(?:\.\d+)?)/g)) add(m[1], Number(m[2]), 'package.json', lineIn(pkgText, m[0]));
-      for (const m of String(cmd).matchAll(/--(lines|branches|functions|statements)[= ](\d+(?:\.\d+)?)/g)) add(m[1], Number(m[2]), 'package.json', lineIn(pkgText, m[0]));
-    }
-    for (const key of ['c8', 'nyc']) for (const k of METRICS) add(k, num(pkg[key]?.[k]), 'package.json', lineIn(pkgText, `"${key}"`));
-    for (const k of METRICS) add(k, num(pkg.jest?.coverageThreshold?.global?.[k]), 'package.json', lineIn(pkgText, 'coverageThreshold'));
-  }
-  for (const file of ['.c8rc.json', '.nycrc', '.nycrc.json']) {
-    const t = p.text(file), cfg = t && json(t);
-    if (cfg) for (const k of METRICS) add(k, num(cfg[k]), file, lineIn(t, `"${k}"`));
-  }
-  return out;
-}
-
-// What the last coverage run measured, from a json-summary or an lcov report in coverage/.
-function measuredCoverage(p) {
-  const summary = p.text('coverage/coverage-summary.json'), total = summary && json(summary)?.total;
-  if (total) {
-    const m = Object.fromEntries(METRICS.map((k) => [k, num(total[k]?.pct)]).filter(([, v]) => v !== null));
-    if (Object.keys(m).length) return { file: 'coverage/coverage-summary.json', ...m };
-  }
-  const lcov = p.text('coverage/lcov.info');
-  if (lcov) {
-    const sum = (tag) => lcov.split('\n').reduce((n, l) => n + (l.startsWith(`${tag}:`) ? Number(l.slice(tag.length + 1)) || 0 : 0), 0);
-    const pct = (hit, found) => (sum(found) ? Math.round((sum(hit) / sum(found)) * 10000) / 100 : null);
-    const m = { lines: pct('LH', 'LF'), branches: pct('BRH', 'BRF'), functions: pct('FNH', 'FNF') };
-    m.statements = m.lines;
-    if (m.lines !== null) return { file: 'coverage/lcov.info', ...Object.fromEntries(Object.entries(m).filter(([, v]) => v !== null)) };
-  }
-  return null;
-}
-
-function coverageFloor(p) {
-  const far = [];
-  for (const metric of METRICS) {
-    const floors = p.floors.filter((f) => f.metric === metric);
-    if (!floors.length || p.coverage[metric] === undefined) continue;
-    const top = floors.reduce((a, b) => (b.floor > a.floor ? b : a));
-    if (p.coverage[metric] - top.floor > COVERAGE_GAP) far.push({ metric, floor: top.floor, measured: p.coverage[metric], file: top.file, line: top.line });
-  }
-  if (!far.length) return [];
-  return [finding('tests/coverage-floor', 'tests', 'warning',
-    `the coverage floor is far below what the tests reach: ${far.map((f) => `${f.metric} ${f.floor} against ${f.measured}`).join(', ')}`,
-    { file: far[0].file, line: far[0].line, report: p.coverage.file, metrics: far.map(({ metric, floor, measured }) => ({ metric, floor, measured })) },
-    `raise each floor to a little under the measured value (${far.map((f) => `${f.metric} ${Math.max(f.floor, Math.floor(f.measured) - 1)}`).join(', ')}); a floor only ever rises`, 'small')];
-}
 
 function snapshotSize(p) {
   return [['snapshots', p.snapshots], ['fixtures', p.fixtures]].flatMap(([kind, items]) => {
@@ -405,8 +348,6 @@ const NEEDS = {
   source: { met: (p) => p.source.length > 0, missing: 'no source files of a known language', enable: 'the check answers once the checkout holds source files (JavaScript, TypeScript, Python, Go and others)' },
   tests: { met: (p) => p.tests.length > 0, missing: 'no test files', enable: 'the check answers once the project has test files (*.test.*, *.spec.*, test_*.py, a tests folder)' },
   snapshots: { met: (p) => p.snapshots.length + p.fixtures.length > 0, missing: 'no snapshot or fixture files', enable: 'the check answers once the project keeps snapshots (*.snap, __snapshots__) or fixture folders' },
-  'coverage-floor': { met: (p) => p.floors.length > 0, missing: 'no coverage floor in package.json, .c8rc.json or .nycrc', enable: 'if the project already measures coverage, set the floor it should hold (for example --test-coverage-lines=80 for node --test, --lines 80 for c8)' },
-  'coverage-report': { met: (p) => p.coverage !== null, missing: 'no coverage report in coverage/', enable: 'run the tests with a json-summary or lcov reporter you already have and keep coverage/ in the checkout' },
 };
 
 export const CATALOGUE = [
@@ -418,7 +359,6 @@ export const CATALOGUE = [
   { id: 'workflows/matrix-size', group: 'workflows', needs: ['workflows'], run: matrixSize },
   { id: 'workflows/unpinned-action', group: 'workflows', needs: ['workflows'], run: unpinned },
   { id: 'workflows/broad-permissions', group: 'workflows', needs: ['workflows'], run: broadPermissions },
-  { id: 'tests/coverage-floor', group: 'tests', needs: ['coverage-floor', 'coverage-report'], run: coverageFloor },
   { id: 'tests/duplicate', group: 'tests', needs: ['tests'], run: duplicateTests },
   { id: 'tests/snapshot-size', group: 'tests', needs: ['snapshots'], run: snapshotSize },
   { id: 'code/duplication', group: 'code', needs: ['source'], run: duplication },

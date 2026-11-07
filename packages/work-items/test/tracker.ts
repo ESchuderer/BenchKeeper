@@ -9,7 +9,10 @@ export type Fault = "refuse" | "outage" | "lose-answer" | "crash";
 
 type Issue = { labels: Set<string>; comments: Map<number, string> };
 
-const OUTAGE = { ok: false, finding: { code: "tracker.unavailable", params: { error: "ETIMEDOUT" } } } as const;
+const OUTAGE = {
+  ok: false,
+  finding: { code: "tracker.unavailable", params: { error: "ETIMEDOUT", retryAfter: null, rateLimitReset: null } },
+} as const;
 
 /** A tracker in memory: issues with labels and comments, and one fault for the next write. */
 export class FakeTracker implements Tracker {

@@ -3424,7 +3424,8 @@
                       "run",
                       "doctor",
                       "target",
-                      "worker"
+                      "worker",
+                      "session"
                     ]
                   },
                   "error": {
@@ -9576,7 +9577,8 @@
                       "run",
                       "doctor",
                       "target",
-                      "worker"
+                      "worker",
+                      "session"
                     ]
                   },
                   "error": {

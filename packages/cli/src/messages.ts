@@ -39,6 +39,7 @@ const EXTENSION_STEPS = {
   doctor: "answer the doctor's checks",
   target: "answer as a switch target",
   worker: "answer as a worker runner",
+  session: "answer as a session provider",
 } as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",

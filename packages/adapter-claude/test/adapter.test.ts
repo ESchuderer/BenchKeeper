@@ -311,24 +311,31 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   }
 });
 
-test("commands write in no plugin folder; a read-only launch writes nothing in its working folder, pushes nothing", async () => {
+test("commands write in no plugin folder; a read-only launch writes in neither its working folder nor the shared .git", async () => {
   const plugin = join(fixtures, "plugins", "workflow");
   const Settings = z.object({
     permissions: z.object({ deny: z.array(z.string()) }),
     sandbox: z.object({ filesystem: z.object({ denyWrite: z.array(z.string()) }) }),
   });
-  const settingsOf = async (readOnly: boolean) => {
-    const { args } = started(await events(runtime.start(launch({}, { readOnly, pluginDirs: [plugin] }))));
+  const settingsOf = async (readOnly: readonly string[] | undefined) => {
+    const change = readOnly === undefined ? { pluginDirs: [plugin] } : { readOnly, pluginDirs: [plugin] };
+    const { args } = started(await events(runtime.start(launch({}, change))));
     return Settings.parse(JSON.parse(args[args.indexOf("--settings") + 1] ?? ""));
   };
-  const [worker, report] = [await settingsOf(false), await settingsOf(true)];
+  // The shared .git of a linked worktree, which Claude Code's sandbox opens to the worktree's commands.
+  const shared = join(fixtures, "main.git");
+  const [worker, report] = [await settingsOf(undefined), await settingsOf([shared])];
   // The file tools by a deny rule, shell commands by the sandbox; the result file lies outside the working folder.
   expect([worker.sandbox.filesystem.denyWrite, report.sandbox.filesystem.denyWrite]).toEqual([
     [join(fixtures, ".github", "workflows"), plugin],
-    [fixtures, plugin],
+    [fixtures, shared, plugin],
   ]);
   expect(report.permissions.deny).toEqual(
-    expect.arrayContaining([expect.stringMatching(/^Edit\(\/\/.*fixtures\/\*\*\)$/), "Bash(git push *)"]),
+    expect.arrayContaining([
+      expect.stringMatching(/^Edit\(\/\/.*fixtures\/\*\*\)$/),
+      expect.stringMatching(/^Edit\(\/\/.*fixtures\/main\.git\/\*\*\)$/),
+      "Bash(git push *)",
+    ]),
   );
 });
 

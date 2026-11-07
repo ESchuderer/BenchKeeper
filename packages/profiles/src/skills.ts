@@ -120,7 +120,10 @@ export const skillFiles = (
     if (!files.ok) return files;
     // Claude Code loads a skills folder with `.claude-plugin/` as a plugin, hooks and servers included, which a plugin
     // part brings only with its approval by name (https://code.claude.com/docs/en/plugins/loading).
-    const plugin = files.value.find(({ path }) => path.split("/").includes(".claude-plugin"));
+    // In any case, as macOS's and Windows' file systems read `.Claude-Plugin` as `.claude-plugin`.
+    const plugin = files.value.find(({ path }) =>
+      path.split("/").some((segment) => segment.toLowerCase() === ".claude-plugin"),
+    );
     if (plugin !== undefined)
       return { ok: false, finding: { code: "profile.skill-plugin", params: { skill: label, path: plugin.path } } };
     for (const { path, mode, content } of files.value) {

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { accessSync, constants, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, join, relative, sep } from "node:path";
 import type { Finding } from "@cedarloom/contracts";
 import { cleanEnv, NETWORK_SETTINGS } from "@cedarloom/orchestration";
@@ -14,13 +14,23 @@ type TemplateRequest = {
 /** Applies a Template into an empty folder; why it failed, or null. */
 export type ApplyTemplate = (folder: string, request: TemplateRequest) => Promise<string | null>;
 
+// A file this user may run, as host/exec's `located` requires.
+const runnable = (file: string): boolean => {
+  try {
+    accessSync(file, constants.X_OK);
+    return statSync(file).isFile();
+  } catch {
+    return false;
+  }
+};
+
 // The CLI's file in an absolute folder of PATH, as a relative one would follow the current folder.
 const cliFile = (env: Record<string, string>): string | undefined =>
   (env["PATH"] ?? "")
     .split(delimiter)
     .filter((folder) => isAbsolute(folder))
     .map((folder) => join(folder, "devcontainer"))
-    .find((file) => existsSync(file));
+    .find((file) => runnable(file));
 
 /**
  * `devcontainer templates apply` of the Dev Containers CLI, run by its file without a shell, with the network settings

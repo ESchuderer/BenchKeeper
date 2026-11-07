@@ -46,6 +46,18 @@ const column = (value: unknown): unknown => (typeof value === "string" ? JSON.pa
 const blanked = (plan: unknown): string =>
   JSON.stringify(JSON.parse(String(plan), (key, value: unknown) => (key === "content" ? "" : value)));
 
+// Runs `work` with secure_delete on, which zeroes what its updates leave behind, such as a blanked plan's content, which
+// SQLite otherwise keeps on freed pages (https://www.sqlite.org/pragma.html#pragma_secure_delete). Only there: on every
+// write it kept another process's appends out longer.
+const zeroed = <T>(db: DatabaseSync, work: () => T): T => {
+  db.exec("PRAGMA secure_delete = ON");
+  try {
+    return work();
+  } finally {
+    db.exec("PRAGMA secure_delete = OFF");
+  }
+};
+
 // Moves the log into the database and empties it as the store closes, so the pages from before a blanking leave the
 // log too; a checkpoint at each finish kept another process's appends out. It waits for nothing, and while another
 // connection reads the store, such as a graph run's, it stops short without an error and the log keeps those pages
@@ -329,15 +341,17 @@ export class RunStore extends RunView {
     super(dir, db);
     this.#lock = lock;
     db.function("blanked", { deterministic: true, directOnly: true }, blanked);
-    [this.epoch, this.interrupted] = transaction(db, () => {
-      const epoch = Number(
-        db.prepare("UPDATE meta SET value = value + 1 WHERE key = 'epoch' RETURNING value").get()?.["value"],
-      );
-      const ids = db
-        .prepare("UPDATE runs SET status = 'interrupted', plan = blanked(plan) WHERE status = 'running' RETURNING id")
-        .all();
-      return [epoch, ids.map((row) => String(row["id"]))] as const;
-    });
+    [this.epoch, this.interrupted] = zeroed(db, () =>
+      transaction(db, () => {
+        const epoch = Number(
+          db.prepare("UPDATE meta SET value = value + 1 WHERE key = 'epoch' RETURNING value").get()?.["value"],
+        );
+        const ids = db
+          .prepare("UPDATE runs SET status = 'interrupted', plan = blanked(plan) WHERE status = 'running' RETURNING id")
+          .all();
+        return [epoch, ids.map((row) => String(row["id"]))] as const;
+      }),
+    );
   }
 
   /** Records the plan, its approval and its pending steps in one transaction; refuses an approval of another plan. */
@@ -380,9 +394,11 @@ export class RunStore extends RunView {
    * and the run's backup; undo and recovery need only the backups and hashes.
    */
   finish(runId: string, status: "applied" | "failed"): void {
-    this.db
-      .prepare("UPDATE runs SET status = ?, finishedAt = ?, plan = blanked(plan) WHERE id = ?")
-      .run(status, now(), runId);
+    zeroed(this.db, () =>
+      this.db
+        .prepare("UPDATE runs SET status = ?, finishedAt = ?, plan = blanked(plan) WHERE id = ?")
+        .run(status, now(), runId),
+    );
   }
 
   /**
@@ -634,9 +650,12 @@ export class RunStore extends RunView {
   }
 
   override close(): void {
-    emptyLog(this.db);
-    super.close();
-    this.#lock.close();
+    try {
+      emptyLog(this.db);
+    } finally {
+      super.close();
+      this.#lock.close();
+    }
   }
 }
 
@@ -675,11 +694,7 @@ export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T>
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
   try {
     chmodSync(join(dir, "runs.sqlite"), 0o600);
-    // secure_delete zeroes what an update or a delete leaves behind, such as a blanked plan's content, which SQLite
-    // otherwise keeps on freed pages (https://www.sqlite.org/pragma.html#pragma_secure_delete).
-    db.exec(
-      "PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON",
-    );
+    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
     // Read again in the transaction: a graph store opens without the store lock, so another process may create it first.
     const created = (): number => {
       if (versionOf(db) === 0) db.exec(`${BASELINE.join("")} PRAGMA user_version = ${SCHEMA}`);

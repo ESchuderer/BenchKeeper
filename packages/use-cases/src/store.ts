@@ -16,6 +16,7 @@ import {
   type Plan,
   type Result,
   readDocument,
+  semverAbove,
   STORE_REF,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
@@ -33,32 +34,6 @@ const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 const fileOf = (id: string): string => {
   if (!WorkflowId.safeParse(id).success) throw new Error(`not a workflow id: ${id}`);
   return `workflows/workflow-${id.toLowerCase()}.json`;
-};
-
-const identifier = (a: string, b: string): number => {
-  const [x, y] = [/^\d+$/.test(a), /^\d+$/.test(b)];
-  if (x && y) return Number(a) - Number(b);
-  if (x !== y) return x ? -1 : 1;
-  return a < b ? -1 : Number(a > b);
-};
-
-// The core and the pre-release identifiers; the contracts' semver has no build metadata.
-const identifiers = (version: string): [string[], string[]] => {
-  const dash = version.indexOf("-");
-  if (dash < 0) return [version.split("."), []];
-  return [version.slice(0, dash).split("."), version.slice(dash + 1).split(".")];
-};
-
-/** Whether `a` is above `b` in SemVer 2.0.0 precedence (https://semver.org/#spec-item-11). */
-const above = (a: string, b: string): boolean => {
-  const [coreA, preA] = identifiers(a);
-  const [coreB, preB] = identifiers(b);
-  const core = coreA.map((part, index) => identifier(part, coreB[index] ?? "0")).find((order) => order !== 0);
-  if (core !== undefined) return core > 0;
-  // A release is above its pre-releases; of two pre-releases, the first differing identifier decides, else the longer.
-  if (preA.length === 0 || preB.length === 0) return preA.length === 0 && preB.length > 0;
-  const pre = preA.map((part, index) => (index < preB.length ? identifier(part, preB[index] ?? "") : 1));
-  return (pre.find((order) => order !== 0) ?? preA.length - preB.length) > 0;
 };
 
 // A stored workflow: its file's text, which an export writes byte for byte, and the workflow.
@@ -79,7 +54,7 @@ const storedVersion = (store: Store, blob: string): Result<string> => {
 const risen = (store: Store, stored: string | null, id: string, version: string): Result<string | null> => {
   if (stored === null) return { ok: true, value: null };
   const read = storedVersion(store, stored);
-  if (!read.ok || above(version, read.value)) return read;
+  if (!read.ok || semverAbove(version, read.value)) return read;
   return refuse({ code: "store.version-not-higher", params: { id, stored: read.value, found: version } });
 };
 

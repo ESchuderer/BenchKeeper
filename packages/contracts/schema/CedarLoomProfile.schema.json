@@ -1106,9 +1106,9 @@
                 "type": "object",
                 "propertyNames": {
                   "type": "string",
-                  "minLength": 1,
                   "maxLength": 1024,
-                  "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$"
+                  "pattern": "^[A-Za-z0-9._][A-Za-z0-9._-]{0,254}(?:\\/[A-Za-z0-9._][A-Za-z0-9._-]{0,254})*$",
+                  "description": "Portable names joined by /: no .git, no trailing dot, no Windows device name such as CON or COM1"
                 },
                 "additionalProperties": {
                   "anyOf": [

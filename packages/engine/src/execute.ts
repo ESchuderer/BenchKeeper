@@ -83,7 +83,7 @@ export type Gates = (point: GatePoint, node: string) => "pass" | "wait";
  */
 export const DEFAULT_GATES: Gates = (point) => (point === "before-apply" ? "wait" : "pass");
 
-// The node types with effects, which a `before-node` gate holds.
+// The node types with effects, which a `before-node` gate holds; a trigger's holds its precheck.
 const EFFECTS = new Set(["agent.run", "command.run", "file.write", "workflow.run"]);
 
 export interface ExecuteOptions {
@@ -406,10 +406,16 @@ class Runner {
   /**
    * Whether an attempt goes on at a gate: the owner approved it, for the plan it applies if it has one, or the policy lets
    * it. The owner's decision outranks the policy, and a gate the journal holds waits for that decision whatever the policy
-   * says now, as after a switch to Auto (review of #1167). A rejection fails the attempt; without a decision, the gate is
-   * recorded and the attempt waits.
+   * says now, as after a switch to Auto (review of #1167). A rejection fails the attempt, or does what `rejected` says;
+   * without a decision, the gate is recorded and the attempt waits.
    */
-  #cleared(node: string, attempt: number, point: GatePoint, planHash: string | null): boolean {
+  #cleared(
+    node: string,
+    attempt: number,
+    point: GatePoint,
+    planHash: string | null,
+    rejected = (): void => this.#rejected(node, attempt),
+  ): boolean {
     const decisions = this.#held.decisions.get(node);
     const decision = decisions?.get(planHash ?? "");
     if (decision === undefined) return this.#undecided(node, attempt, point, planHash);
@@ -419,9 +425,14 @@ class Runner {
       this.#held.gates.get(node)?.delete(planHash ?? "");
       return true;
     }
+    rejected();
+    return false;
+  }
+
+  // An attempt the owner rejected at its gate fails.
+  #rejected(node: string, attempt: number): void {
     this.#commit({ type: "started", node, attempt, pid: null });
     this.#post({ type: "ended", node, attempt, outcome: "failed", values: { error: "rejected" } });
-    return false;
   }
 
   // A gate without the owner's decision: one the journal holds waits, else the policy decides; a wait is recorded.
@@ -448,6 +459,9 @@ class Runner {
   }
 
   async #precheck(node: string): Promise<void> {
+    // The trigger's gate holds its precheck, which a first run asks for as it does a command; a rejection skips the run.
+    const skip = (): void => this.#post({ type: "precheck", passed: false, values: { error: "rejected" } });
+    if (!this.#cleared(node, 1, "before-node", null, skip)) return;
     const command = this.#of(node).config["precheck"] ?? "";
     const going = await this.#prepare(node, 0, { config: { command }, data: {} }, this.#executor("command.run"));
     await this.#go(going, PRECHECK_TIMEOUT_MS, (ok, values, why) => {

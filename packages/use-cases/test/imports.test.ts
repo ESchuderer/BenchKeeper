@@ -83,15 +83,7 @@ test("an import updates a workflow stored as its last import left it, and keeps 
   store(to, "1.2.0", [], true);
   store(from, "1.3.0");
   const conflict = ok(await planImport(to, { folder: exported(from, join(from, "v3")) }));
-  // Saved on another machine and never imported there: its own work, kept as well.
-  const own = machine();
-  store(own, "0.9.0");
-  const never = ok(await planImport(own, { folder: join(from, "v3") }));
-  expect([
-    update.review.units[0],
-    [...conflict.review.units, ...never.review.units].map(({ status }) => status),
-    conflict.plan,
-  ]).toEqual([
+  expect([update.review.units[0], conflict.review.units.map(({ status }) => status), conflict.plan]).toEqual([
     {
       id: "w",
       status: "update",
@@ -100,9 +92,17 @@ test("an import updates a workflow stored as its last import left it, and keeps 
       license: null,
       changes: { added: ["notify"], removed: [], changed: [] },
     },
-    ["conflict", "conflict"],
+    ["conflict"],
     null,
   ]);
+});
+
+test("a workflow saved here and never imported is kept as a conflict: the import cannot tell which is newer", async () => {
+  const [from, own] = [machine(), machine()];
+  store(from, "1.0.0");
+  store(own, "0.9.0");
+  const never = ok(await planImport(own, { folder: exported(from, join(from, "shared")) }));
+  expect([never.review.units.map(({ status }) => status), never.plan]).toEqual([["conflict"], null]);
 });
 
 test("an import refuses a workflow a save would refuse, such as one with an edge to no node", async () => {

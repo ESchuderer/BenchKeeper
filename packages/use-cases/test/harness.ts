@@ -23,8 +23,8 @@ export const ok = <T>(result: Result<T>): T => {
   return result.value;
 };
 
-const git = (cwd: string, args: string[]): string =>
-  execFileSync("git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.org", ...args], {
+const gitIn = (program: string, cwd: string, args: string[]): string =>
+  execFileSync(program, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.org", ...args], {
     cwd,
     encoding: "utf8",
   }).trim();
@@ -44,9 +44,11 @@ export const gitIdentity = (root: string): void => {
 
 /**
  * Local repositories under the published URLs `https://git.example.org/acme/<name>.git`, in `root`, which tests fetch
- * over file:// (CedarLoom never does): `publish` makes or extends one, `fetchLocal` fetches through them.
+ * over file:// (CedarLoom never does): `publish` makes or extends one, `fetchLocal` fetches through them. `program` is
+ * the git that makes them, as for the store (openStore).
  */
-export const gitFixtures = (root: string) => {
+export const gitFixtures = (root: string, program = "git") => {
+  const git = (cwd: string, args: string[]): string => gitIn(program, cwd, args);
   // Each published URL is a local repository: the tests let git fetch over file://, which the CLI never does.
   const repositories = new Map<string, string>();
   const fetchLocal: Fetch = (source, options) => {

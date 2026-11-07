@@ -4,7 +4,7 @@
 // at once without reading the prompt. FAKE_CHILD starts a command and prints its process ID, FAKE_LONG writes a line of
 // that many bytes, FAKE_CUT a last line without its newline. FAKE_TICK writes a line every 20 ms until the fake ends, so
 // with FAKE_HANG until it is killed. FAKE_RESULT names a file to write FAKE_RESULT_TEXT to, as a worker writes its
-// result. FAKE_OTLP is an OTLP body it posts to the launch's telemetry receiver.
+// result.
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -34,17 +34,6 @@ if (args.includes("--version")) {
       command.kill();
     });
     process.stdout.write(`${JSON.stringify({ type: "command", pid: command.pid })}\n`);
-  }
-  // As Claude Code's exporter does, with the endpoint and the logs header the launch set.
-  const otlp = process.env["FAKE_OTLP"];
-  const endpoint = process.env["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"];
-  if (otlp !== undefined && endpoint !== undefined) {
-    const authorization = (process.env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] ?? "").replace(/^Authorization=/, "");
-    await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization },
-      body: otlp,
-    });
   }
   const result = process.env["FAKE_RESULT"];
   if (result !== undefined) writeFileSync(result, process.env["FAKE_RESULT_TEXT"] ?? "");

@@ -10,6 +10,6 @@
 - Never call a file, folder or module `utils`, `helpers`, `common`, `misc` or `shared`. Name it after what it contains. A file that wants such a name has more than one job: split it.
 - UI code follows the styleguide and tokens that Pointers in `AGENTS.md` links. No new colors, font sizes, spacing or shadows when a token already covers the role.
 - Do not add tests by default. Add one only when it fails if your change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks), and runs at the single layer that owns the behavior.
-- Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts. When you touch such a test, delete it instead of updating it.
+- Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts. When you touch such a test, delete it instead of updating it (no need to ask).
 - No coverage thresholds. Scheduled mutation testing (Stryker), where the project has it, stays: it measures test strength, not amount.
 - Every change considers the first-class targets that `AGENTS.md` lists. Before changing an area with a footgun doc, read that doc.

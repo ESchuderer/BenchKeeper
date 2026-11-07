@@ -449,7 +449,7 @@ export function api(ctx) {
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, level: levelFor(ctx, agents.map((a) => a.id)), advisers: agents.filter((a) => ADVISERS.includes(a.id)), projects: listProjects(ctx).map((p) => {
         const s = status(ctx, p.path);
-        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all commits it on a branch' : s.committed ? 'setup still committed: Update all moves it to this machine' : s.agentsMd ? 'commits AGENTS.md, so its setup is shared: set it up on its own' : null);
+        const blocked = s.error ?? (!s.repo ? 'no repository' : s.share ? 'shared setup: Update all commits it on a branch' : s.committed ? 'setup still committed: Update all moves it to this machine' : s.agentsMd ? 'commits AGENTS.md, so its setup is shared: set it up from its row, In the repository' : null);
         return { path: p.path, blocked, state: !s.setupVersion ? 'none' : !s.current || s.changes?.length ? 'behind' : 'current', setupVersion: s.setupVersion };
       }) };
     },

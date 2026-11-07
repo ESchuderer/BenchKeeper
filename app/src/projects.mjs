@@ -12,7 +12,7 @@ import { apply, preview } from './runner.mjs';
 import { agentFileRows } from './frameworks.mjs';
 import { projectSkills, skillFiles } from './skills.mjs';
 import { PLUGINS, globalPlan, globalSkills, localPlugins, pluginScope, pluginState } from './steps/global.mjs';
-import { STATE, chosenSkills, commitsAgentsMd, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, quote, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { STATE, chosenSkills, commitsAgentsMd, committedSetup, shareOnly, staysShared, localSetup, normalizeState, parseState, projectCtx, projectPlan, quote, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 import { newer } from './update.mjs';
 
 const file = (ctx) => join(ctx.config, 'projects.json');
@@ -493,6 +493,8 @@ export function updateAll(ctx, { paths = listProjects(ctx).map((p) => p.path), a
 export function unshare(ctx, path) {
   const result = { path };
   try {
+    // A committed AGENTS.md with the project's own text stays after the removal, and keeps the setup shared.
+    if (staysShared(ctx, path)) throw new Error(shareOnly(path));
     // Kept first: once the branch is merged and pulled, the state file is gone, whatever this run ends with.
     const state = readState(path);
     if (state) keepState(ctx, path, state);

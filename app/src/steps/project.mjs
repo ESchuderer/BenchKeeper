@@ -324,6 +324,10 @@ export function suggest(dir) {
 export const tracksState = (ctx, dir) => git(ctx, dir, ['ls-files', '--', STATE]).stdout.trim().endsWith(STATE);
 // True when git tracks AGENTS.md: the project's agent manual is committed, so its setup is shared.
 export const commitsAgentsMd = (ctx, dir) => git(ctx, dir, ['ls-files', '--', 'AGENTS.md']).stdout.trim() === 'AGENTS.md';
+// True when the setup can only be shared: AGENTS.md is committed with text of the project's own, which a removal of the
+// committed setup (projects unshare) keeps.
+export const staysShared = (ctx, dir) => commitsAgentsMd(ctx, dir) && handWritten(dir).trim() !== '';
+export const shareOnly = (dir) => `${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share writes the block into AGENTS.md and takes it out of ${LOCAL_CLAUDE} and ${OVERRIDE}`;
 
 // A project run writes inside the project, plus the git exclude list, which a linked worktree or a project in a
 // subfolder keeps outside it. Never into the project's own .git (hooks, config): a committed link must not aim a write there.
@@ -426,9 +430,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   } else {
     // A committed setup stays until a pull request removes it (projects unshare): a local one beside it would load
     // the block twice and change tracked files.
-    if (tracksState(ctx, dir)) throw new Error(`the setup of ${dir} is committed: benchkeeper projects unshare moves it to this machine (a pull request), --share keeps it in the repository`);
     // A committed AGENTS.md is the project's agent manual: the block belongs in it, not in files beside it on one machine.
-    if (commitsAgentsMd(ctx, dir)) throw new Error(`${dir} commits AGENTS.md, so its setup is shared: benchkeeper projects apply --share writes the block into AGENTS.md and takes it out of ${LOCAL_CLAUDE} and ${OVERRIDE}`);
+    if (staysShared(ctx, dir)) throw new Error(shareOnly(dir));
+    if (tracksState(ctx, dir)) throw new Error(`the setup of ${dir} is committed: benchkeeper projects unshare moves it to this machine (a pull request), --share keeps it in the repository`);
+    if (commitsAgentsMd(ctx, dir)) throw new Error(shareOnly(dir));
     const agentsMd = setBlock(readText(at('AGENTS.md')) ?? '', 'project', null);
     if (a.agents.includes('claude')) {
       const imports = /^@AGENTS\.md$/m.test(readText(at('CLAUDE.md')) ?? '') || !agentsMd.trim();
@@ -449,7 +454,15 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     if (setBlock(localClaude, 'project', null).replace(/^@AGENTS\.md\n*/, '').trim()) add('local-claude', `remove the BenchKeeper block from ${LOCAL_CLAUDE} (${gone('claude')})`, { kind: 'write', path: at(LOCAL_CLAUDE), edit: (t) => setBlock(t, 'project', null).replace(/^@AGENTS\.md\n*/, '') });
     else add('local-claude', `remove ${LOCAL_CLAUDE} (only BenchKeeper's block; ${gone('claude')})`, { kind: 'remove', path: at(LOCAL_CLAUDE), selected: true });
   }
-  if (a.share || !a.agents.includes('codex')) overrideRemoval(dir, add, gone('codex'));
+  // Shared, Codex chosen, and an AGENTS.override.md with other lines: Codex reads it instead of AGENTS.md, so it keeps a
+  // copy of AGENTS.md with the block above them, as a local setup's does; a hand-written one is offered that, not preselected.
+  const override = readText(at(OVERRIDE));
+  const codexOverride = a.share && a.agents.includes('codex') && override != null && overrideOwn(override).trim() !== '';
+  if (codexOverride) {
+    const ours = overrideOurs(override);
+    add('local-codex', `${OVERRIDE}: AGENTS.md with the block above your own lines (Codex reads this file instead of AGENTS.md)${ours ? '' : ' (above your own text)'}`, { kind: 'write', path: at(OVERRIDE), selected: ours, installUnit: rulesUnit,
+      edit: (t, run) => overrideWith(t, setBlock(handWritten(dir), 'project', blockText(run))) });
+  } else if (a.share || !a.agents.includes('codex')) overrideRemoval(dir, add, gone('codex'));
   if (a.agents.includes('gemini')) {
     const s = agent('gemini').project.rules.setting;
     add('gemini-context', 'Gemini CLI reads AGENTS.md', { kind: 'write', path: at(s.path), edit: (t) => mergeJson(t, [{ path: s.key, value: s.value }]), installUnit: rulesUnit });
@@ -730,7 +743,7 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const links = skippedLinks(skillFolder(ctx, s));
     return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
   });
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev })] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...frameworkNotices({ a, dir, prev }), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

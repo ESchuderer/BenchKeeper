@@ -82,6 +82,23 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   assert.match(r.git('status', '--porcelain').toString(), /\.benchkeeper\//);
 });
 
+test('--share keeps an AGENTS.override.md with your own lines as a copy of AGENTS.md above them, since Codex reads it instead', () => {
+  const r = repo();
+  const at = join(r.dir, 'AGENTS.override.md');
+  writeFileSync(join(r.dir, 'AGENTS.md'), '# Project\n\nmine\n');
+  appendFileSync(join(r.dir, '.git/info/exclude'), 'AGENTS.md\n');
+  apply(preview(plan(r, { agents: ['codex'], env: 'host' }).changes), r.ctx, { scope: r.dir });
+  writeFileSync(at, `${read(at)}\n## Notes\n\n- my note\n`);
+  r.git('add', '-f', 'AGENTS.md');
+  r.git('commit', '-qm', 'agents');
+  const { changes, warnings } = plan(r, { share: true });
+  assert.equal(apply(preview(changes), r.ctx, { scope: r.dir }).status, 'done');
+  const text = read(at);
+  assert.ok(text.startsWith('<!-- benchkeeper:override start -->\n# Project\n\nmine\n\n<!-- benchkeeper:project start -->\n') && text.endsWith('<!-- benchkeeper:override end -->\n\n## Notes\n\n- my note\n'), text);
+  assert.match(read(join(r.dir, 'AGENTS.md')), /^# Project\n\nmine\n\n<!-- benchkeeper:project start -->/);
+  assert.ok(warnings.some((w) => w.startsWith('Codex reads AGENTS.override.md instead of AGENTS.md')), warnings.join('\n'));
+});
+
 test('AGENTS.override.md keeps the user\'s own lines: a re-apply follows AGENTS.md in its block, drift ignores them, removal leaves them', () => {
   const r = repo();
   const at = join(r.dir, 'AGENTS.override.md');

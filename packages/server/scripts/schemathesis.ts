@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { CSRF_HEADER, WorkflowDefinition } from "@cedarloom/contracts";
 import { openGraphStore } from "@cedarloom/ledger";
 import { startServer } from "@cedarloom/server";
-import { applyPlan, saveDraft } from "@cedarloom/use-cases";
+import { applyPlan, type Fetch, saveDraft } from "@cedarloom/use-cases";
 import { z } from "zod";
 
 const [command = "schemathesis", ...prefix] = process.argv.slice(2);
@@ -39,7 +39,9 @@ const config = join(root, "schemathesis.toml");
 const ids = `"path.runId" = "${run.value.runId}"\n"path.graphRunId" = "${graphRun.runId}"\n`;
 writeFileSync(config, `[parameters]\n${ids}"path.id" = "minimal"\n`);
 
-const server = await startServer({ state, log: (text) => process.stderr.write(text) });
+// An import of a generated Git URL fetches nothing: the run never reaches the network.
+const offline: Fetch = async () => ({ ok: false, finding: { code: "git.refused-source", params: { field: "url" } } });
+const server = await startServer({ state, fetch: offline, log: (text) => process.stderr.write(text) });
 const { origin, hash } = new URL(server.url);
 const exchanged = await fetch(`${origin}/api/session`, {
   method: "POST",

@@ -8,10 +8,10 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
 import { openGraphStore, openRunStore, sha256 } from "@cedarloom/ledger";
-import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
+import { CSRF_HEADER, formatExport, formatLock, type Plan } from "@cedarloom/contracts";
 import { cookieName, openapi, type Started, startServer } from "@cedarloom/server";
-import { applyPlan, DRAFT_LIMIT } from "@cedarloom/use-cases";
-import { afterEach, expect, test } from "vitest";
+import { applyPlan, DRAFT_LIMIT, type Fetch } from "@cedarloom/use-cases";
+import { afterEach, expect, test, vi } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
 
@@ -72,11 +72,13 @@ const serve = async (
   tokenMs?: number,
   state = join(mkdtempSync(join(tmpdir(), "cedarloom-server-")), "state"),
   ui?: string,
+  fetch?: Fetch,
 ): Promise<Client> => {
   const log: string[] = [];
   const server = await startServer({
     state,
     ui,
+    fetch,
     every: 25,
     log: (text) => log.push(text),
     ...(tokenMs === undefined ? {} : { tokenMs }),
@@ -106,6 +108,7 @@ const open = async (tokenMs?: number, ui?: string): Promise<Client> => {
   return client;
 };
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(started.splice(0).map((client) => client.server.close()));
 });
 
@@ -640,3 +643,58 @@ test("the committed OpenAPI document is the one the routes generate (pnpm --filt
   const committed = await readFile(join(import.meta.dirname, "..", "openapi.json"), "utf8");
   expect(committed).toBe(await openapi(pkg.version));
 });
+
+// A shared export at a Git URL: its files at a commit, as the fetch hands them over (nothing of it runs); any other
+// URL is refused as the real fetch refuses one.
+const SHARED = "https://git.example.org/acme/flows.git";
+const sharedExport = async (): Promise<Fetch> => {
+  const texts: [string, string][] = [
+    [
+      "cedarloom-export.json",
+      formatExport({ schemaVersion: 1, kind: "cedarloom.export", name: "Shared", workflows: ["minimal"] }),
+    ],
+    ["cedarloom.lock.json", formatLock({ schemaVersion: 1, kind: "cedarloom.lock", extensions: {} })],
+    ["workflows/workflow-minimal.json", await readFile(join(corpus, "valid-minimal.json"), "utf8")],
+  ];
+  const files = texts.map(([path, text]) => ({
+    path,
+    mode: "100644" as const,
+    sha256: sha256(text),
+    content: Buffer.from(text),
+  }));
+  const tree = { commit: "c".repeat(40), files, digest: "d".repeat(64) };
+  return async (source) =>
+    source.url === SHARED
+      ? { ok: true, value: tree }
+      : { ok: false, finding: { code: "git.refused-source", params: { field: "url" } } };
+};
+
+test("an import of a Git ref is reviewed with its plan under an id, which applies only with the hash of its preview, once", async () => {
+  // Store commits carry the user's Git identity: a home folder of the test's own gives one.
+  const home = mkdtempSync(join(tmpdir(), "cedarloom-home-"));
+  writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
+  vi.stubEnv("HOME", home);
+  vi.stubEnv("XDG_CONFIG_HOME", home);
+  const client = await serve(undefined, undefined, undefined, await sharedExport());
+  started.push(client);
+  await client.login();
+  const imports = (body: object) => client.api({ method: "POST", path: "/api/imports", body });
+  const reviewed = await imports({ git: SHARED, ref: "main" });
+  const units = z.array(z.object({ status: z.string() }));
+  const { id, planHash, review } = z
+    .object({ id: z.string(), planHash: z.string(), review: z.object({ units }) })
+    .parse(reviewed.body);
+  const apply = (approve: string) =>
+    client.api({ method: "POST", path: `/api/imports/${id}/apply`, body: { approve } });
+  const answers = [
+    reviewed.status,
+    review.units.map((unit) => unit.status),
+    (await apply(sha256("another plan"))).status,
+    (await apply(planHash)).status,
+    (await apply(planHash)).status,
+    (await imports({ git: "https://git.example.org/acme/other.git", ref: "main" })).status,
+    // The API reads no folder a request names: an export folder is imported through its Git URL, or with the CLI.
+    (await imports({ folder: home })).status,
+  ];
+  expect(answers).toEqual([200, ["new"], 409, 200, 404, 409, 400]);
+}, 30_000);

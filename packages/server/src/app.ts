@@ -5,7 +5,7 @@ import { fastifySSE } from "@fastify/sse";
 import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
-import { sweepDrafts } from "@cedarloom/use-cases";
+import { type Fetch, sweepDrafts } from "@cedarloom/use-cases";
 import fp from "fastify-plugin";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
@@ -16,7 +16,7 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { eventRoutes } from "./events.ts";
-import { draftRoutes, graphRunRoutes, runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
+import { draftRoutes, graphRunRoutes, importRoutes, runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
 import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
@@ -29,6 +29,8 @@ export interface AppOptions {
   ui?: string | undefined;
   /** How often the event streams read the run store, in ms (default 1000). */
   every?: number | undefined;
+  /** How an import fetches a Git ref (default: over https and ssh). */
+  fetch?: Fetch | undefined;
 }
 
 // Requests carry ids, hashes and the session token, never file contents; only a draft save carries a workflow.
@@ -98,7 +100,8 @@ const methods = (app: FastifyInstance): void => {
 };
 
 /** The local server's routes over the use cases, with the session guard on every request. */
-export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOptions): Promise<FastifyInstance> => {
+export const buildApp = async (options: AppOptions): Promise<FastifyInstance> => {
+  const { state, session, log, ui, every = 1000, fetch } = options;
   // A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
   // Closing ends the open event streams too, so a stopped `cedarloom ui` exits at once.
   const app = Fastify({ bodyLimit: BODY_LIMIT, frameworkErrors, requestTimeout: 30_000, forceCloseConnections: true });
@@ -143,6 +146,7 @@ export const buildApp = async ({ state, session, log, ui, every = 1000 }: AppOpt
   await app.register(undoRoutes, { state });
   await app.register(draftRoutes, { state });
   await app.register(graphRunRoutes, { state });
+  await app.register(importRoutes, { state, fetch });
   // The package is CommonJS typed as ESM: its typed export is the bare plugin, so it gets the same fastify-plugin wrap
   // as its own module.exports, which shares reply.sse with the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));

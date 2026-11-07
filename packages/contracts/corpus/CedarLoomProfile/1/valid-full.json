@@ -111,6 +111,14 @@
       "commit": false,
       "plugin": "acme-lsp@acme",
       "marketplace": { "name": "acme", "github": "acme/plugins", "ref": "v2" }
+    },
+    "container": {
+      "type": "devcontainer",
+      "title": "Alpine with Node",
+      "default": "on",
+      "template": "ghcr.io/devcontainers/templates/alpine@sha256:0577dbc39d43e6daf0e93477b62e224cca764d3b0d8e37d420c23a07cafe3021",
+      "args": { "imageVariant": "3.20" },
+      "features": { "ghcr.io/devcontainers/features/github-cli:1": { "version": "latest" } }
     }
   }
 }

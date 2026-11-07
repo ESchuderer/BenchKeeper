@@ -44,7 +44,8 @@ const Text = z.union([
 const Name = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 const followed = { name: Name, ref: GitRef.optional(), autoUpdate: z.boolean().optional() };
 // A GitHub repository as `owner/repo`.
-const GitHubRepo = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/);
+const REPO = "[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}";
+const GitHubRepo = z.string().regex(new RegExp(`^${REPO}$`));
 const Marketplace = z.union([
   z.strictObject({ ...followed, github: GitHubRepo }),
   z.strictObject({ ...followed, git: GitUrl }),
@@ -120,7 +121,31 @@ const gates = part("gates", {
   callers: distinct(z.string().regex(/^[a-z][a-z0-9-]{0,63}$/))
     .min(1)
     .max(20),
-  dependabotCooldownDays: z.int().min(0).max(90),
+  dependabotCooldownDays: z
+    .int()
+    .min(1)
+    .max(90)
+    .describe("Dependabot's cooldown, 1 to 90 days (https://json.schemastore.org/dependabot-2.0.json)"),
+});
+// An OCI reference as the Dev Containers CLI takes one: a registry, a path, and a tag or digest; a Template's by digest
+// only, so the files approved in a preview are the files its apply writes.
+const OCI = String.raw`[a-z0-9][a-z0-9.-]{0,252}(?::\d{1,5})?(?:/[a-z0-9][a-z0-9._-]{0,127}){1,10}`;
+const DIGEST = "@sha256:[0-9a-f]{64}";
+const OciRef = z.string().regex(new RegExp(String.raw`^${OCI}(?::\w[\w.-]{0,127}|${DIGEST})?$`));
+const devcontainer = part("devcontainer", {
+  template: z
+    .string()
+    .regex(new RegExp(`^${OCI}${DIGEST}$`))
+    .describe("A Dev Container Template by digest, such as ghcr.io/devcontainers/templates/alpine@sha256:…"),
+  args: sized(z.record(z.string().regex(/^\w{1,64}$/), PlainText.max(200)), 50)
+    .optional()
+    .describe("The Template's options"),
+  features: sized(
+    z.record(OciRef, z.record(z.string().regex(/^\w{1,64}$/), z.union([PlainText.max(200), z.boolean()]))),
+    20,
+  )
+    .optional()
+    .describe("Features to add, each with its options"),
 });
 
 const level = <T extends z.ZodType>(union: T) => sized(z.record(PartId, union), 100);
@@ -137,6 +162,7 @@ const whole = {
       packs.whole,
       tier.whole,
       gates.whole,
+      devcontainer.whole,
     ]),
   ),
 };
@@ -153,6 +179,7 @@ const layer = {
       packs.layer,
       tier.layer,
       gates.layer,
+      devcontainer.layer,
     ]),
   ),
 };
@@ -353,7 +380,14 @@ export const ProfileSelection = z
     ]),
     select: sized(z.record(QualifiedPartId, z.boolean()), 500).describe("On or off against the part's default"),
     bindings: z
-      .strictObject({ hub: GitHubRepo.optional().describe("The hub repository, `{{hub}}` in the profile's texts") })
+      .strictObject({
+        hub: GitHubRepo.optional().describe("The hub repository, `{{hub}}` in the profile's texts"),
+        gates: z
+          .string()
+          .regex(new RegExp(`^${REPO}@[0-9a-f]{40}$`))
+          .optional()
+          .describe("Where a gates part's callers find the reusable workflows: `owner/repo@<commit>`"),
+      })
       .optional()
       .describe("This machine's repositories the profile's parts name"),
   })

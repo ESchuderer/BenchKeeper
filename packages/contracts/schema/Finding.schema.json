@@ -3734,7 +3734,8 @@
             "binding": {
               "type": "string",
               "enum": [
-                "hub"
+                "hub",
+                "gates"
               ]
             }
           },
@@ -3855,6 +3856,12 @@
             "project": {
               "type": "string"
             },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "programs": {
               "type": "array",
               "items": {
@@ -3872,8 +3879,73 @@
             "part",
             "title",
             "project",
+            "source",
             "programs",
             "configs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.template-failed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "template": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "template",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.target-twice"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "target"
           ],
           "additionalProperties": false
         }

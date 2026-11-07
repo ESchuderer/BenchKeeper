@@ -390,6 +390,15 @@ test("mode shows the level of running work and switches it with --yes, at each r
   expect((await cli("mode", "auto")).code).toBe(EXIT.noInput);
 });
 
+test("a profile with a problem is refused, never shown as a machine with nothing to change", async () => {
+  const { cli } = setup();
+  const { code, out } = await cli("--json", "profiles", "apply");
+  expect([code, json(out)["findings"]]).toEqual([
+    EXIT.refused,
+    [{ code: "profile.binding-missing", params: { part: "workspace.hub", binding: "hub" } }],
+  ]);
+});
+
 test("level shows the default and each project's level, and sets one of them by plan with --yes", async () => {
   const { root, cli } = setup();
   expect((await cli("level")).out).toBe("supervised  (default)\n");

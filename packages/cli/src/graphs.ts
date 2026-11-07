@@ -31,10 +31,12 @@ export const workflowsRun = async (
 ): Promise<number> => ran(ctx, await useCases.runWorkflow(ctx.state, file, inputs, runOptions(ctx, project)));
 
 // Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
-// What becomes of the attempts still running: a live runner ends them cancelled; those a dead runner left end interrupted.
+// What becomes of the attempts still running: a live runner ends them cancelled; a dead runner's end interrupted,
+// except an agent's that a resume recovers.
 const ATTEMPTS = {
   live: "Running now; its runner ends them cancelled:",
-  resume: "Left running when its runner died; they end interrupted, count as failed, and retries rerun them:",
+  resume:
+    "Left running when its runner died; an agent with a recorded session ends with its result or resumes, the others end interrupted, count as failed, and retries rerun them:",
   cancel: "Left running when its runner died; they end interrupted:",
 } as const;
 

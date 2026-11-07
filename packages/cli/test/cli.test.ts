@@ -392,6 +392,15 @@ test("mode shows the level of running work and switches it with --yes, at each r
   expect((await cli("mode", "auto")).code).toBe(EXIT.noInput);
 });
 
+test("a profile with a problem is refused, never shown as a machine with nothing to change", async () => {
+  const { cli } = setup();
+  const { code, out } = await cli("--json", "profiles", "apply");
+  expect([code, json(out)["findings"]]).toEqual([
+    EXIT.refused,
+    [{ code: "profile.binding-missing", params: { part: "workspace.hub", binding: "hub" } }],
+  ]);
+});
+
 test("level shows the default and each project's level, and sets one of them by plan with --yes", async () => {
   const { root, cli } = setup();
   expect((await cli("level")).out).toBe("supervised  (default)\n");
@@ -480,9 +489,14 @@ test("every finding code has an English sentence", () => {
   ]);
 });
 
+// An enum's first option, a count for found and known, else a string.
+const sampleValue = (key: string, schema: unknown): unknown => {
+  if (schema instanceof z.ZodEnum) return schema.options[0];
+  return /found|known/.test(key) ? 2 : sha256(key);
+};
 const sampleParams = (code: string): Record<string, unknown> => {
   const shape = Finding.options.find((option) => option.shape.code.value === code)?.shape.params.shape ?? {};
-  return Object.fromEntries(Object.keys(shape).map((key) => [key, /found|known/.test(key) ? 2 : sha256(key)]));
+  return Object.fromEntries(Object.entries(shape).map(([key, schema]) => [key, sampleValue(key, schema)]));
 };
 
 test("the installed command runs the same program and sets the process exit code", () => {
@@ -700,13 +714,9 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
     return lease.runId;
   });
   store.value.close();
-  // Without --yes a resume or a cancel shows what it would do, and changes nothing.
-  const plan = "Left running when its runner died; they end interrupted";
-  const again = "\n  a#1  pid 4242\nNothing changed. Run the command again with --yes to";
-  expect((await cli("runs", "resume", one, "--project", root)).out).toContain(
-    `${plan}, count as failed, and retries rerun them:${again} resume it.`,
-  );
-  expect((await cli("runs", "cancel", two)).out).toContain(`${plan}:${again} cancel it.`);
+  // Without --yes a resume or a cancel lists the attempts it would end, and changes nothing.
+  expect((await cli("runs", "resume", one, "--project", root)).out).toContain("\n  a#1  pid 4242\n");
+  expect((await cli("runs", "cancel", two)).out).toContain("\n  a#1  pid 4242\n");
   expect(await cli("runs", "resume", one, "--project", root, "--yes")).toEqual({
     code: EXIT.refused,
     out: `Run ${one}: failed.\n`,

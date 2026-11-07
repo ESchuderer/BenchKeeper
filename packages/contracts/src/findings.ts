@@ -191,6 +191,20 @@ export const Finding = z
     finding("profile.parent-limit", { chain: z.array(z.string()), limit: z.int() }),
     // One pack id with two sources in one composition: the files that name each.
     finding("profile.pack-sources", { pack: z.string(), files: z.array(z.string()) }),
+    finding("profile.entry-unknown", {
+      pack: z.string(),
+      path: z.string(),
+      kind: z.enum(["rules", "template", "profile"]),
+    }),
+    finding("profile.app-too-old", { minApp: z.string(), app: z.string() }),
+    // A part the selection or a `requires` names that the profile does not hold, both as `level.id`.
+    finding("profile.part-unknown", { part: z.string(), by: z.string() }),
+    finding("profile.part-requires", { part: z.string(), requires: z.string() }),
+    // A file the owner changed or made since CedarLoom last wrote it: the plan leaves it as it is.
+    finding("profile.owner-changed", { path: z.string() }),
+    // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
+    finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
+    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
     finding("git.too-large", {
       path: z.string().nullable(),
       found: z.int(),
@@ -317,4 +331,11 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.parent-cycle": { severity: "error", effort: "manual" },
   "profile.parent-limit": { severity: "error", effort: "manual" },
   "profile.pack-sources": { severity: "error", effort: "manual" },
+  "profile.entry-unknown": { severity: "error", effort: "manual" },
+  "profile.app-too-old": { severity: "error", effort: "manual" },
+  "profile.part-unknown": { severity: "error", effort: "manual" },
+  "profile.part-requires": { severity: "error", effort: "command" },
+  "profile.owner-changed": { severity: "warning", effort: "manual" },
+  "profile.placeholder-unknown": { severity: "error", effort: "manual" },
+  "profile.binding-missing": { severity: "error", effort: "command" },
 };

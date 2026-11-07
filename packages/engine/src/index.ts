@@ -16,8 +16,10 @@ export {
   type Executors,
   execute,
   type Gates,
+  type Left,
   OUTPUT_CAP,
   type Prepared,
+  type Recovery,
 } from "./execute.ts";
 export { asidePath, errorCode, hashFile, tempPath, writeAtomic } from "./files.ts";
 export { recover } from "./recover.ts";

@@ -675,3 +675,16 @@ test.runIf(process.platform === "win32")(
     }
   },
 );
+
+test("host/exec refuses an argument with a NUL, which no program can take", async () => {
+  const fixture = await extension({ manifest: withPrograms({ node: ["node"] }) });
+  expect(await execs(fixture, [{ program: "node", args: ["-e", "1", "a\u0000b"] }])).toEqual({
+    answers: [{ error: { code: HOST_REFUSED, message: "invalid request" } }],
+  });
+});
+
+test.runIf(process.platform === "win32")("host/exec finds a candidate named with its .exe as named", async () => {
+  const fixture = await extension({ manifest: withPrograms({ node: ["node.exe"] }) });
+  const answers = await execs(fixture, [{ program: "node", args: ["-e", "process.stdout.write('found')"] }]);
+  expect(answers).toEqual({ answers: [{ result: { code: 0, stdout: "found", stderr: "" } }] });
+});

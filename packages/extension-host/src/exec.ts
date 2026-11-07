@@ -19,8 +19,14 @@ type Broker = {
 
 const Request = z.strictObject({
   program: z.string(),
+  // No NUL, which no program argument can hold (spawn would throw).
   args: z
-    .array(z.string().max(32 * 1024))
+    .array(
+      z
+        .string()
+        .max(32 * 1024)
+        .regex(/^[^\0]*$/),
+    )
     .max(256)
     .optional(),
   timeoutMs: z.int().min(1).optional(),
@@ -64,7 +70,8 @@ const located = (candidate: string, path: string): string | undefined => {
     const file = join(homedir(), ...candidate.slice(2).split("/"));
     return runnable(file) ? file : undefined;
   }
-  const names = process.platform === "win32" ? [`${candidate}.exe`, `${candidate}.com`] : [candidate];
+  const named = process.platform !== "win32" || /\.(?:exe|com)$/i.test(candidate);
+  const names = named ? [candidate] : [`${candidate}.exe`, `${candidate}.com`];
   const folders = path.split(delimiter).filter((folder) => isAbsolute(folder));
   return folders.flatMap((folder) => names.map((name) => join(folder, name))).find(runnable);
 };
@@ -149,6 +156,10 @@ export const executor = (broker: Broker) => {
     const file = resolve(broker.manifest, parsed.data.program, env);
     if (file instanceof ResponseError) return file;
     if (running >= broker.limits.execs) return refused(`more than ${broker.limits.execs} programs at once`);
+    // A cancel that came before the request was handled starts nothing.
+    if (token.isCancellationRequested || broker.ended.aborted) {
+      return new ResponseError(HOST_FAILED, "stopped: the run was cancelled or the extension ended");
+    }
     const cancelled = new AbortController();
     token.onCancellationRequested(() => cancelled.abort());
     const ms = Math.min(parsed.data.timeoutMs ?? broker.limits.execMs, broker.limits.execMs);

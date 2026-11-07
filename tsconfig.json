@@ -26,6 +26,8 @@
     { "path": "packages/extension-host/test" },
     { "path": "packages/extension-sdk" },
     { "path": "packages/extension-sdk/test" },
+    { "path": "packages/extension-orca" },
+    { "path": "packages/extension-orca/test" },
     { "path": "packages/ledger" },
     { "path": "packages/ledger/test" },
     { "path": "packages/engine" },

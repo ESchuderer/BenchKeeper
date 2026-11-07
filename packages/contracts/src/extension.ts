@@ -252,6 +252,13 @@ export const ExtensionManifest = z
       doctor: sized(z.record(ActionId, z.strictObject({ title: PlainText.min(1).max(200) })), 20)
         .optional()
         .describe("The extension's own checks, which the doctor asks it for (doctor/run)"),
+      commands: z
+        .array(ActionId)
+        .max(20)
+        .optional()
+        .describe(
+          "Its actions the CLI offers as verbs under its noun (the id after `cedarloom.`); bundled extensions only",
+        ),
     }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()

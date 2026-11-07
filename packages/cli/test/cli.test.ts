@@ -1,6 +1,15 @@
 import { claudeRuntime } from "@cedarloom/adapter-claude";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -934,6 +943,34 @@ test("workflows save stores a draft as a version, history lists it, export write
     EXIT.ok,
     ["w"],
     EXIT.usage,
+  ]);
+});
+
+test("a verb the app's own extension contributes runs its action and prints its outputs, and is refused while off", async () => {
+  const { root, cli } = setup();
+  const folder = join(root, "app", "cedarloom.example");
+  mkdirSync(folder, { recursive: true });
+  const contributes = { actions: { status: { title: "Status" } }, commands: ["status"] };
+  const manifest = { ...MANIFEST, id: "cedarloom.example", platforms: undefined, capabilities: undefined, contributes };
+  writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify(manifest));
+  const fixture = join(import.meta.dirname, "..", "..", "use-cases", "test", "fixtures", "doctor", "main.mjs");
+  copyFileSync(fixture, join(folder, "main.mjs"));
+  const ran = await cli("example", "status");
+  const asJson = json((await cli("example", "status", "--json")).out);
+  await cli("components", "switch", "cedarloom.example", "off", "--yes");
+  const off = await cli("example", "status", "--json");
+  expect([ran.code, ran.out, asJson, off.code, json(off.out)["findings"]]).toEqual([
+    EXIT.ok,
+    "ready: true\n",
+    {
+      format: "cedarloom.extension",
+      schemaVersion: 1,
+      extension: "cedarloom.example",
+      action: "status",
+      outputs: { ready: true },
+    },
+    EXIT.refused,
+    [{ code: "extension.refused", params: { extension: "cedarloom.example", reason: "off" } }],
   ]);
 });
 

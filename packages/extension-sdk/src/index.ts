@@ -56,8 +56,11 @@ export type ExtensionOptions = {
    * process exits with it.
    */
   onExit?: (code: number) => void;
-  /** The extension's own checks for the doctor, which its manifest names under `contributes.doctor`. */
-  doctor?: (context: { locale: string }) => DoctorFinding[] | Promise<DoctorFinding[]>;
+  /**
+   * The extension's own checks for the doctor, which its manifest names under `contributes.doctor`: in the language
+   * `initialize` named, with `exec` as an action has it.
+   */
+  doctor?: (context: Pick<ActionContext, "locale" | "exec">) => DoctorFinding[] | Promise<DoctorFinding[]>;
 };
 
 // A cancel that came before the action started has a token that is cancelled already and never fires.
@@ -118,7 +121,10 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
     hello = { locale, granted };
     return { protocol: PROTOCOL, actions: names };
   });
-  connection.onRequest(doctorRun, async () => ({ findings: (await options.doctor?.({ locale: hello.locale })) ?? [] }));
+  connection.onRequest(doctorRun, async (token) => {
+    const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
+    return { findings: (await options.doctor?.({ locale: hello.locale, exec })) ?? [] };
+  });
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
     const run = Object.hasOwn(actions, action) ? actions[action] : undefined;
     if (run === undefined) return new ResponseError(ErrorCodes.InvalidParams, `no action ${action}`);

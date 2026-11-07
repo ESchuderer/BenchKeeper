@@ -28,6 +28,7 @@ import {
   workflowsOpen,
   workflowsSave,
 } from "./commands.ts";
+import { contributedGroups } from "./contributed.ts";
 import { runsCancel, runsResume, workflowsRun } from "./graphs.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
@@ -309,6 +310,19 @@ const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {
     });
 };
 
+const GROUPS = [
+  plansGroup,
+  runsGroup,
+  workflowsGroup,
+  accountsGroup,
+  extensionsGroup,
+  componentsGroup,
+  modeGroup,
+  levelGroup,
+  profilesGroup,
+  contributedGroups,
+];
+
 /** Runs one command line (without the program name) and returns the exit code. */
 export const main = async (argv: string[], io: Io): Promise<number> => {
   let exit: number = EXIT.ok;
@@ -330,15 +344,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     const app = io.bundled ?? BUNDLED;
     return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env), app };
   };
-  plansGroup(program, ctx, done);
-  runsGroup(program, ctx, done);
-  workflowsGroup(program, ctx, done);
-  accountsGroup(program, ctx, done);
-  extensionsGroup(program, ctx, done);
-  componentsGroup(program, ctx, done);
-  modeGroup(program, ctx, done);
-  levelGroup(program, ctx, done);
-  profilesGroup(program, ctx, done);
+  for (const group of GROUPS) group(program, ctx, done);
   program
     .command("doctor")
     .description("report interrupted runs, store problems, and each account's login in its own home")

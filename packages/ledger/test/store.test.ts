@@ -135,11 +135,11 @@ const NEWER = { ok: false, finding: { code: "store.newer-schema", params: { foun
 
 test("a store written by a newer CedarLoom is refused, and one from before 0.1.0 too", () => {
   expect(openRunStore(storeAt(99))).toEqual(NEWER);
-  // 17 is the last schema before 0.1.0, whose switches had no trigger.
-  const dir = storeAt(17);
+  // 18 is the last schema before 0.1.0, which had no outbox.
+  const dir = storeAt(18);
   const older = {
     ok: false,
-    finding: { code: "store.older-schema", params: { dir, found: 17, known: expect.any(Number) } },
+    finding: { code: "store.older-schema", params: { dir, found: 18, known: expect.any(Number) } },
   };
   expect([openRunStore(dir), openRunView(dir)]).toEqual([older, older]);
 });

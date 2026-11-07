@@ -1,13 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join, relative } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
 import {
   deniedPaths,
   ghProbe,
   managedProblems,
   managedSettingsDir,
+  programPath,
   readResult,
   resultPrompt,
   workerEnv,
@@ -112,6 +113,21 @@ test.skipIf(process.platform === "win32")("a gh that is killed or cannot start r
   await expect(ghProbe(env, [join(gh[1], "gh")])).resolves.toMatchObject({ finding: { params: { error: "ENOTDIR" } } });
   // The fixture is no executable: spawning it fails with EACCES.
   await expect(ghProbe(env, [gh[1]])).resolves.toMatchObject({ finding: { params: { error: "EACCES" } } });
+});
+
+test("a program is found by its file in an absolute folder of PATH only, never through a relative or empty entry", () => {
+  const root = mkdtempSync(join(tmpdir(), "cedarloom-program-"));
+  const file = process.platform === "win32" ? "tool.exe" : "tool";
+  for (const folder of ["near", "far"]) {
+    mkdirSync(join(root, folder));
+    writeFileSync(join(root, folder, file), "");
+    chmodSync(join(root, folder, file), 0o755);
+  }
+  // A relative entry first, as a project's folder would be: it is passed over.
+  const near = relative(process.cwd(), join(root, "near"));
+  expect(programPath("tool", { PATH: [near, "", join(root, "far")].join(delimiter) })).toBe(join(root, "far", file));
+  expect(programPath("tool", { PATH: [near, ""].join(delimiter) })).toBeUndefined();
+  expect(programPath(join(root, "near", file), { PATH: "" })).toBe(join(root, "near", file));
 });
 
 const runId = "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e6f";

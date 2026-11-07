@@ -131,9 +131,53 @@
       ["-C into a folder in a variable", "git -C \"$DIR\" push origin main", "unreadable"],
       ["--git-dir naming another repository", "git --git-dir=/elsewhere/.git push origin feature", "unreadable"],
       ["a glob as the command", "/usr/bin/su?o rm -rf /tmp/x", "unreadable"],
-      ["a brace list as the command", "{sudo,echo} rm -rf /tmp/x", "unreadable"]
+      ["a brace list as the command", "{sudo,echo} rm -rf /tmp/x", "unreadable"],
+      ["a cluster with a digit before -f", "git push -4f origin feature", "forbidden"],
+      ["a brace list of options", "git push origin {-f,feature}", "unreadable"],
+      [
+        "an abbreviated --push-option before a URL",
+        "git push --pu x https://github.com/acme/notes.git main",
+        "outside-profiles"
+      ],
+      ["-o in a cluster before a URL", "git push -vo x https://github.com/acme/notes.git main", "outside-profiles"],
+      [
+        "an abbreviated --repo before a URL",
+        "git push --rep origin https://github.com/acme/notes.git main",
+        "outside-profiles"
+      ],
+      ["fetch --dep before a URL", "git fetch --dep 1 https://github.com/other/x", "outside-profiles"],
+      ["fetch --multiple", "git fetch --multiple origin https://github.com/other/x", "outside-profiles"],
+      ["a transport helper address", "git push https::https://github.com/acme/notes.git main", "unreadable"],
+      ["an ssh host alias", "git push gh:acme/notes.git main", "unreadable"],
+      ["cd inside bash -c", "bash -c 'cd /work/notes && git push origin main'", "outside-profiles"],
+      ["cd behind command", "command cd /work/notes && git push origin main", "outside-profiles"],
+      ["pushd", "pushd /work/notes && git pull", "outside-profiles"],
+      ["env -C", "env -C /work/notes git push origin main", "unreadable"],
+      ["find -execdir", "find /work/notes/.git -maxdepth 0 -execdir git push origin main \\;", "unreadable"],
+      ["submodule add", "git submodule add https://github.com/other/x", "unreadable"],
+      ["push --recurse-submodules=on-demand", "git push --recurse-submodules=on-demand origin feature", "unreadable"],
+      ["archive --remote", "git archive --remote=https://github.com/other/x HEAD", "outside-profiles"],
+      ["a global option that takes the next word", "git --attr-source status push --force origin main", "forbidden"],
+      ["--exec-path with a folder", "git --exec-path=/tmp/x push origin feature", "unreadable"],
+      ["--config-env", "git --config-env=core.hooksPath=HOOKS status", "git-config"],
+      ["config --unset", "git config --unset core.hooksPath", "git-config"],
+      ["an abbreviated --unset-all", "git config --unset-a core.hooksPath", "git-config"],
+      ["am --no-v", "git am --no-v x.patch", "forbidden"],
+      ["rebase --ex", "git rebase --ex 'npm test' main", "unreadable"],
+      ["fetch --upload-pack", "git fetch --upload-pack=/tmp/x origin", "unreadable"],
+      ["clone -u", "git clone -u /tmp/x https://github.com/acme/app", "unreadable"],
+      ["submodule foreach", "git submodule foreach 'git status'", "unreadable"],
+      ["bisect run", "git bisect run npm test", "unreadable"],
+      ["GIT_EDITOR before a commit", "GIT_EDITOR=vim git commit", "environment"],
+      ["GIT_COMMON_DIR before a push", "GIT_COMMON_DIR=/work/notes/.git git push origin main", "environment"],
+      ["an attached commit message", "git commit --message=\"$MSG\"", null],
+      ["a push to the session's remote by --repo", "git push --repo=origin", null],
+      ["a global option the guard does not know", "git --frobnicate push origin feature", "unreadable"]
     ],
-    "worker /work/fork": [["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"]],
+    "worker /work/fork": [
+      ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],
+      ["remote update", "git remote update", "outside-profiles"]
+    ],
     "interactive /work/notes": [
       ["a push of main to the memory repository", "git push origin main", "memory-main"],
       ["a push of HEAD:main", "git push origin HEAD:main", "memory-main"],
@@ -145,7 +189,15 @@
     ],
     "interactive /work/app": [
       ["main of another repository", "git push origin main", null],
-      ["main of the memory repository from another folder", "cd ../notes && git push origin main", "memory-main"]
+      ["main of the memory repository from another folder", "cd ../notes && git push origin main", "memory-main"],
+      [
+        "ssh on port 443 to the memory repository",
+        "git push ssh://git@ssh.github.com:443/acme/notes.git main",
+        "unreadable"
+      ],
+      ["github.com with a trailing dot", "git push https://github.com./acme/notes.git main", "unreadable"],
+      ["cd inside sh -c to the memory repository", "sh -c 'cd ../notes && git push origin main'", "memory-main"],
+      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"]
     ]
   }
 }

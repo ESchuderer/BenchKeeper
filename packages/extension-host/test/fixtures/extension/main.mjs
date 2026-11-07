@@ -175,6 +175,37 @@ const requests = {
   shutdown: () => null,
 };
 
+// Its switch target: x-bad-target answers outside the contract, x-slow-target never answers. Accounts go by number;
+// the second has no alias.
+const AT = "2026-11-07T10:00:00.000Z";
+const target = (answer) => (params) => {
+  if (mode === "x-slow-target") return new Promise(() => undefined);
+  return mode === "x-bad-target" ? { status: "maybe" } : answer(params);
+};
+Object.assign(requests, {
+  "target/probe": target(() => ({ status: "supported", detail: "cswap 1.2.3" })),
+  "target/accounts": target(() => ({
+    accounts: [
+      {
+        number: 1,
+        alias: "work",
+        active: true,
+        disabled: false,
+        threshold: 90,
+        windows: [{ window: "fiveHour", usedPercent: 91, resetsAt: AT, readAt: AT }],
+      },
+      { number: 2, active: false, disabled: false, threshold: null, windows: [] },
+    ],
+  })),
+  "target/current": target(() => ({ number: 1 })),
+  "target/select": target(({ number }) => ({ switched: true, from: 1, to: number, reason: "asked" })),
+  "target/tick": target(() => ({
+    code: 0,
+    events: [{ at: AT, from: 1, to: 2, reason: "over the line", trigger: "proactive" }],
+  })),
+  "target/policy": target(({ set = {} }) => ({ values: { "autoswitch.threshold": 90, ...set } })),
+});
+
 // An error whose message is an array nested 200,000 deep: the reader cannot build its answer.
 const DEEP = Symbol("deep");
 const answerDeep = (id) => {

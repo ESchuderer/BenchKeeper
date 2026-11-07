@@ -3386,7 +3386,8 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor"
+                      "doctor",
+                      "target"
                     ]
                   },
                   "error": {
@@ -8693,7 +8694,8 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor"
+                      "doctor",
+                      "target"
                     ]
                   },
                   "error": {

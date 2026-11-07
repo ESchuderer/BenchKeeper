@@ -3232,7 +3232,8 @@
                 "start",
                 "initialize",
                 "run",
-                "doctor"
+                "doctor",
+                "target"
               ]
             },
             "error": {

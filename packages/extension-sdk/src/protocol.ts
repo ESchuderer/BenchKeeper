@@ -77,6 +77,39 @@ export type DoctorResult = { findings: DoctorFinding[] };
 /** The host asks once per doctor run, and gives up after its limit: no answer is a finding of its own. */
 export const doctorRun = new RequestType0<DoctorResult, void>("doctor/run");
 
+/**
+ * The calls of a switch target (its manifest's `contributes.switchTargets`, bundled extensions only): where it switches
+ * an agent's account, such as claude-swap's for Claude Code. Each names the target; the host bounds the time and checks
+ * each answer. An account is named by the target's number, which every account has; an alias only some have, and no
+ * email crosses.
+ */
+export type TargetParams = { target: string };
+/** Whether the target's program is there and speaks a version this extension reads: `detail` says why not. */
+export type TargetProbe = { status: "supported" | "partial" | "unsupported"; detail: string };
+/**
+ * A window of an account as the target reads it: a share in percent, when it resets, and when it was read (null:
+ * not recently enough to decide on).
+ */
+export type TargetWindow = { window: string; usedPercent: number; resetsAt: string | null; readAt: string | null };
+/** An account as the target knows it, by its number and maybe an alias, with its switch line in percent if any. */
+export type TargetAccount = {
+  number: number;
+  alias?: string | undefined;
+  active: boolean;
+  disabled: boolean;
+  threshold: number | null;
+  windows: TargetWindow[];
+};
+/** A switch the target made: when, from which account to which, why, and what started it. */
+export type SwitchEvent = { at: string; from: number | null; to: number; reason: string; trigger: string };
+export type TargetSelectParams = TargetParams & { number: number };
+export type TargetSelect = { switched: boolean; from: number | null; to: number; reason: string };
+/** One round of the target's own switching: its exit code and the switches it made. */
+export type TargetTick = { code: number | null; events: SwitchEvent[] };
+/** The target's settings; `set` changes the named ones first. */
+export type TargetPolicyParams = TargetParams & { set?: Record<string, string> };
+export type TargetPolicy = { values: Record<string, string | number | boolean> };
+
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");
 export const exit = new NotificationType0("exit");

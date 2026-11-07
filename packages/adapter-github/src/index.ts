@@ -29,6 +29,12 @@ const limited = ({ status, response, message }: HttpError): boolean =>
       response?.headers["retry-after"] !== undefined ||
       /secondary rate limit/i.test(message)));
 
+// A header of GitHub's answer as it was sent; null when there was no answer or no such header.
+const header = (error: unknown, name: string): string | null => {
+  const value = httpError(error) ? error.response?.headers[name] : undefined;
+  return typeof value === "string" ? value : null;
+};
+
 /**
  * A failed call as a finding. It waits (the entry stays queued) without an answer (Octokit's status 500), on a server
  * error, a rate limit or a token GitHub does not take (401), which no entry can fix; any other answer refuses the entry,
@@ -41,7 +47,14 @@ const failure = (error: unknown): Finding => {
   }
   return httpError(error) && error.status < 500 && error.status !== 401 && !limited(error)
     ? { code: "tracker.refused", params: { status: error.status, error: error.message } }
-    : { code: "tracker.unavailable", params: { error: error instanceof Error ? error.message : String(error) } };
+    : {
+        code: "tracker.unavailable",
+        params: {
+          error: error instanceof Error ? error.message : String(error),
+          retryAfter: header(error, "retry-after"),
+          rateLimitReset: header(error, "x-ratelimit-reset"),
+        },
+      };
 };
 
 const call = async <T>(work: () => Promise<T>): Promise<Result<T>> => {

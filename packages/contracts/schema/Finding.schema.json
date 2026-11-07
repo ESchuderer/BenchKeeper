@@ -4683,10 +4683,24 @@
           "properties": {
             "error": {
               "type": "string"
+            },
+            "retryAfter": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rateLimitReset": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
-            "error"
+            "error",
+            "retryAfter",
+            "rateLimitReset"
           ],
           "additionalProperties": false
         }

@@ -1939,6 +1939,8 @@ export interface components {
             code: "tracker.unavailable";
             params: {
                 error: string;
+                retryAfter: string | null;
+                rateLimitReset: string | null;
             };
         } | {
             /** @constant */
@@ -3229,6 +3231,8 @@ export interface components {
             code: "tracker.unavailable";
             params: {
                 error: string;
+                retryAfter: string | null;
+                rateLimitReset: string | null;
             };
         } | {
             /** @constant */

@@ -115,7 +115,11 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again.",
   };
   const { tracker } = replay([
-    { status: 403, headers: { "x-ratelimit-remaining": "0" }, body: { message: "API rate limit exceeded" } },
+    {
+      status: 403,
+      headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1794077799" },
+      body: { message: "API rate limit exceeded" },
+    },
     { status: 403, headers: { "retry-after": "60" }, body: secondary },
     { status: 403, body: secondary },
     { status: 429, body: secondary },
@@ -126,12 +130,16 @@ test("a rate limit, a refused token, a server error and no answer keep the write
     { status: 201, body: { id: 1, html_url: "javascript:alert(1)" } },
     { status: 200, body: [{ id: 1 }] },
   ]);
-  const codes: string[] = [];
+  const findings: unknown[] = [];
   for (let i = 0; i < 9; i += 1) {
     const sent = await tracker.comment(issue, "Run ended.");
-    codes.push(sent.ok ? "sent" : sent.finding.code);
+    findings.push(sent.ok ? "sent" : sent.finding);
   }
-  expect(codes).toEqual([
+  expect(findings.slice(0, 2)).toMatchObject([
+    { params: { retryAfter: null, rateLimitReset: "1794077799" } },
+    { params: { retryAfter: "60", rateLimitReset: null } },
+  ]);
+  expect(findings.map((found) => (typeof found === "string" ? found : Reflect.get(Object(found), "code")))).toEqual([
     "tracker.unavailable",
     "tracker.unavailable",
     "tracker.unavailable",
@@ -150,6 +158,6 @@ test("a rate limit, a refused token, a server error and no answer keep the write
 
 test("a token that an HTTP header cannot carry is refused before any request, without repeating it", () => {
   expect(() => githubTracker("acme/tracker", "github_pat_secret\nrest")).toThrow(
-    "the GitHub token holds characters an HTTP header cannot carry",
+    expect.objectContaining({ message: expect.not.stringContaining("github_pat_secret") }),
   );
 });

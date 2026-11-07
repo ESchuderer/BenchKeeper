@@ -14,12 +14,13 @@ export interface OverlayInput {
   /** Plugin folders the session loads; its file tools may read them, never change them. */
   readonly pluginDirs: readonly string[];
   /**
-   * A report run's worker: it changes nothing in the working folder and runs no `git push`; it still writes its result.
-   * It does not stop a push in another spelling (`git -C`, `sh -c`, `gh`, `curl`: the read-only token, or none, is that
-   * boundary), hooks, writes to its temporary and result folders, or sending out what it read. A linked worktree's shared
-   * `.git` stays writable to its commands; PR 7 closes it for report runs.
+   * A report run's worker, given the other folders it may not write either, such as the shared `.git` of a linked
+   * worktree, which Claude Code's sandbox opens to its commands. It changes nothing in the working folder or those
+   * folders and runs no `git push`; it still writes its result. It does not stop a push in another spelling (`git -C`,
+   * `sh -c`, `gh`, `curl`: the read-only token, or none, is that boundary), hooks, writes to its temporary and result
+   * folders, or sending out what it read.
    */
-  readonly readOnly?: boolean;
+  readonly readOnly?: readonly string[];
 }
 
 // A trailing ` *` matches the bare command too (https://code.claude.com/docs/en/permissions).
@@ -88,10 +89,10 @@ const Checked = z.looseObject({
  * then lists SETTINGS_SENTINEL, and its init event reports the settings as not applied.
  */
 export const overlay = (input: OverlayInput) => {
-  const { home, cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs, readOnly = false } = input;
+  const { home, cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs, readOnly } = input;
   // Deny rules outrank ask and allow rules (https://code.claude.com/docs/en/permissions). A read-only worker's file tools
   // and shell commands change nothing in the working folder; any other worker's, nothing in its workflows folder.
-  const closedToWrites = readOnly ? cwd : join(cwd, ".github", "workflows");
+  const closedToWrites = readOnly === undefined ? [join(cwd, ".github", "workflows")] : [cwd, ...readOnly];
   const closed = [...denyRead.filter((path) => !sameFolder(path, home)), ...OWN_STATE.map((name) => join(home, name))];
   const settings = {
     permissions: {
@@ -105,8 +106,8 @@ export const overlay = (input: OverlayInput) => {
           .flatMap((path) => ["Read", "Edit"].flatMap((tool) => [`${tool}(${path})`, `${tool}(${path}/**)`])),
         "Read(**/.env*)",
         SETTINGS_SENTINEL,
-        `Edit(${rulePath(closedToWrites)}/**)`,
-        ...(readOnly ? [PUSH] : []),
+        ...closedToWrites.map((path) => `Edit(${rulePath(path)}/**)`),
+        ...(readOnly === undefined ? [] : [PUSH]),
         // The plugins join the working folders, which lets their skills read their own files, but not change them.
         ...pluginDirs.map(rulePath).flatMap((path) => [`Edit(${path})`, `Edit(${path}/**)`]),
       ],
@@ -121,7 +122,7 @@ export const overlay = (input: OverlayInput) => {
       allowUnsandboxedCommands: false,
       autoAllowBashIfSandboxed: false,
       // Every --add-dir folder is writable to commands: the plugins, whose hooks run outside the sandbox, are closed.
-      filesystem: { denyRead, denyWrite: [closedToWrites, ...pluginDirs], allowRead: TOOLCHAINS },
+      filesystem: { denyRead, denyWrite: [...closedToWrites, ...pluginDirs], allowRead: TOOLCHAINS },
       network: { allowedDomains, strictAllowlist: true },
     },
     // A102: a window lasts hours, not minutes.

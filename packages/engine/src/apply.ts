@@ -26,6 +26,8 @@ export interface ApplyOptions {
   onPhase?: (index: number, phase: Phase) => void;
   /** Called with the run's id once it is recorded, before it writes anything; a throw stops the run, failed. */
   onBegun?: (runId: string) => void;
+  /** The plan names each file by its real path: a write refuses a folder on its way that a link replaced since. */
+  realPaths?: boolean;
 }
 
 export interface Outcome {
@@ -113,6 +115,7 @@ interface Run {
   runId: string;
   branch: StoreBranch;
   onPhase: Required<ApplyOptions>["onPhase"];
+  realPaths: boolean;
 }
 
 /** What took the file's place: its hash, or (a folder, say) not a file at all, as the plan check reports it. */
@@ -131,7 +134,8 @@ const change = (run: Run, index: number, op: FileOperation, mode: number | null)
     if (op.kind === "delete") remove(op.path, op.before, aside, onSetAside);
     else {
       const temp = tempPath(op.path, run.runId, index);
-      writeStep({ path: op.path, before: op.before, temp, aside }, op.content, mode ?? op.mode, onSetAside);
+      const target = { path: op.path, before: op.before, temp, aside, real: run.realPaths };
+      writeStep(target, op.content, mode ?? op.mode, onSetAside);
     }
     return undefined;
   } catch (error) {
@@ -214,7 +218,7 @@ export const apply = (store: RunStore, plan: Plan, approvedHash: string, options
   try {
     onBegunOf(options)(runId);
     store.prune(BACKUP_DAYS);
-    finding = steps({ store, runId, branch, onPhase: onPhaseOf(options) }, plan);
+    finding = steps({ store, runId, branch, onPhase: onPhaseOf(options), realPaths: options.realPaths === true }, plan);
   } catch (error) {
     store.finish(runId, "failed");
     throw error;

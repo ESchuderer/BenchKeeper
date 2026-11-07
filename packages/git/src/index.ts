@@ -3,6 +3,7 @@ import { fetchTreeOver } from "./git.ts";
 // fetchTreeOver takes the transports git may use: the tests fetch local fixtures over file:// with it, every source
 // from elsewhere goes through fetchTree.
 export {
+  commonDir,
   type FetchOptions,
   fetchTreeOver,
   LIMITS,

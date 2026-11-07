@@ -8,6 +8,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   symlinkSync,
@@ -281,6 +282,27 @@ test.each(["create", "replace", "delete"])(
     expect(read(path)).toBe("the owner's autosave\n");
   },
 );
+
+// Hub issue 141: a plan of real paths, whose folder on the way a link replaces after the plan, writes nothing there.
+test.skipIf(!posix)("a folder on the way swapped for a link after the plan is refused at the write", () => {
+  const { store, root } = fresh();
+  const real = realpathSync(root);
+  // The check compares real paths, so a folder beside the one it replaces stands for one outside the project.
+  const [sub, outside] = [join(real, "sub"), join(real, "outside")];
+  mkdirSync(sub);
+  mkdirSync(outside);
+  const op = { kind: "write", path: join(sub, "new", "file.md"), before: null, content: "x\n" } as const;
+  const swap = (_: number, phase: string) => {
+    if (phase !== "journaled") return;
+    renameSync(sub, join(real, "moved"));
+    symlinkSync(outside, sub);
+  };
+  const applied = run(store, plan(op), { onPhase: swap, realPaths: true });
+  expect([applied, readdirSync(outside)]).toMatchObject([
+    { status: "failed", findings: [{ code: "apply.write-failed", params: { error: "ELOOP" } }] },
+    [],
+  ]);
+});
 
 test.skipIf(!posix)("a symlink at the target is refused: replacing it would cut the link", () => {
   const { store, file, root } = fresh();

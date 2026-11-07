@@ -232,11 +232,6 @@ const optionsChange =
     return !write.ok || write.value.operations.length > 0;
   };
 
-/**
- * The settings parts and the plugin parts `approved` names merged into the settings file, in that order, and those
- * plugins' options files. The settings parts may set no plugin key (the profile's allow list), so the order changes
- * nothing between them.
- */
 type Removed = { plugins: readonly string[]; marketplaces: readonly string[] };
 // The settings without the plugins and marketplaces whose removal the run names.
 const without = (json: Json, { plugins, marketplaces }: Removed): Json => {
@@ -250,6 +245,11 @@ const without = (json: Json, { plugins, marketplaces }: Removed): Json => {
   return { ...json, ...drop("enabledPlugins", plugins), ...drop("extraKnownMarketplaces", marketplaces) };
 };
 
+/**
+ * The settings parts and the plugin parts `approved` names merged into the settings file, in that order, and those
+ * plugins' options files. The settings parts may set no plugin key (the profile's allow list), so the order changes
+ * nothing between them.
+ */
 const settingsPlan = (
   { profile, on }: Resolved,
   target: Target,
@@ -277,7 +277,7 @@ const settingsPlan = (
 };
 
 // The home's own files: each rules part's and skill's that is on, and the files of a part switched off or of a file a
-// skill's source dropped.
+// skill's source dropped; `mine` are those paths, which no removal is offered for.
 const ownedOf = (resolved: Resolved, home: string, fetched: Fetched, written: ReadonlyMap<string, string | null>) => {
   const rules = rulesFiles(resolved, home, fetched);
   if (!rules.ok) return rules;
@@ -286,14 +286,16 @@ const ownedOf = (resolved: Resolved, home: string, fetched: Fetched, written: Re
   const wanted = new Map([...rules.value.wanted, ...skills.value.wanted]);
   const files = ownedFiles(wanted, [...rules.value.off, ...skills.value.stale], written);
   if (!files.ok) return files;
-  return { ok: true as const, value: { ...files.value, mine: new Set([...wanted.keys(), ...written.keys()]) } };
+  const mine = new Set([...wanted.keys(), ...rules.value.off, ...skills.value.stale]);
+  return { ok: true as const, value: { ...files.value, mine } };
 };
 
 // What the home holds that no part that is on names: its settings' other plugins and marketplaces, and the rules
 // files and skill folders CedarLoom neither wants nor wrote (owner, PF4: each removal offered, none preselected).
-const offersOf = ({ profile, on }: Resolved, home: string, mine: ReadonlySet<string>): Result<Offer[]> => {
+const offersOf = ({ profile, on }: Resolved, home: string, mine: ReadonlySet<string>): Offer[] => {
+  // Settings the plan cannot read offer nothing; a part that writes them reports why.
   const settings = readSettings(join(home, "settings.json"));
-  if (!settings.ok) return settings;
+  const json = settings.ok ? settings.value.json : {};
   const parts = Object.entries(profile.machine).flatMap(([id, part]): [boolean, Plugin][] =>
     part.type === "plugin" ? [[on.has(`machine.${id}`), part]] : [],
   );
@@ -305,10 +307,7 @@ const offersOf = ({ profile, on }: Resolved, home: string, mine: ReadonlySet<str
   });
   const plugins = named((plugin) => plugin.plugin);
   const marketplaces = named((plugin) => plugin.marketplace?.name);
-  return {
-    ok: true,
-    value: [...settingsOffers(settings.value.json, plugins, marketplaces), ...folderOffers(home, mine)],
-  };
+  return [...settingsOffers(json, plugins, marketplaces), ...folderOffers(home, mine)];
 };
 
 /** Each --allow that names no part of `type` at `level` in the profile, so a typo never passes as an approval. */
@@ -346,14 +345,14 @@ export const planMachine = (
   const owned = ownedOf(resolved, target.home, fetched, written);
   if (!owned.ok) return owned;
   const offers = offersOf(resolved, target.home, owned.value.mine);
-  if (!offers.ok) return offers;
-  const stray = remove.find((item) => !offers.value.some((each) => each.item === item));
+  const items = [...new Set(remove)];
+  const stray = items.find((item) => !offers.some((each) => each.item === item));
   if (stray !== undefined) return refuse({ code: "profile.remove-unknown", params: { item: stray } });
-  const removals = removalsOf(target.home, remove);
+  const removals = removalsOf(target.home, items);
   const settings = settingsPlan(resolved, target, { approved, removed: removals });
   if (!settings.ok) return settings;
   const operations = [...owned.value.operations, ...removals.files, ...settings.value.operations];
-  const offered = offers.value.filter(({ item }) => !remove.includes(item)).map((each) => offerLine(each));
+  const offered = offers.filter(({ item }) => !remove.includes(item)).map((each) => offerLine(each));
   const findings = [...owned.value.findings, ...settings.value.findings, ...offered];
   return { ok: true, value: { operations, findings } };
 };

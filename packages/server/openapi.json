@@ -3922,7 +3922,6 @@
                       "missing",
                       "outdated",
                       "deselected-present",
-                      "extra",
                       "not-run"
                     ]
                   },
@@ -3940,6 +3939,32 @@
                   "status",
                   "subject",
                   "remove"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.extra"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "item"
                 ],
                 "additionalProperties": false
               }
@@ -9431,7 +9456,6 @@
                       "missing",
                       "outdated",
                       "deselected-present",
-                      "extra",
                       "not-run"
                     ]
                   },
@@ -9449,6 +9473,32 @@
                   "status",
                   "subject",
                   "remove"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.extra"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "item": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "item"
                 ],
                 "additionalProperties": false
               }

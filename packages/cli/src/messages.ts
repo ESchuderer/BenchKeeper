@@ -255,14 +255,15 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     const what = {
       missing: "lacks what the profile writes there; an apply writes it",
       outdated: "holds an older version of what the profile writes there; an apply updates it",
-      "deselected-present": "belongs to a part that is off",
-      extra: "is not named by the profile",
+      "deselected-present": "is no longer part of the profile",
       "not-run": "could not be read, so the check did not run",
     }[p.status];
     const removal = p.remove === null ? "" : `. Remove it: cedarloom profiles apply --remove ${p.remove}`;
     const next = p.remove === null && p.status === "deselected-present" ? "; an apply removes it" : "";
     return `${p.subject} ${what}${next}${removal}.`;
   },
+  "profile.extra": (p) =>
+    `${p.item} is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ${p.item}`,
   "profile.remove-unknown": (p) =>
     `--remove names ${p.item}, which the plan does not offer to remove; cedarloom profiles check lists what it offers.`,
   "profile.binding-waiting": (p) =>

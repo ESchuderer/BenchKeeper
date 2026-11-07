@@ -161,9 +161,11 @@ const machineOf = (ctx: Context) => ({ home: useCases.claudeHome(ctx.io.env), us
 
 export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
-  const logins = await useCases.checkLogins(ctx.state, ctx.config, host);
-  const own = await useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config });
-  const profile = await useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), ctx.io.fetch);
+  const [logins, own, profile] = await Promise.all([
+    useCases.checkLogins(ctx.state, ctx.config, host),
+    useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config }),
+    useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), ctx.io.fetch),
+  ]);
   const findings = [
     ...useCases.doctor(ctx.state),
     ...(logins.ok ? logins.value : [logins.finding]),

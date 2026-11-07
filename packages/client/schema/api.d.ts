@@ -1595,9 +1595,15 @@ export interface components {
             code: "profile.drift";
             params: {
                 /** @enum {string} */
-                status: "missing" | "outdated" | "deselected-present" | "extra" | "not-run";
+                status: "missing" | "outdated" | "deselected-present" | "not-run";
                 subject: string;
                 remove: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.extra";
+            params: {
+                item: string;
             };
         } | {
             /** @constant */
@@ -2777,9 +2783,15 @@ export interface components {
             code: "profile.drift";
             params: {
                 /** @enum {string} */
-                status: "missing" | "outdated" | "deselected-present" | "extra" | "not-run";
+                status: "missing" | "outdated" | "deselected-present" | "not-run";
                 subject: string;
                 remove: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.extra";
+            params: {
+                item: string;
             };
         } | {
             /** @constant */

@@ -275,11 +275,14 @@ export const checkProfile = async (
   return { ok: true, value: [...lines, ...planned.value.findings] };
 };
 
-/** The machine's drift for the doctor, once this machine has chosen a profile; none before. */
+/**
+ * The machine's drift for the doctor, once this machine has chosen a profile, none before; a Git source it could not
+ * fetch is its `not-run` line alone, as being offline is no problem of the machine.
+ */
 export const profileDoctor = async (config: string, state: string, machine: Machine, fetch?: Fetch) => {
   if (!existsSync(selectionPath(config))) return [];
   const checked = await checkProfile(config, state, machine, { fetch });
-  return checked.ok ? checked.value : [checked.finding];
+  return checked.ok ? checked.value.filter(({ code }) => !code.startsWith("git.")) : [checked.finding];
 };
 
 /** One change of the selection: a part on, off or back to its default (null), or one of this machine's bindings. */

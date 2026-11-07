@@ -38,7 +38,11 @@ const Account = z.strictObject({
   threshold: Percent.nullable(),
   windows: z.array(Window).max(16),
 });
+const Key = z.string().regex(/^[a-z][a-z0-9._-]{0,63}$/);
 const Setting = z.union([Text, z.number(), z.boolean()]);
+const few = (values: object): boolean => Object.keys(values).length <= 64;
+/** The settings a policy call may change: what its answer may hold, so no applied change is refused when echoed. */
+export const PolicySet = z.record(Key, Text).refine(few);
 
 type Answers = {
   "target/probe": TargetProbe;
@@ -64,9 +68,7 @@ export const ANSWERS: { [C in keyof Answers]: z.ZodType<Answers[C]> } = {
   }),
   "target/tick": z.strictObject({ code: z.int().nullable(), events: z.array(Event).max(100) }),
   "target/policy": z.strictObject({
-    values: z
-      .record(z.string().regex(/^[a-z][a-z0-9._-]{0,63}$/), Setting)
-      .refine((values) => Object.keys(values).length <= 64),
+    values: z.record(Key, Setting).refine(few),
   }),
 };
 export type TargetCall = keyof Answers;

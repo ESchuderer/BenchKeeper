@@ -27,7 +27,7 @@ import { z } from "zod";
 import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
-import { ANSWERS, type TargetAnswer, type TargetCall, type TargetCallParams } from "./targets.ts";
+import { ANSWERS, PolicySet, type TargetAnswer, type TargetCall, type TargetCallParams } from "./targets.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
 
@@ -380,6 +380,9 @@ const targetOf =
     if (trust !== "bundled") return failed(manifest.id, "target", "switch targets are the app's own extensions' only");
     if (!Object.hasOwn(manifest.contributes.switchTargets ?? {}, params.target)) {
       return failed(manifest.id, "target", `no switch target ${params.target}`);
+    }
+    if (!PolicySet.safeParse(Reflect.get(params, "set") ?? {}).success) {
+      return failed(manifest.id, "target", "settings its answer could not hold");
     }
     const asked = Promise.resolve().then(() => session.connection.sendRequest(call, params));
     const answer = await within(asked, limits.targetMs, `no answer within ${limits.targetMs} ms`).catch(

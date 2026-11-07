@@ -750,7 +750,7 @@ test("a switch target answers each call within its contract, its accounts by num
   ]);
 });
 
-test("a call of an extension that is not the app's own, to a target the manifest does not name, answered outside the contract, or not in time fails", async () => {
+test("a call of an extension that is not the app's own, to a target the manifest does not name, with settings its answer could not hold, answered outside the contract, or not in time fails", async () => {
   const wraps = {
     wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
   };
@@ -761,11 +761,13 @@ test("a call of an extension that is not the app's own, to a target the manifest
   expect([
     codeOf(await community.target("target/probe", INTERACTIVE)),
     codeOf(await fixture.target("target/probe", { target: "elsewhere" })),
+    codeOf(await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.note": "ring\u0007" } })),
     codeOf(await bad.target("target/probe", INTERACTIVE)),
     codeOf(await slow.target("target/current", INTERACTIVE)),
   ]).toEqual([
     failure("target", "switch targets are the app's own extensions' only"),
     failure("target", "no switch target elsewhere"),
+    failure("target", "settings its answer could not hold"),
     failure("target", "an answer the host refuses"),
     failure("target", "no answer within 200 ms"),
   ]);

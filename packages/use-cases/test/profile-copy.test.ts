@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { applyPlan, diffProfile, planProfileCopy } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
@@ -20,17 +20,22 @@ test("init copies a pack's profile into a new file and selects it; never over a 
   const { config, file, json } = copied();
   const selection = JSON.parse(readFileSync(join(config, "profile.json"), "utf8"));
   const fresh = mkdtempSync(join(root, "config-"));
-  const own = join(fresh, "profile.json");
+  // The selection file of a fresh machine, also through a linked config folder.
+  const linked = join(mkdtempSync(join(root, "link-")), "config");
+  symlinkSync(fresh, linked, "junction");
+  const [own, other] = [join(fresh, "profile.json"), join(linked, "profile.json")];
   expect([
     json.id,
     selection.profile,
     planProfileCopy(config, DEFAULT, file),
     planProfileCopy(fresh, DEFAULT, own),
+    planProfileCopy(fresh, DEFAULT, other),
   ]).toEqual([
     "cedarloom.default",
     { file },
     { ok: false, finding: { code: "profile.copy-exists", params: { path: file } } },
     { ok: false, finding: { code: "profile.copy-exists", params: { path: own } } },
+    { ok: false, finding: { code: "profile.copy-exists", params: { path: other } } },
   ]);
 });
 

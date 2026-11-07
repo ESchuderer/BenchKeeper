@@ -53,8 +53,10 @@ export {
 export type { LoginStatus } from "@cedarloom/agent-contracts";
 export {
   type AccountRequest,
+  accountsStatus,
   checkLogins,
   chooseAccount,
+  keepSwapReadings,
   type LoginHost,
   type LoginRun,
   loadRegistry,
@@ -63,9 +65,12 @@ export {
   ownHome,
   type NewAccount,
   planAdd,
+  planMap,
+  planUnmap,
   planConfirm,
   planHome,
   type StatusHost,
+  type SwapWindow,
 } from "./accounts.ts";
 export {
   type Approval,

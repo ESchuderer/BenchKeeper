@@ -242,7 +242,7 @@ export class GraphStore {
       this.#db
         .prepare(
           `UPDATE run_events SET payload = json_remove(payload, '$.values')
-           WHERE ${old} AND type = 'ended' AND json_type(payload, '$.values') IS NOT NULL`,
+           WHERE ${old} AND type IN ('ended', 'precheck') AND json_type(payload, '$.values') IS NOT NULL`,
         )
         .run(cutoff);
       this.#db

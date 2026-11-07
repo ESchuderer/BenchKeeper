@@ -1404,6 +1404,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.map-refused";
+            params: {
+                /** @enum {string} */
+                reason: "unknown-target" | "no-folder" | "not-mapped";
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-failed";
             params: {
                 account: string;
@@ -2612,6 +2620,14 @@ export interface components {
                 account: string;
                 path: string;
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.map-refused";
+            params: {
+                /** @enum {string} */
+                reason: "unknown-target" | "no-folder" | "not-mapped";
+                name: string;
             };
         } | {
             /** @constant */

@@ -714,3 +714,61 @@ test("the doctor asks an extension's own checks once and shows their texts safel
     [],
   ]);
 });
+
+// The fixture as a switch target for Claude Code's interactive account.
+const switching = (): ExtensionManifest => {
+  const plain = manifestOf(ACTIONS);
+  const switchTargets = { interactive: { agent: "claude" } };
+  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, switchTargets } });
+};
+const INTERACTIVE = { target: "interactive" };
+
+test("a switch target answers each call within its contract, its accounts by number, an alias only where one is set", async () => {
+  const fixture = await extension({ manifest: switching() });
+  const answers = [
+    await fixture.target("target/probe", INTERACTIVE),
+    await fixture.target("target/accounts", INTERACTIVE),
+    await fixture.target("target/current", INTERACTIVE),
+    await fixture.target("target/select", { ...INTERACTIVE, number: 2 }),
+    await fixture.target("target/tick", INTERACTIVE),
+    await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.cooldown": "600" } }),
+  ];
+  const when = "2026-11-07T10:00:00.000Z";
+  const window = { window: "fiveHour", usedPercent: 91, resetsAt: when, readAt: when };
+  expect(answers.map(codeOf)).toEqual([
+    { status: "supported", detail: "cswap 1.2.3" },
+    {
+      accounts: [
+        { number: 1, alias: "work", active: true, disabled: false, threshold: 90, windows: [window] },
+        { number: 2, active: false, disabled: false, threshold: null, windows: [] },
+      ],
+    },
+    { number: 1 },
+    { switched: true, from: 1, to: 2, reason: "asked" },
+    { code: 0, events: [{ at: when, from: 1, to: 2, reason: "over the line", trigger: "proactive" }] },
+    { values: { "autoswitch.threshold": 90, "autoswitch.cooldown": "600" } },
+  ]);
+});
+
+test("a call of an extension that is not the app's own, to a target the manifest does not name, with settings its answer could not hold, answered outside the contract, or not in time fails", async () => {
+  const wraps = {
+    wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
+  };
+  const community = await extension({ manifest: switching(), trust: "community", platform: "darwin", sandbox: wraps });
+  const fixture = await extension({ manifest: switching() });
+  const bad = await extension({ manifest: switching(), locale: "x-bad-target" });
+  const slow = await extension({ manifest: switching(), locale: "x-slow-target", limits: { targetMs: 200 } });
+  expect([
+    codeOf(await community.target("target/probe", INTERACTIVE)),
+    codeOf(await fixture.target("target/probe", { target: "elsewhere" })),
+    codeOf(await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.note": "ring\u0007" } })),
+    codeOf(await bad.target("target/probe", INTERACTIVE)),
+    codeOf(await slow.target("target/current", INTERACTIVE)),
+  ]).toEqual([
+    failure("target", "switch targets are the app's own extensions' only"),
+    failure("target", "no switch target elsewhere"),
+    failure("target", "settings its answer could not hold"),
+    failure("target", "an answer the host refuses"),
+    failure("target", "no answer within 200 ms"),
+  ]);
+});

@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { devNull } from "node:os";
 import { basename, dirname, join, resolve as resolvePath } from "node:path";
 import { type Finding, GitRef, GitUrl, PortablePath, type Result } from "@cedarloom/contracts";
-import { programPath } from "@cedarloom/orchestration";
+import { missing, programPath } from "@cedarloom/orchestration";
 
 /** What a fetched tree may hold; a tree over any of these is refused whole. */
 export type Limits = { files: number; bytes: number; fileBytes: number };
@@ -105,9 +105,6 @@ type RunOptions = {
  * Runs git; `failure` says why it was stopped or could not start. stderr keeps its last 2000 characters. A stopped
  * git returns when it exits: its own children (ssh, git-remote-https) may hold its pipes open longer.
  */
-/** Why a program is not run: it is in no absolute folder of PATH. */
-export const missing = (program: string): string => `ENOENT: no ${program} program in the absolute folders of PATH`;
-
 const run = (args: string[], options: RunOptions): Promise<Ran> =>
   new Promise((resolve) => {
     const file = programPath(options.program, options.env);

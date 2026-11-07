@@ -13,6 +13,9 @@ export const runnable = (path: string): boolean => {
   }
 };
 
+/** Why a program is not run: it is in no absolute folder of PATH. */
+export const missing = (program: string): string => `ENOENT: no ${program} program in the absolute folders of PATH`;
+
 /**
  * Where the program `name` is: a file in an absolute folder of the environment's PATH. A bare name is never spawned,
  * since Windows looks in the working folder, a project, before PATH (libuv's search_path:

@@ -160,7 +160,7 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
 };
 
 // This machine's Claude Code home and the user's home.
-const machineOf = (ctx: Context) => ({ home: useCases.claudeHome(ctx.io.env), user: homedir() });
+export const machineOf = (ctx: Context) => ({ home: useCases.claudeHome(ctx.io.env), user: homedir() });
 
 export const doctor = async (ctx: Context): Promise<number> => {
   const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
@@ -230,10 +230,15 @@ const windowLines = (name: string, readings: readonly Reading[], now: number): s
       ];
 };
 
-export const accountsList = (ctx: Context): number => {
+// claude-swap's readings of the accounts, kept before they are shown; what keeps it from answering is reported.
+const readSwap = async (ctx: Context): Promise<void> =>
+  report(ctx, await useCases.readSwapAccounts({ state: ctx.state, app: ctx.app, config: ctx.config }));
+
+export const accountsList = async (ctx: Context): Promise<number> => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
   const registry = loaded.value;
+  await readSwap(ctx);
   const now = Date.now();
   const status = useCases.accountsStatus(ctx.state, registry, now);
   if (!status.ok) return refused(ctx, "accounts", status.finding);
@@ -254,9 +259,10 @@ export const accountsList = (ctx: Context): number => {
 };
 
 /** Shows, per confirmed pool, the account a new worker would start on now and its windows. */
-export const accountsStatus = (ctx: Context): number => {
+export const accountsStatus = async (ctx: Context): Promise<number> => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
+  await readSwap(ctx);
   const now = Date.now();
   const status = useCases.accountsStatus(ctx.state, loaded.value, now);
   if (!status.ok) return refused(ctx, "accounts", status.finding);
@@ -305,24 +311,6 @@ export const accountsAdd = (
   const { plan, home } = planned.value;
   const note = `\nThen log in there with: cedarloom accounts login ${name}`;
   return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
-};
-
-/** Binds a folder to an account or pool for the workers launched in it or below it, as a plan with undo. */
-export const accountsMap = (ctx: Context, name: string, folder: string, { yes }: { yes?: true }): number => {
-  const planned = useCases.planMap(ctx.config, name, folder);
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, folder: real, target } = planned.value;
-  const on = "account" in target ? `account ${target.account}` : `pool ${target.pool}`;
-  const note = `\nWorkers launched in ${real} or below it run on ${on}.`;
-  return change(ctx, plan, { note, data: { folder: real }, findings: [] }, yes);
-};
-
-/** Removes a folder's binding, as a plan with undo. */
-export const accountsUnmap = (ctx: Context, folder: string, { yes }: { yes?: true }): number => {
-  const planned = useCases.planUnmap(ctx.config, folder);
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, folder: real } = planned.value;
-  return change(ctx, plan, { note: "", data: { folder: real }, findings: [] }, yes);
 };
 
 /** Shows the move of an account into its own home, or with --yes makes it; an account there already is reported. */
@@ -634,7 +622,7 @@ export const profilesApply = async (
   const profile = await useCases.planProfile(ctx.config, ctx.state, machineOf(ctx), options);
   if (!profile.ok) return refused(ctx, "plan", profile.finding);
   const { plan, findings } = profile.value;
-  if (findings.some((finding) => severityOf(finding) === "error")) {
+  if (useCases.heldBack(findings)) {
     return fail(ctx, "plan", findings, EXIT.refused);
   }
   if (plan === null) {

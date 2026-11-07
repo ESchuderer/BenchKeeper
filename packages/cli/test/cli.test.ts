@@ -348,29 +348,6 @@ test("accounts: a relative --state is taken from the working folder, so an own h
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
-test("accounts: map binds a folder to an account for its workers by a plan, and unmap removes it", async () => {
-  const { root, cli } = withRegistry();
-  const folder = realpathSync(root);
-  const shown = await cli("accounts", "map", "work", root);
-  expect([shown.code, json((await cli("accounts", "list", "--json")).out)]).toEqual([
-    EXIT.ok,
-    expect.objectContaining({ registry: expect.not.objectContaining({ folders: expect.anything() }) }),
-  ]);
-  expect(json((await cli("accounts", "map", "work", root, "--yes", "--json")).out)).toMatchObject({
-    status: "applied",
-  });
-  const listed = json((await cli("accounts", "list", "--json")).out);
-  expect(listed).toMatchObject({ registry: { folders: { [folder]: { account: "work" } } } });
-  expect(json((await cli("accounts", "unmap", root, "--yes", "--json")).out)).toMatchObject({ status: "applied" });
-  const again = await cli("accounts", "unmap", root, "--json");
-  expect([again.code, json(again.out)]).toEqual([
-    EXIT.refused,
-    expect.objectContaining({
-      findings: [{ code: "accounts.map-refused", params: { reason: "not-mapped", name: folder } }],
-    }),
-  ]);
-});
-
 test("accounts: an account is added with its own home by a plan, and its login runs there", async () => {
   const { state, logins, cli } = setup();
   // The preview changes nothing: still no registry.
@@ -614,13 +591,14 @@ const sampleParams = (code: string): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(shape).map(([key, schema]) => [key, sampleValue(key, schema)]));
 };
 
+// Two Node processes each strip and load the whole CLI: together past 5 s under full-suite load.
 test("the installed command runs the same program and sets the process exit code", () => {
   const { state } = setup();
   const bin = join(import.meta.dirname, "..", "src", "bin.ts");
   const listed = spawnSync(process.execPath, [bin, "--state", state, "runs", "list"], { encoding: "utf8" });
   expect([listed.status, listed.stdout]).toEqual([EXIT.ok, "No runs yet.\n"]);
   expect(spawnSync(process.execPath, [bin, "nope"], { encoding: "utf8" }).status).toBe(EXIT.usage);
-});
+}, 30_000);
 
 test("a replaced file shows as a replace, and an unreadable store is an internal error (exit 70)", async () => {
   const { root, state, cli } = setup();

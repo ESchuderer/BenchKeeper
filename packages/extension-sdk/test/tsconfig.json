@@ -6,6 +6,6 @@
     "emitDeclarationOnly": true,
     "types": ["node"]
   },
-  "include": ["."],
+  "include": [".", "../scripts"],
   "references": [{ "path": ".." }]
 }

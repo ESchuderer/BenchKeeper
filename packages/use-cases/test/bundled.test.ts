@@ -1,7 +1,14 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { formatInstalled } from "@cedarloom/contracts";
-import { applyPlan, bundledExtensions, extensionToStart, planSwitch, undoRun } from "@cedarloom/use-cases";
+import {
+  applyPlan,
+  bundledExtensions,
+  extensionChecks,
+  extensionToStart,
+  planSwitch,
+  undoRun,
+} from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 import { ok, testRoot } from "./harness.ts";
 
@@ -97,3 +104,37 @@ test("a components map CedarLoom cannot read refuses the start, and an app folde
     invalidId,
   ]);
 });
+
+test("the doctor asks the app's own extensions that are on for their checks, stops them, and starts none switched off", async () => {
+  const paths = machine();
+  const folder = join(paths.app, ID);
+  const contributes = { actions: { status: { title: "Status" } }, doctor: { setup: { title: "Setup" } } };
+  writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify({ ...JSON.parse(manifest(ID)), contributes }));
+  copyFileSync(join(import.meta.dirname, "fixtures", "doctor", "main.mjs"), join(folder, "main.mjs"));
+  const on = await extensionChecks(paths);
+  const pid = Number(/\d+$/.exec(String(Reflect.get(Object(on[0]?.params), "message")))?.[0]);
+  ok(applyPlan(paths.state, ok(planSwitch(paths.app, paths.config, ID, "off")), { yes: true }));
+  expect([on, await gone(pid), await extensionChecks(paths)]).toEqual([
+    [
+      {
+        code: "extension.finding",
+        params: { extension: ID, check: "setup", severity: "info", code: "example.ready", message: `ready ${pid}` },
+      },
+    ],
+    true,
+    [],
+  ]);
+});
+
+// Whether the process `pid` is gone, within a second: an ended one may take a moment to be reaped.
+async function gone(pid: number): Promise<boolean> {
+  for (let tries = 0; tries < 20; tries += 1) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}

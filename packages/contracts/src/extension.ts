@@ -229,7 +229,12 @@ export const ExtensionManifest = z
       .optional()
       .describe("Where it runs; every platform when absent"),
     capabilities: Capabilities.optional().describe("None when absent"),
-    contributes: z.strictObject({ actions: sized(z.record(ActionId, ExtensionAction), 100, 1) }),
+    contributes: z.strictObject({
+      actions: sized(z.record(ActionId, ExtensionAction), 100, 1),
+      doctor: sized(z.record(ActionId, z.strictObject({ title: PlainText.min(1).max(200) })), 20)
+        .optional()
+        .describe("The extension's own checks, which the doctor asks it for (doctor/run)"),
+    }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)
       .optional()
       .describe("Translations of its texts by language; English is the manifest's own"),

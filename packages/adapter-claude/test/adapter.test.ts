@@ -7,6 +7,7 @@ import {
   claudeRuntime,
   type ClaudeLaunch,
   FRESH_INSTALL_PHASES,
+  phaseLaunch,
 } from "@cedarloom/adapter-claude";
 import type { AgentEvent, AgentSession } from "@cedarloom/agent-contracts";
 import { expect, test, vi } from "vitest";
@@ -28,6 +29,7 @@ const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {})
   allow: ["Bash(pnpm test *)"],
   verifiedVersions: ["2.1.316", "2.1.309"],
   pluginDirs: [],
+  telemetry: null,
   ...change,
 });
 
@@ -105,6 +107,18 @@ test("runs claude -p with stream-json under the account's config folder, in the 
   }
 });
 
+test("a worker's launch in a phase runs on that phase's settings, in the folder given, allowing nothing more", () => {
+  const { model, subagentModel, effort, permissionMode, cwd, allow } = phaseLaunch(launch({}), "plan", "/work/tree");
+  expect({ model, subagentModel, effort, permissionMode, cwd, allow }).toEqual({
+    model: "claude-opus-5-5",
+    subagentModel: "claude-opus-5-5",
+    effort: "high",
+    permissionMode: "plan",
+    cwd: "/work/tree",
+    allow: [],
+  });
+});
+
 test("the login runs claude auth login with the account's environment, and tells how it ended", () => {
   // Exits 0 only for `auth login` with the given config folder.
   const check =
@@ -149,6 +163,43 @@ test("the login status of a home is read from claude auth status, and anything e
     kind: "unknown",
     error: expect.stringContaining("ENOENT"),
   });
+});
+
+test("a launch with a receiver exports its logs only there, with its token and no content flags", async () => {
+  // The launch's own telemetry variables never reach the CLI, whatever they say; its proxy bypass list is kept.
+  const own = {
+    OTEL_LOG_USER_PROMPTS: "1",
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://elsewhere",
+    CLAUDE_CODE_ENABLE_TELEMETRY: "0",
+    NO_PROXY: "corp.example",
+  };
+  const telemetry = { endpoint: "http://127.0.0.1:4318/v1/logs", token: "t0k" };
+  const on = started(await events(runtime.start(launch(own, { telemetry }))));
+  const settings = {
+    CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+    OTEL_LOGS_EXPORTER: "otlp",
+    OTEL_METRICS_EXPORTER: "none",
+    OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: telemetry.endpoint,
+    OTEL_METRICS_INCLUDE_VERSION: "true",
+  };
+  expect(on.env).toMatchObject({ ...settings, OTEL_EXPORTER_OTLP_LOGS_HEADERS: "Authorization=Bearer t0k" });
+  // One list for both spellings: Windows keeps one of them, other systems both.
+  const bypass = Object.entries(on.env).flatMap(([name, value]) => (name.toUpperCase() === "NO_PROXY" ? [value] : []));
+  expect(new Set(bypass)).toEqual(new Set(["corp.example,127.0.0.1,localhost"]));
+  for (const name of ["OTEL_LOG_USER_PROMPTS", "OTEL_EXPORTER_OTLP_ENDPOINT"]) expect(on.env).not.toHaveProperty(name);
+  // The settings on the command line, which every local user can read, repeat them without the token.
+  const flag = z
+    .object({ env: z.record(z.string(), z.string()) })
+    .parse(JSON.parse(on.args[on.args.indexOf("--settings") + 1] ?? ""));
+  expect(flag.env).toMatchObject(settings);
+  expect(on.args.join(" ")).not.toContain("t0k");
+  // Without a receiver telemetry stays off.
+  const off = started(await events(runtime.start(launch(own))));
+  for (const name of [...Object.keys(settings), "OTEL_EXPORTER_OTLP_LOGS_HEADERS", "no_proxy"]) {
+    expect(off.env).not.toHaveProperty(name);
+  }
+  expect(off.env["NO_PROXY"]).toBe("corp.example");
 });
 
 test("maps the stream-json lines to events", async () => {

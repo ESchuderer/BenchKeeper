@@ -1051,6 +1051,18 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.name-taken";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-invalid";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-unsupported";
             params: {
                 account: string;
@@ -1206,7 +1218,7 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read";
+                step: "start" | "fetch" | "list" | "read" | "worktree";
                 error: string;
             };
         } | {
@@ -1843,6 +1855,18 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "accounts.name-taken";
+            params: {
+                account: string;
+            };
+        } | {
+            /** @constant */
+            code: "accounts.name-invalid";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "accounts.login-unsupported";
             params: {
                 account: string;
@@ -1998,7 +2022,7 @@ export interface components {
             code: "git.failed";
             params: {
                 /** @enum {string} */
-                step: "start" | "fetch" | "list" | "read";
+                step: "start" | "fetch" | "list" | "read" | "worktree";
                 error: string;
             };
         } | {

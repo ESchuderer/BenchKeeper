@@ -19,6 +19,7 @@ import {
 import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT, ownFolder } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { type FetchTree, workflowPlugin } from "./plugins.ts";
+import type { TelemetryReceiver } from "./telemetry.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
 /** What the launcher decided for one worker; the adapter's launch options take these as they are. */
@@ -33,6 +34,7 @@ export type Decided = Pick<
   | "allowedDomains"
   | "verifiedVersions"
   | "pluginDirs"
+  | "telemetry"
 > & { readonly runId: string; readonly account: Account };
 
 export interface WorkerRequest<L extends Launch> extends AccountRequest {
@@ -59,6 +61,8 @@ export interface LaunchHost {
   readonly managedDir?: string | null;
   /** Reads the marketplace's plugins at the pinned commit; the git package's fetch over https when unset. */
   readonly fetchTree?: FetchTree;
+  /** The launcher's receiver of its workers' OpenTelemetry logs; telemetry stays off when unset. */
+  readonly telemetry?: TelemetryReceiver;
 }
 
 // Claude Code's managed settings files that loosen the worker sandbox, or cannot be read, refuse every launch of it: a
@@ -92,6 +96,23 @@ export type WorkerOutcome =
     };
 
 type Exit = Extract<AgentEvent, { type: "exit" }>;
+const nothing = (): void => undefined;
+type Finished = Extract<WorkerOutcome, { kind: "finished" }>;
+
+/** What a caller sees of a worker as it runs: each event of its session, and a signal that stops it. */
+interface Watch {
+  readonly onEvent?: (event: AgentEvent) => void;
+  readonly signal?: AbortSignal;
+}
+
+/** A worker on an account whose lease it holds: `run` starts it, `release` lets the lease go unused. */
+export interface LeasedWorker {
+  readonly kind: "leased";
+  readonly runId: string;
+  run(watch?: Watch): Promise<Result<Finished>>;
+  release(): Promise<void>;
+}
+
 interface Held {
   readonly lease: Lease;
   readonly lock: LeaseLock;
@@ -116,7 +137,10 @@ const refused = <T>(dir: string, result: Result<T> & { ok: false }): Result<neve
 interface Prepared<L extends Launch> {
   readonly runId: string;
   readonly dir: string;
-  readonly build: (verifiedVersions: readonly string[]) => L;
+  /** The launch, exporting telemetry when `exports` is set: the run does, its contract probe does not. */
+  readonly build: (verifiedVersions: readonly string[], exports: boolean) => L;
+  /** Ends the run's telemetry token. */
+  readonly release: () => void;
 }
 
 // The run's id, folder and launch options on `account`, given the versions whose check passed; refused while gh finds
@@ -148,9 +172,21 @@ const decide = async <L extends Launch>(
     allowedDomains: GITHUB_DOMAINS,
     pluginDirs: plugin === null ? [] : [plugin],
   };
+  // A token of the run's own, so its posts count for this run and account only.
+  const { telemetry: receiver } = host;
+  const token = receiver?.register({ runId, account: account.name });
+  const telemetry = receiver === undefined || token === undefined ? null : { endpoint: receiver.endpoint, token };
   return {
     ok: true,
-    value: { runId, dir, build: (verifiedVersions) => request.launch({ ...fixed, verifiedVersions }) },
+    value: {
+      runId,
+      dir,
+      build: (verifiedVersions, exports) =>
+        request.launch({ ...fixed, verifiedVersions, telemetry: exports ? telemetry : null }),
+      release: () => {
+        if (token !== undefined) receiver?.release(token);
+      },
+    },
   };
 };
 
@@ -216,10 +252,16 @@ const keepPlugins = async (state: string, lease: Lease, expected: readonly strin
 // Reads the session to its end with its usage stored as readings; stops reading at an init line without the proof that
 // the CLI applied the worker settings, and returns the version it named. `proved`: the session's init line proved them.
 // `expected`: the plugins the launch passed, by folder name.
-const observe = async (state: string, session: AgentSession, lease: Lease, expected: readonly string[]) => {
+const observe = async (
+  state: string,
+  session: AgentSession,
+  lease: Lease,
+  { expected, watch }: { expected: readonly string[]; watch: Watch },
+) => {
   let exit: Exit | null = null;
   let proved = false;
   for await (const event of session.events) {
+    watch.onEvent?.(event);
     if (event.type === "init" && !event.settingsApplied) {
       return { exit, proved, unproven: event.agentVersion ?? lease.version };
     }
@@ -231,28 +273,40 @@ const observe = async (state: string, session: AgentSession, lease: Lease, expec
   return { exit, proved, unproven: null };
 };
 
+// Observes the session until its end or `watch.signal`, which stops it: its events then end, so the run ends as one that
+// exited without a verdict.
+const watched = async (...[state, session, lease, seen]: Parameters<typeof observe>) => {
+  const stop = (): void => void session.cancel().then(nothing, nothing);
+  seen.watch.signal?.addEventListener("abort", stop, { once: true });
+  // A signal that ended already sends no abort event.
+  if (seen.watch.signal?.aborted === true) stop();
+  try {
+    return await observe(state, session, lease, seen);
+  } finally {
+    seen.watch.signal?.removeEventListener("abort", stop);
+  }
+};
+
 // Runs the leased worker to its end and reads its verdict. Every path that leaves without the CLI's exit (a throw, a
 // session without the settings proof) stops the CLI and its commands first; the lease then ends, as failed unless the
 // result file holds a verdict.
 const runLeased = async <L extends Launch>(
   state: string,
-  runtime: AgentRuntime<L>,
-  build: () => L,
+  start: { runtime: AgentRuntime<L>; build: () => L },
   held: Held,
-): Promise<Result<WorkerOutcome>> => {
+  watch: Watch,
+): Promise<Result<Finished>> => {
   const { lease } = held;
   let verdict: Verdict = "failed";
   let session: AgentSession | undefined;
   let exit: Exit | null = null;
   try {
-    const launch = build();
-    session = runtime.start(launch);
-    const seen = await observe(
-      state,
-      session,
-      lease,
-      launch.pluginDirs.map((dir) => basename(dir)),
-    );
+    const launch = start.build();
+    session = start.runtime.start(launch);
+    const seen = await watched(state, session, lease, {
+      expected: launch.pluginDirs.map((dir) => basename(dir)),
+      watch,
+    });
     exit = seen.exit;
     if (seen.unproven !== null) {
       return {
@@ -274,18 +328,16 @@ const runLeased = async <L extends Launch>(
   }
 };
 
-/**
- * Starts a worker of the task end to end: chooses an account with a free lease, builds its clean environment, refuses
- * while gh finds a keyring login, checks the CLI version, takes one of the account's leases, runs the worker, stops it
- * at once when its session gives no proof that the CLI applied the worker settings, and reads its verdict from the
- * result file. A launch refused before its run leaves no worker folder.
- */
-export const launchWorker = async <L extends Launch>(
+type NoAccount = Extract<WorkerOutcome, { kind: "no-account" }>;
+type Chosen = { readonly kind: "account"; readonly accounts: AccountRegistry; readonly account: Account };
+
+// The account a new worker of the task takes; refused under managed settings that loosen the sandbox.
+const accountFor = async (
   state: string,
   config: string,
-  request: WorkerRequest<L>,
+  request: AccountRequest,
   host: LaunchHost,
-): Promise<Result<WorkerOutcome>> => {
+): Promise<Result<NoAccount | Chosen>> => {
   const managed = managedRefusal(host, request.agent);
   if (!managed.ok) return managed;
   const registry = loadRegistry(config);
@@ -295,11 +347,40 @@ export const launchWorker = async <L extends Launch>(
   const selection = await retryBusy(() => chooseAccount(state, accounts, request));
   if (!selection.ok) return selection;
   if (!selection.value.ok) return { ok: true, value: { kind: "no-account", reason: selection.value.reason } };
-  const account = selection.value.account;
+  return { ok: true, value: { kind: "account", accounts, account: selection.value.account } };
+};
+
+/**
+ * Takes a worker of the task as far as its account's lease: chooses an account with a free lease, builds its clean
+ * environment, refuses while gh finds a keyring login, checks the CLI version and takes one of the account's leases. A
+ * launch refused before its run leaves no worker folder.
+ */
+export const leaseWorker = async <L extends Launch>(
+  state: string,
+  config: string,
+  request: WorkerRequest<L>,
+  host: LaunchHost,
+): Promise<Result<NoAccount | LeasedWorker>> => {
+  const chosen = await accountFor(state, config, request, host);
+  if (!chosen.ok) return chosen;
+  if (chosen.value.kind === "no-account") return { ok: true, value: chosen.value };
+  const { accounts, account } = chosen.value;
   const prepared = await decide(state, accounts, { request, host, account });
   if (!prepared.ok) return prepared;
-  const { runId, dir, build } = prepared.value;
-  const probe = build([]);
+  const leased = await leaseDecided(state, request, account, prepared.value);
+  // The run's telemetry token ends with its run (see leaseDecided), or at once when no run follows.
+  if (!leased.ok) prepared.value.release();
+  return leased;
+};
+
+// After the launch is decided: the version check and the lease, whose run or release also ends the telemetry token.
+const leaseDecided = async <L extends Launch>(
+  state: string,
+  request: WorkerRequest<L>,
+  account: Account,
+  { runId, dir, build, release }: Prepared<L>,
+): Promise<Result<LeasedWorker>> => {
+  const probe = build([], false);
   const { agent, task, runtime } = request;
   const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe, account: account.name });
   if (!checked.ok) return refused(dir, checked);
@@ -322,5 +403,36 @@ export const launchWorker = async <L extends Launch>(
     labels,
   });
   if (!held.ok) return refused(dir, held);
-  return runLeased(state, runtime, () => build(verified), held.value);
+  const start = { runtime, build: () => build(verified, true) };
+  const run = async (watch: Watch = {}) => {
+    try {
+      return await runLeased(state, start, held.value, watch);
+    } finally {
+      release();
+    }
+  };
+  const notRun = async () => {
+    try {
+      await end(state, held.value, "not-run");
+    } finally {
+      release();
+    }
+  };
+  return { ok: true, value: { kind: "leased", runId, run, release: notRun } };
+};
+
+/**
+ * Starts a worker of the task end to end (`leaseWorker`), runs it, stops it at once when its session gives no proof
+ * that the CLI applied the worker settings, and reads its verdict from the result file.
+ */
+export const launchWorker = async <L extends Launch>(
+  state: string,
+  config: string,
+  request: WorkerRequest<L>,
+  host: LaunchHost,
+): Promise<Result<WorkerOutcome>> => {
+  const leased = await leaseWorker(state, config, request, host);
+  if (!leased.ok) return leased;
+  const worker = leased.value;
+  return worker.kind === "no-account" ? { ok: true, value: worker } : worker.run();
 };

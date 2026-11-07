@@ -165,3 +165,28 @@ CREATE TABLE gates (
   "by" TEXT
 ) STRICT;
 `;
+
+/** One row per API request of a worker's session (A84), from its OpenTelemetry api_request event. */
+export const TOKEN_TABLES = `
+CREATE TABLE token_rows (
+  runId TEXT NOT NULL,
+  account TEXT NOT NULL,
+  sessionId TEXT,
+  model TEXT NOT NULL,
+  querySource TEXT,
+  effort TEXT,
+  inputTokens INTEGER NOT NULL,
+  outputTokens INTEGER NOT NULL,
+  cacheReadTokens INTEGER NOT NULL,
+  cacheCreationTokens INTEGER NOT NULL,
+  cacheCreation5mTokens INTEGER NOT NULL,
+  cacheCreation1hTokens INTEGER NOT NULL,
+  costUsdMicros INTEGER,
+  durationMs INTEGER,
+  requestId TEXT,
+  agentVersion TEXT,
+  at TEXT NOT NULL
+) STRICT;
+CREATE INDEX token_rows_run ON token_rows (runId);
+CREATE UNIQUE INDEX token_rows_request ON token_rows (account, requestId);
+`;

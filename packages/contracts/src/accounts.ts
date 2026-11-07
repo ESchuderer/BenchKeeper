@@ -123,14 +123,27 @@ export type Account = AccountRegistry["accounts"][number];
 export const formatRegistry = (registry: AccountRegistry): string =>
   `${JSON.stringify(AccountRegistry.parse(sortKeys(registry)), null, 2)}\n`;
 
-/** The usage windows of the agent-neutral quota model. */
+/** The usage windows every account has, of the agent-neutral quota model. */
 export const QuotaWindow = z.enum(["fiveHour", "sevenDay"]);
 export type QuotaWindow = z.infer<typeof QuotaWindow>;
+
+/**
+ * A usage window: one every account has, or a model's own weekly window, `sevenDay:<model family>`, which only some
+ * accounts have.
+ */
+export const Quota = z.union([QuotaWindow, z.string().regex(/^sevenDay:[a-z]{1,20}$/)]);
+export type Quota = z.infer<typeof Quota>;
+
+/** A model's own weekly window, such as `sevenDay:opus` for claude-opus-5-5; null for an ID without a model family. */
+export const modelWindow = (model: string): Quota | null => {
+  const family = /^claude-([a-z]{1,20})-/.exec(model)?.[1];
+  return family === undefined ? null : `sevenDay:${family}`;
+};
 
 /** The latest reading of one usage window of an account: the used share in percent, the window's reset, the time read. */
 export const Reading = z.strictObject({
   account: Name,
-  window: QuotaWindow,
+  window: Quota,
   usedPercent: Percent,
   // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order.
   resetsAt: z.iso.datetime({ precision: 3 }),
@@ -153,7 +166,7 @@ export const UsageSample = z.strictObject({
   agent: Agent,
   agentVersion: AgentVersion,
   window: z.string().min(1).max(64),
-  quota: QuotaWindow.nullable(),
+  quota: Quota.nullable(),
   usedPercent: Percent.nullable(),
   resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),

@@ -312,7 +312,7 @@ const NO_MENU_BAR = `claude-swap's menu bar (claude-swap[menubar]) is not confir
 const menuBarOf = async ({ exec }: Exec): Promise<boolean> => {
   const ran = await exec({ program: UV, args: ["tool", "list", "--show-extras"], timeoutMs: MS }).catch(() => null);
   const line = ran?.code === 0 ? ran.stdout.split("\n").find((each) => each.startsWith("claude-swap v")) : undefined;
-  return (line?.split("[extras: ")[1]?.replace("]", "").split(", ") ?? []).includes("menubar");
+  return (line?.split("[extras: ")[1]?.split("]")[0]?.split(", ") ?? []).includes("menubar");
 };
 
 // What `cswap menubar <flag>` says first, such as "Menu bar service: running (pid 4242)"; it has no JSON form.

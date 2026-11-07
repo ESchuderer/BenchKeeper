@@ -1,4 +1,4 @@
-import { type ActionContext, type DoctorFinding, HOST_MISSING } from "@cedarloom/extension-sdk";
+import { type ActionContext, type DoctorFinding, programVersion, valueAt as at } from "@cedarloom/extension-sdk";
 
 /** The Orca version this extension and its recorded test outputs were checked with; another major is a warning. */
 export const OBSERVED = "1.4.251";
@@ -12,8 +12,6 @@ type Exec = Pick<ActionContext, "exec">;
 type Probe = { installed: false; reason: string } | { installed: true; version: string; running: boolean };
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-const at = (value: unknown, ...keys: string[]): unknown =>
-  keys.reduce((inner, key) => Reflect.get(Object(inner), key), value);
 const majorOf = (version: string): string | undefined => /^v?(\d+)\.\d+/.exec(version)?.[1];
 
 /**
@@ -21,21 +19,15 @@ const majorOf = (version: string): string | undefined => /^v?(\d+)\.\d+/.exec(ve
  * there can be the GNOME screen reader): its version, and whether its app runs and its runtime answers.
  */
 const probe = async ({ exec }: Exec): Promise<Probe> => {
-  let version;
-  try {
-    version = await exec({ program: "orca", args: ["--version"], timeoutMs: MS });
-  } catch (error) {
-    if (at(error, "code") === HOST_MISSING) return { installed: false, reason: messageOf(error) };
-    throw error;
-  }
-  if (version.code !== 0) throw new Error(`orca --version exited with ${version.code}`);
+  const version = await programVersion(exec, "orca", MS);
+  if (!version.installed) return version;
   const status = await exec({ program: "orca", args: ["status", "--json"], timeoutMs: MS });
   // It exits 0 also when no app runs: another code is an error.
   if (status.code !== 0) throw new Error(`orca status --json exited with ${status.code}`);
   const answer: unknown = JSON.parse(status.stdout);
   const running =
     at(answer, "result", "app", "running") === true && at(answer, "result", "runtime", "reachable") === true;
-  return { installed: true, version: version.stdout.trim(), running };
+  return { installed: true, version: version.version, running };
 };
 
 // Orca's skills a Claude Code session of an Orca worker needs; Orca installs them, CedarLoom never does.

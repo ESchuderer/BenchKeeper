@@ -97,7 +97,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The project folder ${p.project} is not there, so no command of the run could run there.`,
   "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "run.sandbox-unavailable": (p) =>
-    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here; run the workflow without --report.`,
+    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here (${p.reason}); run the workflow without --report.`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,
@@ -251,6 +251,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
   "profile.binding-missing": (p) =>
     `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} ${p.binding === "gates" ? "<owner/repo@commit>" : "<owner/repo>"}, or switch the part off: cedarloom profiles select ${p.part} off`,
+  "profile.binding-waiting": (p) =>
+    `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
   "profile.approval-needed": (p) => {

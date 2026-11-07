@@ -7,8 +7,12 @@ import { getDefaultWritePaths, SandboxManager } from "@anthropic-ai/sandbox-runt
 /** How the host starts an extension's process. */
 export type Launch = { command: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv };
 
-/** What a sandbox lets an extension do: read its own folder, write nowhere, and reach no network (the host fetches). */
-export type SandboxPolicy = { read: string[]; write: string[]; network: "none" };
+/**
+ * What a sandbox lets a process do: read these folders, write these, and reach no network (an extension: read its own
+ * folder, write nowhere; the host fetches). `probe`: the arguments with which the program starts and exits at once, to
+ * check that it starts inside: Node's `-e ''` when absent, `-c ''` for a POSIX sh.
+ */
+export type SandboxPolicy = { read: string[]; write: string[]; network: "none"; probe?: string[] };
 
 /**
  * The OS sandbox a community extension runs in, on top of Node's permission flags, which do not hold against malicious
@@ -33,6 +37,9 @@ const run = promisify(execFile);
 const SYSTEM: Partial<Record<NodeJS.Platform, string[]>> = {
   linux: ["/usr", "/bin", "/lib", "/lib64", "/etc/ld.so.cache"],
   darwin: [
+    "/bin",
+    "/usr/bin",
+    "/private/var/select/sh",
     "/System/Library/OpenSSL/openssl.cnf",
     ...["/opt/homebrew", "/usr/local"].flatMap((prefix) =>
       ["Cellar", "opt", "etc/openssl@3/openssl.cnf", "etc/openssl@4/openssl.cnf"].map((path) => `${prefix}/${path}`),
@@ -42,7 +49,7 @@ const SYSTEM: Partial<Record<NodeJS.Platform, string[]>> = {
 
 // One initialization per process: srt's proxies serve every wrapped launch, and no allowed host lets them pass anything.
 let ready: Promise<void> | undefined;
-// Whether a program starts inside srt at all, checked once per program: srt's own checks pass where bubblewrap lacks
+// Whether a program starts inside srt at all, checked once per program and probe: srt's own checks pass where bubblewrap lacks
 // the rights it needs (a rootless container, Ubuntu's AppArmor profile), or a library lies outside SYSTEM.
 const probes = new Map<string, Promise<void>>();
 
@@ -68,12 +75,10 @@ const confined = async (launch: Launch, policy: SandboxPolicy): Promise<Launch> 
   return { ...launch, command: wrapper, args };
 };
 
-// The program with `-e ''` (Node's empty script) inside srt; when it does not start, its error output says why.
-const probe = async (command: string): Promise<void> => {
-  const nothing = await confined(
-    { command, args: ["-e", ""], cwd: "/", env: {} },
-    { read: [], write: [], network: "none" },
-  );
+// The program with its probe's arguments (Node's empty script, sh's empty command) inside srt; when it does not start,
+// its error output says why.
+const probe = async (command: string, args: string[]): Promise<void> => {
+  const nothing = await confined({ command, args, cwd: "/", env: {} }, { read: [], write: [], network: "none" });
   await run(nothing.command, nothing.args, { cwd: "/", env: {}, timeout: 30_000 }).catch((error: unknown) => {
     const output = String(Reflect.get(Object(error), "stderr") ?? "").trim();
     throw new Error(`${command} does not start inside the OS sandbox here: ${output || String(error)}`);
@@ -104,8 +109,10 @@ export const sandboxRuntime = (platform: NodeJS.Platform = process.platform): Sa
       filesystem: { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [] },
     });
     await ready;
-    const starts = probes.get(launch.command) ?? probe(launch.command);
-    probes.set(launch.command, starts);
+    const args = policy.probe ?? ["-e", ""];
+    const key = JSON.stringify([launch.command, args]);
+    const starts = probes.get(key) ?? probe(launch.command, args);
+    probes.set(key, starts);
     await starts;
     return confined(launch, policy);
   },

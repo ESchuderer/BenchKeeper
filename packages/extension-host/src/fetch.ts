@@ -208,6 +208,10 @@ export const fetcher = (broker: Broker) => {
     const url = granted(granting.net, request.url);
     if (typeof url === "string") return refused(url);
     if (open >= broker.limits.fetches) return refused(`too many requests at once (limit ${broker.limits.fetches})`);
+    // A cancel that came before the request was handled sends nothing: its token is one that never fires.
+    if (token.isCancellationRequested || broker.ended.aborted) {
+      return failed("not sent: the request was cancelled or the extension ended");
+    }
     open += 1;
     try {
       return await send(granting, request, url, token);

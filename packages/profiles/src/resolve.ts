@@ -149,13 +149,14 @@ const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; b
 };
 
 /**
- * A composed profile with the parts switched on (`level.id`), this machine's hub and gate workflow source, and what
- * keeps it from applying.
+ * A composed profile with the parts switched on (`level.id`), this machine's hub and gate workflow source, the `auto`
+ * parts that wait for that source, and what keeps it from applying.
  */
 export interface Resolved extends Composed {
   readonly on: ReadonlySet<string>;
   readonly hub: string | undefined;
   readonly gates: string | undefined;
+  readonly unbound: readonly string[];
   readonly problems: Finding[];
 }
 
@@ -186,7 +187,7 @@ const problemsOf = (parts: ReadonlyMap<string, Part>, on: ReadonlySet<string>, s
 ];
 
 /** What an `auto` part is on by. */
-export type Probe = "orca" | "devcontainer" | "no-devcontainer";
+export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates";
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 
@@ -219,7 +220,13 @@ export const resolveProfile = (
   const composed = composedOf(selection, app);
   if (!composed.ok) return composed;
   const parts = new Map(partsOf(composed.value.profile));
-  const on = switchedOn(parts, selection?.select ?? {}, probe);
   const { hub, gates } = selection?.bindings ?? {};
-  return { ok: true, value: { ...composed.value, on, hub, gates, problems: problemsOf(parts, on, selection) } };
+  const select = selection?.select ?? {};
+  const on = switchedOn(parts, select, (when) => (when === "gates" ? gates !== undefined : probe(when)));
+  // An auto part the selection leaves to its probe, off until this machine names a gate workflow source.
+  const unbound = [...parts]
+    .filter(([key, part]) => part.when === "gates" && select[key] === undefined && !on.has(key))
+    .map(([key]) => key);
+  const problems = problemsOf(parts, on, selection);
+  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, problems } };
 };

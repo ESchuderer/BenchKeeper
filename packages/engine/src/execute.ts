@@ -414,7 +414,11 @@ class Runner {
     const decision = decisions?.get(planHash ?? "");
     if (decision === undefined) return this.#undecided(node, attempt, point, planHash);
     decisions?.delete(planHash ?? "");
-    if (decision.approved) return true;
+    // An approval answers the gate the journal held, so a retry asks the policy again; a rejection keeps it held.
+    if (decision.approved) {
+      this.#held.gates.get(node)?.delete(planHash ?? "");
+      return true;
+    }
     this.#commit({ type: "started", node, attempt, pid: null });
     this.#post({ type: "ended", node, attempt, outcome: "failed", values: { error: "rejected" } });
     return false;

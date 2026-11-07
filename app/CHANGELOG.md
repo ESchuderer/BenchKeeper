@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.27.0](https://github.com/ESchuderer/BenchKeeper/compare/app-v6.26.0...app-v6.27.0) (2026-11-07)
+
+
+### Features
+
+* **audit:** no coverage-floor check, and the workflow skill adds a test only where the test rule calls for one ([#1132](https://github.com/ESchuderer/BenchKeeper/issues/1132)) ([8712d4d](https://github.com/ESchuderer/BenchKeeper/commit/8712d4d2be7311586bb527e139d45ce61b662418))
+* **setup:** every apply writes the shared rules into the BenchKeeper block; the setup skill commits the setup of a repository without an AGENTS.md of its own, and merges into a committed one only the parts you pick ([#1125](https://github.com/ESchuderer/BenchKeeper/issues/1125)) ([34f03c1](https://github.com/ESchuderer/BenchKeeper/commit/34f03c1ddccce1edbdc7ae05ccd059cf35bdf6b1))
+
 ## [6.26.0](https://github.com/ESchuderer/BenchKeeper/compare/app-v6.25.0...app-v6.26.0) (2026-11-05)
 
 

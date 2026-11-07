@@ -7,6 +7,7 @@ export {
   Agent,
   AgentVersion,
   ContractCheckRecord,
+  type FolderTarget,
   formatRegistry,
   modelWindow,
   Quota,
@@ -29,6 +30,7 @@ export {
   Draft,
   DraftInfo,
   DraftSaved,
+  GraphRunSummary,
   ImportPreview,
   PlanPreview,
   Refusal,
@@ -121,6 +123,7 @@ export {
 export {
   type Composed,
   composeProfile,
+  isTree,
   type LoadParent,
   MAX_PROFILE_FILES,
   mergeJson,

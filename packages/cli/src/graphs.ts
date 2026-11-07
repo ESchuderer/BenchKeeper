@@ -23,7 +23,7 @@ const runOptions = (ctx: Context, project: string | undefined): useCases.RunOpti
   void ctx.io.untilStopped().then(() => stop.abort());
   const host = { parent: ctx.io.env, platform: process.platform, home: homedir() };
   const agents = { config: ctx.config, host, runtime: ctx.io.agent, launch: phaseLaunch, model: phaseModel };
-  return { project, signal: stop.signal, agents };
+  return { project, signal: stop.signal, agents, config: ctx.config };
 };
 
 export const workflowsRun = async (

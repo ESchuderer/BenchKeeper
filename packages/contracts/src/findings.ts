@@ -49,9 +49,9 @@ export const Finding = z
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
     // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe).
     finding("run.shell-missing", {}),
-    // A report run's node that needs an OS sandbox where none runs: a command or precheck until it runs in one, and on
-    // native Windows also an agent (Q7); nothing of the run starts.
-    finding("run.sandbox-unavailable", { node: z.string() }),
+    // A report run's node that needs an OS sandbox where none runs: a command or precheck where the sandbox does not run
+    // sh (native Windows, a container that refuses bubblewrap), and on native Windows an agent (Q7); nothing starts.
+    finding("run.sandbox-unavailable", { node: z.string(), reason: z.string() }),
     // A resume or cancel named another project folder than the run's own; its commands run only there.
     finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
     // The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts.
@@ -113,6 +113,11 @@ export const Finding = z
     finding("accounts.home-missing", { account: z.string(), home: z.string() }),
     // The own home or the homes folder could not be made or closed to the owner (error: the file system's).
     finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
+    // `accounts map` or `unmap` refused: no account or pool of that name, no such folder, or a folder bound to nothing.
+    finding("accounts.map-refused", {
+      reason: z.enum(["unknown-target", "no-folder", "not-mapped"]),
+      name: z.string(),
+    }),
     // The agent's login ended with an error or did not start.
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
     // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
@@ -219,7 +224,20 @@ export const Finding = z
     finding("profile.owner-changed", { path: z.string() }),
     // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
-    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub"]) }),
+    finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
+    // A drift line of `profiles check`, its plans and the doctor (plan section 2.9): what differs from the profile, the
+    // path, part, source or item it is about, and the item `apply --remove` takes when its removal is offered.
+    finding("profile.drift", {
+      status: z.enum(["missing", "outdated", "deselected-present", "not-run"]),
+      subject: z.string(),
+      remove: z.string().nullable(),
+    }),
+    // What a home holds that the profile does not name, reported only, with the item `apply --remove` takes (PF4).
+    finding("profile.extra", { item: z.string() }),
+    // An `apply --remove` item the plan does not offer.
+    finding("profile.remove-unknown", { item: z.string() }),
+    // An auto part that stays off until this machine names the binding it waits for.
+    finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
     // A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
     // The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
     // updates it by itself; no source: a marketplace Claude Code already knows.
@@ -229,6 +247,8 @@ export const Finding = z
       source: z.string().nullable(),
       ref: z.string().nullable(),
       autoUpdate: z.boolean(),
+      // The project folder of a project's plugin part; null for the machine's.
+      project: z.string().nullable(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
     // A files part that writes targets that run as programs or configure tools, which wait for an approval by name (hub
@@ -237,9 +257,20 @@ export const Finding = z
       part: z.string(),
       title: z.string(),
       project: z.string(),
+      // Where the part's code comes from: the gates' `owner/repo@commit`, a dev container's Template and Features.
+      source: z.string().nullable(),
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
+    // The Dev Containers CLI did not apply a devcontainer part's Template, which then writes nothing: the part, the
+    // Template and why.
+    finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
+    // A target two parts write, such as the Dependabot file of two gates parts: the later part and the target.
+    finding("profile.target-twice", { part: z.string(), target: z.string() }),
+    // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
+    finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
+    // A skill whose files hold `.claude-plugin/`, so Claude Code would load it as a plugin: the skill and the file.
+    finding("profile.skill-plugin", { skill: z.string(), path: z.string() }),
     // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
     finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
     // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.
@@ -342,6 +373,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "accounts.home-missing": { severity: "error", effort: "manual" },
   "accounts.home-unusable": { severity: "error", effort: "manual" },
   "accounts.login-failed": { severity: "error", effort: "manual" },
+  "accounts.map-refused": { severity: "error", effort: "manual" },
   "doctor.logged-out": { severity: "error", effort: "manual" },
   "doctor.login-elsewhere": { severity: "error", effort: "manual" },
   "doctor.login-method": { severity: "warning", effort: "manual" },
@@ -389,10 +421,18 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.owner-changed": { severity: "warning", effort: "manual" },
   "profile.placeholder-unknown": { severity: "error", effort: "manual" },
   "profile.binding-missing": { severity: "error", effort: "command" },
+  "profile.binding-waiting": { severity: "info", effort: "command" },
+  "profile.drift": { severity: "warning", effort: "command" },
+  "profile.remove-unknown": { severity: "error", effort: "manual" },
+  "profile.extra": { severity: "info", effort: "command" },
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },
   "profile.target-linked": { severity: "error", effort: "manual" },
+  "profile.skill-twice": { severity: "error", effort: "manual" },
+  "profile.template-failed": { severity: "warning", effort: "manual" },
+  "profile.target-twice": { severity: "error", effort: "manual" },
+  "profile.skill-plugin": { severity: "error", effort: "manual" },
   "profile.agents-unread": { severity: "warning", effort: "manual" },
   "profile.pack-unpinned": { severity: "error", effort: "manual" },
   "profile.source-digest": { severity: "error", effort: "manual" },

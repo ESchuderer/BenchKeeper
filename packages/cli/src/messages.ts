@@ -97,7 +97,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The project folder ${p.project} is not there, so no command of the run could run there.`,
   "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
   "run.sandbox-unavailable": (p) =>
-    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here; run the workflow without --report.`,
+    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here (${p.reason}); run the workflow without --report.`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,
@@ -172,6 +172,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
   "accounts.home-unusable": (p) =>
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
+  "accounts.map-refused": (p) =>
+    ({
+      "unknown-target": `The registry has no account or Claude Code pool named ${p.name}.`,
+      "no-folder": `There is no folder ${p.name} to bind.`,
+      "not-mapped": `The folder ${p.name} is bound to no account or pool.`,
+    })[p.reason],
   "accounts.login-failed": (p) =>
     `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
   "doctor.logged-out": (p) =>
@@ -250,7 +256,24 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "profile.part-requires": (p) =>
     `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,
   "profile.binding-missing": (p) =>
-    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} <owner/repo>, or switch the part off: cedarloom profiles select ${p.part} off`,
+    `${p.part} needs this machine's ${p.binding} repository. Name it: cedarloom profiles bind ${p.binding} ${p.binding === "gates" ? "<owner/repo@commit>" : "<owner/repo>"}, or switch the part off: cedarloom profiles select ${p.part} off`,
+  "profile.drift": (p) => {
+    const what = {
+      missing: "lacks what the profile writes there; an apply writes it",
+      outdated: "holds an older version of what the profile writes there; an apply updates it",
+      "deselected-present": "is no longer part of the profile",
+      "not-run": "was not checked, as a Git source of the profile could not be fetched",
+    }[p.status];
+    const removal = p.remove === null ? "" : `. Remove it: cedarloom profiles apply --remove ${p.remove}`;
+    const next = p.remove === null && p.status === "deselected-present" ? "; an apply removes it" : "";
+    return `${p.subject} ${what}${next}${removal}.`;
+  },
+  "profile.extra": (p) =>
+    `${p.item} is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ${p.item}`,
+  "profile.remove-unknown": (p) =>
+    `--remove names ${p.item}, which the plan does not offer to remove; cedarloom profiles check lists what it offers.`,
+  "profile.binding-waiting": (p) =>
+    `${p.part} stays off until this machine names its ${p.binding} source: cedarloom profiles bind ${p.binding} <owner/repo@commit>`,
   "profile.placeholder-unknown": (p) =>
     `The text at ${p.at} uses {{${p.placeholder}}}, which CedarLoom has no value for here.`,
   "profile.approval-needed": (p) => {
@@ -259,7 +282,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
         ? "a marketplace Claude Code already knows"
         : `${p.source}${p.ref === null ? "" : ` at ${p.ref}`}`;
     const updates = p.autoUpdate ? ", updated by Claude Code by itself" : "";
-    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply --allow ${p.part}`;
+    const where = p.project === null ? "" : ` --project ${folderArgument(p.project)}`;
+    return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply${where} --allow ${p.part}`;
   },
   "profile.options-guarded": (p) =>
     `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
@@ -276,10 +300,19 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
       ...(p.programs.length === 0 ? [] : [`${p.programs.join(", ")}, run as a program (mode 0755)`]),
       ...(p.configs.length === 0 ? [] : [`${p.configs.join(", ")}, configuration a tool reads to decide what to run`]),
     ];
-    return `${p.part} (${p.title}) writes ${what.join("; and ")}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
+    const from = p.source === null ? "" : `, from ${p.source}`;
+    return `${p.part} (${p.title}) writes ${what.join("; and ")}${from}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
   },
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
+  "profile.template-failed": (p) =>
+    `${p.part} could not apply the Dev Container Template ${p.template}, so it writes nothing: ${shown(p.error, 300)}${/ENOENT/.test(p.error) ? ". Install the Dev Containers CLI: npm install -g @devcontainers/cli" : ""}`,
+  "profile.target-twice": (p) =>
+    `${p.part} writes ${p.target}, which another part of the profile writes too; switch one of them off.`,
+  "profile.skill-plugin": (p) =>
+    `The skill ${p.skill} holds ${p.path}, so Claude Code would load it as a plugin with its hooks and servers. Add it as a plugin part instead, which waits for your approval by name.`,
+  "profile.skill-twice": (p) =>
+    `${p.skills.join(" and ")} both install into ${p.folder}, as their names are the same; list only one of their packs.`,
   "profile.agents-unread": (p) =>
     `${p.path} does not import AGENTS.md, so Claude Code does not read CedarLoom's rules there. Add the line @AGENTS.md to it.`,
   "profile.owner-changed": (p) =>

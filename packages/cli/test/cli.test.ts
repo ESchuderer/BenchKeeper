@@ -348,6 +348,29 @@ test("accounts: a relative --state is taken from the working folder, so an own h
   expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
 });
 
+test("accounts: map binds a folder to an account for its workers by a plan, and unmap removes it", async () => {
+  const { root, cli } = withRegistry();
+  const folder = realpathSync(root);
+  const shown = await cli("accounts", "map", "work", root);
+  expect([shown.code, json((await cli("accounts", "list", "--json")).out)]).toEqual([
+    EXIT.ok,
+    expect.objectContaining({ registry: expect.not.objectContaining({ folders: expect.anything() }) }),
+  ]);
+  expect(json((await cli("accounts", "map", "work", root, "--yes", "--json")).out)).toMatchObject({
+    status: "applied",
+  });
+  const listed = json((await cli("accounts", "list", "--json")).out);
+  expect(listed).toMatchObject({ registry: { folders: { [folder]: { account: "work" } } } });
+  expect(json((await cli("accounts", "unmap", root, "--yes", "--json")).out)).toMatchObject({ status: "applied" });
+  const again = await cli("accounts", "unmap", root, "--json");
+  expect([again.code, json(again.out)]).toEqual([
+    EXIT.refused,
+    expect.objectContaining({
+      findings: [{ code: "accounts.map-refused", params: { reason: "not-mapped", name: folder } }],
+    }),
+  ]);
+});
+
 test("accounts: an account is added with its own home by a plan, and its login runs there", async () => {
   const { state, logins, cli } = setup();
   // The preview changes nothing: still no registry.
@@ -573,7 +596,7 @@ test("a project folder with shell syntax in its name is one quoted argument, so 
   const project = "/work/it's $(id) `x`;";
   const approval = Finding.parse({
     code: "profile.target-approval",
-    params: { part: "project.dc", title: "dc", project, programs: ["scripts/dc"], configs: [] },
+    params: { part: "project.dc", title: "dc", project, source: null, programs: ["scripts/dc"], configs: [] },
   });
   expect(text(approval)).toContain(`--project '/work/it'\\''s $(id) \`x\`;' --allow project.dc`);
 });
@@ -736,6 +759,16 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
   expect(await running).toBe(EXIT.ok);
 });
 
+// A setup at the Checkpoint level, as these tests run: a node goes, and a plan a run built waits for the owner. Written
+// as a file, since `level --yes` would add an apply run to the ones the tests count.
+const atCheckpoint = (...options: Parameters<typeof setup>): ReturnType<typeof setup> => {
+  const at = setup(...options);
+  mkdirSync(join(at.root, "config"), { recursive: true });
+  const settings = { schemaVersion: 1, default: "checkpoint", projects: {} };
+  writeFileSync(join(at.root, "config", "automation.json"), JSON.stringify(settings));
+  return at;
+};
+
 // t -> a, a command that greets the input `name`.
 const workflow = WorkflowDefinition.parse({
   schemaVersion: 1,
@@ -749,8 +782,15 @@ const workflow = WorkflowDefinition.parse({
   edges: [{ id: "e1", from: { node: "t", handle: "start" }, to: { node: "a", handle: "run" } }],
 });
 
-test("workflows run runs a graph run; runs list and show show it with its attempts beside apply runs", async () => {
+test("on a fresh install, Supervised, workflows run waits before its command for the owner", async () => {
   const { root, cli } = setup();
+  const file = planFile(root, workflow, "greet.json");
+  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
+  expect(ran).toMatchObject({ format: "cedarloom.run", status: "waiting" });
+});
+
+test("workflows run runs a graph run; runs list and show show it with its attempts beside apply runs", async () => {
+  const { root, cli } = atCheckpoint();
   const file = planFile(root, workflow, "greet.json");
   const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
   expect(ran).toMatchObject({ format: "cedarloom.run", status: "succeeded" });
@@ -758,16 +798,19 @@ test("workflows run runs a graph run; runs list and show show it with its attemp
   expect((await cli("runs", "list")).out).toContain(`${runId}  graph  succeeded`);
   expect((await cli("runs", "show", runId)).out).toMatch(
     /^Run .*: graph greet, succeeded,.*\n {2}a#1 +done +pid \d+\n$/,
-  ); // A report run runs no command outside an OS sandbox.
-  const report = await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root, "--report");
+  );
+  // A report run writes nothing: a workflow with a write is refused before it starts.
+  const write = { id: "a", type: "file.write", with: { path: "out.txt" } } as const;
+  const writing = planFile(root, { ...workflow, nodes: [workflow.nodes[0], write] }, "write.json");
+  const report = await cli("--json", "workflows", "run", writing, "--input", "name=Ada", "--project", root, "--report");
   expect([report.code, json(report.out)]).toMatchObject([
     EXIT.refused,
-    { findings: [{ code: "run.sandbox-unavailable", params: { node: "a" } }] },
+    { findings: [{ code: "workflow.report-only-write", params: { node: "a" } }] },
   ]);
 });
 
 test("runs approve shows what a waiting node waits for, and with --yes approves it and runs the run on", async () => {
-  const { root, cli } = setup();
+  const { root, cli } = atCheckpoint();
   const asking = WorkflowDefinition.parse({
     ...workflow,
     nodes: [...workflow.nodes, { id: "go", type: "human.approval", with: { message: "Greet?" } }],
@@ -791,7 +834,7 @@ test("runs approve shows what a waiting node waits for, and with --yes approves 
 });
 
 test("runs approve shows a write's content with its control characters escaped, so none of it rewrites the prompt", async () => {
-  const { root, cli } = setup();
+  const { root, cli } = atCheckpoint();
   const writing = WorkflowDefinition.parse({
     ...workflow,
     nodes: [
@@ -812,7 +855,7 @@ test("runs approve shows a write's content with its control characters escaped, 
 });
 
 test("runs resume and cancel take over a graph run no process runs, and Ctrl+C cancels one this process runs", async () => {
-  const { root, state, cli } = setup();
+  const { root, state, cli } = atCheckpoint();
   const file = planFile(root, workflow, "greet.json");
   // Two runs whose runner died while a ran with pid 4242: a resume counts the attempt as failed, a cancel ends the run.
   const store = openGraphStore(state);
@@ -853,7 +896,7 @@ test("runs resume and cancel take over a graph run no process runs, and Ctrl+C c
     { ...workflow, nodes: [workflow.nodes[0], { id: "a", type: "command.run", with: { command: "sleep 30" } }] },
     "slow.json",
   );
-  const stopping = setup({ stopped: new Promise((resolve) => setTimeout(resolve, 500)) });
+  const stopping = atCheckpoint({ stopped: new Promise((resolve) => setTimeout(resolve, 500)) });
   expect((await stopping.cli("workflows", "run", slow, "--project", root)).out).toMatch(/: cancelled\.\n$/);
   expect((await cli("runs", "resume", "nope")).code).toBe(EXIT.refused);
   expect((await cli("runs", "resume", "nope", "--yes")).code).toBe(EXIT.refused);

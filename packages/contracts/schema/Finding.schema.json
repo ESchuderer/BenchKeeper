@@ -867,10 +867,14 @@
           "properties": {
             "node": {
               "type": "string"
+            },
+            "reason": {
+              "type": "string"
             }
           },
           "required": [
-            "node"
+            "node",
+            "reason"
           ],
           "additionalProperties": false
         }
@@ -2288,6 +2292,41 @@
             "account",
             "path",
             "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "accounts.map-refused"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "unknown-target",
+                "no-folder",
+                "not-mapped"
+              ]
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reason",
+            "name"
           ],
           "additionalProperties": false
         }
@@ -3734,7 +3773,136 @@
             "binding": {
               "type": "string",
               "enum": [
-                "hub"
+                "hub",
+                "gates"
+              ]
+            }
+          },
+          "required": [
+            "part",
+            "binding"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.drift"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "missing",
+                "outdated",
+                "deselected-present",
+                "not-run"
+              ]
+            },
+            "subject": {
+              "type": "string"
+            },
+            "remove": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "subject",
+            "remove"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.extra"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "item": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "item"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.remove-unknown"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "item": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "item"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.binding-waiting"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "binding": {
+              "type": "string",
+              "enum": [
+                "gates"
               ]
             }
           },
@@ -3781,6 +3949,12 @@
             },
             "autoUpdate": {
               "type": "boolean"
+            },
+            "project": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
@@ -3788,7 +3962,8 @@
             "plugin",
             "source",
             "ref",
-            "autoUpdate"
+            "autoUpdate",
+            "project"
           ],
           "additionalProperties": false
         }
@@ -3848,6 +4023,12 @@
             "project": {
               "type": "string"
             },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "programs": {
               "type": "array",
               "items": {
@@ -3865,8 +4046,136 @@
             "part",
             "title",
             "project",
+            "source",
             "programs",
             "configs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.template-failed"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "template": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "template",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.target-twice"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "part": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "part",
+            "target"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.skill-twice"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "folder": {
+              "type": "string"
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "folder",
+            "skills"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "profile.skill-plugin"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "skill": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "skill",
+            "path"
           ],
           "additionalProperties": false
         }

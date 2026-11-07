@@ -4,6 +4,8 @@ import { Agent, Commit, GitUrl, WorkflowId } from "@cedarloom/contracts";
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   accountsAdd,
+  accountsMap,
+  accountsUnmap,
   accountsConfirm,
   accountsHome,
   accountsList,
@@ -20,6 +22,7 @@ import {
   plansApply,
   plansShow,
   profilesApply,
+  profilesCheck,
   profilesChoose,
   runsList,
   runsShow,
@@ -198,6 +201,25 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((run, options) => done(runsUndo(ctx(), run, options)));
 };
 
+// The folder bindings of worker launches: `accounts map` and `accounts unmap`.
+const foldersCommands = (accounts: Command, ctx: Ctx, done: Done): void => {
+  accounts
+    .command("map")
+    .description(
+      "show the binding of a folder to an account or pool for the workers launched in it; with --yes, make it",
+    )
+    .argument("<account-or-pool>")
+    .argument("[folder]", "the project folder; the current one when unset")
+    .option("--yes", "bind as planned now")
+    .action((name, folder, options) => done(accountsMap(ctx(), name, folder ?? process.cwd(), options)));
+  accounts
+    .command("unmap")
+    .description("show the removal of a folder's binding; with --yes, remove it")
+    .argument("[folder]", "the project folder; the current one when unset")
+    .option("--yes", "remove as planned now")
+    .action((folder, options) => done(accountsUnmap(ctx(), folder ?? process.cwd(), options)));
+};
+
 const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const accounts = program.command("accounts").description("agent accounts: config folders and pools, no credential");
   accounts
@@ -229,6 +251,7 @@ const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--pool <pool>", "the pool it joins; none when unset")
     .option("--yes", "add as planned now")
     .action((name, options) => done(accountsAdd(ctx(), name, options)));
+  foldersCommands(accounts, ctx, done);
   accounts
     .command("home")
     .description(
@@ -316,8 +339,14 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
       "--allow <part...>",
       "include a plugin or files part, which --yes alone never does, such as machine.plugin.ponytail",
     )
+    .option("--remove <item...>", "remove an item the plan offers, such as plugin:x@y; none is removed unnamed")
     .option("--yes", "apply the plan as computed now")
     .action(async (options) => done(await profilesApply(ctx(), options)));
+  profiles
+    .command("check")
+    .description("report how this machine's Claude Code home, or a project, differs from the profile; reads only")
+    .option("--project <folder>", "check this project's level instead of the machine's")
+    .action(async (options) => done(await profilesCheck(ctx(), options)));
   profiles
     .command("select")
     .description("switch a part on or off, or back to its default; with --yes, save it as one run")
@@ -329,11 +358,13 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     );
   profiles
     .command("bind")
-    .description("name this machine's hub repository; with --yes, save it as one run")
-    .addArgument(new Argument("<binding>").choices(["hub"] as const))
-    .argument("<repository>", "the repository as owner/repo")
+    .description("name this machine's hub repository or gate workflow source; with --yes, save it as one run")
+    .addArgument(new Argument("<binding>").choices(["hub", "gates"] as const))
+    .argument("<repository>", "the hub as owner/repo; the gates' reusable workflows as owner/repo@<commit>")
     .option("--yes", "save the binding as computed now")
-    .action((_binding, repository, options) => done(profilesChoose(ctx(), { hub: repository }, options)));
+    .action((binding, repository, options) =>
+      done(profilesChoose(ctx(), binding === "hub" ? { hub: repository } : { gates: repository }, options)),
+    );
 };
 
 const levelGroup = (program: Command, ctx: Ctx, done: Done): void => {

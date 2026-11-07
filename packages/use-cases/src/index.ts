@@ -65,6 +65,8 @@ export {
   ownHome,
   type NewAccount,
   planAdd,
+  planMap,
+  planUnmap,
   planConfirm,
   planHome,
   type StatusHost,
@@ -97,4 +99,14 @@ export {
   waitsOf,
 } from "./workflows.ts";
 export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
-export { type Choice, claudeHome, type Machine, planChoice, planProfile, type ProfilePlan } from "./profiles.ts";
+export {
+  type Choice,
+  checkProfile,
+  claudeHome,
+  type Machine,
+  type PlanOptions,
+  planChoice,
+  planProfile,
+  type ProfilePlan,
+  profileDoctor,
+} from "./profiles.ts";

@@ -7,13 +7,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
-import { openRunStore, sha256 } from "@cedarloom/ledger";
-import { CSRF_HEADER, formatExport, formatLock, type Plan } from "@cedarloom/contracts";
+import { openGraphStore, openRunStore, sha256 } from "@cedarloom/ledger";
+import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
 import { cookieName, openapi, type Started, startServer } from "@cedarloom/server";
 import { applyPlan, DRAFT_LIMIT, type Fetch } from "@cedarloom/use-cases";
 import { afterEach, expect, test, vi } from "vitest";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
+import { FLOWS, flowsExport } from "./flows-export.ts";
 
 interface Answer {
   status: number;
@@ -383,6 +384,47 @@ test("an undo is previewed without file contents and applies only with the hash 
   ).toBe(404);
 });
 
+/** A graph run of the corpus's minimal workflow whose trigger started and whose runner is gone: interrupted. */
+const graphRun = async (client: Client): Promise<string> => {
+  const definition = JSON.parse(await readFile(join(corpus, "valid-minimal.json"), "utf8"));
+  const store = openGraphStore(client.state);
+  if (!store.ok) throw new Error(store.finding.code);
+  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const lease = store.value.create({ ...run, definition, project: client.state });
+  store.value.append(lease.runId, 1, { type: "started", node: "start", attempt: 1, pid: 4242 });
+  lease.release();
+  return lease.runId;
+};
+
+test("the API lists the graph runs and shows one with its node attempts, on the event stream too", async () => {
+  const client = await ready();
+  const runId = await graphRun(client);
+  const summary = {
+    id: runId,
+    workflow: "minimal",
+    trigger: "manual",
+    mode: "act",
+    status: "interrupted",
+    finishedAt: null,
+  };
+  const seen: unknown[] = [];
+  await stream(client.port, { accept: "text/event-stream", ...client.auth() }, (event, data) => {
+    seen.push([event, data]);
+    return true;
+  });
+  expect([
+    (await client.api({ path: "/api/graph-runs" })).body,
+    (await client.api({ path: `/api/graph-runs/${runId}` })).body,
+    (await client.api({ path: `/api/graph-runs/${randomUUID()}` })).status,
+    seen,
+  ]).toMatchObject([
+    { graphRuns: [summary] },
+    { run: summary, attempts: [{ node: "start", attempt: 1, pid: 4242 }] },
+    404,
+    [["runs", { runs: [], graphRuns: [summary] }]],
+  ]);
+});
+
 test("a busy or newer store is a 409 with its finding; a broken one a 500 whose details stay in the log", async () => {
   const client = await ready();
   const { runId } = replaced(client);
@@ -603,42 +645,17 @@ test("the committed OpenAPI document is the one the routes generate (pnpm --filt
   expect(committed).toBe(await openapi(pkg.version));
 });
 
-// A shared export at a Git URL: its files at a commit, as the fetch hands them over (nothing of it runs); any other
-// URL is refused as the real fetch refuses one.
-const SHARED = "https://git.example.org/acme/flows.git";
-const sharedExport = async (): Promise<Fetch> => {
-  const texts: [string, string][] = [
-    [
-      "cedarloom-export.json",
-      formatExport({ schemaVersion: 1, kind: "cedarloom.export", name: "Shared", workflows: ["minimal"] }),
-    ],
-    ["cedarloom.lock.json", formatLock({ schemaVersion: 1, kind: "cedarloom.lock", extensions: {} })],
-    ["workflows/workflow-minimal.json", await readFile(join(corpus, "valid-minimal.json"), "utf8")],
-  ];
-  const files = texts.map(([path, text]) => ({
-    path,
-    mode: "100644" as const,
-    sha256: sha256(text),
-    content: Buffer.from(text),
-  }));
-  const tree = { commit: "c".repeat(40), files, digest: "d".repeat(64) };
-  return async (source) =>
-    source.url === SHARED
-      ? { ok: true, value: tree }
-      : { ok: false, finding: { code: "git.refused-source", params: { field: "url" } } };
-};
-
 test("an import of a Git ref is reviewed with its plan under an id, which applies only with the hash of its preview, once", async () => {
   // Store commits carry the user's Git identity: a home folder of the test's own gives one.
   const home = mkdtempSync(join(tmpdir(), "cedarloom-home-"));
   writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
   vi.stubEnv("HOME", home);
   vi.stubEnv("XDG_CONFIG_HOME", home);
-  const client = await serve(undefined, undefined, undefined, await sharedExport());
+  const client = await serve(undefined, undefined, undefined, await flowsExport());
   started.push(client);
   await client.login();
   const imports = (body: object) => client.api({ method: "POST", path: "/api/imports", body });
-  const reviewed = await imports({ git: SHARED, ref: "main" });
+  const reviewed = await imports({ git: FLOWS, ref: "main" });
   const units = z.array(z.object({ status: z.string() }));
   const { id, planHash, review } = z
     .object({ id: z.string(), planHash: z.string(), review: z.object({ units }) })

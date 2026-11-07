@@ -178,9 +178,10 @@ test("with the platform's fetch the session needs a cookie store: Node's fetch k
   expect((await api.GET("/api/runs")).error).toEqual({ error: "no-session" });
 });
 
+// The check starts Node, which loads openapi-typescript and generates every type: past 5 s on a loaded machine.
 test("the committed types are the ones openapi-typescript generates from the server's document (pnpm --filter @cedarloom/client generate)", async () => {
   const check = spawnSync(process.execPath, [join(import.meta.dirname, "..", "scripts", "generate.ts"), "--check"], {
     encoding: "utf8",
   });
   expect([check.status, check.stderr]).toEqual([0, ""]);
-});
+}, 30_000);

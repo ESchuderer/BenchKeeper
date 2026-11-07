@@ -1,4 +1,5 @@
 import { type ChildProcess, execFile, spawn, spawnSync } from "node:child_process";
+import { Socket } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type {
@@ -31,10 +32,9 @@ const PROBE_PROMPT = "Reply with the single word OK.";
 // (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm). Windows has no POSIX signals: kill() ends the CLI
 // at once and leaves its commands running (https://nodejs.org/api/child_process.html#subprocesskillsignal), so taskkill
 // ends the whole tree there, also at once and without the CLI's SessionEnd hooks. It runs from System32, not from PATH.
-// A CLI still running `killAfterMs` after SIGTERM gets SIGKILL; its exit clears the timer, since a signal sent after it
-// would reach any process that reuses its ID (https://nodejs.org/api/child_process.html#subprocesskillsignal).
-// shortcut: SIGKILL ends the CLI, not commands a wedged CLI left; upgrade to a process group of its own once the host
-// stops the CLI on SIGHUP and on a crash too.
+// A CLI still running `killAfterMs` after SIGTERM gets SIGKILL with its process group; its exit clears the timer, since a
+// signal sent after it would reach any process that reuses its ID
+// (https://nodejs.org/api/child_process.html#subprocesskillsignal).
 const stop = (child: ChildProcess, killAfterMs: number): void => {
   // Once the CLI has exited, Windows may give its process ID to another process, whose tree taskkill would end.
   if (child.exitCode !== null || child.signalCode !== null) return;
@@ -48,8 +48,36 @@ const stop = (child: ChildProcess, killAfterMs: number): void => {
   }
   /* v8 ignore stop */
   child.kill();
-  const timer = setTimeout(() => child.kill("SIGKILL"), killAfterMs).unref();
+  const { pid } = child;
+  const timer = setTimeout(() => pid !== undefined && process.kill(-pid, "SIGKILL"), killAfterMs).unref();
   child.once("exit", () => clearTimeout(timer));
+};
+
+// On POSIX the CLI runs in a process group of its own, so a kill reaches the commands it started there. A watcher
+// holds a pipe from the host and ends that group when the pipe closes before the host says the CLI exited: the host
+// died, also by SIGKILL or with its terminal. Windows has taskkill /T and Node's job object for that.
+const DETACHED = process.platform !== "win32";
+const WATCHER = `let exited = false;
+const host = new (require("node:net").Socket)({ fd: 3, readable: true });
+host.on("data", () => { exited = true; });
+host.on("close", () => { if (!exited) try { process.kill(-Number(process.argv[1]), "SIGKILL"); } catch {} });`;
+
+// The CLI's process; on POSIX in a process group of its own, which a watcher ends should the host die first.
+const spawned = (file: string, args: readonly string[], launch: ClaudeLaunch) => {
+  const child = spawn(file, args, { cwd: launch.cwd, env: launchEnv(launch), detached: DETACHED, windowsHide: true });
+  if (!DETACHED || child.pid === undefined) return child;
+  const watcher = spawn(process.execPath, ["-e", WATCHER, String(child.pid)], {
+    stdio: ["ignore", "ignore", "ignore", "pipe"],
+    detached: true,
+    env: {},
+  });
+  watcher.unref();
+  const [, , , pipe] = watcher.stdio;
+  if (pipe instanceof Socket) {
+    pipe.unref();
+    child.once("exit", () => pipe.end("exited"));
+  }
+  return child;
 };
 
 // The CLI's own bound on its exit after SIGTERM (30 s, above), with a margin.
@@ -69,7 +97,7 @@ const run = (
 ): AgentSession => {
   const [file, ...prefix] = command;
   const args = [...prefix, ...launchArgs(launch), ...extraArgs];
-  const child = spawn(file, args, { cwd: launch.cwd, env: launchEnv(launch), windowsHide: true });
+  const child = spawned(file, args, launch);
   let error: SessionError | null = null;
   let stderr = "";
   const exited = new Promise<void>((resolve) => {

@@ -49,20 +49,20 @@ Not covered: MDM profiles, the Windows registry and server-managed settings, whi
 
 ### Everyday git forms it refuses
 
-| Form                                                                                                                 | Instead                                            |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `git push --force`, `-f`, `+branch`, `--force-with-lease`, `--mirror`                                                | a new branch and a pull request                    |
-| `--no-verify`, `git commit -n`                                                                                       | fix what the hooks report                          |
-| `git -c key=value`, `git config key value`, `git remote add` or `set-url`, `git clone -c`                            | the repository's configuration as the owner set it |
-| `git rebase -x`, `git submodule foreach`, `git bisect run`, `git difftool --extcmd`, `git grep -O`, `--upload-pack`  | the command itself                                 |
-| an alias or another git command the guard does not know, `git $sub`, a word it cannot read where an option may stand | the command's own name and literal options         |
-| a remote, URL or folder it cannot tell (`--git-dir`, `env -C`), a repository outside the session's                   | the session's repositories by their remote name    |
-| a push that may update `main` of the memory repository, also `memory/<name>` without a destination                   | `HEAD:memory/<name>`                               |
-| `GIT_*` variables but `GIT_PAGER` and `GIT_TERMINAL_PROMPT`, `EDITOR`, `VISUAL`, `CDPATH`                            | options on the command line                        |
+| Form                                                                                                                                                                      | Instead                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `git push --force`, `-f`, `+branch`, `--force-with-lease`, `--mirror`                                                                                                     | a new branch and a pull request                    |
+| `--no-verify`, `git commit -n`                                                                                                                                            | fix what the hooks report                          |
+| `git -c key=value`, `git config key value`, `git remote add` or `set-url`, `git clone -c`                                                                                 | the repository's configuration as the owner set it |
+| `git rebase -x`, `git submodule foreach`, `git bisect run`, `git difftool --extcmd`, `git grep -O`, `--upload-pack`                                                       | the command itself                                 |
+| an alias or another git command the guard does not know, `git $sub`, a word it cannot read where an option may stand                                                      | the command's own name and literal options         |
+| a remote, URL or folder it cannot tell (`--git-dir`, `env -C`), a repository outside the session's                                                                        | the session's repositories by their remote name    |
+| a push that may update `main` of the memory repository: also `memory/<name>` without a destination, and a typed URL the checkout's `url.<base>.pushInsteadOf` sends there | `HEAD:memory/<name>`                               |
+| `GIT_*` variables but `GIT_PAGER` and `GIT_TERMINAL_PROMPT`, `EDITOR`, `VISUAL`, `CDPATH`                                                                                 | options on the command line                        |
 
 ### Known limits
 
 - Data run as code when it expands: a variable's value used in arithmetic or as a subscript (`x='y[$(cmd)]'; echo $((x))`), `${x@P}`, `PS4` with `set -x`. A subscript written out with a command in it refuses, as does arithmetic in `[[ ]]` on anything but a number or a plain `$name`, and `$'...'` with a numeric escape.
 - Script files and interpreters (`bash x.sh`, `npm run x`, `make`, `python3 -c`, `node -e`), and programs that run their arguments which the guard does not list (`flock`, `parallel`, `script -c`, `ssh`).
-- File writes: `.git/config` and git hooks, a shell's startup files, Claude Code's settings files.
+- File writes: `.git/config` and git hooks, a shell's startup files, Claude Code's settings files. A worker that writes its checkout's git configuration or hooks with its file tools gets past the memory rule and the force rule: a `pre-push` hook or `core.hooksPath` runs a push of its own that the guard never sees, and `remote.<name>.push` can force a push named without refspecs (`+refs/heads/main:refs/heads/main`, then `git push origin`). Typed URLs and named remotes are read with the checkout's rewrites applied.
 - A word whose value the shell knows only when it runs, such as `find . "$a"` with `a=-exec`; zsh beyond the forms above, such as `print -v` and `set -A`.

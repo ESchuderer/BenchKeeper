@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GUARD_SCHEMA_VERSION, type GuardPolicy, RepoName } from "@cedarloom/contracts";
-import { githubRepo, type Remotes } from "./guard.ts";
+import { githubRepo, type Remotes, TYPED_REMOTE } from "./guard.ts";
 import { programPath } from "./program.ts";
 
 /**
@@ -10,11 +10,12 @@ import { programPath } from "./program.ts";
  * git comes from an absolute folder of PATH: the hook runs outside the sandbox, where a relative entry would let the
  * session's own files stand in for it.
  */
-export const gitRemotes: Remotes = (folder) => {
+export const gitRemotes: Remotes = (folder, typedUrl) => {
   const git = programPath("git", process.env);
   if (git === undefined) return null;
+  const typed = typedUrl === undefined ? [] : ["-c", `remote.${TYPED_REMOTE}.url=${typedUrl}`];
   try {
-    const listed = execFileSync(git, ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
+    const listed = execFileSync(git, ["-c", "core.fsmonitor=false", ...typed, "-C", folder, "remote", "-v"], {
       encoding: "utf8",
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],

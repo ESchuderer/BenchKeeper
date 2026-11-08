@@ -4,12 +4,13 @@ import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/cont
 import { guardCommand, type Remotes } from "./guard.ts";
 import { gitRemotes } from "./session-guard.ts";
 
-// A folder's remotes, read once per hook run.
+// A folder's remotes, with or without a typed URL, read once per hook run.
 const once = (remotes: Remotes): Remotes => {
   const read = new Map<string, ReturnType<Remotes>>();
-  return (folder) => {
-    if (!read.has(folder)) read.set(folder, remotes(folder));
-    return read.get(folder) ?? null;
+  return (folder, url) => {
+    const key = JSON.stringify([folder, url ?? null]);
+    if (!read.has(key)) read.set(key, remotes(folder, url));
+    return read.get(key) ?? null;
   };
 };
 

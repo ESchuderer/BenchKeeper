@@ -21,8 +21,14 @@ export interface Denial {
   readonly detail: string;
 }
 
-/** The push URLs of a folder's git remotes by name; null when they cannot be read, as outside a repository. */
-export type Remotes = (folder: string) => ReadonlyMap<string, readonly string[]> | null;
+/**
+ * The push URLs of a folder's git remotes by name; null when they cannot be read, as outside a repository. With `url`,
+ * they include that URL as the remote `TYPED_REMOTE`, rewritten as git rewrites it (insteadOf, pushInsteadOf).
+ */
+export type Remotes = (folder: string, url?: string) => ReadonlyMap<string, readonly string[]> | null;
+
+/** The name under which Remotes lists a URL typed on the command line. */
+export const TYPED_REMOTE = "cedarloom-typed-url";
 
 interface Context {
   readonly policy: GuardPolicy;
@@ -786,6 +792,19 @@ export const githubRepo = (url: string): string | null => {
   return RepoName.safeParse(name).success ? name : null;
 };
 
+// A typed URL as git sends it from each folder, so the checkout's url.<base>.pushInsteadOf cannot turn a session
+// repository's URL into another's. Outside a repository git reads no repository config and keeps the URL as typed; a
+// push runs in one, so one whose URL git cannot show is refused.
+const typedUrls = (url: string, folders: readonly string[], remotes: Remotes, push: boolean): string[] | null => {
+  const urls: string[] = [];
+  for (const folder of folders) {
+    const rewritten = remotes(folder, url)?.get(TYPED_REMOTE) ?? [];
+    if (rewritten.length === 0 && push) return null;
+    urls.push(...(rewritten.length === 0 ? [url] : rewritten));
+  }
+  return urls;
+};
+
 // The URLs of a remote by name in a folder's remotes, or of every remote without a name; null for none.
 const remotesOf = (remotes: ReturnType<Remotes>, name: string | undefined): readonly string[] | null => {
   if (remotes === null) return null;
@@ -795,10 +814,10 @@ const remotesOf = (remotes: ReturnType<Remotes>, name: string | undefined): read
 // The URLs a git network command reaches: the URL it names, the remote it names in every folder it may run in, or
 // every remote of those folders; none for a local path; null when the guard cannot tell, such as a name that is no
 // remote, which git takes as a path or a transport address.
-const urlsOf = (word: Word | undefined, context: Context): string[] | null => {
+const urlsOf = (word: Word | undefined, context: Context, push: boolean): string[] | null => {
   const name = word?.text;
   if (name === null || context.folders === null) return null;
-  if (name !== undefined && isUrl(name)) return [name];
+  if (name !== undefined && isUrl(name)) return typedUrls(name, context.folders, context.remotes, push);
   if (name !== undefined && isLocal(name)) return [];
   const urls: string[] = [];
   for (const folder of context.folders) {
@@ -842,7 +861,7 @@ const memoryPush = (url: string, repo: string | null, refspecs: readonly Word[],
 const checkTargets = (sub: string, words: readonly Word[], context: Context): Denial | null => {
   const { repositories, memory } = context.policy;
   if (repositories === null && (sub !== "push" || memory === null)) return null;
-  const urls = urlsOf(words[0], context);
+  const urls = urlsOf(words[0], context, sub === "push");
   if (urls === null) return unreadable(`git ${sub} reaches a repository the guard cannot tell`);
   return (
     urls.map((url) => checkUrl(sub, url, words.slice(1), context.policy)).find((denial) => denial !== null) ?? null
@@ -886,7 +905,7 @@ const ghRepo = (text: string): string | null => {
 // The repositories a call reaches without naming one: those of the remotes of every folder it may run in, as gh picks
 // one of them; null when the guard cannot tell, or when there is none.
 const implicitRepos = (context: Context): (string | null)[] | null => {
-  const urls = urlsOf(undefined, context);
+  const urls = urlsOf(undefined, context, false);
   return urls === null || urls.length === 0 ? null : urls.map(githubRepo);
 };
 

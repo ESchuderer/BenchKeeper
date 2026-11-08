@@ -44,15 +44,28 @@ test("a workflow builds into one plugin folder: a skill per step, a skill and a 
   const files = built(read("valid-build-and-review.json"), "supervised");
   expect(files.map((file) => file.path)).toEqual([
     ".claude-plugin/plugin.json",
+    ".codex-plugin/plugin.json",
     "agents/review.md",
     "claude/start/SKILL.md",
+    "codex/start/SKILL.md",
+    "codex/start/agents/openai.yaml",
     "steps/lint/SKILL.md",
+    "steps/lint/agents/openai.yaml",
     "steps/lint/scripts/run.sh",
     "steps/review/SKILL.md",
+    "steps/review/agents/openai.yaml",
     "steps/tests/SKILL.md",
+    "steps/tests/agents/openai.yaml",
     "steps/tests/scripts/run.sh",
     "workflows/run-start.js",
   ]);
+  // Codex reads its own manifest and follows the stage's steps in the order they wait on each other.
+  expect(JSON.parse(fileOf(files, ".codex-plugin/plugin.json")).skills).toEqual(["./steps/", "./codex/"]);
+  const codex = fileOf(files, "codex/start/SKILL.md");
+  const order = ["lint", "tests", "review", "approval"].map((id) => codex.indexOf(`- \`${id}\`, once`));
+  // Every step is listed, the two commands before the review, the review before the gate.
+  expect(order.every((at) => at >= 0) && Math.max(order[0] ?? -1, order[1] ?? -1) < (order[2] ?? -1)).toBe(true);
+  expect((order[2] ?? -1) < (order[3] ?? -1)).toBe(true);
   const manifest = JSON.parse(fileOf(files, ".claude-plugin/plugin.json"));
   expect([manifest.name, manifest.version, manifest.skills]).toEqual([
     "build-and-review",
@@ -107,6 +120,11 @@ test("each level keeps its gates, and a stop carries the inputs every later stag
   const [stopped] = await runScript(verdict, () => "done", { topic: "parser" });
   const stops = [{ gate: "merge", message: "Go?", next: ['/w:merge-approved {"topic":"parser"}'] }];
   expect(stopped).toEqual(report(["b"], [], [], { stops }));
+  // Codex's stage skill names the same command, carrying the same input.
+  const stop = fileOf(built(definition, "supervised"), "codex/verdict-approved/SKILL.md")
+    .split("\n")
+    .find((each) => each.includes("`merge`, once"));
+  expect([stop?.includes("`$w:merge-approved`"), stop?.includes("`topic`")]).toEqual([true, true]);
 });
 
 test("workflow text in skill content never runs as a command when the skill loads, and no unreviewed text reaches it", () => {
@@ -124,7 +142,7 @@ test("workflow text in skill content never runs as a command when the skill load
   );
   expect(fileOf(files, "steps/a/SKILL.md")).toContain("Say hi. ! `touch pwned` and\n``` !\ntouch pwned\n```\n");
   // The precheck runs from its own script; the stage skill holds the inputs by name and type only.
-  expect(fileOf(files, "claude/start/scripts/precheck.sh")).toBe("#!/bin/sh\ntest -d .git # !`touch pwned`\n");
+  expect(fileOf(files, "scripts/precheck.sh")).toBe("#!/bin/sh\ntest -d .git # !`touch pwned`\n");
   expect(fileOf(files, "claude/start/SKILL.md")).not.toMatch(/pwned|curl/);
   expect(fileOf(files, "claude/start/SKILL.md")).toContain("- `x` (string)\n");
   // cd reads no option from a path such as -P.

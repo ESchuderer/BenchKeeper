@@ -114,11 +114,20 @@ const runCommand = async (step: Step, state: State, rt: Runtime): Promise<Ran | 
     : null;
 };
 
-/** The first check of an agent step that fails, or null when all pass. */
+/** A command or check step, run again while it fails, `retries` times at most. */
+const runRetried = async (step: Step, state: State, rt: Runtime): Promise<Ran | null> => {
+  let ran = await runCommand(step, state, rt);
+  for (let tries = 0; tries < (step.retries ?? 0) && ran?.exitCode !== 0; tries += 1) {
+    ran = await runCommand(step, state, rt);
+  }
+  return ran;
+};
+
+/** The first check of an agent step that fails after its own retries, or null when all pass. */
 const failingCheck = async (step: Step, state: State, rt: Runtime): Promise<(Ran & { id: string }) | null> => {
   for (const id of step.checks ?? []) {
     const check = state.stage.steps.find((each) => each.id === id);
-    const ran = check === undefined ? null : await runCommand(check, state, rt);
+    const ran = check === undefined ? null : await runRetried(check, state, rt);
     if (ran === null || ran.exitCode !== 0) return { id, exitCode: ran?.exitCode ?? -1, output: ran?.output ?? "" };
   }
   return null;
@@ -154,12 +163,9 @@ const runAgent = async (step: Step, state: State, rt: Runtime): Promise<boolean>
   return false;
 };
 
-/** A command step's outputs, run again while it fails, `retries` times at most; its output and exit code are kept. */
+/** A command step's outputs; its output and exit code are kept. */
 const commandOutputs = async (step: Step, state: State, rt: Runtime): Promise<string[]> => {
-  let ran = await runCommand(step, state, rt);
-  for (let tries = 0; tries < (step.retries ?? 0) && ran?.exitCode !== 0; tries += 1) {
-    ran = await runCommand(step, state, rt);
-  }
+  const ran = await runRetried(step, state, rt);
   if (ran === null) return ["failed"];
   state.values.set(`${step.id}.stdout`, ran.output);
   state.values.set(`${step.id}.exitCode`, ran.exitCode);
@@ -234,6 +240,7 @@ const RUNNER = [
   argsOf,
   valueOf,
   runCommand,
+  runRetried,
   failingCheck,
   textOf,
   attempt,

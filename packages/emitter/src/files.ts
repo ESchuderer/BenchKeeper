@@ -1,5 +1,8 @@
-import { shown, type WorkflowDefinition } from "@cedarloom/contracts";
+import { type AutomationLevel, shown, type WorkflowDefinition } from "@cedarloom/contracts";
 import { skillOf, textIn } from "./stages.ts";
+
+/** Codex's policy file of a skill no model loads on its own: off the model's list, the user's still (Codex 0.166.0, `codex-rs/ext/skills/src/provider/host.rs` L166-168). */
+export const USER_ONLY = "policy:\n  allow_implicit_invocation: false\n";
 
 /** A file of a package, by its path inside the plugin folder. */
 export type PackageFile = { path: string; content: string };
@@ -19,7 +22,7 @@ export const describe = (text: string): string => shown(text, 1024);
  * Workflow text in skill content: Claude Code runs a `!` before a backtick, or a fence opened with `!`, as a command when
  * the skill loads, unseen by the guard (https://code.claude.com/docs/en/skills#inject-dynamic-context); a space defuses it.
  */
-const inert = (text: string): string => text.replaceAll("!`", "! `").replaceAll("```!", "``` !");
+export const inert = (text: string): string => text.replaceAll("!`", "! `").replaceAll("```!", "``` !");
 
 /**
  * How the package names its workflow to agents: by id, as the import review shows it; the free-text name never reaches
@@ -44,13 +47,27 @@ export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile
     const task = inert(textIn(node, "task"));
     const fields = { name, description: describe(`${head}: ${task.split("\n")[0] ?? ""}`), [OWN]: true };
     const skill = `${frontmatter(fields)}${task}\n`;
-    return [{ path: `steps/${name}/SKILL.md`, content: skill }];
+    return [
+      { path: `steps/${name}/SKILL.md`, content: skill },
+      { path: `steps/${name}/agents/openai.yaml`, content: USER_ONLY },
+    ];
   }
   // "./" first: cd reads no option from it (-P), and CDPATH takes no part.
   const cwd = typeof config["cwd"] === "string" ? `cd ${quoted(`./${config["cwd"]}`)} || exit 1\n` : "";
   const skill = `${frontmatter({ name, description: describe(`${head}: runs its command`), [OWN]: true })}Run the script \`scripts/run.sh\` of this skill's folder with \`sh\`, from the project folder, exactly once. Report its exit code and the last 100 lines of its output.\n`;
   return [
     { path: `steps/${name}/SKILL.md`, content: skill },
+    { path: `steps/${name}/agents/openai.yaml`, content: USER_ONLY },
     { path: `steps/${name}/scripts/run.sh`, content: `#!/bin/sh\n${cwd}${textIn(node, "command")}\n` },
   ];
+};
+
+/** A tool's plugin manifest: the step skills and that tool's stage skills. */
+export const manifestOf = (
+  workflow: WorkflowDefinition,
+  { plugin, level, folder }: { plugin: string; level: AutomationLevel; folder: string },
+): string => {
+  const description = describe(`The CedarLoom workflow ${titleOf(workflow)}, at the automation level ${level}.`);
+  const manifest = { name: plugin, version: workflow.metadata.version, description, skills: ["./steps/", folder] };
+  return `${JSON.stringify(manifest, null, 2)}\n`;
 };

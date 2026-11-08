@@ -94,6 +94,33 @@ export const inputsOf = (workflow: WorkflowDefinition, stage: Stage): string[] =
   ];
 };
 
+// Each command carries the inputs its stage and every later stage read, through stages that read none.
+export const nextsOf =
+  (workflow: WorkflowDefinition, stages: Stage[], command: (stage: Stage) => string) =>
+  (gate: string): Next[] => {
+    const carried = (stage: Stage): string[] => {
+      const reached = new Set([stage]);
+      for (const each of reached) {
+        for (const next of stages.filter((other) => each.nodes.some((node) => node.id === other.from?.node))) {
+          reached.add(next);
+        }
+      }
+      return [...new Set([...reached].flatMap((each) => inputsOf(workflow, each)))];
+    };
+    return stages
+      .filter((stage) => stage.from?.node === gate)
+      .map((stage) => ({ command: command(stage), inputs: carried(stage) }));
+  };
+
+/** The precheck's script, where both tools' start skills run it; no workflow text reaches a skill's body. */
+export const PRECHECK_SCRIPT = "scripts/precheck.sh";
+
+/** The precheck of a workflow, as the script that runs it, or none. */
+export const precheckOf = (workflow: WorkflowDefinition): { path: string; content: string }[] => {
+  const precheck = workflow.nodes.find((node) => node.type === "trigger.manual")?.with?.["precheck"];
+  return typeof precheck === "string" ? [{ path: PRECHECK_SCRIPT, content: `#!/bin/sh\n${precheck}\n` }] : [];
+};
+
 const sourceOf = (edge: Edge): Source =>
   "input" in edge.from ? { input: edge.from.input } : { output: `${edge.from.node}.${edge.from.handle}` };
 

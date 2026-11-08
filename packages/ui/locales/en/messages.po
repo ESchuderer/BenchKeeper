@@ -249,7 +249,7 @@ msgstr "Join {node} has {count} incoming branches; a join needs at least two."
 
 #. js-lingui-explicit-id
 msgid "problem.exclusiveSources"
-msgstr "Input {handle} of node {node} waits for outputs of {from} of which only one fires, so {node} is always skipped; merge them in a join with policy any."
+msgstr "Input {handle} of node {node} waits for outputs of {from} of which only one fires, so {node} is always skipped; give each branch a node of its own."
 
 #. js-lingui-explicit-id
 msgid "problem.optionalInput"
@@ -573,7 +573,7 @@ msgstr "They run no command or agent and write no file."
 
 #. js-lingui-explicit-id
 msgid "import.riskKind"
-msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} write {Writes} workflow {Calls the workflow} other {{kind}}} ({node}):"
+msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} workflow {Calls the workflow} other {{kind}}} ({node}):"
 
 #. js-lingui-explicit-id
 msgid "import.licenseCount"

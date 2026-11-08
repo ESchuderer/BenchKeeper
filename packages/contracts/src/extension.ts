@@ -32,7 +32,7 @@ export const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, m
 
 /** An extension's id: `publisher.name` in lower case, the form of a VS Code extension id. */
 // Publishers no extension takes: docs/agents/cedarloom-rationale.md#publishers
-const RESERVED = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0]))];
+const RESERVED = [...new Set([...Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0]), "file"])];
 export const ExtensionId = z
   .string()
   .regex(new RegExp(`^(?!(?:${RESERVED.join("|")})\\.)[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$`))

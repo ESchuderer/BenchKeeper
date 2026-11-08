@@ -60,8 +60,8 @@ export const DataType = z.enum(["string", "number", "boolean", "json"]).register
 export const HandleType = z.enum(["control", ...DataType.options]).register(fileFormats, { id: "HandleType" });
 export type HandleType = z.infer<typeof HandleType>;
 
-/** When a join lets the run continue: once all its branches ended, or once the first did. */
-const JoinPolicy = z.enum(["all", "any"]).register(fileFormats, { id: "JoinPolicy" });
+/** When a join lets the workflow go on: once all its branches ended. */
+const JoinPolicy = z.enum(["all"]).register(fileFormats, { id: "JoinPolicy" });
 
 /** The configuration of a `join` node. */
 export const JoinConfig = z.strictObject({ policy: JoinPolicy }).register(fileFormats, { id: "JoinConfig" });

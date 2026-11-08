@@ -17,6 +17,7 @@
       "id": "ask",
       "type": "human.approval",
       "with": {
+        "gate": "merge",
         "message": "Publish the notes?"
       }
     },
@@ -28,33 +29,48 @@
       }
     },
     {
-      "id": "fix",
-      "type": "agent.run",
-      "with": {
-        "task": "Explain why the build failed."
-      }
-    },
-    {
       "id": "gate",
       "type": "condition"
+    },
+    {
+      "id": "lint",
+      "type": "command.run",
+      "with": {
+        "command": "pnpm lint"
+      }
     },
     {
       "id": "merge",
       "type": "join",
       "with": {
-        "policy": "any"
+        "policy": "all"
       }
     },
     {
       "id": "notes",
-      "type": "file.write",
+      "type": "agent.run",
       "with": {
-        "path": "notes/build.md"
+        "effort": "high",
+        "model": "opus",
+        "skill": "build-notes",
+        "task": "Write the build notes from the build output.",
+        "tools": [
+          "Read",
+          "Write"
+        ]
       }
     },
     {
       "id": "start",
       "type": "trigger.manual"
+    },
+    {
+      "id": "test",
+      "type": "command.run",
+      "with": {
+        "command": "pnpm test",
+        "role": "check"
+      }
     }
   ],
   "edges": [
@@ -70,9 +86,53 @@
       }
     },
     {
+      "id": "e12",
+      "from": {
+        "node": "notes",
+        "handle": "done"
+      },
+      "to": {
+        "node": "test",
+        "handle": "run"
+      }
+    },
+    {
       "id": "e2",
       "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "lint",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e3",
+      "from": {
         "node": "build",
+        "handle": "done"
+      },
+      "to": {
+        "node": "merge",
+        "handle": "branches"
+      }
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "lint",
+        "handle": "done"
+      },
+      "to": {
+        "node": "merge",
+        "handle": "branches"
+      }
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "merge",
         "handle": "done"
       },
       "to": {
@@ -81,7 +141,7 @@
       }
     },
     {
-      "id": "e3",
+      "id": "e6",
       "from": {
         "input": "publish"
       },
@@ -91,7 +151,7 @@
       }
     },
     {
-      "id": "e4",
+      "id": "e7",
       "from": {
         "node": "gate",
         "handle": "true"
@@ -102,58 +162,25 @@
       }
     },
     {
-      "id": "e5",
-      "from": {
-        "node": "gate",
-        "handle": "false"
-      },
-      "to": {
-        "node": "merge",
-        "handle": "branches"
-      }
-    },
-    {
-      "id": "e6",
+      "id": "e8",
       "from": {
         "node": "ask",
         "handle": "approved"
       },
       "to": {
-        "node": "merge",
-        "handle": "branches"
-      }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "merge",
-        "handle": "done"
-      },
-      "to": {
         "node": "notes",
         "handle": "run"
-      }
-    },
-    {
-      "id": "e8",
-      "from": {
-        "node": "build",
-        "handle": "stdout"
-      },
-      "to": {
-        "node": "notes",
-        "handle": "content"
       }
     },
     {
       "id": "e9",
       "from": {
         "node": "build",
-        "handle": "failed"
+        "handle": "stdout"
       },
       "to": {
-        "node": "fix",
-        "handle": "run"
+        "node": "notes",
+        "handle": "context"
       }
     }
   ],

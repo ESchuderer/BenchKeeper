@@ -181,7 +181,6 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
 const REPORTING = new Set([
   "trigger.manual",
   "trigger.schedule",
-  "file.read",
   "condition",
   "join",
   "human.approval",
@@ -191,7 +190,7 @@ const REPORTING = new Set([
 
 /**
  * A28: a report run, as a schedule starts, has only nodes of a type known not to write, so a type added later is
- * refused until it is listed: no file.write, and no workflow.run, whose child the validator cannot see.
+ * refused until it is listed, and so is workflow.run, whose child the validator cannot see.
  */
 const reportOnly = (nodes: WorkflowDefinition["nodes"]): Finding[] =>
   nodes.flatMap((node): Finding[] =>
@@ -210,15 +209,12 @@ const strays = ({ workflow, types }: Graph): Finding[] =>
 
 type Item = Graph["resolved"][number];
 
-// A control input fed by two exclusive outputs of one node waits forever, so its node is skipped; a join `any` merges.
-const exclusiveSources = ({ nodes, types, resolved }: Graph): Finding[] => {
-  const merges = new Set(
-    nodes.filter((node) => node.type === "join" && node.with?.["policy"] === "any").map((n) => n.id),
-  );
+// A control input fed by two exclusive outputs of one node waits forever, so its node is skipped.
+const exclusiveSources = ({ types, resolved }: Graph): Finding[] => {
   const fed = new Map<string, { node: string; handle: string; from: string; outputs: Set<string> }>();
   for (const { edge, to: type } of resolved) {
     const { from, to } = edge;
-    if (!("node" in from) || !("node" in to) || type !== "control" || merges.has(to.node)) continue;
+    if (!("node" in from) || !("node" in to) || type !== "control") continue;
     if (own(types.get(from.node)?.outputs, from.handle)?.exclusive !== true) continue;
     const key = `${to.node}\0${to.handle}\0${from.node}`;
     const entry = fed.get(key) ?? { node: to.node, handle: to.handle, from: from.node, outputs: new Set<string>() };

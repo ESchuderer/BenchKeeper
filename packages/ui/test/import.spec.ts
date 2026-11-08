@@ -18,23 +18,20 @@ let state = "";
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const FILES = ["cedarloom-export.json", "workflows/workflow-w.json"];
 
-// A command whose right-to-left override (U+202E) would show it to a reader as "echo txt.exe" (Trojan Source).
-const TROJAN = { id: "trojan", type: "command.run", with: { command: "echo \u202Eexe.txt" } };
-
-// The corpus's build-and-review stored on the machine of `at` as `id`, with `more` nodes.
-const store = (at: string, id: string, more: object[] = []): void => {
+// The corpus's build-and-review stored on the machine of `at` as `id`.
+const store = (at: string, id: string): void => {
   const base = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
-  const workflow = { ...base, metadata: { ...base.metadata, id, version: "1.0.0" }, nodes: [...base.nodes, ...more] };
+  const workflow = { ...base, metadata: { ...base.metadata, id, version: "1.0.0" } };
   const saved = saveDraft(at, id, workflow, null);
   const save = saved.ok ? planSave(at, id, { onTop: false }) : saved;
   if (!save.ok) throw new Error(`${id} was not saved`);
   applyPlan(at, save.value.plan, { yes: true });
 };
 
-// Another machine's export of the corpus's build-and-review as w, with TROJAN, served as one commit of any Git source.
+// Another machine's export of the corpus's build-and-review as w, served as one commit of any Git source.
 const exported = (root: string): Fetch => {
   const from = join(root, "from");
-  store(from, "w", [TROJAN]);
+  store(from, "w");
   const folder = join(from, "shared");
   const exporting = planExport(from, ["w"], folder, { name: "Team flows" });
   if (!exporting.ok) throw new Error("w was not exported");
@@ -64,7 +61,7 @@ test.afterAll(async () => {
   }
 });
 
-test("an import shows every command and agent task, a bidirectional control escaped, before anything is stored, is offered again only after a new review once the store moved, imports on the user's word, and then offers nothing; the view passes axe", async () => {
+test("an import shows every command and agent task before anything is stored, is offered again only after a new review once the store moved, imports on the user's word, and then offers nothing; the view passes axe", async () => {
   await page.goto(server.url);
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Import" }).click();
   const main = page.getByRole("main");
@@ -74,8 +71,7 @@ test("an import shows every command and agent task, a bidirectional control esca
   // The review takes the focus, so a screen reader reads it first.
   await expect(main.getByRole("heading", { level: 3 })).toBeFocused();
   await expect(main.getByRole("row").filter({ hasText: /^w/ })).toHaveCount(1);
-  // The override shows as its escape, so the line reads as the command that runs.
-  for (const line of ["pnpm lint", "pnpm test", "Review the changes and list findings.", "echo \\u202eexe.txt"]) {
+  for (const line of ["pnpm lint", "pnpm test", "Review the changes and list findings."]) {
     await expect(main.getByRole("listitem").filter({ hasText: line })).toHaveCount(1);
   }
   await accessible(page);

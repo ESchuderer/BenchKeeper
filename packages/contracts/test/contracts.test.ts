@@ -206,7 +206,7 @@ test("canonical JSON sorts keys at every depth, keeps array order and has no whi
   expect(canonicalJson({ a: "é\n", "": 1, b: [3, { x: true, y: null }], gone: undefined })).toBe(a);
 });
 
-const path = (value: string): boolean => NODE_CONFIGS["file.read"].safeParse({ path: value }).success;
+const path = (value: string): boolean => NODE_CONFIGS["command.run"].safeParse({ command: "true", cwd: value }).success;
 
 test("node configuration: five-field numeric cron, IANA time zones, paths inside the project", () => {
   const valid = ["0 3 * * *", "*/15 * * * *", "0 9-17/2 * * 1-5", "0,30 8 1 1,6 0", "59 23 31 12 6"];
@@ -238,16 +238,34 @@ test("node configuration: five-field numeric cron, IANA time zones, paths inside
     "a\u2028/../../x",
     "a\u0000b",
     "a\tb",
+    "src/\u202etxt.exe",
   );
   expect(inside.map(path)).toEqual(inside.map(() => true));
   expect(outside.map(path)).toEqual(outside.map(() => false));
 });
 
+test("a command, task, precheck or approval message holds tabs and line breaks, but no other control or bidi character", () => {
+  const fields: [keyof typeof NODE_CONFIGS, string, object][] = [
+    ["command.run", "command", {}],
+    ["agent.run", "task", {}],
+    ["trigger.manual", "precheck", {}],
+    ["trigger.schedule", "precheck", { cron: "0 3 * * *" }],
+    ["human.approval", "message", {}],
+  ];
+  const ok = (text: string): boolean[] =>
+    fields.map(([type, key, rest]) => NODE_CONFIGS[type].safeParse({ ...rest, [key]: text }).success);
+  expect(ok("echo a\tb\nls")).toEqual([true, true, true, true, true]);
+  // A reviewed workflow must not show one line and hold another: overrides, isolates, a carriage return, a NUL.
+  for (const text of ["echo \u202e", "echo \u2066x\u2069", "echo a\rb", "echo a\u0000b"]) {
+    expect([text, ok(text)]).toEqual([text, [false, false, false, false, false]]);
+  }
+});
+
 test("the path pattern in the JSON Schema documents means the same without the u flag", async () => {
   const document = JSON.parse(
-    await readFile(join(import.meta.dirname, "..", "schema", "FileReadConfig.schema.json"), "utf8"),
+    await readFile(join(import.meta.dirname, "..", "schema", "CommandRunConfig.schema.json"), "utf8"),
   );
-  const pattern = new RegExp(String(document.properties.path.pattern));
+  const pattern = new RegExp(String(document.properties.cwd.pattern));
   expect(["src/package.json", "Cc/p{x}.md"].map((value) => pattern.test(value))).toEqual([true, true]);
   expect(["../a", "a/\n/../../x", "/etc/hosts"].map((value) => pattern.test(value))).toEqual([false, false, false]);
 });

@@ -1,7 +1,8 @@
 // Unsafe characters and their escaping, in a module without schemas, so a browser bundle can import them without zod.
 
 // Characters no shown text may hold: docs/agents/cedarloom-rationale.md#unsafe-text
-export const UNSAFE = "\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069";
+// The controls (\p{Cc}) as their two ranges: a JSON Schema pattern then means the same with or without the u flag.
+export const UNSAFE = "\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069";
 const unsafe = new RegExp(`[${UNSAFE}]`, "u");
 const unsafeAll = new RegExp(`[${UNSAFE}]`, "gu");
 

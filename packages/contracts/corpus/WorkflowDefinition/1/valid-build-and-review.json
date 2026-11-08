@@ -39,7 +39,7 @@
       "id": "review",
       "type": "agent.run",
       "with": {
-        "provider": "claude-code",
+        "fresh": true,
         "task": "Review the changes and list findings."
       }
     },

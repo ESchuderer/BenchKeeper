@@ -196,7 +196,7 @@ const textOf = (node: Node, key: string): string | undefined => {
   const value: unknown = Reflect.get(Object(node.with), key);
   return typeof value === "string" ? value : undefined;
 };
-// Each line a node runs or writes, by its type: every command and task in full (a workflow is code in effect).
+// Each line a node runs, by its type: every command and task in full (a workflow is code in effect).
 const LINES: Record<string, (node: Node) => [Risk["kind"], string | undefined][]> = {
   "trigger.schedule": (node) => [
     [
@@ -208,7 +208,6 @@ const LINES: Record<string, (node: Node) => [Risk["kind"], string | undefined][]
   "trigger.manual": (node) => [["precheck", textOf(node, "precheck")]],
   "command.run": (node) => [["command", textOf(node, "command")]],
   "agent.run": (node) => [["agent", textOf(node, "task")]],
-  "file.write": (node) => [["write", textOf(node, "path")]],
   "workflow.run": (node) => [["workflow", textOf(node, "workflow")]],
 };
 const risksOf = (workflow: WorkflowDefinition): Risk[] =>

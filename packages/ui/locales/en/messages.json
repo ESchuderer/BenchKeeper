@@ -91,7 +91,6 @@
           "precheck": ["Precheck"],
           "command": ["Command"],
           "agent": ["Agent task"],
-          "write": ["Writes"],
           "workflow": ["Calls the workflow"],
           "other": [["kind"]]
         }
@@ -203,7 +202,7 @@
       ["from"],
       " of which only one fires, so ",
       ["node"],
-      " is always skipped; merge them in a join with policy any."
+      " is always skipped; give each branch a node of its own."
     ],
     "problem.extra": [
       ["item"],

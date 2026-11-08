@@ -6,7 +6,8 @@
     "command": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 10000
+      "maxLength": 10000,
+      "pattern": "^(?:[\\t\\n]|[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$"
     },
     "cwd": {
       "description": "The project folder when absent",
@@ -14,6 +15,14 @@
       "minLength": 1,
       "maxLength": 1024,
       "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?![\\s\\S]*(?:^|\\/)\\.\\.(?:\\/|$))[^\\\\]+$"
+    },
+    "role": {
+      "description": "check: the agent step before it cannot end while the command fails; step when absent",
+      "type": "string",
+      "enum": [
+        "step",
+        "check"
+      ]
     }
   },
   "required": [

@@ -22,7 +22,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Publishers
 
-`extension.ts` (`RESERVED`). No extension takes a publisher that is the first part of a built-in node type (trigger, agent, command, file, human, workflow, condition, join), so an id never reads like a built-in type. It kept extension action nodes, gone since 2026-11-08, from posing as built-in ones (`trigger.acme/go`), and it stays because loosening an id rule later is easy, while tightening one breaks the ids already published. `cedarloom` is first-party: the app ships its extensions, and a Git install refuses that publisher, since trust comes from where the files are.
+`extension.ts` (`RESERVED`). No extension takes a publisher that is or was the first part of a built-in node type (trigger, agent, command, file, human, workflow, condition, join), so an id never reads like a built-in type. `file` stays reserved after the file nodes left the schema on 2026-11-08. It kept extension action nodes, gone since 2026-11-08, from posing as built-in ones (`trigger.acme/go`), and it stays because loosening an id rule later is easy, while tightening one breaks the ids already published. `cedarloom` is first-party: the app ships its extensions, and a Git install refuses that publisher, since trust comes from where the files are.
 
 ### Credential schemes
 

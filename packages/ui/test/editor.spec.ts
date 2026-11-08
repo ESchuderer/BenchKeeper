@@ -225,10 +225,10 @@ test("import reads a workflow file, export writes it back in its canonical form,
 
 test("Import fits the new graph in view", async () => {
   await page.getByRole("button", { name: "New workflow" }).click();
-  // A new workflow's one node is fitted at the highest zoom. The imported row of eight is wider than the canvas at
+  // A new workflow's one node is fitted at the highest zoom. The imported row of nine is wider than the canvas at
   // that zoom, so all of it is in view only when the canvas fits it anew.
   await page.locator('input[type="file"]').setInputFiles(join(corpus, "valid-condition-and-join.json"));
-  for (const id of ["@inputs", "ask", "build", "fix", "gate", "merge", "notes", "start"]) {
+  for (const id of ["@inputs", "ask", "build", "gate", "lint", "merge", "notes", "start", "test"]) {
     await expect(card(id)).toBeInViewport();
   }
 });
@@ -339,11 +339,12 @@ test("auto layout runs ELK in a worker and moves only positions in one undo step
   expect(Object.keys(after.layout.nodes).toSorted()).toEqual([
     "ask",
     "build",
-    "fix",
     "gate",
+    "lint",
     "merge",
     "notes",
     "start",
+    "test",
   ]);
   expect(after.layout.nodes["start"]?.x).toBeLessThan(after.layout.nodes["notes"]?.x ?? 0);
   await page.getByRole("button", { name: "Undo" }).click();

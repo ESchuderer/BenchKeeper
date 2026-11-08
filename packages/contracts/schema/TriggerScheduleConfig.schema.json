@@ -15,6 +15,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 10000,
+      "pattern": "^(?:[\\t\\n]|[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$",
       "description": "A read-only command run before the workflow: exit code 0 starts the run, any other skips it"
     }
   },

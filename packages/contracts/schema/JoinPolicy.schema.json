@@ -3,7 +3,6 @@
   "$id": "JoinPolicy.schema.json",
   "type": "string",
   "enum": [
-    "all",
-    "any"
+    "all"
   ]
 }

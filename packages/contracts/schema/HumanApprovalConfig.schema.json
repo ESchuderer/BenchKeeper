@@ -6,7 +6,17 @@
     "message": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 2000
+      "maxLength": 2000,
+      "pattern": "^(?:[\\t\\n]|[^\\u0000-\\u001F\\u007F-\\u009F\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069])*$"
+    },
+    "gate": {
+      "description": "The level's gate this is: it stops where the level keeps it (Supervised all three, Checkpoint merge, Auto none), and at every level when absent",
+      "type": "string",
+      "enum": [
+        "implementation",
+        "verdict",
+        "merge"
+      ]
     }
   },
   "required": [

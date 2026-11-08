@@ -4,8 +4,8 @@ import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./ex
 import { GitSource, PACK_ID, PackId, skillFolder, skillName } from "./pack.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
-import { shown, UNSAFE } from "./escape.ts";
-import { PlainText } from "./text.ts";
+import { shown } from "./escape.ts";
+import { LinedText, PlainText } from "./text.ts";
 import type { Json } from "./json.ts";
 import { JsonValue, License, SEMVER, semver } from "./workflow.ts";
 
@@ -35,15 +35,7 @@ const Color = z.string().regex(/^[0-9a-f]{6}$/);
 export const PackRef = z.strictObject({ pack: PackId, path: PortablePath });
 export type PackRef = z.infer<typeof PackRef>;
 // A rules text or template: a pack's entry, or inline text with tabs and line breaks but no other control character.
-const Text = z.union([
-  PackRef,
-  z.strictObject({
-    inline: z
-      .string()
-      .max(16_384)
-      .regex(new RegExp(`^(?:[\\t\\n]|[^${UNSAFE}])*$`, "u"), "no control character but tab and line break"),
-  }),
-]);
+const Text = z.union([PackRef, z.strictObject({ inline: LinedText.max(16_384) })]);
 
 // A marketplace in the user settings, at a branch or tag: sources take no commit (https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
 const Name = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);

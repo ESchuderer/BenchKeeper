@@ -113,7 +113,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.duplicate-edge": (p) =>
     `Edge ${p.edge} joins the same output to the same input as edge ${p.of}; remove one.`,
   "workflow.exclusive-sources": (p) =>
-    `Input ${p.handle} of node ${p.node} waits for outputs of ${p.from} of which only one fires, so ${p.node} is always skipped; merge them in a join with policy any.`,
+    `Input ${p.handle} of node ${p.node} waits for outputs of ${p.from} of which only one fires, so ${p.node} is always skipped; give each branch a node of its own.`,
   "workflow.optional-input": (p) =>
     `Input ${p.handle} of node ${p.node} needs a value, but the workflow input ${p.input} it comes from is optional and has no default.`,
   "workflow.schedule-input": (p) =>

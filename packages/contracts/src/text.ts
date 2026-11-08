@@ -8,3 +8,11 @@ import { UNSAFE } from "./escape.ts";
 export const PlainText = z
   .string()
   .regex(new RegExp(`^[^${UNSAFE}]*$`, "u"), "no control character and no bidirectional control");
+
+/**
+ * Text of many lines that a workflow runs or a profile writes: tabs and line breaks, but no other control character and
+ * no bidirectional control, so a reviewed text cannot show one line and hold another (hub 198).
+ */
+export const LinedText = z
+  .string()
+  .regex(new RegExp(`^(?:[\\t\\n]|[^${UNSAFE}])*$`, "u"), "no control character but tab and line break");

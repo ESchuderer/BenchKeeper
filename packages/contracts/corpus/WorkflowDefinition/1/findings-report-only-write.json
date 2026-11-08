@@ -3,15 +3,15 @@
   "kind": "cedarloom.workflow",
   "metadata": {
     "id": "report-only-write",
-    "name": "A scheduled workflow that writes a file",
+    "name": "A scheduled workflow that runs a child workflow",
     "version": "1.0.0"
   },
   "nodes": [
     {
       "id": "notes",
-      "type": "file.write",
+      "type": "workflow.run",
       "with": {
-        "path": "notes/nightly.md"
+        "workflow": "nightly.json"
       }
     },
     {

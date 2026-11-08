@@ -226,9 +226,15 @@ const windowLines = (name: string, readings: readonly Reading[], now: number): s
       ];
 };
 
-// claude-swap's readings of the accounts, kept before they are shown; what keeps it from answering is reported.
-const readSwap = async (ctx: Context): Promise<void> =>
-  report(ctx, await useCases.readSwapAccounts({ state: ctx.state, app: ctx.app, config: ctx.config }));
+const pathsOf = (ctx: Context) => ({ state: ctx.state, app: ctx.app, config: ctx.config });
+
+// claude-swap's readings of the accounts, kept before they are shown, and its interactive account; what keeps it from
+// answering is reported.
+const readSwap = async (ctx: Context): Promise<useCases.Interactive | null> => {
+  const { findings, interactive } = await useCases.readSwapAccounts(pathsOf(ctx));
+  report(ctx, findings);
+  return interactive;
+};
 
 export const accountsList = async (ctx: Context): Promise<number> => {
   const loaded = useCases.loadRegistry(ctx.config);
@@ -258,7 +264,7 @@ export const accountsList = async (ctx: Context): Promise<number> => {
 export const accountsStatus = async (ctx: Context): Promise<number> => {
   const loaded = useCases.loadRegistry(ctx.config);
   if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
-  await readSwap(ctx);
+  const interactive = await readSwap(ctx);
   const now = Date.now();
   const status = useCases.accountsStatus(ctx.state, loaded.value, now);
   if (!status.ok) return refused(ctx, "accounts", status.finding);
@@ -278,7 +284,49 @@ export const accountsStatus = async (ctx: Context): Promise<number> => {
     reason: s.reason,
   }));
   const none = "No confirmed pool. Confirm one with: cedarloom accounts pool confirm <pool>";
-  emit(ctx, "accounts-status", { pools: shown, readings }, lines.length > 0 ? lines.join("\n") : none);
+  const swapped =
+    interactive === null
+      ? []
+      : [
+          `interactive sessions: ${interactive.account ?? "an account no alias links"} (claude-swap account ${interactive.number})`,
+        ];
+  const human = [...swapped, ...(lines.length > 0 ? lines : [none])].join("\n");
+  emit(ctx, "accounts-status", { pools: shown, readings, interactive }, human);
+  return EXIT.ok;
+};
+
+/** Shows the interactive switch to an account, or with --yes makes it through claude-swap. */
+export const accountsSwitch = async (ctx: Context, name: string, { yes }: { yes?: true }): Promise<number> => {
+  const switched = await useCases.switchInteractive(pathsOf(ctx), name, yes === true);
+  if (!switched.ok) return refused(ctx, "accounts", switched.finding);
+  const { number, switched: done } = switched.value;
+  const outcome = done ? "now use" : "already use";
+  const human =
+    done === null
+      ? `Switches interactive sessions to ${name}: cswap switch ${number}\nNothing changed. Run the command again with --yes.`
+      : `Interactive sessions ${outcome} ${name} (claude-swap account ${number}).`;
+  emit(ctx, "accounts-switch", { account: name, number, switched: done }, human);
+  return EXIT.ok;
+};
+
+/** Shows claude-swap's settings; with a setting and its value and --yes, sets it through claude-swap. */
+export const accountsPolicy = async (
+  ctx: Context,
+  setting: { key: string; value: string } | null,
+  { yes }: { yes?: true } = {},
+): Promise<number> => {
+  const checked = setting === null ? null : useCases.checkSwapSetting(setting.key);
+  if (checked?.ok === false) return refused(ctx, "accounts", checked.finding);
+  if (setting !== null && yes !== true) {
+    const human = `Sets claude-swap's ${setting.key} to ${setting.value}: cswap config set -- ${setting.key} ${setting.value}\nNothing changed. Run the command again with --yes.`;
+    emit(ctx, "accounts-policy", { set: { [setting.key]: setting.value }, values: null }, human);
+    return EXIT.ok;
+  }
+  const set = setting === null ? {} : { [setting.key]: setting.value };
+  const values = await useCases.swapPolicy(pathsOf(ctx), set);
+  if (!values.ok) return refused(ctx, "accounts", values.finding);
+  const lines = Object.entries(values.value).map(([key, value]) => `${key}  ${String(value)}`);
+  emit(ctx, "accounts-policy", { set, values: values.value }, lines.join("\n"));
   return EXIT.ok;
 };
 

@@ -422,6 +422,8 @@ test("accounts: list shows the windows a choice counts now, status the account a
     schemaVersion: 1,
     pools: [{ agent: "claude", pool: "main", account: "work", reason: "no-readings" }],
     readings: [fiveHour],
+    // No claude-swap here: no interactive account.
+    interactive: null,
   });
 });
 

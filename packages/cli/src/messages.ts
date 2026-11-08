@@ -159,6 +159,14 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
     "you hold yourself falls under these rules.",
   "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
+  "accounts.swap-unlinked": (p) =>
+    `claude-swap has no account with the alias ${p.account}. Link it: cswap alias <its number in cswap list> ${p.account}`,
+  "accounts.swap-busy": (p) =>
+    `CedarLoom workers run on ${p.account}, so the interactive account does not move onto it until they end, as claude-swap's auto mode does not.`,
+  "accounts.swap-unavailable": () =>
+    "claude-swap is not installed, its extension is switched off, or its version is not one CedarLoom reads: cedarloom doctor says which.",
+  "accounts.swap-setting": (p) =>
+    `${p.key} is not one of claude-swap's auto mode settings (autoswitch.*), the only ones CedarLoom sets: cswap config set changes the others.`,
   "accounts.name-taken": (p) => `The registry has an account named ${p.account} already.`,
   "accounts.name-invalid": (p) =>
     `${p.name} is no name for an account or a pool: a lowercase letter or digit, then up to 31 more of them, - or _.`,

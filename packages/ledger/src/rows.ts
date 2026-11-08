@@ -162,7 +162,7 @@ CREATE TABLE gates (
 ) STRICT;
 `;
 
-// Hub issue writes the file ledger cannot undo (6.4), approved by hash, once per key; issue links stay local (ARW1-2).
+// Hub issue writes the file ledger cannot undo (section 6.4), approved by hash, once per key; issue links stay local (ARW1-2).
 export const OUTBOX_TABLES = `
 CREATE TABLE outbox (
   id TEXT PRIMARY KEY,

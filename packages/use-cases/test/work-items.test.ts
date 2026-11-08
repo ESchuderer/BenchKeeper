@@ -65,8 +65,8 @@ test("a linked run that ended in a mirrored repository posts one comment to its 
   const definition: WorkflowDefinition = {
     schemaVersion: 1,
     kind: "cedarloom.workflow",
-    metadata: { id: "fix", name: "Fix", version: "1.0.0" },
-    nodes: [{ id: "start", type: "trigger.manual" }],
+    metadata: { id: "mirror", name: "Mirror", version: "2.0.0" },
+    nodes: [{ id: "begin", type: "trigger.manual" }],
     edges: [],
   };
   const ended = (repo: string): string => {

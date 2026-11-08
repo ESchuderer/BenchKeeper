@@ -184,8 +184,7 @@ export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates";
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 
-// The selected profile composed with its parents. A bundled profile ships with this release, so only another file can
-// need a newer one.
+// The selected profile with its parents; a bundled one ships with this release, so only another file can be newer.
 const composedOf = (selection: ProfileSelection | null, app: string): Result<Composed> => {
   const root = rootOf(selection?.profile ?? DEFAULT_PROFILE);
   if (!root.ok) return root;
@@ -205,8 +204,7 @@ export const composedProfile = (profile: ProfileSelection["profile"]): Result<Pr
   return composed.ok ? { ok: true, value: composed.value.profile } : composed;
 };
 
-// An Orca part is on only while Orca is here, also when selected: Orca material is there only while its extension is
-// on (hub issue 146). Selecting a dev container part on still adds a container.
+// An Orca part is on only while Orca is here, also when selected (hub issue 146); a dev container part still adds one.
 const switchedOn = (parts: Map<string, Part>, select: Record<string, boolean>, probe: (when: Probe) => boolean) =>
   new Set(
     [...parts]

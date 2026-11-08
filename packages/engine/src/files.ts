@@ -26,8 +26,7 @@ export const errorCode = (error: unknown): string =>
 
 const changed = (): Error => Object.assign(new Error("the file changed during the write"), { code: "ECHANGED" });
 
-// Whether the folders on the way to `path` are still the real ones a plan named: its nearest folder that is there must
-// be its own real path, so a folder swapped for a link since the plan is found (hub issue 141).
+// Whether the folders to `path` are still real: a folder swapped for a link since the plan is found (hub issue 141).
 const realWay = (path: string): boolean => {
   let folder = dirname(path);
   while (lstatSync(folder, { throwIfNoEntry: false }) === undefined) folder = dirname(folder);
@@ -152,10 +151,7 @@ export const putBack = (aside: string, path: string): void => {
   flushFolder(dirname(path));
 };
 
-/**
- * Moves the target aside and checks it there: a change another process makes by path from now on lands in a new file
- * at the path, which the step then finds. A file that no longer hashes as `before` goes back.
- */
+// Moves the target aside and checks it there; a file no longer hashing as `before` goes back.
 const setAside = (path: string, aside: string, before: string): void => {
   try {
     renameSync(path, aside);
@@ -194,12 +190,7 @@ const putIn = (temp: string, path: string, aside: string): void => {
   unlinkSync(aside);
 };
 
-/**
- * A run step's write. The content goes to a flushed temporary file; an existing target is first set aside and checked
- * there, then the new file is linked in. So a change another process makes by path is refused, never overwritten;
- * only a write through a handle opened before the check, made after it, is lost. Between the two moves the path is
- * absent for a moment, and a crash there leaves the old file aside for recover() to put back.
- */
+// Refuses a change another process made by path: docs/agents/cedarloom-rationale.md#write-step
 export const writeStep = (
   target: Target & { aside: string; real: boolean },
   content: string,
@@ -208,8 +199,7 @@ export const writeStep = (
 ): void => {
   const { path, before, temp, aside } = target;
   // Checked before the missing folders are made, which would follow a link, and again right before the write.
-  // shortcut: a swap between the second check and the temp file's open still redirects the write, and Node has no openat
-  // to close that window; open each folder on the way by its handle once Node has one.
+  // shortcut: a swap after the second check still redirects the write; open each folder by handle once Node has openat.
   const way = (): void => {
     if (target.real && !realWay(path))
       throw Object.assign(new Error(`a link on the way to ${path}`), { code: "ELOOP" });

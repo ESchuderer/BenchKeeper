@@ -54,11 +54,7 @@ const removals = (plan: LevelPlan, stale: Iterable<string>, written: ReadonlyMap
   return { ok: true as const, value: plan };
 };
 
-/**
- * Writes each wanted file while it is absent or as CedarLoom last left it, and removes each stale one while it still
- * is; a file the owner changed or made stays and is reported. `written` holds what CedarLoom last left at each path
- * (the run store's `written`), which tells its own files from the owner's.
- */
+// Writes each file while absent or as CedarLoom last left it (`written`), removes stale ones alike; an owner's change stays.
 export const ownedFiles = (
   wanted: ReadonlyMap<string, Wanted>,
   stale: Iterable<string>,

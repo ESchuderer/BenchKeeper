@@ -61,10 +61,7 @@ CREATE TABLE contract_checks (
 ) STRICT;
 `;
 
-/**
- * One row per worker launch; a row without finishedAt is a lease on its account. Each keeps the settings it ran with
- * (A90), and the plugins its init line named (canonical JSON; null before the line).
- */
+// One row per worker launch, a lease while unfinished, with its settings (A90) and init line's plugins, canonical JSON.
 export const LAUNCH_TABLES = `
 CREATE TABLE launches (
   runId TEXT PRIMARY KEY,
@@ -108,11 +105,7 @@ CREATE TABLE usage_samples (
 CREATE INDEX usage_samples_by_account ON usage_samples (account, readAt);
 `;
 
-/**
- * Graph runs (M6), each in the real path of its project folder. The events are the source of truth; a run's status
- * and its attempts are projections, written in the same transaction as their event. A run's runner holds it by its
- * lease lock, as a launch does.
- */
+// Graph runs (M6) in their project's real path; status and attempts project the events, in the event's transaction.
 export const GRAPH_TABLES = `
 CREATE TABLE graph_runs (
   id TEXT PRIMARY KEY,
@@ -169,10 +162,7 @@ CREATE TABLE gates (
 ) STRICT;
 `;
 
-/**
- * The outbox of writes to hub issues that the file ledger cannot undo (section 6.4), each approved by its intent's hash
- * and queued once per idempotency key, and the runs linked to hub issues, which stay local (ARW1-2).
- */
+// Hub issue writes the file ledger cannot undo (section 6.4), approved by hash, once per key; issue links stay local (ARW1-2).
 export const OUTBOX_TABLES = `
 CREATE TABLE outbox (
   id TEXT PRIMARY KEY,

@@ -35,8 +35,7 @@ const MARKDOWN: Markers = ["<!-- cedarloom start -->", "<!-- cedarloom end -->"]
 // One block per project in its repository's exclude file, named by the project's path from the repository's root.
 const excludeMarkers = (anchor: string): Markers => [`# cedarloom start ${anchor}`, `# cedarloom end ${anchor}`];
 
-// Where each line that is the marker alone starts, a carriage return before its break allowed: a marker the owner
-// quotes inside a line is text.
+// Where each line holding only the marker starts (a CR before its break allowed); a marker inside a line is text.
 const markerLines = (text: string, marker: string): number[] => {
   const found: number[] = [];
   let at = 0;
@@ -47,8 +46,7 @@ const markerLines = (text: string, marker: string): number[] => {
   return found;
 };
 
-// Where CedarLoom's block lies: none when the text has none, or null when its markers are broken (one alone, one twice,
-// or out of order), where a write must not guess what is the owner's.
+// CedarLoom's block: none without one; null when its markers are broken, where a write must not guess the owner's text.
 const blockAt = (text: string, [start, end]: Markers): { from: number; to: number } | undefined | null => {
   const [starts, ends] = [markerLines(text, start), markerLines(text, end)];
   if (starts.length === 0 && ends.length === 0) return undefined;
@@ -124,8 +122,7 @@ const outside = (project: string, path: string): boolean => {
   return git || !within(real, project);
 };
 
-// A target's path on disk; refused when a link leads it outside the project, into its Git folder or onto a file only
-// its own parts write, which the profile's portable paths cannot name but a link can reach.
+// A target's path on disk, refused through a link: docs/agents/cedarloom-rationale.md#project-links
 const realTarget = (project: string, part: string, target: string): Result<string> => {
   const path = onDisk(join(project, ...target.split("/")));
   if (!outside(project, path) && !sealedTarget(relative(project, path).split(sep).join("/")))
@@ -133,8 +130,6 @@ const realTarget = (project: string, part: string, target: string): Result<strin
   return refuse({ code: "profile.target-linked", params: { part, target, path } });
 };
 
-// A project's plan: the composed profile, the project and its `.claude` folder as the disk names them, the fetched
-// folders, the folders the dev container parts' Templates wrote, by part id, and the parts approved by name.
 type Given = {
   resolved: Resolved;
   project: string;
@@ -157,9 +152,7 @@ const targetNames = (part: Whole): string[] => {
   return part.type === "gates" ? [...part.callers.map(gatePath), DEPENDABOT] : [];
 };
 
-// A caller of the reusable workflow of its name at the bound commit, with read access only, on each pull request and
-// merge queue entry, which every change to the default branch passes, whatever its name
-// (https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
+// A caller of the bound reusable workflow: docs/agents/cedarloom-rationale.md#gates
 const callerText = (name: string, repository: string, commit: string): string => `name: ${name}
 on:
   pull_request:
@@ -171,9 +164,7 @@ jobs:
     permissions:
       contents: read
 `;
-// Dependabot's version updates of the workflows' pins, each once the release is the cooldown's days old
-// (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#cooldown-).
-// The bound gates repository is ignored, so the binding stays the gates' one source and they move only by a new one.
+// Dependabot updates the workflows' pins after the cooldown: docs/agents/cedarloom-rationale.md#gates
 const dependabotText = (days: number, repository: string): string => `version: 2
 updates:
   - package-ecosystem: github-actions
@@ -204,8 +195,7 @@ const filesTexts = ({ resolved, fetched }: Given, id: string, part: Of<"files">)
 export const hasContainer = (project: string): boolean =>
   existsSync(join(project, ".devcontainer")) || existsSync(join(project, ".devcontainer.json"));
 
-// A dev container part's files where the project has none: what its Template wrote as the dev container, and nothing
-// else it ships. Before the part's approval its Template is not applied, so the approval line names the folder.
+// A dev container part's files where the project has none: its Template's output; before approval, none are applied.
 const containerTexts = ({ project, templates, approved }: Given, id: string): Result<[string, string][]> => {
   const folder = templates.get(id);
   if (hasContainer(project) || (folder === undefined && approved.has(`project.${id}`))) return { ok: true, value: [] };
@@ -216,8 +206,6 @@ const containerTexts = ({ project, templates, approved }: Given, id: string): Re
   return { ok: true, value: files.map(({ path, content }): [string, string] => [path, content.toString("utf8")]) };
 };
 
-// A part's targets and texts, and how it keeps them: a files part's from its texts, a gates part's from this machine's
-// gate source, a dev container's from what its Template wrote into `.devcontainer/`, an existing file left as it is.
 const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: Texts; keeping: Keeping }> => {
   if (part.type === "files") {
     const texts = filesTexts(given, id, part);
@@ -252,8 +240,7 @@ const foundOf = (given: Given, id: string, part: Whole): Result<{ found: Found[]
   return { ok: true, value: { found, keeping: read.value.keeping } };
 };
 
-// A part that is on and approved: each target it writes now, and those Git is to ignore. An `onlyIfAbsent` target
-// that is there stays as it is, ignored only while it holds what CedarLoom left there.
+// An approved part's targets and those Git ignores; a present `onlyIfAbsent` target stays, ignored while it is ours.
 const addTargets = (files: Files, keeping: Keeping, found: Found[], written: Written): void => {
   for (const { target, path, content, pack } of found) {
     const kept = keeping.onlyIfAbsent && existsSync(path);
@@ -275,8 +262,7 @@ const approval = (line: Approval, found: Found[]): Finding | undefined => {
   return { code: "profile.target-approval", params: { ...line, programs, configs } };
 };
 
-// Where a part's code comes from, for its approval line: the gates' bound workflows, or the dev container's Template
-// and Features; none for a files part, whose texts come from the profile's packs.
+// Where a part's code comes from, for its approval line: the gates' workflows or its Template and Features.
 const sourceOf = ({ resolved }: Given, part: Whole): string | null => {
   if (part.type === "gates") return resolved.gates ?? null;
   if (part.type === "files") return null;
@@ -313,9 +299,7 @@ const filesOf = (given: Given, written: Written) => {
   return { ok: true as const, value: files };
 };
 
-// The exclude file Git reads for a repository whose `.git` is in `root`: in its common Git folder, also from a linked
-// worktree, whose `.git` file names its own folder; null when `root` holds no `.git`. Each file is read as it is, never
-// checked first, so nothing changes between a check and its read.
+// null without a `.git`; read as it is, never checked first, so nothing changes between a check and its read.
 const excludeAt = (root: string): string | null => {
   const dotGit = join(root, ".git");
   let text: string;
@@ -342,8 +326,7 @@ const repositoryOf = (project: string): { root: string; exclude: string } | null
   }
 };
 
-// The project's Git exclude block with its machine-local files, each anchored at its path from the repository's root,
-// its glob characters escaped.
+// Anchored and with glob characters escaped, so each line matches only its own file.
 const excludeWrites = (project: string, paths: string[]): Result<Operation[]>[] => {
   const repository = repositoryOf(project);
   if (repository === null) return [];
@@ -374,8 +357,7 @@ const imports = (project: string, text: string): boolean =>
   /^@(?:\.\/)?AGENTS\.md[ \t]*$/m.test(text) ||
   onDisk(join(project, "CLAUDE.md")) === onDisk(join(project, "AGENTS.md"));
 
-// The project's CLAUDE.md: the owner's, or one to make with only `@AGENTS.md` when there is none (D31); and whether it
-// brings in AGENTS.md.
+// The project's CLAUDE.md: the owner's, or a new one with only `@AGENTS.md` (D31); and whether it brings in AGENTS.md.
 const claudeOf = ({ resolved }: Context, project: string) => {
   const path = join(project, "CLAUDE.md");
   const text = textFile(path);
@@ -385,9 +367,7 @@ const claudeOf = ({ resolved }: Context, project: string) => {
   return { ok: true as const, value: { path, owners: text.value !== null, create, imported } };
 };
 
-// The manual's writes: its two blocks, and the CLAUDE.md to make. An owner's CLAUDE.md that does not import AGENTS.md
-// is reported when no local block does, as Claude Code reads AGENTS.md by itself only without one
-// (https://code.claude.com/docs/en/memory#agents-md).
+// An owner's CLAUDE.md without `@AGENTS.md` is reported: docs/agents/cedarloom-rationale.md#manual
 const manualWrites = (context: Context, project: string) => {
   const claude = claudeOf(context, project);
   if (!claude.ok) return claude;
@@ -406,10 +386,7 @@ const manualWrites = (context: Context, project: string) => {
   return { ok: true as const, value: { writes, created, findings, local: local.value !== null } };
 };
 
-// The settings parts merged into the committed `.claude/settings.json` or the local `.claude/settings.local.json` by
-// `commit`, and the plugin parts `approved` names into the local one, the only one Claude Code downloads a plugin from;
-// each other plugin part that would change it waits for its approval by name, and is held back with the parts that
-// require it. Git ignores the local file while a part that writes it is on, also once its plugins are in place.
+// Settings and plugin parts into the settings files: docs/agents/cedarloom-rationale.md#settings-writes
 const settingsWrites = ({ resolved, project, claude, approved }: Given) => {
   const sets = (commit: boolean) =>
     partsOn(resolved, "settings").flatMap(([, part]) => (part.commit === commit ? [part.set] : []));
@@ -433,8 +410,7 @@ const settingsWrites = ({ resolved, project, claude, approved }: Given) => {
   return { ok: true as const, value };
 };
 
-// The owned files of a project's plan: the files parts' targets, and the packs' skills in `.claude/skills/`. A files
-// part's target wins over a pack's file at its path, and nothing either wants is stale.
+// The owned files: the files parts' targets and the packs' skills; a files part's target wins over a pack's file there.
 const ownedOf = (given: Given, files: Files, { written, record }: { written: Written; record: FilesRecord }) => {
   const skills = skillFiles(given.resolved, given.claude, { fetched: given.fetched, written, level: "project" });
   if (!skills.ok) return skills;
@@ -454,8 +430,7 @@ const ownedOf = (given: Given, files: Files, { written, record }: { written: Wri
   return { ok: true as const, value: { ...plan.value, findings: [...plan.value.findings, ...held], wanted: writing } };
 };
 
-// The files Git is to ignore: CLAUDE.local.md and the local settings while CedarLoom writes into them, and the local
-// targets of the files parts CedarLoom writes or holds. A target the owner changed is theirs, so Git keeps showing it.
+// A target the owner changed is theirs, so Git keeps showing it; the local manual and settings are ignored while written.
 const localPaths = (project: string, files: Files, owned: LevelPlan, local: { manual: boolean; settings: boolean }) => {
   const theirs = ownerChanged(owned);
   return [
@@ -465,9 +440,7 @@ const localPaths = (project: string, files: Files, owned: LevelPlan, local: { ma
   ];
 };
 
-// The plan, unless a link leads one of its paths in `.claude` outside the project, into its Git folder or onto a sealed
-// name (Claude Code's settings, an MCP list, the manual's files), where a skill's file would land elsewhere, such as in
-// a user's Claude Code home, Git's hooks or the committed settings.
+// The plan, unless a link leads a `.claude` path astray: docs/agents/cedarloom-rationale.md#project-links
 const unlinked = ({ project, claude }: Given, plan: LevelPlan): Result<LevelPlan> => {
   // The settings part's own files; any other path that a link leads onto a sealed name would bring hooks or servers.
   const own = new Set(["settings.json", "settings.local.json"].map((name) => join(claude, name)));
@@ -500,8 +473,7 @@ const blockWrites = (
   return { ok: true, value: [...writes.flatMap((write) => (write.ok ? write.value : [])), ...manual.created] };
 };
 
-// The parts that are on, less every part that requires one held back, at any depth, as such a part would rely on what
-// is not there; the held parts stay on, so they keep their approval lines.
+// The on parts minus each needing a held-back part, at any depth; held parts stay on to keep their approval lines.
 const unheld = (resolved: Resolved, held: ReadonlySet<string>): Resolved => {
   const on = new Set([...resolved.on].filter((key) => !held.has(key)));
   const parts = Object.entries(resolved.profile.project).map(([id, part]) => ({ key: `project.${id}`, part }));
@@ -513,8 +485,7 @@ const unheld = (resolved: Resolved, held: ReadonlySet<string>): Resolved => {
   return { ...resolved, on: new Set([...on, ...held]) };
 };
 
-// The plan's input with the parts held back for their approval (files parts with a target that may run or configure
-// a tool, plugin parts) holding back every part that requires them.
+// The input with the parts held for approval (risky targets, plugins) holding back each part that needs them.
 const heldOf = (given: Given, written: Written): Result<Given> => {
   const files = filesOf(given, written);
   if (!files.ok) return files;
@@ -524,8 +495,7 @@ const heldOf = (given: Given, written: Written): Result<Given> => {
   return { ok: true, value: { ...given, resolved: unheld(given.resolved, held) } };
 };
 
-// The project's committed record of the files CedarLoom wrote there; a link that leads it outside the project or into
-// its Git folder stops the plan, as the record would be read and written there.
+// The project's record of the files CedarLoom wrote: docs/agents/cedarloom-rationale.md#project-links
 const recordAt = (project: string): Result<{ path: string; record: FilesRecord }> => {
   const path = onDisk(join(project, ...FILES_RECORD.split("/")));
   if (outside(project, path))

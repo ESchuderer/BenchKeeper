@@ -56,9 +56,7 @@ export const column = (value: unknown): unknown => (typeof value === "string" ? 
 const blanked = (plan: unknown): string =>
   JSON.stringify(JSON.parse(String(plan), (key, value: unknown) => (key === "content" ? "" : value)));
 
-// Runs `work` with secure_delete on, which zeroes what its updates leave behind, such as a blanked plan's content, which
-// SQLite otherwise keeps on freed pages (https://www.sqlite.org/pragma.html#pragma_secure_delete). Only there: on every
-// write it kept another process's appends out longer.
+// Runs `work` with secure_delete on, which zeroes freed pages, here only: docs/agents/cedarloom-rationale.md#sqlite
 const zeroed = <T>(db: DatabaseSync, work: () => T): T => {
   db.exec("PRAGMA secure_delete = ON");
   try {
@@ -68,10 +66,7 @@ const zeroed = <T>(db: DatabaseSync, work: () => T): T => {
   }
 };
 
-// Moves the log into the database and empties it as the store closes, so the pages from before a blanking leave the
-// log too; a checkpoint at each finish kept another process's appends out. It waits for nothing, and while another
-// connection reads the store, such as a graph run's, it stops short without an error and the log keeps those pages
-// until that connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+// Empties the log as the store closes, pre-blanking pages too: docs/agents/cedarloom-rationale.md#sqlite
 const emptyLog = (db: DatabaseSync): void => {
   db.exec("PRAGMA busy_timeout = 0");
   try {
@@ -106,12 +101,10 @@ const leaseLockPath = (dir: string, name: string): string => join(dir, "leases",
 // The lock of a check of an account's login, such as `claude auth status`, which may renew it.
 const checkLockPath = (dir: string, account: string): string => join(dir, "checks", `${account}.lock`);
 
-// The locks of the leases this process holds. A lock the garbage collector takes closes its database and so lets go of
-// the lease: each stays referenced here until its release, whatever the launcher keeps.
+// The locks of this process's leases, kept referenced until release: a collected lock closes and lets the lease go.
 const heldLocks = new Set<DatabaseSync>();
 
-// Takes a run's lock without waiting, as the store lock is taken: an exclusive SQLite lock the OS releases when the
-// process ends, also on a crash. null when another connection holds it.
+// Takes a run's lock without waiting: an exclusive SQLite lock the OS frees when the process ends; null if held.
 const takeLock = (path: string): DatabaseSync | null => {
   const db = new DatabaseSync(path);
   try {
@@ -155,10 +148,7 @@ const lockHeld = (path: string): boolean => {
   return false;
 };
 
-/**
- * Takes the lease lock `name` (a launch's run id, or a graph run's id and epoch) until its release. Each name is taken
- * once: a probe or a release removes the file after letting go, which would strand a second taker on a removed file.
- */
+// Takes the lease lock `name` until release, once per name: a release removes the file a second taker would hold.
 export const newLease = (dir: string, name: string): LeaseLock => {
   mkdirSync(join(dir, "leases"), { recursive: true, mode: 0o700 });
   const held = hold(leaseLockPath(dir, name));
@@ -260,11 +250,7 @@ export class RunView {
     return join(backupsOf(this.dir, runId), String(index));
   }
 
-  /**
-   * Runs `read` with whether a process holds the store. When none does, the probe keeps a shared lock until `read`
-   * returns: a process opening the store for writing waits it out (see openRunStore), so a run cannot start between
-   * the probe and the read and look interrupted.
-   */
+  // Runs `read` with whether a process holds the store; a shared lock meanwhile keeps a run from starting in between.
   #probe<T>(read: (held: boolean) => T): T {
     const path = join(this.dir, "lock.sqlite");
     if (!existsSync(path)) return read(false);
@@ -550,8 +536,7 @@ export class RunStore extends RunView {
       .map((row) => ContractCheckRecord.parse(JSON.parse(String(row["row"]))));
   }
 
-  // Ends the leases whose launcher let go of the run's lock without a finish (a crash, a kill) as interrupted, and counts
-  // the others per account.
+  // Ends leases whose launcher let go of the lock without a finish as interrupted, and counts the others per account.
   #countLive(): Map<string, number> {
     const counts = new Map<string, number>();
     const end = this.db.prepare("UPDATE launches SET finishedAt = ?, verdict = 'interrupted' WHERE runId = ?");
@@ -690,12 +675,7 @@ export class RunStore extends RunView {
   }
 }
 
-/**
- * How long a connection to runs.sqlite waits when another one briefly locks it out: a writer's last close cleans up
- * the WAL, and the next open recovers it. Without the wait, reads and opens alongside another process's runs fail
- * with "database is locked". As long as the store lock's own wait: 250 ms was too short on a loaded CI runner, where
- * runs in a tight loop kept a reader out longer. The lock file's probe does not wait (see #probe).
- */
+// How long a connection waits while another briefly locks runs.sqlite: docs/agents/cedarloom-rationale.md#sqlite
 const SETTLE_MS = 1000;
 
 const versionOf = (db: DatabaseSync): number => Number(db.prepare("PRAGMA user_version").get()?.["user_version"]);
@@ -710,17 +690,13 @@ export const stateDir = (dir: string, detect: typeof filesystemType): Finding | 
     : null;
 };
 
-// A store at a schema other than this CedarLoom's: one from before 0.1.0 is not carried over, one a newer CedarLoom
-// wrote is not read.
+// A store at another schema: one from before 0.1.0 is not carried over, one from a newer CedarLoom is not read.
 const otherSchema = (dir: string, found: number): Finding =>
   found < SCHEMA
     ? { code: "store.older-schema", params: { dir, found, known: SCHEMA } }
     : { code: "store.newer-schema", params: { found, known: SCHEMA } };
 
-/**
- * Opens runs.sqlite in `dir` at this CedarLoom's schema and hands it to `use`: an empty store gets the schema in one
- * transaction, so a crash halfway leaves none to block the next open; a store at another schema is refused.
- */
+// Opens runs.sqlite at this schema for `use`; an empty store gets it in one transaction, another schema is refused.
 export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T> => {
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { timeout: SETTLE_MS });
   try {
@@ -746,8 +722,7 @@ export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T>
 export const openRunStore = (dir: string, detect = filesystemType): Result<RunStore> => {
   const refused = stateDir(dir, detect);
   if (refused !== null) return { ok: false, finding: refused };
-  // The OS releases this lock when the process exits, also on a crash: no stale lock file to take over. The wait
-  // outlasts a reader's probe, whose read meets no WAL cleanup (writers close runs.sqlite first); others are refused.
+  // Freed by the OS on exit or crash; it outlasts a probe, which meets no WAL cleanup as writers close runs.sqlite first.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
   try {
     lock.exec("PRAGMA busy_timeout = 1000; BEGIN EXCLUSIVE");

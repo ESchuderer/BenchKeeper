@@ -21,10 +21,7 @@ type Graph = {
   resolved: { edge: Edge; from: Resolved; to: Resolved }[];
   /** Node to node links of the edges without a finding of their own, for the cycle check. */
   next: Map<string, string[]>;
-  /**
-   * Node to node links of the edges that can order a node to run: into a control input, or into a handle that did not
-   * resolve, so one bad edge hides no node. An edge into a data input starts nothing.
-   */
+  // Links of edges that can order a node to run: into a control input, or into an unresolved handle, so none is hidden.
   reach: Map<string, string[]>;
 };
 
@@ -164,10 +161,7 @@ const sourceFindings = ({ workflow, nodes, edges, types }: Graph): Finding[] => 
   ];
 };
 
-/**
- * The first cycle of edges between nodes, in document order, or none: the normal path is a DAG. The recursion is as
- * deep as the longest path, which the schema's 1,000 nodes bound.
- */
+// The first cycle in document order, or none; the recursion's depth is bound by the schema's 1,000 nodes.
 const cycle = ({ nodes, next }: Graph): Finding[] => {
   const state = new Map<string, "open" | "done">();
   const visit = (node: string, path: string[]): string[] | undefined => {
@@ -183,10 +177,7 @@ const cycle = ({ nodes, next }: Graph): Finding[] => {
   return found === undefined ? [] : [{ code: "workflow.cycle", params: { nodes: found } }];
 };
 
-/**
- * Nodes of a known type that no path of control edges from the trigger reaches: they would never run, since a node
- * runs only once a control edge into it fired. Data alone (from a workflow input or a node) starts nothing.
- */
+// Known nodes no control path from the trigger reaches: they never run, as only a fired control edge starts a node.
 const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
   const triggers = nodes.filter(isTrigger);
   if (triggers.length !== 1) return [];
@@ -238,10 +229,7 @@ const strays = ({ workflow, types }: Graph): Finding[] =>
 
 type Item = Graph["resolved"][number];
 
-/**
- * A control input fed by two exclusive outputs of one node (true and false, done and failed, approved and rejected)
- * waits for an output that never fires, so its node is always skipped; a join with policy `any` merges them.
- */
+// A control input fed by two exclusive outputs of one node waits forever, so its node is skipped; a join `any` merges.
 const exclusiveSources = ({ nodes, types, resolved }: Graph): Finding[] => {
   const merges = new Set(
     nodes.filter((node) => node.type === "join" && node.with?.["policy"] === "any").map((n) => n.id),
@@ -260,10 +248,7 @@ const exclusiveSources = ({ nodes, types, resolved }: Graph): Finding[] => {
     .map(({ node, handle, from }): Finding => ({ code: "workflow.exclusive-sources", params: { node, handle, from } }));
 };
 
-/**
- * Inputs a run can lack: a required node input fed by an optional workflow input without a default, and a required
- * workflow input without a default when a schedule starts the run, which gives no inputs.
- */
+// Inputs a run can lack: a required one fed by an optional workflow input, or a required one when a schedule starts it.
 const inputFindings = ({ workflow, nodes, types, edges }: Graph): Finding[] => {
   const inputs = workflow.inputs ?? {};
   const optional = edges.flatMap(({ from, to }): Finding[] => {

@@ -19,10 +19,7 @@ const offer = (kind: string, name: string, named: Named): Offer[] => {
   return [{ item: `${kind}:${name}`, status: named.off.has(name) ? "deselected-present" : "extra" }];
 };
 
-/**
- * The plugins a settings value enables and the marketplaces it declares that no part that is on names; a marketplace
- * an enabled plugin comes from is offered only along with that plugin's removal, as the plugin would no longer resolve.
- */
+// Plugins and marketplaces no on part names; a marketplace in use is offered only with its plugin's removal.
 export const settingsOffers = (settings: Json, named: { plugins: Named; marketplaces: Named }, removing: string[]) => {
   const { plugins, marketplaces } = named;
   const enabled = keysOf(settings, "enabledPlugins").flatMap(([id, on]) => (on === true ? [id] : []));
@@ -45,11 +42,7 @@ const entries = (folder: string, deep = false): Dirent[] => {
   }
 };
 
-/**
- * The rules files and skill folders of a Claude Code home that are not `mine` (CedarLoom's wanted files and those
- * its plan removes): the owner's own or another tool's, which the plan offers to remove, each only when named. A skill
- * folder that holds a link is not offered, as removing it takes only files.
- */
+// A home's rules files and skill folders that are not `mine`, each offered for removal; a folder with a link is not.
 export const folderOffers = (home: string, mine: ReadonlySet<string>): Offer[] => {
   const rules = entries(join(home, "rules"))
     .filter((entry) => entry.isFile() && !mine.has(join(home, "rules", entry.name)))
@@ -71,8 +64,7 @@ export const offerLine = ({ item, status }: Offer): Finding =>
     ? { code: "profile.extra", params: { item } }
     : { code: "profile.drift", params: { status, subject: item, remove: item } };
 
-// A file's delete, with the hash it must still have; none when it cannot be read. The apply backs up text only, so a
-// file that is not UTF-8 stops the plan before anything is deleted.
+// A file's delete with the hash it must still have; a file that is not UTF-8 stops the plan, as only text is backed up.
 const deleteOf = (path: string): Result<Operation[]> => {
   try {
     if (!isUtf8(readFileSync(path))) return { ok: false, finding: { code: "apply.not-text", params: { path } } };
@@ -84,10 +76,6 @@ const deleteOf = (path: string): Result<Operation[]> => {
 };
 
 type Removals = { files: Operation[]; plugins: string[]; marketplaces: string[] };
-/**
- * What removing the named offers takes: the plugin and marketplace keys to drop from the settings, and a delete of a
- * rules file or of each file in a skill folder.
- */
 export const removalsOf = (home: string, items: readonly string[]): Result<Removals> => {
   const named = (kind: string) =>
     items.filter((item) => item.startsWith(`${kind}:`)).map((item) => item.slice(kind.length + 1));

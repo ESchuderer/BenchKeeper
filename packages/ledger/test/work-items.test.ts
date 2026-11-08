@@ -79,7 +79,12 @@ test("a claim counts while another process holds its lease, and the entry is due
   const lock = join(dir, "leases", `outbox-${id}.1.lock`);
   const script = `new (require("node:sqlite").DatabaseSync)(process.argv[1]).exec("BEGIN EXCLUSIVE"); console.log("held"); setInterval(() => {}, 1000);`;
   const holder = spawn(process.execPath, ["-e", script, lock], { stdio: ["ignore", "pipe", "inherit"] });
-  await once(holder.stdout, "data");
+  // A holder that ends before it holds the lock fails the test at once, not at its timeout.
+  const ready = await Promise.race([
+    once(holder.stdout, "data").then(() => true),
+    once(holder, "exit").then(() => false),
+  ]);
+  if (!ready) throw new Error("the lock holder ended before it held the lock");
   const held = store.claim(id);
   holder.kill("SIGKILL");
   await once(holder, "exit");

@@ -419,6 +419,11 @@
         "curl a push through git's protocol",
         "curl --data-binary @pack https://github.com/acme/notes.git/git-receive-pack",
         "unreadable"
+      ],
+      [
+        "curl git-receive-pack/ with a trailing slash",
+        "curl --data-binary @pack https://github.com/acme/notes.git/git-receive-pack/",
+        "unreadable"
       ]
     ],
     "interactive /work/app": [

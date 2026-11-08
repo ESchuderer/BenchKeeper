@@ -1281,7 +1281,7 @@ const curlUrl = (url: string, method: string, event: string | null, context: Con
   if (host === "api.github.com" || host === "uploads.github.com")
     return checkApiPath(method, parsed.href, event, context);
   if (!/^(?:(?:www\.)?github\.com|raw\.githubusercontent\.com|codeload\.github\.com)$/.test(host)) return null;
-  if (parsed.pathname.endsWith("/git-receive-pack")) return unreadable("curl pushes through git's own protocol");
+  if (/\/git-receive-pack\/?$/.test(parsed.pathname)) return unreadable("curl pushes through git's own protocol");
   const [owner = "", name = ""] = parsed.pathname.split("/").filter(Boolean);
   return checkRepos([ghRepo(`${owner}/${name.replace(/\.git$/i, "")}`)], context, `curl ${host}`);
 };

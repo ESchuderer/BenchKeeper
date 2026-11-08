@@ -381,7 +381,14 @@
         "curl a release asset",
         "curl -fsSLO https://objects.githubusercontent.com/github-production-release-asset-1/x",
         null
-      ]
+      ],
+      [
+        "curl one slash after the scheme",
+        "curl -X PUT -H \"Authorization: token $GH_TOKEN\" https:/api.github.com/repos/acme/app/pulls/1/merge",
+        "unreadable"
+      ],
+      ["gh api graphql/ by GET", "gh api graphql/ -X GET -f query=x", "unreadable"],
+      ["gh api an encoded slash in the query", "gh api 'search/issues?q=repo%3Aacme%2Fapp+is%3Apr'", null]
     ],
     "worker /work/fork": [
       ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],

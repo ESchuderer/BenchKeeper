@@ -991,7 +991,6 @@ const ghTargets = (group: string, command: string, rest: readonly Word[], contex
   );
 };
 
-// gh pr review approves with --approve or -a, alone or in a cluster.
 // gh pr review approves with --approve or -a, alone or in a cluster; a word the guard cannot read may be either.
 const approves = (rest: readonly Word[]): boolean =>
   rest.some(({ text, start }, i) => {
@@ -1085,7 +1084,8 @@ const eventOf = ({ fields, hidden }: ApiCall): string | null => {
 const checkGhApi = (rest: readonly Word[], context: Context): Denial | null => {
   const api = readApi(rest);
   if (api === null) return unreadable("gh api calls an endpoint, method or host the guard cannot read");
-  if (api.endpoint === "graphql" || apiPath(api.endpoint) === "/graphql") return checkGraphql(api.call, context);
+  if (api.endpoint === "graphql" || /^\/graphql\/?$/.test(apiPath(api.endpoint) ?? ""))
+    return checkGraphql(api.call, context);
   return checkApiPath(api.call.method, api.endpoint, eventOf(api.call), context);
 };
 
@@ -1093,7 +1093,7 @@ const checkGhApi = (rest: readonly Word[], context: Context): Denial | null => {
 // lower case; null for another host or a path the guard cannot decode.
 const apiPath = (endpoint: string): string | null => {
   // An encoded slash, backslash, dot or percent may route where the decoded path does not show.
-  if (/%(?:2f|5c|2e|25)/i.test(endpoint)) return null;
+  if (/%(?:2f|5c|2e|25)/i.test(endpoint.split(/[?#]/)[0] ?? "")) return null;
   try {
     const url = new URL(
       /^https?:\/\//i.test(endpoint) ? endpoint : `/${endpoint.replace(/^\//, "")}`,
@@ -1257,7 +1257,9 @@ const hostHeader = (given: readonly Option[]): boolean =>
 const curlTarget = (url: string): URL | null => {
   try {
     const parsed = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `https://${url}`);
-    return url.includes("\\") || parsed.username !== "" || parsed.password !== "" ? null : parsed;
+    // curl also takes `https:/host`, one slash, which the parser here would read as a path.
+    const odd = url.includes("\\") || /^[a-z][\w+.-]*:\/(?!\/)/i.test(url);
+    return odd || parsed.username !== "" || parsed.password !== "" ? null : parsed;
   } catch {
     return null;
   }

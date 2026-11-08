@@ -1640,7 +1640,6 @@
                 "fetch",
                 "list",
                 "read",
-                "worktree",
                 "commit",
                 "update"
               ]

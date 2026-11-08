@@ -1794,7 +1794,6 @@
                       "fetch",
                       "list",
                       "read",
-                      "worktree",
                       "commit",
                       "update"
                     ]
@@ -6701,7 +6700,6 @@
                       "fetch",
                       "list",
                       "read",
-                      "worktree",
                       "commit",
                       "update"
                     ]

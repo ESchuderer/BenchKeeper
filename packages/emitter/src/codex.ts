@@ -58,7 +58,7 @@ const agentLine = (head: string, step: Step, stage: StageScript, fresh: boolean)
   const context = step.context === undefined ? "" : `, with ${from(step.context)} as its context`;
   // A fresh context (coordinator, 247 Q3 b): Codex's own sub-agent with no earlier turns, no agent file of ours.
   const reviewer = fresh
-    ? ' Run it in a fresh sub-agent: call spawn_agent with fork_turns "none" and this task, and use its answer.'
+    ? ' Run it in a fresh sub-agent: call spawn_agent with fork_turns "none" and this task and its context, and use its answer.'
     : "";
   const checks = (step.checks ?? []).map((id) => {
     const check = stage.steps.find((each) => each.id === id);

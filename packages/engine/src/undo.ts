@@ -41,11 +41,7 @@ const next = (step: Step, actual: string | null, original: string | null | undef
   return actual === original ? "pass" : "edited";
 };
 
-/**
- * The plan that undoes a run, newest step first. Every step the run started counts, whatever its state. A path whose
- * file holds neither what the run left nor what it found (an edit since, also back to an intermediate version) is
- * skipped and reported; one that already holds its content from before the run needs nothing.
- */
+// Newest step first, every started one; a path edited since is skipped and reported, one already undone needs nothing.
 interface Walk {
   store: RunView;
   runId: string;

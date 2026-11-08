@@ -19,8 +19,7 @@ type Entry = ProfileFiles["files"][string];
 /** A project's committed record of the files CedarLoom wrote there, by path on disk. */
 export type FilesRecord = ReadonlyMap<string, Entry>;
 
-// A record that does not parse (a Git conflict in it), fit its schema or has a newer one, named, so the owner knows
-// which file to mend.
+// A record that does not parse, fit its schema or is newer, named so the owner knows which file to mend.
 const named = (finding: Finding, path: string): Finding => {
   if (finding.code === "document.invalid") return { ...finding, params: { ...finding.params, path } };
   return finding.code === "document.newer-schema" ? { ...finding, params: { ...finding.params, path } } : finding;
@@ -46,8 +45,7 @@ export const hashOrNull = (path: string): string | null => {
   }
 };
 
-// A text's hash with its line endings as LF, on both sides of the record, so a checkout that turned them into CRLF
-// (Git's `core.autocrlf` on Windows) or a CedarLoom text that has CRLF itself still matches.
+// A text's hash with CRLF as LF on both sides, so a checkout with `core.autocrlf` (Windows) still matches.
 const textDigest = (text: string): string => sha256(text.replaceAll("\r\n", "\n"));
 
 const textHash = (path: string): string | null => {
@@ -58,10 +56,7 @@ const textHash = (path: string): string | null => {
   }
 };
 
-/**
- * What CedarLoom last left at each path of a project: the run store's `written`, and the current hash of each file
- * that holds what the record names, as CedarLoom wrote it there from another clone.
- */
+// What CedarLoom last left at each path: the store's `written`, and files holding the record's text from another clone.
 export const withRecord = (written: Written, record: FilesRecord): Written => {
   const known = new Map(written);
   for (const [path, entry] of record) if (textHash(path) === entry.sha256) known.set(path, hashOrNull(path));
@@ -74,10 +69,7 @@ const versionOf = (pack: string): [string, string] => [
   pack.slice(pack.lastIndexOf("@") + 1),
 ];
 
-/**
- * The wanted files whose recorded text came from a newer version of their pack than this machine's: a clone on an older
- * CedarLoom leaves them as they are instead of writing its older text back (hub issue 160).
- */
+// Wanted files whose record came from a newer pack version: an older clone leaves them as they are (hub issue 160).
 export const newerRecorded = (record: FilesRecord, wanted: ReadonlyMap<string, Wanted>) =>
   [...wanted].flatMap(([path, { pack: local }]) => {
     const recorded = record.get(path)?.pack;
@@ -96,11 +88,7 @@ const entriesOf = (project: string, files: FilesRecord): [string, Entry][] =>
     .map(([at, entry]): [string, Entry] => [relative(project, at).split(sep).join("/"), entry])
     .toSorted(([a], [b]) => (a < b ? -1 : 1));
 
-/**
- * The record after a plan: each committed file the plan leaves holding CedarLoom's text set to it, each file it deletes
- * taken out, any other entry kept (a part held back, a file left as it is, another clone's profile). Written only when
- * its entries change, so a checkout's line endings never rewrite it.
- */
+// The record after a plan: CedarLoom's files set, deleted ones out, others kept; written only when entries change.
 export const recordWrite = (
   { project, path }: { project: string; path: string },
   record: FilesRecord,

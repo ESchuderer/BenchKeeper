@@ -42,7 +42,15 @@ import {
   type WorkerCallParams,
 } from "./protocol.ts";
 
-export { jsonAnswer, type ProgramVersion, programVersion, shellWord, valueAt } from "./answers.ts";
+export {
+  allowed,
+  jsonAnswer,
+  olderRelease,
+  type ProgramVersion,
+  programVersion,
+  shellWord,
+  valueAt,
+} from "./answers.ts";
 export * from "./protocol.ts";
 
 /**

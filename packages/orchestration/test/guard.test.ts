@@ -1,0 +1,53 @@
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { GuardPolicy } from "@cedarloom/contracts";
+import { guardCommand } from "@cedarloom/orchestration";
+import { expect, test } from "vitest";
+import { z } from "zod";
+
+const Fixtures = z.object({
+  policies: z.record(z.string(), GuardPolicy),
+  // Keyed by "<policy> <folder>": each case's name, command and the rule that refuses it (null: it runs).
+  cases: z.record(z.string(), z.array(z.tuple([z.string(), z.string(), z.string().nullable()]))),
+});
+const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "guard.json"), "utf8")));
+const cases = Object.values(fixtures.cases).flatMap((list) =>
+  list.map(([name, command, rule]) => ({ name, command, rule })),
+);
+
+test.each(cases)("$name", ({ command, rule }) => {
+  expect(guardCommand(command)?.rule ?? null).toBe(rule);
+});
+
+const HOOK = join(import.meta.dirname, "..", "src", "guard-hook.ts");
+// `policy` null: the hook runs without its argument.
+// The hook's verdict on one input: exit 0 and silent runs the call, exit 2 with a reason refuses it.
+const hook = (input: string, policy: string | null = JSON.stringify(fixtures.policies["worker"])) => {
+  const ran = spawnSync(process.execPath, policy === null ? [HOOK] : [HOOK, policy], { input, encoding: "utf8" });
+  if (ran.status === 0 && ran.stderr === "") return "runs";
+  return ran.status === 2 && ran.stderr !== "" ? "refused" : `exit ${ran.status}`;
+};
+const call = (tool: string, input: object, cwd: unknown = "/work/app") =>
+  JSON.stringify({ hook_event_name: "PreToolUse", tool_name: tool, tool_input: input, cwd });
+const bash = (command: unknown, cwd?: unknown) => call("Bash", { command }, cwd);
+
+test("the hook lets a call run with exit 0 and refuses one with exit 2 and its reason", () => {
+  expect([hook(bash("ls -la")), hook(bash("sudo rm -rf /tmp/x"))]).toEqual(["runs", "refused"]);
+}, 30_000);
+
+test("the hook refuses what it cannot read: input that is no JSON, a call without its command, a missing or invalid policy", () => {
+  const unread = [hook("{not json"), hook(bash(undefined)), hook(bash("ls", "relative"))];
+  expect([...unread, hook(bash("ls"), null), hook(bash("ls"), '{"schemaVersion":1}')]).toEqual(
+    Array(5).fill("refused"),
+  );
+}, 30_000);
+
+test("the hook reads a Monitor command as a Bash one, refuses PowerShell, and lets other tools and a WebSocket monitor through", () => {
+  expect([
+    hook(call("Monitor", { command: "sudo rm -rf /tmp/x" })),
+    hook(call("PowerShell", { command: "Get-ChildItem" }, "C:\\work")),
+    hook(call("Monitor", { ws: { url: "wss://example.com" } })),
+    hook(call("Read", { file_path: "/x" })),
+  ]).toEqual(["refused", "refused", "runs", "runs"]);
+}, 30_000);

@@ -37,15 +37,10 @@ const NONE: InstalledExtensions = {
   kind: "cedarloom.extensions",
   extensions: {},
 };
-// An update is offered once this machine has seen its commit for 3 days, A94's wait. A commit's own date is whatever
-// its author wrote, so the clock starts when CedarLoom first fetched it here. An add never waits: it is a new choice
-// with full consent, so a remove and an add install the newest commit at once.
-// shortcut: only the ref's newest commit is fetched, so a ref that moves more often than every 3 days never offers an
-// update; follow a tag or release branch (--ref) there. Upgrade: remember each commit seen and offer the newest one
-// that has waited, fetched by its SHA where the server allows that.
+// An update waits 3 days after this machine first saw it: docs/agents/cedarloom-rationale.md#update-wait
+// shortcut: only the ref's newest commit is fetched, so a ref that moves more often never offers one; follow a tag.
 export const UPDATE_WAIT_MS = 3 * 24 * 60 * 60 * 1000;
-// A quarantine older than any fetch can take (the git package's 5 minutes, twice over) was left behind, for example by
-// a Windows process holding one of its files when the fetch removed it.
+// A quarantine older than twice the git fetch limit was left behind, as by a Windows process holding one of its files.
 const SWEEP_MS = 10 * 60 * 1000;
 // A staging folder an hour old belongs to a stage that broke off, not to an add or update running now.
 const STAGING_MS = 60 * 60 * 1000;
@@ -71,8 +66,7 @@ const readInstalled = (state: string): Result<Read> => {
   return installed.ok ? { ok: true, value: { text: file.value.text, installed: installed.value } } : installed;
 };
 
-// Best effort: a folder that cannot be read or removed now (a file held open, another CedarLoom sweeping at once) is
-// left for a later fetch.
+// Best effort: a folder held open, or swept by another CedarLoom now, is left for a later fetch.
 const removeOlder = (path: string, ms: number): void => {
   try {
     if (Date.now() - statSync(path).mtimeMs > ms) rmSync(path, { recursive: true, force: true, maxRetries: 3 });
@@ -89,10 +83,8 @@ const leftovers = (folder: string, prefix: string): string[] =>
         .map((name) => join(folder, name))
     : [];
 
-// Removes what earlier fetches and stages left behind: quarantines and staging folders, which nothing pins. Version
-// folders stay, pinned or not, since the undo of a remove or an update pins one again.
-// shortcut: the disk grows by one folder per version; collect versions once the ledger tells which runs can still be
-// undone.
+// Removes leftover quarantines and staging folders; version folders stay, since an undo can pin one again.
+// shortcut: the disk grows by one folder per version; collect them once the ledger tells which runs can be undone.
 const sweep = (state: string): void => {
   const staged = join(state, "extensions");
   const entries = existsSync(staged) ? readdirSync(staged, { withFileTypes: true }) : [];
@@ -127,12 +119,7 @@ const runnable = (manifest: ExtensionManifest, tree: Tree): Finding | undefined 
   return speaks(manifest.api) ? undefined : refusal(manifest.id, "protocol");
 };
 
-/**
- * Writes the files to `<state>/extensions/<id>/<digest>/`, read-only. The folder is named by its content and inert
- * while no installed entry points to it, so it needs no undo; a folder there already holds the same files. A write
- * that fails (a full disk, a path the file system cannot take) leaves no staging folder and is a finding with its
- * error code only: the message would hold the extension's own paths.
- */
+// Inert until an entry pins it, so no undo; a failure keeps only its error code, as its message holds the extension's paths.
 const stage = (state: string, id: string, tree: Tree): Finding | undefined => {
   const parent = join(state, "extensions", id);
   const folder = join(parent, tree.digest);
@@ -164,8 +151,7 @@ export type InstallPlan = { plan: Plan; manifest: ExtensionManifest; pin: Pin; a
 // A fetched extension: the installed set as read, where the files came from, the files, and their manifest.
 type Fetched = { read: Read; source: Source; tree: Tree; manifest: ExtensionManifest };
 
-// Stages the tree and plans the installed set with the extension pinned to it; the pin keeps the digest of the
-// capabilities the plan's approval consents to.
+// Stages the tree and plans the set with the extension pinned to it, its capabilities' digest the approval consents to.
 const pinned = (state: string, { read, source, tree, manifest }: Fetched): Result<InstallPlan> => {
   const { id, version, capabilities = {} } = manifest;
   const failed = stage(state, id, tree);
@@ -237,9 +223,7 @@ export const iso = (ms: number): string => new Date(ms).toISOString();
 // A commit at an extension's ref, and the commit the extension is installed at.
 type Sighting = { id: string; commit: string; installed: string };
 
-// When this machine first saw `commit` at the extension's ref, and whether the ref held another new commit when last
-// checked (the wait started again); the installed commit is no such restart. A record CedarLoom cannot read counts as
-// none: every wait starts again.
+// When this machine first saw `commit` at the ref and whether its wait restarted; an unreadable record restarts all.
 const firstSeen = (
   state: string,
   { id, commit, installed }: Sighting,
@@ -259,8 +243,6 @@ const firstSeen = (
   return { seen: now, moved: known !== undefined && known.commit !== installed };
 };
 
-// What `after` asks for that `before` did not: an origin, a credential that is new or bound otherwise, project reads,
-// proposed writes.
 const beyond = (before: Capabilities, after: Capabilities): Capabilities => {
   const net = (after.net ?? []).filter((origin) => !(before.net ?? []).includes(origin));
   const old = before.credentials ?? {};
@@ -275,8 +257,7 @@ const beyond = (before: Capabilities, after: Capabilities): Capabilities => {
   };
 };
 
-// The capabilities the user approved: those of the installed version's staged manifest while they match the digest
-// its entry keeps. Otherwise none are known, and everything the update asks for counts as new.
+// The approved capabilities: the staged manifest's while its digest matches the entry's; else none, all count as new.
 const approvedOf = (state: string, id: string, pin: Pin): Capabilities => {
   const file = readJson(join(state, "extensions", id, pin.digest, MANIFEST));
   const manifest = ExtensionManifest.safeParse(file.ok ? file.value.json : undefined);

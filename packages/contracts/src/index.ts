@@ -25,6 +25,7 @@ export {
   ModeSwitch,
 } from "./automation.ts";
 export { COMPONENTS_SCHEMA_VERSION, Components, formatComponents, Switch } from "./components.ts";
+export { GUARD_SCHEMA_VERSION, GuardPolicy, RepoName } from "./guard.ts";
 export {
   Draft,
   DraftInfo,

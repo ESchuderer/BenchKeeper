@@ -55,8 +55,7 @@ const decoded = (path: string, bytes: Buffer): Result<string> => {
   }
 };
 
-// A file of an export folder, read within the draft limit from one open file that follows no link, and never through
-// a linked folder on the way: a clone's link could lead anywhere on this machine.
+// A file of an export folder, read capped from one open file through no link: a clone's link could lead anywhere.
 const inFolder =
   (folder: string): Read =>
   (path) => {
@@ -263,10 +262,7 @@ const checkedPin = async (
   return { id, version: pin.version, git, commit, ...at, digest: pin.digest, status, installed, capabilities };
 };
 
-/**
- * The pins of the extensions `used`, one fetch at a time: a lock may hold many, and only those used matter. An export
- * pins each extension its workflows use, so a lock without one is refused.
- */
+// The used extensions' pins, fetched one at a time; an export pins each one its workflows use, so a missing one fails.
 const pinsOf = async (
   state: string,
   lock: ExtensionLock,
@@ -291,10 +287,7 @@ const usedBy = (workflows: Workflow[]): string[] => [
   ...new Set(workflows.flatMap(({ workflow }) => extensionsOf(workflow))),
 ];
 
-/**
- * The plan of an import: one store.update to a commit with the chosen workflows byte for byte, the store's lock with
- * the import's pins of the extensions they use, and the hash of each as imported. Null when none is chosen.
- */
+// Byte for byte, with each hash as imported, which tells a later import an update from a local edit; null for none chosen.
 const planOf = (stored: Stored, lock: ExtensionLock, chosen: Workflow[]): Result<Plan | null> => {
   if (chosen.length === 0) return { ok: true, value: null };
   const hashes = chosen.map(({ text, workflow }) => [workflow.metadata.id.toLowerCase(), sha256(text)]);

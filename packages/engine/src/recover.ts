@@ -3,18 +3,11 @@ import type { Step } from "@cedarloom/contracts";
 import type { RunStore } from "@cedarloom/ledger";
 import { asidePath, hashFile, putBack, tempPath } from "./files.ts";
 
-/**
- * The step's new file is in, and the aside holds exactly the bytes the step found, which the run's backup has too. Only
- * regular files are read: a folder at the path must not stop every later open of the store.
- */
+// The step's file is in and the aside holds what it found; only regular files are read, so a folder stops nothing.
 const replaced = (step: Step, aside: string, target: BigIntStats, moved: BigIntStats): boolean =>
   target.isFile() && moved.isFile() && hashFile(step.path) === step.after && hashFile(aside) === step.before;
 
-/**
- * The file a step had set aside when its process died: back at the path when the path is empty, removed when it is the
- * path's own file (put back, then killed) or when the step's new file is in and the aside holds what the step found.
- * Otherwise both stay: the aside may hold an edit no backup has.
- */
+// A dead step's aside: back if the path is empty, gone if it is the path's or a finished step's, else kept (an edit).
 const settleAside = (step: Step, aside: string): void => {
   // 64-bit ids: as numbers, Windows file ids lose precision, and two files could look like one.
   const moved = lstatSync(aside, { throwIfNoEntry: false, bigint: true });

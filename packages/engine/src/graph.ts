@@ -11,10 +11,7 @@ export const compatibility = (from: HandleType, to: HandleType): Compatibility =
   return from === "json" ? "unchecked" : "no";
 };
 
-/**
- * A handle of a node type; a `required` data input needs an edge. Control inputs take many edges, data inputs one.
- * Of a node's `exclusive` outputs exactly one fires; the nodes behind the others are skipped, and so on downstream.
- */
+// A required data input needs an edge; control inputs take many, data inputs one; one exclusive output fires.
 type Handle = { type: HandleType; required?: true; exclusive?: true };
 export type NodeType = { inputs: Record<string, Handle>; outputs: Record<string, Handle> };
 

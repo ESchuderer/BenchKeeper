@@ -2,11 +2,7 @@ import { mkdtempSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:
 import { dirname, join } from "node:path";
 import type { Tree } from "@cedarloom/git";
 
-/**
- * Writes the tree, read-only, into a staging folder in `parent` and moves that to `folder` in one step, so no reader
- * sees a part of it. Throws when a write or the move fails, as when another process placed the folder first; the
- * staging folder goes either way.
- */
+// Staged, then moved into place in one step, so no reader sees a part of it; staging goes even when the move fails.
 export const writeTree = (parent: string, folder: string, tree: Tree): void => {
   const staging = mkdtempSync(join(parent, "staging-"));
   try {

@@ -23,11 +23,11 @@ export interface Denial {
 
 /**
  * The push URLs of a folder's git remotes by name; null when they cannot be read, as outside a repository. With `url`,
- * they include that URL as the remote `TYPED_REMOTE`, rewritten as git rewrites it (insteadOf, pushInsteadOf).
+ * they are only that URL, as git rewrites it (insteadOf, pushInsteadOf), under the key `TYPED_REMOTE`.
  */
 export type Remotes = (folder: string, url?: string) => ReadonlyMap<string, readonly string[]> | null;
 
-/** The name under which Remotes lists a URL typed on the command line. */
+/** The key under which Remotes returns a URL typed on the command line. */
 export const TYPED_REMOTE = "cedarloom-typed-url";
 
 interface Context {

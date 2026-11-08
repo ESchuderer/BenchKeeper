@@ -93,6 +93,8 @@ test("a worker's policy holds its project's GitHub repositories, the hub and the
     const memory = "https://github.com/acme/memory.git";
     // A rewrite the checkout's config holds, which sends a push to the project's URL to the memory repository.
     execFileSync("git", ["-C", project, "config", `url.${memory}.pushInsteadOf`, "https://github.com/acme/app"]);
+    // A pushurl for a remote of the name the guard once used for typed URLs, which would show the allowed URL instead.
+    execFileSync("git", ["-C", project, "config", "remote.cedarloom-typed-url.pushurl", "https://github.com/acme/app"]);
     expect([
       run("git status"),
       run("git push -f origin main"),

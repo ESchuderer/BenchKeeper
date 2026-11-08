@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GUARD_SCHEMA_VERSION, type GuardPolicy, RepoName } from "@cedarloom/contracts";
@@ -13,7 +14,9 @@ import { programPath } from "./program.ts";
 export const gitRemotes: Remotes = (folder, typedUrl) => {
   const git = programPath("git", process.env);
   if (git === undefined) return null;
-  const typed = typedUrl === undefined ? [] : ["-c", `remote.${TYPED_REMOTE}.url=${typedUrl}`];
+  // A name of its own per call, so that no remote the checkout configures (a pushurl) stands in for the typed URL.
+  const own = `cedarloom-${randomUUID()}`;
+  const typed = typedUrl === undefined ? [] : ["-c", `remote.${own}.url=${typedUrl}`];
   try {
     const listed = execFileSync(git, ["-c", "core.fsmonitor=false", ...typed, "-C", folder, "remote", "-v"], {
       encoding: "utf8",
@@ -25,7 +28,7 @@ export const gitRemotes: Remotes = (folder, typedUrl) => {
     for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {
       remotes.set(name, [...new Set([...(remotes.get(name) ?? []), url])]);
     }
-    return remotes;
+    return typedUrl === undefined ? remotes : new Map([[TYPED_REMOTE, remotes.get(own) ?? []]]);
   } catch {
     return null;
   }

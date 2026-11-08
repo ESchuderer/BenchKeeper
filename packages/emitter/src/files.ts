@@ -54,8 +54,10 @@ export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile
   }
   // "./" first: cd reads no option from it (-P), and CDPATH takes no part.
   const cwd = typeof config["cwd"] === "string" ? `cd ${quoted(`./${config["cwd"]}`)} || exit 1\n` : "";
-  // The script's own status as its last line, which Claude Code's exit hook reads whatever the agent adds to the call.
-  const script = `#!/bin/sh\n(\n${cwd}${textIn(node, "command")}\n)\nstatus=$?\necho "cedarloom-exit $status"\nexit "$status"\n`;
+  // The script's own status as its last line, which Claude Code's exit hook reads whatever the agent adds to the call. Its
+  // output ends after 6,000 bytes: a hook gets only the start of a long one (10,000 characters, Claude Code 2.1.316).
+  const run = `(\n${cwd}${textIn(node, "command")}\n) > "$log" 2>&1\nstatus=$?\ntail -c 6000 "$log"\nrm -f "$log"\n`;
+  const script = `#!/bin/sh\nlog=$(mktemp) || { echo "cedarloom-exit 1"; exit 1; }\n${run}printf '\\ncedarloom-exit %s\\n' "$status"\nexit "$status"\n`;
   const skill = `${frontmatter({ name, description: describe(`${head}: runs its command`), [OWN]: true })}Run the script \`scripts/run.sh\` of this skill's folder with \`sh\`, from the project folder, exactly once. Report its exit code and the last 100 lines of its output.\n`;
   return [
     { path: `steps/${name}/SKILL.md`, content: skill },

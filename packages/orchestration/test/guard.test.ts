@@ -8,8 +8,11 @@ import { expect, test } from "vitest";
 import { z } from "zod";
 
 const Fixtures = z.object({
-  // As a call meets them: the hook has read `origin` already, and `workflow` merges only for a workflow's agent.
-  policies: z.record(z.string(), GuardPolicy.extend({ repositories: z.array(z.string()).nullable() })),
+  // As a call meets them: the hook has read `origin` already, and the repositories a workflow's agent may merge in.
+  policies: z.record(
+    z.string(),
+    GuardPolicy.extend({ repositories: z.array(z.string()).nullable(), merge: z.array(z.string()).optional() }),
+  ),
   remotes: z.record(z.string(), z.record(z.string(), z.array(z.string()))),
   // Keyed by "<policy> <folder>": each case's name, command and the rule that refuses it (null: it runs).
   cases: z.record(z.string(), z.array(z.tuple([z.string(), z.string(), z.string().nullable()]))),
@@ -35,7 +38,7 @@ const cases = Object.entries(fixtures.cases).flatMap(([key, list]) => {
 test.each(cases)("$name", ({ policy, cwd, command, rule }) => {
   const chosen = fixtures.policies[policy];
   if (chosen === undefined) throw new Error(`no policy ${policy}`);
-  expect(guardCommand(command, cwd, chosen, remotes)?.rule ?? null).toBe(rule);
+  expect(guardCommand(command, cwd, { ...chosen, merge: chosen.merge ?? [] }, remotes)?.rule ?? null).toBe(rule);
 });
 
 const HOOK = join(import.meta.dirname, "..", "src", "guard-hook.ts");

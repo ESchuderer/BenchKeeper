@@ -9,7 +9,7 @@ import { type Call, passing, report, runScript } from "./script.ts";
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const GUARD = join(import.meta.dirname, "..", "..", "orchestration", "src", "guard-hook.ts");
-const HOOKS: Hooks = { guard: "// guard\n", exits: "// exits\n", hub: null, memory: null };
+const HOOKS: Hooks = { guard: "// guard\n", exits: "// exits\n", node: process.execPath, hub: null, memory: null };
 const read = (name: string): WorkflowDefinition =>
   WorkflowDefinition.parse(JSON.parse(readFileSync(join(corpus, name), "utf8")));
 
@@ -253,30 +253,28 @@ test("a workflow the level's gates cannot split, whose names clash or that Claud
   ]);
 });
 
+// A hook gets only the first 10,000 characters of a call's output (Claude Code 2.1.316), so the status line must fit.
 test.skipIf(process.platform === "win32")(
-  "a step script's last line is its own exit status, after a cd that fails too",
+  "a step script ends with its own exit status, within 10,000 characters",
   () => {
-    const files = built(
-      workflow(
-        [
-          start,
-          ["a", "command.run", { command: "echo out\nexit 3" }],
-          ["b", "command.run", { command: "pwd", cwd: "gone" }],
-        ],
-        ["start.start>a.run", "start.start>b.run"],
-      ),
-      "auto",
-    );
+    const steps: Node[] = [
+      ["a", "command.run", { command: "echo out\nexit 3" }],
+      ["b", "command.run", { command: "pwd", cwd: "gone" }],
+      ["c", "command.run", { command: "seq 1 20000" }],
+    ];
+    const edges = ["start.start>a.run", "start.start>b.run", "start.start>c.run"];
+    const files = built(workflow([start, ...steps], edges), "auto");
     const folder = mkdtempSync(join(tmpdir(), "steps-"));
     try {
-      const ran = ["a", "b"].map((step) => {
+      const ran = ["a", "b", "c"].map((step) => {
         writeFileSync(join(folder, `${step}.sh`), fileOf(files, `steps/${step}/scripts/run.sh`));
         const result = spawnSync("sh", [`${step}.sh`], { cwd: folder, encoding: "utf8" });
-        return [result.status, result.stdout.trimEnd().split("\n").at(-1)];
+        return [result.status, result.stdout.length < 10_000, result.stdout.trimEnd().split("\n").at(-1)];
       });
       expect(ran).toEqual([
-        [3, "cedarloom-exit 3"],
-        [1, "cedarloom-exit 1"],
+        [3, true, "cedarloom-exit 3"],
+        [1, true, "cedarloom-exit 1"],
+        [0, true, "cedarloom-exit 0"],
       ]);
     } finally {
       rmSync(folder, { recursive: true, force: true });

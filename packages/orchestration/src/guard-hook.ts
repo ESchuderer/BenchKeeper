@@ -67,16 +67,19 @@ const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: s
 
 /**
  * The policy as this call meets it: `origin` read from the working folder, with the hub and the memory repository; a
- * merge only for an agent of a workflow script, which a stage reaches after its reviewer agreed (Auto, owner 2026-11-08).
+ * merge only for an agent of a workflow script, which a stage reaches after its reviewer agreed (Auto, owner 2026-11-08),
+ * and only in the origin's own repositories: never the hub's, nor the memory repository's, whose `main` no agent updates.
  */
-const callPolicy = (policy: GuardPolicy, cwd: string, agent: unknown): CallPolicy => ({
-  ...policy,
-  repositories:
-    policy.repositories === "origin"
-      ? [...new Set([...originRepos(cwd), policy.hub, policy.memory].filter((repo) => repo !== null))]
-      : policy.repositories,
-  merge: policy.merge === "workflow" && agent === "workflow-subagent" ? "workflow" : "refuse",
-});
+const callPolicy = (policy: GuardPolicy, cwd: string, agent: unknown, remotes: Remotes): CallPolicy => {
+  const merges = policy.merge === "workflow" && agent === "workflow-subagent";
+  const origin = policy.repositories === "origin" || merges ? originRepos(cwd, remotes) : [];
+  const bound = [policy.hub, policy.memory].filter((repo) => repo !== null);
+  return {
+    ...policy,
+    repositories: policy.repositories === "origin" ? [...new Set([...origin, ...bound])] : policy.repositories,
+    merge: merges ? origin.filter((repo) => !bound.some((other) => other.toLowerCase() === repo.toLowerCase())) : [],
+  };
+};
 
 // Why the guard refuses one PreToolUse input, or null; what it cannot read refuses (A79).
 const guardHook = (input: string, policyJson: string | null, remotes: Remotes): string | null => {
@@ -85,7 +88,7 @@ const guardHook = (input: string, policyJson: string | null, remotes: Remotes): 
   const read = readCall(input);
   const call = commandOf(read);
   if (call === null || typeof call === "string") return call;
-  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, read?.agent), remotes);
+  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, read?.agent, remotes), remotes);
   return denial === null ? null : `${denial.detail} (${denial.rule})`;
 };
 

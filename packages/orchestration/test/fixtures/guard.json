@@ -15,10 +15,10 @@
     },
     "auto-workflow": {
       "schemaVersion": 1,
-      "repositories": ["acme/app", "acme/tracker"],
+      "repositories": ["acme/app", "acme/tracker", "acme/notes"],
       "hub": "acme/tracker",
       "memory": "acme/notes",
-      "merge": "workflow"
+      "merge": ["acme/app"]
     }
   },
   "remotes": {
@@ -503,10 +503,18 @@
         null
       ],
       ["a workflow agent at Auto merges through the REST API", "gh api -X PUT repos/acme/app/pulls/1/merge", null],
+      ["a merge at Auto reaches only the project's own repositories", "gh pr merge 12 -R other/x", "merge"],
       [
-        "a merge at Auto still reaches only the project's repositories",
-        "gh pr merge 12 -R other/x",
-        "outside-profiles"
+        "a merge at Auto never reaches the memory repository, whose main no agent updates",
+        "gh pr merge 5 -R acme/notes --squash",
+        "merge"
+      ],
+      ["nor the hub", "gh api -X PUT repos/acme/tracker/pulls/5/merge", "merge"],
+      ["--admin, which merges past branch protection, stays refused", "gh pr merge 12 --admin --squash", "merge"],
+      [
+        "a branch merged without a pull request stays refused",
+        "gh api -X POST repos/acme/app/merges -f base=main -f head=feature",
+        "merge"
       ],
       [
         "a merge through GraphQL stays refused: the guard cannot tell its repository",

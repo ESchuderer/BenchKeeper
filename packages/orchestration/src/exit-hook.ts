@@ -15,10 +15,14 @@ const idOf = (value: unknown): string => (typeof value === "string" && /^[\w-]{1
 const fileOf = (call: unknown, data: string): string =>
   join(data, "exits", `${idOf(field(call, "session_id"))}-${idOf(field(call, "agent_id"))}`);
 
-/** Keeps the exit status of a step script a Bash call ran (PostToolUse or PostToolUseFailure); nothing for other calls. */
-const record = (call: unknown, data: string): void => {
+/**
+ * Keeps the exit status of a step script a Bash call ran (PostToolUse or PostToolUseFailure); nothing for other calls,
+ * nor without a data folder, where `verify` refuses.
+ */
+const record = (call: unknown, data: string | undefined): void => {
   const command = field(field(call, "tool_input"), "command");
-  if (field(call, "tool_name") !== "Bash" || typeof command !== "string" || !STEP_SCRIPT.test(command)) return;
+  if (data === undefined || data === "" || field(call, "tool_name") !== "Bash") return;
+  if (typeof command !== "string" || !STEP_SCRIPT.test(command)) return;
   const response = field(call, "tool_response");
   const output = [field(response, "stdout"), field(response, "stderr"), field(call, "error")].filter(
     (part) => typeof part === "string",
@@ -33,9 +37,10 @@ const record = (call: unknown, data: string): void => {
  * Why a reported exit code is refused (PreToolUse of StructuredOutput): the script exited otherwise, or no run was seen
  * and the report is no -1, which the stage runner's prompt asks for when the command did not run.
  */
-const verify = (call: unknown, data: string): string | null => {
+const verify = (call: unknown, data: string | undefined): string | null => {
   const reported = field(field(call, "tool_input"), "exitCode");
   if (field(call, "tool_name") !== "StructuredOutput" || typeof reported !== "number") return null;
+  if (data === undefined || data === "") return "it has no plugin data folder (CLAUDE_PLUGIN_DATA)";
   let status: number;
   try {
     status = Number(readFileSync(fileOf(call, data), "utf8"));
@@ -48,12 +53,12 @@ const verify = (call: unknown, data: string): string | null => {
 
 /** The exit hook's verdict on one input: `record` keeps a step script's status, `verify` refuses a report that differs. */
 const exitHook = (mode: string, input: string, data: string | undefined): string | null => {
-  if (data === undefined || data === "") return "it has no plugin data folder (CLAUDE_PLUGIN_DATA)";
   let call: unknown;
   try {
     call = JSON.parse(input);
   } catch {
-    return "its input is no JSON";
+    // After a call, nothing is refused: what `record` cannot read, `verify` finds missing.
+    return mode === "record" ? null : "its input is no JSON";
   }
   if (mode === "record") {
     record(call, data);

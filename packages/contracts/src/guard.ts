@@ -31,3 +31,7 @@ export const GuardPolicy = z
   })
   .register(fileFormats, { id: "GuardPolicy" });
 export type GuardPolicy = z.infer<typeof GuardPolicy>;
+
+/** A repository binding as a policy holds it: one it cannot hold, such as owner/., counts as none. */
+export const heldRepo = (repo: string | null | undefined): string | null =>
+  repo !== null && repo !== undefined && RepoName.safeParse(repo).success ? repo : null;

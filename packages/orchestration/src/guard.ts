@@ -31,10 +31,13 @@ export type Remotes = (folder: string, url?: string) => ReadonlyMap<string, read
 export const TYPED_REMOTE = "cedarloom-typed-url";
 
 /**
- * A policy as one call meets it: the repositories read, and `merge: "workflow"` only where the hook found an agent of a
- * workflow script (Auto), which lets that call merge.
+ * A policy as one call meets it: the repositories read, and those it may merge pull requests in, none but where the hook
+ * found an agent of a workflow script at Auto.
  */
-export type CallPolicy = Omit<GuardPolicy, "repositories"> & { readonly repositories: readonly string[] | null };
+export type CallPolicy = Omit<GuardPolicy, "repositories" | "merge"> & {
+  readonly repositories: readonly string[] | null;
+  readonly merge: readonly string[];
+};
 
 interface Context {
   readonly policy: CallPolicy;
@@ -1009,8 +1012,23 @@ const checkGh = (args: readonly Word[], context: Context): Denial | null => {
 const ghRule = (command: string, rest: readonly Word[], context: Context): Denial | null => {
   if (GH_CONFIG.test(command)) return deny("gh-config", `gh ${command}`);
   if (GH_OWNER.test(command)) return deny("forbidden", `gh ${command}, which the owner keeps`);
-  if (command === "pr merge" && context.policy.merge !== "workflow") return deny("merge", "gh pr merge");
+  if (command === "pr merge") {
+    // --admin merges past branch protection, its required checks and reviews; a word the guard cannot read may be it.
+    const admin = rest.some(({ text, start }) =>
+      text === null ? /^(?:-|$)/.test(start) : /^--admin(?:=|$)/.test(text),
+    );
+    return admin
+      ? deny("merge", "gh pr merge --admin")
+      : checkMerge(ghRepos(command, rest, context), context, "gh pr merge");
+  }
   return command === "pr review" && approves(rest) ? deny("approval", "gh pr review --approve") : null;
+};
+
+// A pull request's merge: only in the repositories this call may merge in, each of them known.
+const checkMerge = (repos: readonly (string | null)[] | null, context: Context, what: string): Denial | null => {
+  const { merge } = context.policy;
+  const inside = repos !== null && repos.length > 0 && repos.every((repo) => merge.some((own) => sameRepo(own, repo)));
+  return inside ? null : deny("merge", what);
 };
 
 // The repository a gh command works on, and the hub for issue commands; a command the guard does not know refuses.
@@ -1183,8 +1201,8 @@ const WRITES = [
   "POST /actions/workflows/[^/]+/dispatches",
 ].map((write) => new RegExp(`^${write}/?$`));
 
-const merges = (method: string, rest: string): boolean =>
-  (method === "PUT" && /^\/pulls\/[^/]+\/merge\/?$/.test(rest)) || (method === "POST" && /^\/merges\/?$/.test(rest));
+const mergesPull = (method: string, rest: string): boolean =>
+  method === "PUT" && /^\/pulls\/[^/]+\/merge\/?$/.test(rest);
 
 // A review created or submitted with APPROVE, or with an event the guard cannot read.
 const approvesReview = (method: string, rest: string, event: string | null): boolean =>
@@ -1200,7 +1218,9 @@ const checkRestPath = (
 ): Denial | null => {
   if (/^\/issues(?:\/|$)/.test(rest)) return checkHub(repos, context, what);
   if (method === "GET" || method === "HEAD") return null;
-  if (merges(method, rest)) return context.policy.merge === "workflow" ? null : deny("merge", what);
+  // A branch merged into another without a pull request, which no reviewer saw, refuses at every level.
+  if (method === "POST" && /^\/merges\/?$/.test(rest)) return deny("merge", what);
+  if (mergesPull(method, rest)) return checkMerge(repos, context, what);
   if (approvesReview(method, rest, event)) return deny("approval", what);
   return WRITES.some((write) => write.test(`${method} ${rest}`))
     ? null

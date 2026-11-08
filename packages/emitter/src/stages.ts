@@ -84,6 +84,16 @@ export const stagesOf = (workflow: WorkflowDefinition, level: AutomationLevel): 
   return { ok: true, value: stages };
 };
 
+/** The workflow inputs a stage's nodes read. */
+export const inputsOf = (workflow: WorkflowDefinition, stage: Stage): string[] => {
+  const ids = new Set(stage.nodes.map((node) => node.id));
+  return [
+    ...new Set(
+      workflow.edges.flatMap((edge) => ("input" in edge.from && ids.has(toNode(edge) ?? "") ? [edge.from.input] : [])),
+    ),
+  ];
+};
+
 const sourceOf = (edge: Edge): Source =>
   "input" in edge.from ? { input: edge.from.input } : { output: `${edge.from.node}.${edge.from.handle}` };
 
@@ -98,7 +108,7 @@ const KINDS: Record<string, Step["kind"]> = {
 export const scriptOf = (
   workflow: WorkflowDefinition,
   stage: Stage,
-  { plugin, level, nextOf }: { plugin: string; level: AutomationLevel; nextOf: (gate: string) => string[] },
+  { plugin, level, nextOf }: { plugin: string; level: AutomationLevel; nextOf: (gate: string) => Next[] },
 ): StageScript => {
   const into = (id: string): Edge[] => workflow.edges.filter((edge) => toNode(edge) === id);
   const inStage = new Set(stage.nodes.map((node) => node.id));
@@ -137,8 +147,13 @@ export const scriptOf = (
     fired: from.map(({ node, handle }) => `${node}.${handle}`),
     settled: from.map(({ node }) => node),
     defaults,
-    required: Object.entries(workflow.inputs ?? {}).flatMap(([name, input]) => (input.required === true ? [name] : [])),
+    required: inputsOf(workflow, stage).filter((name) => workflow.inputs?.[name]?.required === true),
     concurrency: workflow.execution?.maxConcurrency ?? 64,
+    outputs: Object.fromEntries(
+      workflow.edges.flatMap((edge) =>
+        "output" in edge.to && inStage.has(fromNode(edge) ?? "") ? [[edge.to.output, sourceOf(edge)]] : [],
+      ),
+    ),
   };
 };
 
@@ -151,10 +166,13 @@ const kindOf = (node: Node, level: AutomationLevel, isCheck: boolean): Step["kin
   return KINDS[node.type] ?? "start";
 };
 
+/** A command that goes on after a gate, and the inputs its stage reads. */
+export type Next = { command: string; inputs: string[] };
+
 type Context = {
   plugin: string;
   retries: number | undefined;
-  nextOf: (gate: string) => string[];
+  nextOf: (gate: string) => Next[];
   checks: string[];
 };
 
@@ -192,8 +210,8 @@ const agentDetails = (node: Node, edges: Edge[], { plugin, retries, checks }: Co
 const detailsOf = (node: Node, edges: Edge[], context: Context): Partial<Step> => {
   if (node.type === "agent.run") return agentDetails(node, edges, context);
   if (node.type === "command.run") {
-    const skill = `${context.plugin}:${skillOf(node)}`;
-    return context.retries === undefined ? { skill } : { skill, retries: context.retries };
+    const script = `steps/${skillOf(node)}/scripts/run.sh`;
+    return context.retries === undefined ? { script } : { script, retries: context.retries };
   }
   if (node.type === "human.approval") return { message: textIn(node, "message"), next: context.nextOf(node.id) };
   const value = onto(edges, "value");

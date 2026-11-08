@@ -1784,7 +1784,7 @@ export interface components {
                 workflow: string;
                 node: string;
                 /** @enum {string} */
-                kind: "schedule" | "precheck" | "command" | "agent" | "approval" | "workflow";
+                kind: "schedule" | "precheck" | "command" | "agent" | "approval" | "input" | "workflow";
                 text: string;
             }[];
         };
@@ -2867,7 +2867,7 @@ export interface components {
                 workflow: string;
                 node: string;
                 /** @enum {string} */
-                kind: "schedule" | "precheck" | "command" | "agent" | "approval" | "workflow";
+                kind: "schedule" | "precheck" | "command" | "agent" | "approval" | "input" | "workflow";
                 text: string;
             }[];
         };

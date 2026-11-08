@@ -27,11 +27,14 @@ const inert = (text: string): string => text.replaceAll("!`", "! `").replaceAll(
  */
 export const titleOf = (workflow: WorkflowDefinition): string => workflow.metadata.id;
 
+const OWN = "disable-model-invocation";
+
 const quoted = (text: string): string => `'${text.replaceAll("'", `'\\''`)}'`;
 
 /**
- * The skill folder of a step, which Claude Code and Codex read alike (spec fields only): an agent step's task, or a
- * command step's script.
+ * The skill folder of a step, which Claude Code and Codex read alike: an agent step's task, or a command step's script.
+ * No model loads a step on its own, outside its stage and gates (coordinator, 2026-11-08): Claude Code reads
+ * `disable-model-invocation`, Codex its own policy file.
  */
 export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile[] => {
   const name = skillOf(node);
@@ -39,12 +42,13 @@ export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile
   const head = `Step ${node.id} of the workflow ${titleOf(workflow)}`;
   if (node.type === "agent.run") {
     const task = inert(textIn(node, "task"));
-    const skill = `${frontmatter({ name, description: describe(`${head}: ${task.split("\n")[0] ?? ""}`) })}${task}\n`;
+    const fields = { name, description: describe(`${head}: ${task.split("\n")[0] ?? ""}`), [OWN]: true };
+    const skill = `${frontmatter(fields)}${task}\n`;
     return [{ path: `steps/${name}/SKILL.md`, content: skill }];
   }
   // "./" first: cd reads no option from it (-P), and CDPATH takes no part.
   const cwd = typeof config["cwd"] === "string" ? `cd ${quoted(`./${config["cwd"]}`)} || exit 1\n` : "";
-  const skill = `${frontmatter({ name, description: describe(`${head}: runs its command`) })}Run the script \`scripts/run.sh\` of this skill's folder with \`sh\`, from the project folder, exactly once. Report its exit code and the last 100 lines of its output.\n`;
+  const skill = `${frontmatter({ name, description: describe(`${head}: runs its command`), [OWN]: true })}Run the script \`scripts/run.sh\` of this skill's folder with \`sh\`, from the project folder, exactly once. Report its exit code and the last 100 lines of its output.\n`;
   return [
     { path: `steps/${name}/SKILL.md`, content: skill },
     { path: `steps/${name}/scripts/run.sh`, content: `#!/bin/sh\n${cwd}${textIn(node, "command")}\n` },

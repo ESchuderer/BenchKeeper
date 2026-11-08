@@ -10,7 +10,9 @@ const root = testRoot("imports");
 gitIdentity(root);
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
-const base = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
+const sample = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
+// With a default for its input, which reaches the review's prompt when a run gives none.
+const base = { ...sample, inputs: { focus: { ...sample.inputs.focus, default: "the parser" } } };
 const machine = (): string => mkdtempSync(join(root, "state-"));
 // Stores `version` of w (the corpus's build-and-review) on the machine, with `more` nodes.
 const store = (state: string, version: string, more: object[] = [], onTop = false): void => {
@@ -29,7 +31,7 @@ const stored = (state: string): string => {
 };
 
 // Each store commit and import runs git several times, which is slow on Windows: as git's own tests, 30 s.
-test("an export imports as new byte for byte with every command, task and message in its review, then as the same", async () => {
+test("an export imports as new byte for byte with every command, task, message and default in its review, then as the same", async () => {
   const [from, to] = [machine(), machine()];
   store(from, "1.0.0");
   const folder = exported(from, join(from, "shared"));
@@ -54,6 +56,7 @@ test("an export imports as new byte for byte with every command, task and messag
       },
     ],
     [
+      ["input", '"the parser"'],
       ["approval", "Accept the review?"],
       ["command", "pnpm lint"],
       ["agent", "Review the changes and list findings."],

@@ -92,6 +92,7 @@
           "command": ["Command"],
           "agent": ["Agent task"],
           "approval": ["Approval message"],
+          "input": ["Input default"],
           "workflow": ["Calls the workflow"],
           "other": [["kind"]]
         }

@@ -4284,6 +4284,7 @@
                     "command",
                     "agent",
                     "approval",
+                    "input",
                     "workflow"
                   ]
                 },
@@ -9371,6 +9372,7 @@
                     "command",
                     "agent",
                     "approval",
+                    "input",
                     "workflow"
                   ]
                 },

@@ -589,7 +589,7 @@ msgstr "They run no command or agent and write no file."
 
 #. js-lingui-explicit-id
 msgid "import.riskKind"
-msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} approval {Approval message} workflow {Calls the workflow} other {{kind}}} ({node}):"
+msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} approval {Approval message} input {Input default} workflow {Calls the workflow} other {{kind}}} ({node}):"
 
 #. js-lingui-explicit-id
 msgid "import.licenseCount"

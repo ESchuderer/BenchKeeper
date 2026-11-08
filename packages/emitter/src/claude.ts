@@ -1,6 +1,6 @@
 import type { AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
 import { RUNNER } from "./runner.ts";
-import { type Stage, scriptOf, skillOf } from "./stages.ts";
+import { inputsOf, type Next, type Stage, scriptOf, skillOf } from "./stages.ts";
 import { describe, frontmatter, type PackageFile, titleOf } from "./files.ts";
 
 type Node = WorkflowDefinition["nodes"][number];
@@ -13,14 +13,17 @@ export const workflowOf = (stage: Stage): string => `run-${stage.name}`;
 const PRECHECK =
   '!`sh "${CLAUDE_PLUGIN_ROOT}/claude/start/scripts/precheck.sh" && echo "precheck passed" || echo "precheck failed"`';
 
-// The inputs by name and type only: descriptions and defaults, which no review shows, stay out of what a model reads.
-const inputsText = (workflow: WorkflowDefinition): string => {
-  const inputs = Object.entries(workflow.inputs ?? {});
-  if (inputs.length === 0) return "The workflow takes no inputs: pass no args.";
-  const lines = inputs.map(
-    ([name, input]) => `- \`${name}\` (${input.type}${input.required === true ? ", required" : ""})`,
-  );
-  return `Pass as its args a JSON object of the workflow's inputs, from the arguments of this command ($ARGUMENTS); an input left out takes its default:\n${lines.join("\n")}`;
+// The args: the plugin's folder, where the steps' scripts are, and the inputs the stage reads, by name and type only.
+const argsText = (workflow: WorkflowDefinition, stage: Stage): string => {
+  const lines = inputsOf(workflow, stage).map((name) => {
+    const input = workflow.inputs?.[name];
+    return `- \`${name}\` (${input?.type ?? "json"}${input?.required === true ? ", required" : ""})`;
+  });
+  const inputs =
+    lines.length === 0
+      ? "an empty object: this stage reads no input"
+      : `the JSON object given in the arguments of this command ($ARGUMENTS); an input left out takes its default:\n${lines.join("\n")}`;
+  return `Pass as its args a JSON object: \`root\` the text \`\${CLAUDE_PLUGIN_ROOT}\`, and \`inputs\` ${inputs}`;
 };
 
 /** The command that starts a stage: a skill only the user runs, as the stage after a gate is the user's to start. */
@@ -34,7 +37,7 @@ const stageSkill = (workflow: WorkflowDefinition, stage: Stage, plugin: string):
   const what =
     stage.from === null ? "Starts" : `Goes on after the gate ${stage.from.node} was ${stage.from.handle}: runs`;
   const description = describe(`${what} the workflow ${titleOf(workflow)} up to its next gate.`);
-  const body = `${check}Start the workflow \`${plugin}:${workflowOf(stage)}\` with the Workflow tool and wait for it. ${inputsText(workflow)}\n\nWhen it returns, report the steps that ran, failed or were skipped. For each gate it stopped at, show its message and the commands that go on.\n`;
+  const body = `${check}Start the workflow \`${plugin}:${workflowOf(stage)}\` with the Workflow tool and wait for it. ${argsText(workflow, stage)}\n\nWhen it returns, report the steps that ran, failed or were skipped, and the workflow's outputs in full. For each gate it stopped at, show its message and the commands that go on, and leave them to the user: never start the next stage yourself.\n`;
   const fields = { name: stage.name, description, "disable-model-invocation": true };
   const skill = { path: `claude/${stage.name}/SKILL.md`, content: `${frontmatter(fields)}${body}` };
   const script = { path: "claude/start/scripts/precheck.sh", content: `#!/bin/sh\n${precheck ?? ""}\n` };
@@ -74,8 +77,10 @@ export const claudeFiles = (
   stages: Stage[],
   { plugin, level }: { plugin: string; level: AutomationLevel },
 ): PackageFile[] => {
-  const nextOf = (gate: string): string[] =>
-    stages.filter((stage) => stage.from?.node === gate).map((stage) => `/${plugin}:${stage.name}`);
+  const nextOf = (gate: string): Next[] =>
+    stages
+      .filter((stage) => stage.from?.node === gate)
+      .map((stage) => ({ command: `/${plugin}:${stage.name}`, inputs: inputsOf(workflow, stage) }));
   const manifest = {
     name: plugin,
     version: workflow.metadata.version,

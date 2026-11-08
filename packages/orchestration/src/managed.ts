@@ -137,9 +137,9 @@ const listed = ({ path, settings }: Settings): ManagedProblem[] => {
 };
 
 /**
- * The managed settings files that loosen the worker sandbox, whatever the worker's own settings say: a managed key
- * outranks --settings. For a Boolean or a port, the last file that sets it wins, as Claude Code merges them; every list
- * entry counts. A file that cannot be read or parsed counts too.
+ * The managed settings files that loosen the worker sandbox or switch its guard hook off, whatever the worker's own
+ * settings say: a managed key outranks --settings. For a Boolean or a port, the last file that sets it wins, as Claude
+ * Code merges them; every list entry counts. A file that cannot be read or parsed counts too.
  * shortcut: reads the files only. MDM profiles, the Windows HKLM registry and server-managed settings rank above them,
  * the Windows HKCU registry applies when no admin source does, and wslInheritsWindowsSettings can make WSL read the
  * Windows chain instead; all stay unchecked until a live sandbox

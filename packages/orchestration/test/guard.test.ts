@@ -1,8 +1,9 @@
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
-import { guardCommand, type Remotes } from "@cedarloom/orchestration";
+import { guardCommand, guardHookOf, type Remotes, workerPolicy } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 import { z } from "zod";
 
@@ -59,4 +60,24 @@ test("the hook reads a Monitor command as a Bash one, refuses PowerShell, and le
     hook(call("Monitor", { ws: { url: "wss://example.com" } })),
     hook(call("Read", { file_path: "/x" })),
   ]).toEqual(["refused", "refused", "runs", "runs"]);
+}, 30_000);
+
+test("a worker's policy holds its project's GitHub repositories and the hub, and its hook runs from the package", () => {
+  const project = mkdtempSync(join(tmpdir(), "guard-"));
+  try {
+    execFileSync("git", ["init", "-q", project]);
+    execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
+    const policy = workerPolicy(project, "acme/tracker");
+    expect(policy).toEqual({
+      schemaVersion: 1,
+      repositories: ["acme/app", "acme/tracker"],
+      hub: "acme/tracker",
+      memory: null,
+    });
+    const { command, args } = guardHookOf(policy);
+    const run = (text: string) => spawnSync(command, args, { input: bash(text, project), encoding: "utf8" }).status;
+    expect([run("git status"), run("git push -f origin main")]).toEqual([0, 2]);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
 }, 30_000);

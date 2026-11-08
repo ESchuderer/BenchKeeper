@@ -80,8 +80,8 @@ export interface LaunchHost {
   readonly fetchTree?: FetchTree;
 }
 
-// Claude Code's managed settings files that loosen the worker sandbox, or cannot be read, refuse every launch of it: a
-// managed key outranks --settings.
+// Claude Code's managed settings files that loosen the worker sandbox or switch its guard hook off, or cannot be read,
+// refuse every launch of it: a managed key outranks --settings.
 const managedRefusal = (host: LaunchHost, agent: Agent): Result<null> => {
   const dir = host.managedDir === undefined ? managedSettingsDir(host.platform) : host.managedDir;
   const [problem] = agent === "claude" && dir !== null ? managedProblems(dir) : [];

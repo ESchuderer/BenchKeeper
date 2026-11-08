@@ -131,7 +131,12 @@ export const doctor = async (ctx: Context): Promise<number> => {
     useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config }),
     useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), { app: ctx.app, fetch: ctx.io.fetch }),
   ]);
-  const findings = [...useCases.doctor(ctx.state), ...own, ...profile];
+  const findings = [
+    ...useCases.doctor(ctx.state),
+    ...useCases.managedPolicyDoctor(ctx.io.env, process.platform),
+    ...own,
+    ...profile,
+  ];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
   return findings.some((finding) => severityOf(finding) === "error") ? EXIT.refused : EXIT.ok;

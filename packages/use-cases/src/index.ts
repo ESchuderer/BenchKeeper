@@ -30,7 +30,6 @@ export {
   planUpdate,
   type UpdatePlan,
 } from "./extensions.ts";
-export { isConfirmed } from "@cedarloom/accounts";
 export {
   automationSettings,
   type GateRun,
@@ -50,26 +49,16 @@ export {
   type WorkerOutcome,
   type WorkerRequest,
 } from "./launch.ts";
-export type { LoginStatus } from "@cedarloom/agent-contracts";
 export {
   type AccountRequest,
   accountsStatus,
-  checkLogins,
   chooseAccount,
   chooseMove,
   keepSwapReadings,
-  type LoginHost,
-  type LoginRun,
   loadRegistry,
-  loginAccount,
   MAX_CONCURRENT,
   type MoveRequest,
   ownHome,
-  type NewAccount,
-  planAdd,
-  planConfirm,
-  planHome,
-  type StatusHost,
   type SwapWindow,
 } from "./accounts.ts";
 export {

@@ -147,26 +147,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Node ${p.node} runs ${p.type}, an extension action that is not installed, so the workflow cannot run until its extension is.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
-  "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
-  // Checked 2026-11-06: the Usage Policy's "Do Not Abuse Our Platform" (effective Nov 12, 2026), the login article.
-  "accounts.pool-terms": (p) =>
-    `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy, in ` +
-    "force from November 12, 2026 (https://www.anthropic.com/legal/aup), forbids users to " +
-    '"create multiple accounts, to avoid detection, circumvent product guardrails", to "intentionally bypass or ' +
-    'interfere with capabilities, restrictions, or guardrails established within our products", and to "provide ' +
-    "access to Claude through unauthorized means, including services that route requests through consumer " +
-    'subscriptions". Its help article says a subscription\'s usage "is designed to support ordinary use of native ' +
-    'Anthropic applications, including the Claude web, desktop, and mobile applications and Claude Code" ' +
-    "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
-    "you hold yourself falls under these rules.",
-  "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
-  "accounts.name-taken": (p) => `The registry has an account named ${p.account} already.`,
-  "accounts.name-invalid": (p) =>
-    `${p.name} is no name for an account or a pool: a lowercase letter or digit, then up to 31 more of them, - or _.`,
-  "accounts.login-unsupported": (p) =>
-    `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
-  "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
   "accounts.home-not-own": (p) =>
     `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs there.`,
   "accounts.home-linked": (p) =>
@@ -174,17 +155,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "accounts.home-missing": (p) => `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it.`,
   "accounts.home-unusable": (p) =>
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
-  "accounts.login-failed": (p) =>
-    `The login of account ${p.account} did not complete (${p.error}); run cedarloom accounts login ${p.account} again.`,
-  "doctor.logged-out": (p) =>
-    `Account ${p.account} is not logged in in its own home ${p.home}; log in with: cedarloom accounts login ${p.account}`,
-  "doctor.login-elsewhere": (p) =>
-    `Claude Code reads the login of account ${p.account} from ${p.configDirectory}, not from its own home ${p.home}; something in the environment points it there.`,
-  "doctor.login-method": (p) =>
-    `Account ${p.account} is logged in with ${p.method}, not with a Claude subscription (claude.ai); log in again with: cedarloom accounts login ${p.account}`,
-  "doctor.login-unchecked": (p) => `The login of account ${p.account} could not be checked (${p.error}).`,
-  "doctor.login-skipped": (p) =>
-    `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
   "launch.not-logged-in": (p) =>
     `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked.`,
   "doctor.plugin-none": (p) =>
@@ -197,8 +167,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Account ${p.account} runs ${p.max} workers already, its most at once; no worker starts on it until one ends.`,
   "launch.agent-unavailable": (p) =>
     `The ${p.agent} CLI could not report its version or run its contract check (${p.error}); no worker of it starts.`,
-  "accounts.codex-switching-off": (p) =>
-    `Pool ${p.pool} cannot be confirmed: switching between Codex accounts stays off until OpenAI's terms are reviewed.`,
   "launch.sandbox-overridden": (p) =>
     `The managed settings file ${p.path} sets ${p.key}, which loosens the worker sandbox or replaces the settings checked; no worker starts while it does.`,
   "launch.managed-settings-unreadable": (p) =>

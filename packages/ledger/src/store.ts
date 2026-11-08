@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
-  AccountName,
   AccountSwitch,
   canonicalJson,
   ContractCheckRecord,
@@ -97,9 +96,6 @@ export interface LeaseLock {
 }
 
 const leaseLockPath = (dir: string, name: string): string => join(dir, "leases", `${name}.lock`);
-
-// The lock of a check of an account's login, such as `claude auth status`, which may renew it.
-const checkLockPath = (dir: string, account: string): string => join(dir, "checks", `${account}.lock`);
 
 // The locks of this process's leases, kept referenced until release: a collected lock closes and lets the lease go.
 const heldLocks = new Set<DatabaseSync>();
@@ -545,32 +541,12 @@ export class RunStore extends RunView {
       if (leaseHeld(this.dir, runId)) counts.set(account, (counts.get(account) ?? 0) + 1);
       else end.run(now(), runId);
     }
-    // An account whose login is being checked counts as full, so no worker starts beside the check.
-    const checks = join(this.dir, "checks");
-    for (const file of existsSync(checks) ? readdirSync(checks) : []) {
-      // SQLite keeps a journal beside a held lock; only the locks name accounts.
-      if (file.endsWith(".lock") && lockHeld(join(checks, file)))
-        counts.set(file.slice(0, -5), Number.POSITIVE_INFINITY);
-    }
     return counts;
   }
 
-  /**
-   * The running leases per account, Infinity for an account whose login is being checked; a lease whose launcher let go
-   * of it without a finish is ended first.
-   */
+  /** The running leases per account; a lease whose launcher let go of it without a finish is ended first. */
   liveLeases(): Map<string, number> {
     return transaction(this.db, () => this.#countLive());
-  }
-
-  /**
-   * Holds `account` for a check of its login, which may renew it: null while a worker runs on it or another check holds
-   * it. Until the release the account counts as full, so no worker starts beside the check.
-   */
-  checkAccount(account: string): LeaseLock | null {
-    const path = checkLockPath(this.dir, AccountName.parse(account));
-    mkdirSync(join(this.dir, "checks"), { recursive: true, mode: 0o700 });
-    return transaction(this.db, () => (this.#countLive().has(account) ? null : hold(path)));
   }
 
   /**

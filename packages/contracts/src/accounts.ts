@@ -19,9 +19,6 @@ export type Agent = z.infer<typeof Agent>;
 // Account and pool names: a lowercase letter or digit, then up to 31 more of them, - or _.
 const Name = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 
-/** An account's name: also safe as a file name. */
-export const AccountName = Name;
-
 // A share in percent, 0 to 100 (A71): an adapter converts its agent's own form at the boundary.
 const Percent = z.number().min(0).max(100);
 

@@ -1,7 +1,6 @@
 export {
   ACCOUNTS_SCHEMA_VERSION,
   type Account,
-  AccountName,
   AccountRegistry,
   AccountSwitch,
   Agent,

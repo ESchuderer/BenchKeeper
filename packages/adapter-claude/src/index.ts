@@ -180,7 +180,7 @@ const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   };
 };
 
-// The fields the doctor reads (https://code.claude.com/docs/en/cli-reference); `configDirectory` only from 2.1.268.
+// The fields of `claude auth status` (https://code.claude.com/docs/en/cli-reference); `configDirectory` only from 2.1.268.
 const AuthStatus = z.object({ authMethod: z.string(), configDirectory: z.string().optional() });
 
 // The JSON a CLI printed, or undefined when it is none.

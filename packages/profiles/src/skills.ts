@@ -99,7 +99,7 @@ const packOf = (resolved: Resolved, source: Source, { fetched, level }: { fetche
 // How a finding names a skill: its pack entry, or its repository.
 const labelOf = (source: Source): string => ("git" in source ? source.git : `${source.pack}/${source.path}`);
 
-// Each on skill's files in its folder (executable where Git says so), and our files there no on skill wants now.
+// Two skills of one name refuse the plan, as their files would mix in one folder; CedarLoom's files no skill wants go.
 export const skillFiles = (
   resolved: Resolved,
   home: string,
@@ -118,7 +118,7 @@ export const skillFiles = (
     taken.set(folder, label);
     const files = filesOf(resolved, source, fetched);
     if (!files.ok) return files;
-    // A skills folder with `.claude-plugin/` (any case) loads as a plugin, which needs approval by name.
+    // A `.claude-plugin/` folder, in any case: docs/agents/cedarloom-rationale.md#skills-as-plugins
     const plugin = files.value.find(({ path }) =>
       path.split("/").some((segment) => segment.toLowerCase() === ".claude-plugin"),
     );

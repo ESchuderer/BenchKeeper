@@ -253,7 +253,7 @@ const sandboxed =
     return { ...prepared, run: () => prepared.run().finally(gone) };
   };
 
-// The node's file under the project's real path, or null when its nearest folder resolves outside it, as via a link.
+// null outside the project's real path, as via a link (review of #1076); a dangling link counts as there. `project` is real.
 const inProject = (project: string, path: string): string | null => {
   const full = join(project, path);
   let folder = dirname(full);
@@ -286,7 +286,6 @@ const fileRead =
     },
   });
 
-// A `file.write`'s plan: its content (text as is, other values as JSON) replacing what is at its path.
 const planOf = (project: string, { config, data }: Pick<Attempt, "config" | "data">): Plan | string => {
   let path: string | null;
   try {
@@ -554,7 +553,6 @@ export const resumeRun = (state: string, runId: string, options: RunOptions): Pr
 
 type First = (run: GraphRun, journal: readonly JournalEvent[]) => Result<JournalEvent[]>;
 
-// Takes over a stored run in its folder, appends what `first` returns (or its refusal), and runs it on.
 const takenOver = (state: string, runId: string, options: RunOptions, first: First): Promise<Result<GraphOutcome>> =>
   withGraphs(state, async (store) => {
     const run = store.graphRun(runId);
@@ -624,7 +622,7 @@ export const planGraphRun = (
   return { ok: true, value: { run, project: folder.ok ? folder.value : null, attempts: running } };
 };
 
-// What resume or cancel --yes would refuse: an ended run, a resume of a held run, another folder, or a missing one.
+// A missing folder refuses only a resume: a cancel starts nothing.
 const refusalOf = (run: GraphRun, verb: "resume" | "cancel", folder: Result<string>): Finding | null => {
   const { id: runId, status, pid } = run;
   if (!ACTIVE.has(status)) return { code: "run.finished", params: { runId, status } };

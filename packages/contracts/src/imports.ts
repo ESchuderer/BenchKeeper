@@ -20,7 +20,10 @@ export const ImportReview = z
     units: z.array(
       z.strictObject({
         id: WorkflowId,
-        // new: not stored; same: as stored; update: as the last import left it; conflict: edited here, never replaced.
+        /**
+         * new: not stored; same: stored as it is; update: stored as its last import left it; conflict: stored and edited
+         * here since (or never imported), which an import never replaces.
+         */
         status: z.enum(["new", "same", "update", "conflict"]),
         version: semver,
         stored: semver.nullable().describe("The stored version; null when there is none"),
@@ -46,7 +49,10 @@ export const ImportReview = z
         commit: Commit,
         path: PortablePath.optional(),
         digest: FolderDigest,
-        // verified: the lock's digest; mismatch: other files, which refuses the import; unreachable: not fetched.
+        /**
+         * verified: the files at the commit have the lock's digest; mismatch: other files, which refuses the import;
+         * unreachable: not fetched.
+         */
         status: z.enum(["verified", "mismatch", "unreachable"]),
         installed: z.boolean().describe("Installed here at this commit and digest; the import installs none"),
         capabilities: Capabilities.nullable().describe(

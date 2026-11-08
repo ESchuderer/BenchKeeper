@@ -67,7 +67,7 @@ const baseOf = (state: string, id: string): string | null => {
   }
 };
 
-// The validator's first error that keeps a workflow out of the store; an extension not installed yet is none.
+// An extension not installed here yet is no error: the stored workflow runs once it is.
 export const unstorable = (workflow: WorkflowDefinition): Finding | undefined =>
   validateWorkflow(workflow).find(
     (finding) => findingInfo[finding.code].severity === "error" && finding.code !== "workflow.extension-missing",

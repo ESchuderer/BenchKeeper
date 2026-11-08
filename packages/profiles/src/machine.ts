@@ -128,7 +128,7 @@ type Plugin = Extract<Resolved["profile"]["machine"][string], { type: "plugin" }
 /** What a plugin part of either level declares in a settings file. */
 export type Declared = Pick<Plugin, "plugin" | "marketplace">;
 
-// A plugin part's user settings: its marketplace (extraKnownMarketplaces, Claude Code docs) and the plugin switched on.
+// Its marketplace and the plugin switched on: https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces
 const pluginSet = ({ plugin, marketplace }: Declared): Json => {
   const enabledPlugins = { [plugin]: true };
   if (marketplace === undefined) return { enabledPlugins };
@@ -192,7 +192,7 @@ const optionsWrites = (plugins: [string, Plugin][], target: Target): Result<Oper
 const repository = (marketplace: NonNullable<Plugin["marketplace"]>): string =>
   "github" in marketplace ? marketplace.github : marketplace.git;
 
-// Each plugin part not approved by name that would change the settings: a named line, never preselected (#130).
+// A named line, never preselected (owner, hub issue 130), as its plugin's hooks, MCP servers and commands run in every session.
 export const waiting = <P extends Declared>(
   { level, project }: { level: "machine" | "project"; project: string | null },
   plugins: readonly [string, P][],
@@ -231,7 +231,7 @@ const without = (json: Json, { plugins, marketplaces }: Removed): Json => {
   return { ...json, ...drop("enabledPlugins", plugins), ...drop("extraKnownMarketplaces", marketplaces) };
 };
 
-// The settings parts, then the approved plugin parts, merged into the settings file, and those plugins' options files.
+// Settings parts set no plugin key (the profile's allow list), so their order before the plugin parts changes nothing.
 const settingsPlan = (
   { profile, on }: Resolved,
   target: Target,

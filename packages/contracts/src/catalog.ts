@@ -116,7 +116,7 @@ const continued = (entry: Entry, field: Field, part: string): Step => {
     : { entry: { ...entry, [field]: joined }, field, ended: false };
 };
 
-// A tag's canonical form, as catalog keys are written: `pt_br` is `pt-BR`, `de_DE.UTF-8` is `de-DE`; none if no tag.
+// So a POSIX locale finds its catalog key: `pt_br` is `pt-BR`, `de_DE.UTF-8` is `de-DE`, `sr_RS@latin` is `sr-RS`.
 const canonical = (locale: string): string => {
   const [tag = ""] = locale.split(/[.@]/);
   try {

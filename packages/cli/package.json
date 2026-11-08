@@ -39,9 +39,10 @@
     "@cedarloom/adapter-claude": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/server": "workspace:*",
-    "@cedarloom/use-cases": "workspace:*",
     "@cedarloom/ui": "workspace:*",
+    "@cedarloom/use-cases": "workspace:*",
     "@commander-js/extra-typings": "15.0.0",
+    "@napi-rs/keyring": "2.1.2",
     "commander": "15.0.0"
   },
   "devDependencies": {

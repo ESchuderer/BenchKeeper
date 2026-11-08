@@ -722,7 +722,7 @@ export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T>
 export const openRunStore = (dir: string, detect = filesystemType): Result<RunStore> => {
   const refused = stateDir(dir, detect);
   if (refused !== null) return { ok: false, finding: refused };
-  // The OS frees this lock on exit, also on a crash; its wait outlasts a reader's probe, others are refused.
+  // Freed by the OS on exit or crash; it outlasts a probe, which meets no WAL cleanup as writers close runs.sqlite first.
   const lock = new DatabaseSync(join(dir, "lock.sqlite"));
   try {
     lock.exec("PRAGMA busy_timeout = 1000; BEGIN EXCLUSIVE");

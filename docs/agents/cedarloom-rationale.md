@@ -79,6 +79,14 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 `project.ts` (`settingsWrites`). Settings parts merge into the committed `.claude/settings.json` or the local `.claude/settings.local.json` by their `commit` field. Plugin parts that `approved` names go into the local file, the only one Claude Code downloads a plugin from. Every other plugin part that would change it waits for its approval by name and is held back with the parts that require it. Git ignores the local file while a part that writes it is on, also once its plugins are in place.
 
+### Manual
+
+`project.ts` (`manualWrites`). The manual's writes are its two blocks and the CLAUDE.md to make. An owner's CLAUDE.md that does not import AGENTS.md is reported when no local block does, as Claude Code reads AGENTS.md by itself only without a CLAUDE.md (https://code.claude.com/docs/en/memory#agents-md).
+
+### Skills as plugins
+
+`skills.ts` (`skillFiles`). Claude Code loads a skills folder with `.claude-plugin/` as a plugin, hooks and servers included, which a plugin part brings only with its approval by name (https://code.claude.com/docs/en/plugins/loading). The folder counts in any case, as macOS's and Windows' file systems read `.Claude-Plugin` as `.claude-plugin`.
+
 ## Ledger
 
 `packages/ledger/src/`

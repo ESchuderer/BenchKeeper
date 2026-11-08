@@ -130,7 +130,6 @@ const realTarget = (project: string, part: string, target: string): Result<strin
   return refuse({ code: "profile.target-linked", params: { part, target, path } });
 };
 
-// A project plan's input: the profile, the project and its `.claude` as on disk, fetched folders, Templates, approvals.
 type Given = {
   resolved: Resolved;
   project: string;
@@ -207,7 +206,6 @@ const containerTexts = ({ project, templates, approved }: Given, id: string): Re
   return { ok: true, value: files.map(({ path, content }): [string, string] => [path, content.toString("utf8")]) };
 };
 
-// A part's targets and texts: a files part's own, a gates part's from its source, a container's from its Template.
 const textsOf = (given: Given, id: string, part: Whole): Result<{ texts: Texts; keeping: Keeping }> => {
   if (part.type === "files") {
     const texts = filesTexts(given, id, part);
@@ -301,7 +299,7 @@ const filesOf = (given: Given, written: Written) => {
   return { ok: true as const, value: files };
 };
 
-// The exclude file in the common Git folder of the repository at `root`, also for a linked worktree; read unchecked.
+// null without a `.git`; read as it is, never checked first, so nothing changes between a check and its read.
 const excludeAt = (root: string): string | null => {
   const dotGit = join(root, ".git");
   let text: string;
@@ -328,7 +326,7 @@ const repositoryOf = (project: string): { root: string; exclude: string } | null
   }
 };
 
-// The Git exclude block: the machine-local files, anchored at their repository paths, glob characters escaped.
+// Anchored and with glob characters escaped, so each line matches only its own file.
 const excludeWrites = (project: string, paths: string[]): Result<Operation[]>[] => {
   const repository = repositoryOf(project);
   if (repository === null) return [];
@@ -369,7 +367,7 @@ const claudeOf = ({ resolved }: Context, project: string) => {
   return { ok: true as const, value: { path, owners: text.value !== null, create, imported } };
 };
 
-// The manual's two blocks and the CLAUDE.md to make; an owner's CLAUDE.md without `@AGENTS.md` is reported.
+// An owner's CLAUDE.md without `@AGENTS.md` is reported: docs/agents/cedarloom-rationale.md#manual
 const manualWrites = (context: Context, project: string) => {
   const claude = claudeOf(context, project);
   if (!claude.ok) return claude;
@@ -432,7 +430,7 @@ const ownedOf = (given: Given, files: Files, { written, record }: { written: Wri
   return { ok: true as const, value: { ...plan.value, findings: [...plan.value.findings, ...held], wanted: writing } };
 };
 
-// What Git ignores: the local manual and settings while CedarLoom writes them, and its own unchanged local targets.
+// A target the owner changed is theirs, so Git keeps showing it; the local manual and settings are ignored while written.
 const localPaths = (project: string, files: Files, owned: LevelPlan, local: { manual: boolean; settings: boolean }) => {
   const theirs = ownerChanged(owned);
   return [

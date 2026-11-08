@@ -76,7 +76,6 @@ const deleteOf = (path: string): Result<Operation[]> => {
 };
 
 type Removals = { files: Operation[]; plugins: string[]; marketplaces: string[] };
-// What removing the named offers takes: settings keys to drop, and deletes of a rules file or a skill folder's files.
 export const removalsOf = (home: string, items: readonly string[]): Result<Removals> => {
   const named = (kind: string) =>
     items.filter((item) => item.startsWith(`${kind}:`)).map((item) => item.slice(kind.length + 1));

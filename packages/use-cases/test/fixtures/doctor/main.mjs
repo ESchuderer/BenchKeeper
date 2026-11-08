@@ -11,7 +11,8 @@ const answers = {
   "doctor/run": () => ({
     findings: [{ check: "setup", severity: "info", code: "example.ready", message: `ready ${process.pid}` }],
   }),
-  "action/run": () => ({ outputs: { ready: true } }),
+  // Its inputs come back as outputs.
+  "action/run": ({ inputs }) => ({ outputs: { ready: true, ...inputs } }),
   shutdown: () => null,
 };
 process.stdin.on("data", (chunk) => {

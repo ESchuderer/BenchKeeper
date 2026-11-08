@@ -2873,9 +2873,7 @@
                 "initialize",
                 "run",
                 "doctor",
-                "target",
-                "worker",
-                "session"
+                "worker"
               ]
             },
             "error": {

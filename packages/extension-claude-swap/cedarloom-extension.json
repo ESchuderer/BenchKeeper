@@ -4,7 +4,7 @@
   "id": "cedarloom.claude-swap",
   "version": "0.0.0",
   "name": "claude-swap",
-  "description": "Every Claude Code account's usage, and the account interactive sessions use, from the user's claude-swap.",
+  "description": "The user's claude-swap: its Claude Code accounts with their usage, and its own switch and auto mode, run only once allowed.",
   "license": "MIT",
   "api": "1.0",
   "runtime": { "kind": "node", "entry": "main.mjs" },
@@ -36,6 +36,40 @@
           "version": { "type": "string", "description": "Absent when claude-swap is not installed" },
           "accounts": { "type": "number", "description": "The accounts claude-swap manages" },
           "active": { "type": "number", "description": "The account interactive sessions use; absent when none" }
+        }
+      },
+      "list": {
+        "title": "claude-swap's accounts",
+        "outputs": {
+          "accounts": {
+            "type": "json",
+            "description": "Each account by its number, with its alias, whether it is active, disabled or held, its switch line and its usage windows"
+          }
+        }
+      },
+      "switch": {
+        "title": "Switch to a claude-swap account",
+        "inputs": {
+          "account": { "type": "string", "required": true, "description": "The account's number in claude-swap" }
+        },
+        "outputs": {
+          "switched": { "type": "boolean" },
+          "from": { "type": "number", "description": "The account before; absent when none" },
+          "to": { "type": "number" },
+          "runs": { "type": "string", "description": "The command it runs once allowed" },
+          "approve": { "type": "string", "description": "The command line that allows it" }
+        }
+      },
+      "settings": {
+        "title": "claude-swap's auto mode settings",
+        "inputs": {
+          "key": { "type": "string", "description": "A setting to set first, such as autoswitch.threshold" },
+          "value": { "type": "string", "description": "Its new value" }
+        },
+        "outputs": {
+          "settings": { "type": "json", "description": "claude-swap's autoswitch.* settings" },
+          "runs": { "type": "string", "description": "The command it runs once allowed" },
+          "approve": { "type": "string", "description": "The command line that allows it" }
         }
       },
       "install": {
@@ -82,9 +116,7 @@
         }
       }
     },
-    "switchTargets": { "interactive": { "agent": "claude" } },
-    "sessionProviders": { "claude": { "agent": "claude", "program": "cswap" } },
     "doctor": { "claude-swap": { "title": "claude-swap" } },
-    "commands": ["status", "install", "auto", "auto-on", "auto-off"]
+    "commands": ["status", "list", "switch", "settings", "install", "auto", "auto-on", "auto-off"]
   }
 }

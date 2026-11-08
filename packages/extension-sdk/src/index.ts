@@ -28,14 +28,6 @@ import {
   type RunParams,
   runAction,
   shutdown,
-  TARGET_CALLS,
-  type TargetAnswers,
-  type TargetCall,
-  type TargetCallParams,
-  SESSION_CALLS,
-  type SessionAnswers,
-  type SessionCall,
-  type SessionCallParams,
   WORKER_CALLS,
   type WorkerAnswers,
   type WorkerCall,
@@ -85,29 +77,18 @@ export type ExtensionOptions = {
    */
   doctor?: (context: Pick<ActionContext, "locale" | "exec">) => DoctorFinding[] | Promise<DoctorFinding[]>;
   /**
-   * The calls of its switch targets (`contributes.switchTargets`, bundled extensions only), with `exec` as an action
+   * The calls of its worker runners (`contributes.workerRunners`, bundled extensions only), with `exec` as an action
    * has it; a call it leaves out answers MethodNotFound.
    */
-  targets?: TargetHandlers;
-  /** The calls of its worker runners (`contributes.workerRunners`, bundled extensions only), as `targets` has them. */
   workers?: WorkerHandlers;
-  /** The call of its session providers (`contributes.sessionProviders`, bundled extensions only). */
-  sessions?: SessionHandlers;
 };
 
-/** What a switch target's call gets: the language `initialize` named, and `exec` through the host. */
-export type TargetContext = Pick<ActionContext, "locale" | "exec">;
-type CallParams = TargetCallParams & WorkerCallParams & SessionCallParams;
-type CallAnswers = TargetAnswers & WorkerAnswers & SessionAnswers;
-type Handlers<K extends keyof CallParams> = {
-  [C in K]?: (params: CallParams[C], context: TargetContext) => Promise<CallAnswers[C]>;
-};
-/** An async handler per `target/*` call; each rejects to fail. */
-export type TargetHandlers = Handlers<TargetCall>;
+/** What a worker runner's call gets: the language `initialize` named, and `exec` through the host. */
+export type CallContext = Pick<ActionContext, "locale" | "exec">;
 /** An async handler per `worker/*` call; each rejects to fail. */
-export type WorkerHandlers = Handlers<WorkerCall>;
-/** An async handler per `session/*` call; each rejects to fail. */
-export type SessionHandlers = Handlers<SessionCall>;
+export type WorkerHandlers = {
+  [C in WorkerCall]?: (params: WorkerCallParams[C], context: CallContext) => Promise<WorkerAnswers[C]>;
+};
 
 // A cancel that came before the action started has a token that is cancelled already and never fires.
 const abortOn = (token: CancellationToken): AbortSignal => {
@@ -140,16 +121,16 @@ const outputsOf = (value: unknown): Record<string, unknown> => {
   return Object.fromEntries(Object.entries(json));
 };
 
-// Answers the host's call of a switch target or worker runner with its handler, which runs programs through the host.
-const serveCall = <C extends keyof CallParams>(
+// Answers the host's call of a worker runner with its handler, which runs programs through the host.
+const serveCall = <C extends WorkerCall>(
   connection: MessageConnection,
   call: C,
-  handle: Handlers<keyof CallParams>[C],
+  handle: WorkerHandlers[C],
   locale: () => string,
 ): void => {
   if (handle === undefined) return;
   // The answer is typed by the handler: the host checks it against its contract.
-  connection.onRequest(new RequestType<CallParams[C], unknown, void>(call), (params, token) => {
+  connection.onRequest(new RequestType<WorkerCallParams[C], unknown, void>(call), (params, token) => {
     const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
     // Also a handler that throws before it returns a promise answers ACTION_FAILED with its reason.
     return Promise.resolve()
@@ -189,9 +170,7 @@ export const defineExtension = (actions: Record<string, Action>, options: Extens
     const exec = (request: ExecParams): Promise<ExecResult> => connection.sendRequest(hostExec, request, token);
     return { findings: (await options.doctor?.({ locale: hello.locale, exec })) ?? [] };
   });
-  const handlers: Handlers<keyof CallParams> = { ...options.targets, ...options.workers, ...options.sessions };
-  for (const call of [...TARGET_CALLS, ...WORKER_CALLS, ...SESSION_CALLS])
-    serveCall(connection, call, handlers[call], () => hello.locale);
+  for (const call of WORKER_CALLS) serveCall(connection, call, options.workers?.[call], () => hello.locale);
   connection.onRequest(runAction, async ({ action, ...given }, token) => {
     const run = Object.hasOwn(actions, action) ? actions[action] : undefined;
     if (run === undefined) return new ResponseError(ErrorCodes.InvalidParams, `no action ${action}`);

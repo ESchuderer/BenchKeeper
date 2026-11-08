@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { isDeepStrictEqual } from "node:util";
 import { type ExtensionManifest as Manifest, type Finding, type Result, shown } from "@cedarloom/contracts";
 import {
   doctorRun,
@@ -14,11 +13,7 @@ import {
   log,
   PROTOCOL,
   runAction,
-  type SessionCallParams,
   shutdown,
-  type TargetAnswers,
-  type TargetCall,
-  type TargetCallParams,
   type WorkerAnswers,
   type WorkerCall,
   type WorkerCallParams,
@@ -32,10 +27,9 @@ import {
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
 import { z } from "zod";
-import { executor, resolvedProgram } from "./exec.ts";
+import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
-import { ANSWERS, PolicySet } from "./targets.ts";
 import { WORKER_ANSWERS, WORKER_PARAMS } from "./workers.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
@@ -67,8 +61,8 @@ export type HostLimits = {
   execs: number;
   /** How long the extension's own checks may take to answer the doctor. */
   doctorMs: number;
-  /** How long a switch target may take to answer one of its calls. */
-  targetMs: number;
+  /** How long a worker runner may take to answer one of its calls. */
+  callMs: number;
 };
 export const HOST_LIMITS: HostLimits = {
   messageBytes: 1024 * 1024,
@@ -80,14 +74,14 @@ export const HOST_LIMITS: HostLimits = {
   fetchBytes: 512 * 1024,
   fetchMs: 30_000,
   fetches: 8,
-  // A claude-swap tick may wait about 18 s on Claude Code's locks and then fetch usage (account-switching plan 1.5).
+  // claude-swap's switch may wait about 18 s on Claude Code's locks and then fetch usage (account-switching plan 1.5).
   execMs: 120_000,
   execBytes: 1024 * 1024,
   execs: 4,
   // claude-swap's check may fetch usage with its own 10 s timeouts and refresh a login, which a stop can break.
   doctorMs: 40_000,
-  // A target's tick runs a claude-swap tick, which host/exec allows 120 s: the call has a margin beyond its exec.
-  targetMs: 130_000,
+  // A call may run a program, which host/exec allows 120 s: the call has a margin beyond its exec.
+  callMs: 130_000,
 };
 
 export type ExtensionLaunch = {
@@ -126,26 +120,15 @@ export type RunningExtension = {
    */
   doctor: () => Promise<Finding[]>;
   /**
-   * Asks one of its switch targets (`contributes.switchTargets`): `extension.failed` (step target) for an extension
-   * that is not bundled, a target its manifest does not name, no answer within `targetMs`, or an answer outside the
-   * call's contract.
-   */
-  target: <C extends TargetCall>(call: C, params: TargetCallParams[C]) => Promise<Result<TargetAnswers[C]>>;
-  /**
-   * Asks one of its worker runners (`contributes.workerRunners`), as `target` asks a switch target: `extension.failed`
-   * (step worker) on the same grounds.
+   * Asks one of its worker runners (`contributes.workerRunners`): `extension.failed` (step worker) for an extension
+   * that is not bundled, a runner its manifest does not name, no answer within `callMs`, or a request or an answer
+   * outside the call's contract.
    */
   worker: <C extends WorkerCall>(call: C, params: WorkerCallParams[C]) => Promise<Result<WorkerAnswers[C]>>;
-  /**
-   * Asks a session provider (`contributes.sessionProviders`) for the line that runs its agent as account `number`:
-   * its program as the host finds it, then `run <number> --require-session --`. `extension.failed` (step session) on
-   * the grounds of `target`, a line of another shape, or the program not found.
-   */
-  session: (params: SessionCallParams["session/line"]) => Promise<Result<string[]>>;
 };
 
 type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "programs";
-type Step = "start" | "initialize" | "run" | "doctor" | "target" | "worker" | "session";
+type Step = "start" | "initialize" | "run" | "doctor" | "worker";
 
 const refused = (extension: string, reason: Refusal): Finding => ({
   code: "extension.refused",
@@ -396,45 +379,27 @@ const DoctorAnswer = (checks: string[]) =>
 
 // What a contributed call names, in the extension's manifest, and its answer's contract.
 type Contributed<A> = {
-  step: "target" | "worker" | "session";
+  step: "worker";
   what: string;
   names: object | undefined;
   name: string;
   answer: z.ZodType<A>;
 };
 
-// Switching an agent's account and starting workers are the app's own extensions' work, within `targetMs`.
+// Starting workers is the app's own extensions' work, within `callMs`.
 const askOf =
   (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) =>
   async <A>(call: string, params: object, { step, what, names, name, answer }: Contributed<A>): Promise<Result<A>> => {
     if (trust !== "bundled") return failed(manifest.id, step, `${what}s are the app's own extensions' only`);
     if (!Object.hasOwn(names ?? {}, name)) return failed(manifest.id, step, `no ${what} ${name}`);
     const asked = Promise.resolve().then(() => session.connection.sendRequest(call, params));
-    const answered = await within(asked, limits.targetMs, `no answer within ${limits.targetMs} ms`).catch(
+    const answered = await within(asked, limits.callMs, `no answer within ${limits.callMs} ms`).catch(
       (error: unknown) => new Error(session.broken() ?? messageOf(error)),
     );
     if (answered instanceof Error) return failed(manifest.id, step, answered.message);
     const parsed = answer.safeParse(answered);
     return parsed.success ? { ok: true, value: parsed.data } : failed(manifest.id, step, "an answer the host refuses");
   };
-
-const targetOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
-  const ask = askOf(manifest, trust, session, limits);
-  return async <C extends TargetCall>(call: C, params: TargetCallParams[C]): Promise<Result<TargetAnswers[C]>> => {
-    // Checked before the call, as the answer echoes the settings.
-    if (trust === "bundled" && !PolicySet.safeParse(Reflect.get(params, "set") ?? {}).success) {
-      return failed(manifest.id, "target", "settings its answer could not hold");
-    }
-    const names = manifest.contributes.switchTargets;
-    return ask(call, params, {
-      step: "target",
-      what: "switch target",
-      names,
-      name: params.target,
-      answer: ANSWERS[call],
-    });
-  };
-};
 
 const workerOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
   const ask = askOf(manifest, trust, session, limits);
@@ -444,37 +409,6 @@ const workerOf = (manifest: Manifest, trust: Trust, session: Session, limits: Ho
     const names = manifest.contributes.workerRunners;
     const answer = WORKER_ANSWERS[call];
     return ask(call, params, { step: "worker", what: "worker runner", names, name: params.runner, answer });
-  };
-};
-
-const Line = z.strictObject({ argv: z.array(z.string().max(4096)).max(16) });
-// What the host asks a session provider: an account by the number claude-swap gives it.
-const LineParams = z.strictObject({ provider: z.string().max(64), number: z.int().min(1).max(9999) });
-
-const sessionOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
-  const ask = askOf(manifest, trust, session, limits);
-  return async (params: SessionCallParams["session/line"]): Promise<Result<string[]>> => {
-    if (!LineParams.safeParse(params).success) return failed(manifest.id, "session", "a request outside its contract");
-    const names = manifest.contributes.sessionProviders;
-    const what = "session provider";
-    const asked = await ask("session/line", params, {
-      step: "session",
-      what,
-      names,
-      name: params.provider,
-      answer: Line,
-    });
-    if (!asked.ok) return asked;
-    // claude-swap's session mode as decided: no sharing flags, no profile path (switching plan 14.6, S9b).
-    const program = names?.[params.provider]?.program ?? "";
-    const expected = ["run", String(params.number), "--require-session", "--"];
-    if (!isDeepStrictEqual(asked.value.argv, [program, ...expected])) {
-      return failed(manifest.id, "session", "a line of another shape");
-    }
-    const file = resolvedProgram(manifest, program);
-    return file === undefined
-      ? failed(manifest.id, "session", `${program} is not installed`)
-      : { ok: true, value: [file, ...expected] };
   };
 };
 
@@ -504,9 +438,7 @@ const running = (
   limits: HostLimits,
 ): RunningExtension => ({
   doctor: () => doctorOf(manifest, session, limits),
-  target: targetOf(manifest, trust, session, limits),
   worker: workerOf(manifest, trust, session, limits),
-  session: sessionOf(manifest, trust, session, limits),
   run: async (request, signal) => {
     const id = manifest.id;
     if (signal?.aborted === true) return failed(id, "run", "cancelled by the host");

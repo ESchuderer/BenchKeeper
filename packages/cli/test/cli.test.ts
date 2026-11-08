@@ -878,16 +878,17 @@ const ship = (root: string, id: string, contributes: Record<string, unknown>): s
   return folder;
 };
 
-test("a verb the app's own extension contributes runs its action and prints its outputs, and is refused while off", async () => {
+test("a verb the app's own extension contributes runs its action with the inputs given as flags and prints its outputs, and is refused while off", async () => {
   const { root, cli } = setup();
-  ship(root, "cedarloom.example", { actions: { status: { title: "Status" } }, commands: ["status"] });
-  const ran = await cli("example", "status");
+  const inputs = { name: { type: "string" } };
+  ship(root, "cedarloom.example", { actions: { status: { title: "Status", inputs } }, commands: ["status"] });
+  const ran = await cli("example", "status", "--name", "Ada");
   const asJson = json((await cli("example", "status", "--json")).out);
   await cli("components", "switch", "cedarloom.example", "off", "--yes");
   const off = await cli("example", "status", "--json");
   expect([ran.code, ran.out, asJson, off.code, json(off.out)["findings"]]).toEqual([
     EXIT.ok,
-    "ready: true\n",
+    "ready: true\nname: Ada\n",
     {
       format: "cedarloom.extension",
       schemaVersion: 1,

@@ -185,57 +185,15 @@ const requests = {
   shutdown: () => null,
 };
 
-// Its switch target: x-bad-target answers outside the contract, x-slow-target never answers. Accounts go by number;
-// the second has no alias and is held.
-const AT = "2026-11-07T10:00:00.000Z";
-const target = (answer) => (params) => {
-  if (mode === "x-slow-target") return new Promise(() => undefined);
-  return mode === "x-bad-target" ? { status: "maybe" } : answer(params);
-};
-Object.assign(requests, {
-  "target/probe": target(() => ({ status: "supported", detail: "cswap 1.2.3" })),
-  "target/accounts": target(() => ({
-    accounts: [
-      {
-        number: 1,
-        alias: "work",
-        active: true,
-        disabled: false,
-        held: false,
-        threshold: 90,
-        windows: [{ window: "fiveHour", usedPercent: 91, resetsAt: AT, readAt: AT }],
-      },
-      { number: 2, active: false, disabled: false, held: true, threshold: null, windows: [] },
-    ],
-  })),
-  "target/current": target(() => ({ number: 1 })),
-  "target/select": target(({ number }) => ({ switched: true, from: 1, to: number, reason: "asked" })),
-  "target/tick": target(() => ({
-    code: 0,
-    events: [{ at: AT, from: 1, to: 2, reason: "over the line", trigger: "proactive" }],
-  })),
-  "target/policy": target(({ set = {} }) => ({ values: { "autoswitch.threshold": 90, ...set } })),
-});
-
-// Its worker runner: x-bad-worker answers a dispatch the host cannot hold.
+// Its worker runner: x-bad-worker answers a dispatch the host cannot hold, x-slow-worker never shows a worker.
 Object.assign(requests, {
   "worker/start": () =>
     mode === "x-bad-worker"
       ? { dispatch: "two words", handles: [] }
       : { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
-  "worker/show": () => ({ state: "succeeded", settled: true }),
+  "worker/show": () =>
+    mode === "x-slow-worker" ? new Promise(() => undefined) : { state: "succeeded", settled: true },
   "worker/release": ({ handles }) => ({ released: handles.length === 2 }),
-  // Its session provider, on the program `runtime`: x-bad-session adds a flag the host refuses.
-  "session/line": ({ number }) => ({
-    argv: [
-      "runtime",
-      "run",
-      String(number),
-      "--require-session",
-      "--",
-      ...(mode === "x-bad-session" ? ["--no-share"] : []),
-    ],
-  }),
 });
 
 // An error whose message is an array nested 200,000 deep: the reader cannot build its answer.

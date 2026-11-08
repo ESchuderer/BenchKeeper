@@ -93,7 +93,7 @@
           "agent": ["Agent task"],
           "write": ["Writes"],
           "workflow": ["Calls the workflow"],
-          "other": ["Extension action"]
+          "other": [["kind"]]
         }
       ],
       " (",
@@ -205,13 +205,6 @@
       ["node"],
       " is always skipped; merge them in a join with policy any."
     ],
-    "problem.extensionMissing": [
-      "Node ",
-      ["node"],
-      " runs ",
-      ["type"],
-      ", an extension action that is not installed, so the workflow cannot run until its extension is."
-    ],
     "problem.extra": [
       ["item"],
       " is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ",
@@ -258,11 +251,6 @@
       "The ",
       ["field", "select", { "url": ["URL"], "ref": ["branch or tag"], "other": ["folder"] }],
       " is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with a hyphen."
-    ],
-    "problem.reportOnlyExtension": [
-      "Node ",
-      ["node"],
-      " runs an extension action, which may write files or change other systems, but a schedule starts this workflow, and a scheduled run only reports."
     ],
     "problem.reportOnlyWrite": [
       "Node ",

@@ -66,10 +66,6 @@ export const Finding = z
     finding("workflow.optional-input", { node: z.string(), handle: z.string(), input: z.string() }),
     finding("workflow.schedule-input", { input: z.string() }),
     finding("workflow.report-only-write", { node: z.string() }),
-    /** An extension action under a schedule: it may write through the host or change other systems (P9 b). */
-    finding("workflow.report-only-extension", { node: z.string() }),
-    /** A node of an extension action that is not installed here: the workflow can be kept and shared, not run. */
-    finding("workflow.extension-missing", { node: z.string(), type: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
     /** A project's level is set for a folder that exists, by its real path. */
@@ -324,8 +320,6 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.optional-input": { severity: "error", effort: "manual" },
   "workflow.schedule-input": { severity: "error", effort: "manual" },
   "workflow.report-only-write": { severity: "error", effort: "manual" },
-  "workflow.report-only-extension": { severity: "error", effort: "manual" },
-  "workflow.extension-missing": { severity: "error", effort: "manual" },
   "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },

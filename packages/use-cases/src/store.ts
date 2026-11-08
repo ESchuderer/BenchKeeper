@@ -62,11 +62,8 @@ const baseOf = (state: string, id: string): string | null => {
   }
 };
 
-// An extension not installed here yet is no error: the stored workflow runs once it is.
 export const unstorable = (workflow: WorkflowDefinition): Finding | undefined =>
-  validateWorkflow(workflow).find(
-    (finding) => findingInfo[finding.code].severity === "error" && finding.code !== "workflow.extension-missing",
-  );
+  validateWorkflow(workflow).find((finding) => findingInfo[finding.code].severity === "error");
 
 /** A planned save: the plan, the version it stores, and the stored version it follows (null: the first). */
 export type SavePlan = { plan: Plan; version: string; stored: string | null };

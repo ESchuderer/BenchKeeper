@@ -75,10 +75,8 @@ const WorkflowNode = z
     id,
     type: z
       .string()
-      .regex(/^[a-z][a-z0-9-]*([./][a-z][a-z0-9-]*)*$/)
-      .describe(
-        "A built-in node type such as `command.run`, or an extension action `publisher.name/action`; the engine refuses types it does not know",
-      ),
+      .regex(/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/)
+      .describe("A built-in node type such as `command.run`; the engine refuses types it does not know"),
     with: z
       .record(z.string(), JsonValue)
       .optional()

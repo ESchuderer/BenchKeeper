@@ -6,7 +6,6 @@ import {
   ExportIndex,
   type Finding,
   type ImportReview,
-  isExtensionType,
   PLAN_SCHEMA_VERSION,
   type Plan,
   type Result,
@@ -214,8 +213,7 @@ const LINES: Record<string, (node: Node) => [Risk["kind"], string | undefined][]
 };
 const risksOf = (workflow: WorkflowDefinition): Risk[] =>
   workflow.nodes.flatMap((node) => {
-    const extension: [Risk["kind"], string][] = isExtensionType(node.type) ? [["extension", node.type]] : [];
-    const lines = LINES[node.type]?.(node) ?? extension;
+    const lines = LINES[node.type]?.(node) ?? [];
     return lines.flatMap(([kind, line]) =>
       line === undefined ? [] : [{ workflow: workflow.metadata.id, node: node.id, kind, text: line }],
     );

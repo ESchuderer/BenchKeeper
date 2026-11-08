@@ -54,7 +54,6 @@ export {
   GitUrl,
   INSTALLED_SCHEMA_VERSION,
   InstalledExtensions,
-  isExtensionType,
   PortablePath,
   UPDATES_SCHEMA_VERSION,
 } from "./extension.ts";

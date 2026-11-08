@@ -1,4 +1,5 @@
 import type { Finding } from "@cedarloom/contracts";
+import { shown as escaped } from "@cedarloom/contracts/escape";
 import { t, when } from "../i18n.ts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
@@ -10,6 +11,15 @@ type Shown = Extract<
   | `document.${string}`
   | "run.node-unsupported"
   | "git.failed"
+  | "git.refused-source"
+  | "git.too-large"
+  | "git.unsafe-entry"
+  | "extension.digest-mismatch"
+  | "import.not-found"
+  | "plan.not-approved"
+  | "plan.file-changed"
+  | "store.busy"
+  | "run.failed"
   | "profile.source-waiting"
   | "profile.part-unknown"
   | "profile.part-requires"
@@ -66,6 +76,16 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "workflow.stray-entry": (p) => t("problem.strayEntry", p),
   "run.node-unsupported": (p) => t("problem.nodeUnsupported", p),
   "git.failed": (p) => t("problem.gitFailed", p),
+  "git.refused-source": (p) => t("problem.refusedSource", p),
+  // A fetched tree's paths are the source's own: escaped, as the CLI shows them.
+  "git.too-large": (p) => t("problem.tooLarge", { ...p, path: p.path === null ? "none" : escaped(p.path) }),
+  "git.unsafe-entry": (p) => t("problem.unsafeEntry", { ...p, path: escaped(p.path) }),
+  "extension.digest-mismatch": (p) => t("problem.digestMismatch", p),
+  "import.not-found": () => t("problem.importNotFound"),
+  "plan.not-approved": () => t("problem.notApproved"),
+  "plan.file-changed": (p) => t("problem.fileChanged", { path: escaped(p.path) }),
+  "store.busy": () => t("problem.storeBusy"),
+  "run.failed": (p) => t("problem.runFailed", p),
   "profile.source-waiting": (p) =>
     t("problem.sourceWaiting", { source: p.source, commit: p.commit.slice(0, 12), offered: when(p.offered) }),
   "profile.part-unknown": (p) => t("problem.partUnknown", p),

@@ -17,11 +17,15 @@ let page: Page;
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const FILES = ["cedarloom-export.json", "cedarloom.lock.json", "workflows/workflow-w.json"];
 
-// Another machine's export of the corpus's build-and-review as w, served as one commit of any Git source.
+// A command whose right-to-left override (U+202E) would show it to a reader as "echo txt.exe" (Trojan Source).
+const TROJAN = { id: "trojan", type: "command.run", with: { command: "echo \u202Eexe.txt" } };
+
+// Another machine's export of the corpus's build-and-review as w, with TROJAN, served as one commit of any Git source.
 const exported = (root: string): Fetch => {
   const from = join(root, "from");
   const base = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
-  const saved = saveDraft(from, "w", { ...base, metadata: { ...base.metadata, id: "w", version: "1.0.0" } }, null);
+  const w = { ...base, metadata: { ...base.metadata, id: "w", version: "1.0.0" }, nodes: [...base.nodes, TROJAN] };
+  const saved = saveDraft(from, "w", w, null);
   const save = saved.ok ? planSave(from, "w", { onTop: false }) : saved;
   if (!save.ok) throw new Error("w was not saved");
   applyPlan(from, save.value.plan, { yes: true });
@@ -53,7 +57,7 @@ test.afterAll(async () => {
   }
 });
 
-test("an import shows every command and agent task before anything is stored, imports on the user's word, and then offers nothing; the view passes axe", async () => {
+test("an import shows every command and agent task, a bidirectional control escaped, before anything is stored, imports on the user's word, and then offers nothing; the view passes axe", async () => {
   await page.goto(server.url);
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Import" }).click();
   const main = page.getByRole("main");
@@ -63,7 +67,8 @@ test("an import shows every command and agent task before anything is stored, im
   // The review takes the focus, so a screen reader reads it first.
   await expect(main.getByRole("heading", { level: 3 })).toBeFocused();
   await expect(main.getByRole("row").filter({ hasText: /^w/ })).toHaveCount(1);
-  for (const line of ["pnpm lint", "pnpm test", "Review the changes and list findings."]) {
+  // The override shows as its escape, so the line reads as the command that runs.
+  for (const line of ["pnpm lint", "pnpm test", "Review the changes and list findings.", "echo \\u202eexe.txt"]) {
     await expect(main.getByRole("listitem").filter({ hasText: line })).toHaveCount(1);
   }
   await accessible(page);

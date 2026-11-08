@@ -1,5 +1,6 @@
 import type { Api, components } from "@cedarloom/client";
 import { Alert, Button, Group, List, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { shown } from "@cedarloom/contracts/escape";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { call } from "./call.ts";
 import { t } from "./i18n.ts";
@@ -64,7 +65,7 @@ const Risks = ({ risks }: { risks: Review["risks"] }) =>
             <List.Item key={`${risk.node} ${risk.kind} ${risk.text}`}>
               {t("import.riskKind", { kind: risk.kind, node: risk.node })}{" "}
               <Text span ff="monospace" inherit>
-                {risk.text}
+                {shown(risk.text, 100_000)}
               </Text>
             </List.Item>
           ))}
@@ -80,14 +81,10 @@ const asks = ({ capabilities: asked }: Extension): string[] => {
     t("import.credential", { id, hosts: hosts.join(", ") }),
   );
   // Each program with every file the host may run for it, per platform.
-  const programs = Object.entries(asked.programs ?? {}).map(([id, where]) =>
-    t("import.program", {
-      id,
-      files: Object.entries(where)
-        .map(([os, files]) => `${os}: ${files?.join(", ")}`)
-        .join("; "),
-    }),
-  );
+  const programs = Object.entries(asked.programs ?? {}).map(([id, where]) => {
+    const files = Object.entries(where).flatMap(([os, found]) => (found?.length ? [`${os}: ${found.join(", ")}`] : []));
+    return files.length > 0 ? t("import.program", { id, files: files.join("; ") }) : t("import.programNowhere", { id });
+  });
   return [
     ...(asked.net?.length ? [t("import.net", { hosts: asked.net.join(", ") })] : []),
     ...credentials,
@@ -117,7 +114,7 @@ const ExtensionShown = ({ extension }: { extension: Extension }) => {
       <Text span ff="monospace" inherit>
         {extension.id} {extension.version}
       </Text>{" "}
-      {t("import.pin", { git: extension.git, commit: short(extension.commit) })}{" "}
+      {t("import.pin", { git: extension.git, path: extension.path ?? "none", commit: short(extension.commit) })}{" "}
       {t("import.pinStatus", { status: extension.status })}{" "}
       {extension.installed ? t("import.installed") : t("import.notInstalled")}
       {lines.length > 0 && (
@@ -147,7 +144,7 @@ const ReviewShown = ({ review }: { review: Review }) => {
       <Title order={3} size="h5" ref={heading} tabIndex={-1}>
         {"git" in source
           ? t("import.from", { git: source.git, ref: source.ref, commit: short(source.commit) })
-          : t("import.fromFolder", { folder: source.folder })}
+          : t("import.fromFolder", { folder: shown(source.folder) })}
       </Title>
       <Units units={review.units} />
       <Title order={4} size="h6">
@@ -212,6 +209,8 @@ const ApplyOffer = ({ preview, busy, onApply }: { preview: Preview; busy: boolea
   );
 };
 type Apply = (importId: string, approve: string) => void;
+// Refusals after which the plan shown no longer applies, so only a new review can offer one.
+const STALE = new Set(["import.not-found", "plan.not-approved", "plan.file-changed"]);
 
 /**
  * An import from a Git source: its review first, then, only on the user's word, the plan applied with the hash of the
@@ -235,9 +234,11 @@ export const Import = ({ api }: { api: Api }): ReactNode => {
     setBusy(true);
     const params = { path: { importId } };
     const answer = await call(() => api.POST("/api/imports/{importId}/apply", { params, body: { approve } }));
-    // A refused or failed run comes back as a problem with its findings; the review stays, its plan kept by id.
-    if ("problem" in answer) setOutcome(answer.problem);
-    else {
+    // A refused or failed run comes back as a problem with its findings; the review stays while its plan is kept.
+    if ("problem" in answer) {
+      setOutcome(answer.problem);
+      if (answer.codes.some((code) => STALE.has(code))) setPreview(null);
+    } else {
       setOutcome(t("import.applied", { runId: answer.data.runId ?? "none" }));
       setPreview(null);
     }

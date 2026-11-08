@@ -9,22 +9,32 @@ type Fetched<T> = { data: T; error?: never; response: Response } | { data?: neve
 const isFinding = (each: unknown): each is Finding =>
   typeof each === "object" && each !== null && "code" in each && typeof each.code === "string" && "params" in each;
 
-/** Why the server refused: its findings as sentences (a refusal's, or a run's that did not apply), else its status. */
-export const refused = (error: unknown, status: number): string => {
+// A refusal's findings, or those of a run that did not apply.
+const findingsOf = (error: unknown): Finding[] => {
   const found = typeof error === "object" && error !== null && "findings" in error ? error.findings : null;
-  const findings = Array.isArray(found) ? found.filter((each) => isFinding(each)) : [];
+  return Array.isArray(found) ? found.filter((each) => isFinding(each)) : [];
+};
+
+/** Why the server refused: its findings as sentences, else its status. */
+export const refused = (error: unknown, status: number): string => {
+  const findings = findingsOf(error);
   if (findings.length === 0) return t("error.failed", { status, error: JSON.stringify(error) });
   return findings.map((finding) => describe(finding)).join(" ");
 };
 
-/** The answer's data, or the sentence for the user: a lost session, a refusal's findings, an unreachable server. */
-export const call = async <T>(request: () => Promise<Fetched<T>>): Promise<{ data: T } | { problem: string }> => {
+/**
+ * The answer's data, or the sentence for the user (a lost session, a refusal's findings, an unreachable server) with
+ * the codes of those findings.
+ */
+export const call = async <T>(
+  request: () => Promise<Fetched<T>>,
+): Promise<{ data: T } | { problem: string; codes: string[] }> => {
   try {
     const { data, error, response } = await request();
     if (data !== undefined) return { data };
-    if (response.status === 401) return { problem: t("session.lost") };
-    return { problem: refused(error, response.status) };
+    if (response.status === 401) return { problem: t("session.lost"), codes: [] };
+    return { problem: refused(error, response.status), codes: findingsOf(error).map(({ code }) => code) };
   } catch {
-    return { problem: t("error.unreachable") };
+    return { problem: t("error.unreachable"), codes: [] };
   }
 };

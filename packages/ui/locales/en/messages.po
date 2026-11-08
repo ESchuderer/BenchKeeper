@@ -605,7 +605,7 @@ msgstr "They need no extension."
 
 #. js-lingui-explicit-id
 msgid "import.pin"
-msgstr "from {git} at {commit}:"
+msgstr "from {git}{path, select, none {} other {, folder {path},}} at {commit}:"
 
 #. js-lingui-explicit-id
 msgid "import.pinStatus"
@@ -666,3 +666,43 @@ msgstr "Import"
 #. js-lingui-explicit-id
 msgid "import.applied"
 msgstr "Imported{runId, select, none {} other { in run {runId}}}."
+
+#. js-lingui-explicit-id
+msgid "problem.refusedSource"
+msgstr "The {field, select, url {URL} ref {branch or tag} other {folder}} is refused before Git runs: it holds a password, a control character, a space or non-ASCII text, or starts with a hyphen."
+
+#. js-lingui-explicit-id
+msgid "problem.tooLarge"
+msgstr "{path, select, none {The tree} other {{path}}} has {found} {unit, select, files {files} other {bytes}}, more than the {limit} a fetched tree may have; nothing of it is used."
+
+#. js-lingui-explicit-id
+msgid "problem.unsafeEntry"
+msgstr "{path} {kind, select, link {is a symbolic link} submodule {is a submodule} name {is not a portable file name} other {differs from an earlier path in case only}}, so nothing of the fetched tree is used."
+
+#. js-lingui-explicit-id
+msgid "problem.digestMismatch"
+msgstr "The lock pins {extension} at a commit whose files are not the ones it names; nothing is imported."
+
+#. js-lingui-explicit-id
+msgid "problem.importNotFound"
+msgstr "This review is no longer kept: it was applied, or is too old. Review the import again."
+
+#. js-lingui-explicit-id
+msgid "problem.notApproved"
+msgstr "The plan to apply is no longer the one shown. Review the import again."
+
+#. js-lingui-explicit-id
+msgid "problem.fileChanged"
+msgstr "{path} changed since the review. Review the import again."
+
+#. js-lingui-explicit-id
+msgid "problem.storeBusy"
+msgstr "Another CedarLoom process is applying changes; try again when it ends."
+
+#. js-lingui-explicit-id
+msgid "problem.runFailed"
+msgstr "Run {runId} stopped before its end; its earlier changes stay, and Runs offers their undo."
+
+#. js-lingui-explicit-id
+msgid "import.programNowhere"
+msgstr "Names the program {id} for no platform"

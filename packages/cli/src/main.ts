@@ -90,7 +90,7 @@ const storeCommands = (workflows: Command, ctx: Ctx, done: Done): void => {
     .action((id, options) => done(workflowsOpen(ctx(), id, options)));
   workflows
     .command("export")
-    .description("show writing stored workflows and their extensions' lock into a folder; with --yes, write them")
+    .description("show writing stored workflows into a folder; with --yes, write them")
     .addArgument(
       new Argument("<id...>", "the workflows' ids").argParser((id, ids?: string[]) => [...(ids ?? []), workflowId(id)]),
     )

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { formatExport, formatLock } from "@cedarloom/contracts";
+import { formatExport } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
 import type { Fetch } from "@cedarloom/use-cases";
 
@@ -19,7 +19,6 @@ export const flowsExport = async (): Promise<Fetch> => {
       "cedarloom-export.json",
       formatExport({ schemaVersion: 1, kind: "cedarloom.export", name: "Shared", workflows: ["minimal"] }),
     ],
-    ["cedarloom.lock.json", formatLock({ schemaVersion: 1, kind: "cedarloom.lock", extensions: {} })],
     ["workflows/workflow-minimal.json", await readFile(join(corpus, "valid-minimal.json"), "utf8")],
   ];
   const files = texts.map(([path, text]) => ({

@@ -16,7 +16,7 @@ let page: Page;
 let state = "";
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
-const FILES = ["cedarloom-export.json", "cedarloom.lock.json", "workflows/workflow-w.json"];
+const FILES = ["cedarloom-export.json", "workflows/workflow-w.json"];
 
 // A command whose right-to-left override (U+202E) would show it to a reader as "echo txt.exe" (Trojan Source).
 const TROJAN = { id: "trojan", type: "command.run", with: { command: "echo \u202Eexe.txt" } };
@@ -38,7 +38,7 @@ const exported = (root: string): Fetch => {
   const folder = join(from, "shared");
   const exporting = planExport(from, ["w"], folder, { name: "Team flows" });
   if (!exporting.ok) throw new Error("w was not exported");
-  applyPlan(from, exporting.value.plan, { yes: true });
+  applyPlan(from, exporting.value, { yes: true });
   const files = FILES.map((path) => {
     const content = readFileSync(join(folder, ...path.split("/")));
     return { path, mode: "100644" as const, sha256: createHash("sha256").update(content).digest("hex"), content };

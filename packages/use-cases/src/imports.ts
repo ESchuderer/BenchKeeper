@@ -4,12 +4,9 @@ import {
   canonicalJson,
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
-  ExtensionLock,
   type Finding,
-  formatLock,
   type ImportReview,
   isExtensionType,
-  LOCK_SCHEMA_VERSION,
   PLAN_SCHEMA_VERSION,
   type Plan,
   type Result,
@@ -23,21 +20,19 @@ import { errorCode } from "@cedarloom/engine";
 import { fetchTree, type Store, type Tree } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
 import { DRAFT_LIMIT, load } from "./drafts.ts";
-import { type Fetch, type Installed, installedExtensions, manifestOf } from "./extensions.ts";
-import { extensionsOf, fileOf, linkIn, readStored, unstorable } from "./store.ts";
+import type { Fetch } from "./extensions.ts";
+import { fileOf, linkIn, readStored, unstorable } from "./store.ts";
 import { parseDocument, storeOf } from "./use-cases.ts";
 
 const INDEX = "cedarloom-export.json";
-const LOCK = "cedarloom.lock.json";
 // Where the store keeps the SHA-256 of each workflow's text as it was last imported: an update replaces only that.
 const IMPORTED = "cedarloom-imports.json";
-const NO_LOCK: ExtensionLock = { schemaVersion: LOCK_SCHEMA_VERSION, kind: "cedarloom.lock", extensions: {} };
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 type Read = (path: string) => Result<string>;
 type Source = ImportReview["source"];
 type Workflow = { text: string; workflow: WorkflowDefinition };
-type Incoming = { source: Source; index: ExportIndex; lock: ExtensionLock; workflows: Workflow[] };
+type Incoming = { source: Source; index: ExportIndex; workflows: Workflow[] };
 
 /** Where to import from: an export folder, or a Git URL at a ref. */
 export type From = { folder: string } | { git: string; ref: string };
@@ -99,19 +94,17 @@ const workflowIn = (read: Read, id: string): Result<Workflow> => {
   return error === undefined ? { ok: true, value: { text: text.value, workflow: workflow.value } } : refuse(error);
 };
 
-/** The index, the lock and each workflow the index names. */
+/** The index and each workflow the index names. */
 const incomingOf = (read: Read, source: Source): Result<Incoming> => {
   const index = documentIn(read, INDEX, (json) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, json));
   if (!index.ok) return index;
-  const lock = documentIn(read, LOCK, (json) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, json));
-  if (!lock.ok) return lock;
   const workflows: Workflow[] = [];
   for (const id of index.value.workflows) {
     const workflow = workflowIn(read, id);
     if (!workflow.ok) return workflow;
     workflows.push(workflow.value);
   }
-  return { ok: true, value: { source, index: index.value, lock: lock.value, workflows } };
+  return { ok: true, value: { source, index: index.value, workflows } };
 };
 
 const fetched = async (state: string, source: { url: string; ref: string; path?: string }, fetch: Fetch) => {
@@ -127,7 +120,7 @@ const readIncoming = async (state: string, from: From, fetch: Fetch): Promise<Re
   return incomingOf(inTree(tree.value), { git: from.git, ref: from.ref, commit: tree.value.commit });
 };
 
-type Stored = { store: Store; head: string | null; imported: Record<string, string>; lock: ExtensionLock };
+type Stored = { store: Store; head: string | null; imported: Record<string, string> };
 
 const storedJson = <T>(
   at: Pick<Stored, "store" | "head">,
@@ -154,14 +147,7 @@ const storedOf = (state: string): Result<Stored> => {
   const store = storeOf(state);
   const head = store.head();
   const imported = storedJson({ store, head }, IMPORTED, asImported, {});
-  if (!imported.ok) return imported;
-  const lock = storedJson(
-    { store, head },
-    LOCK,
-    (json) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, json),
-    NO_LOCK,
-  );
-  return lock.ok ? { ok: true, value: { store, head, imported: imported.value, lock: lock.value } } : lock;
+  return imported.ok ? { ok: true, value: { store, head, imported: imported.value } } : imported;
 };
 
 type Unit = ImportReview["units"][number];
@@ -235,69 +221,13 @@ const risksOf = (workflow: WorkflowDefinition): Risk[] =>
     );
   });
 
-type Extension = ImportReview["extensions"][number];
-type Pin = ExtensionLock["extensions"][string];
-
-const treeStatus = (tree: Result<Tree>, digest: string): Extension["status"] => {
-  if (!tree.ok) return "unreachable";
-  return tree.value.digest === digest ? "verified" : "mismatch";
-};
-
-/** An extension the lock pins, fetched at its commit as data only (nothing runs) and checked against its digest. */
-const checkedPin = async (
-  state: string,
-  [id, pin]: [string, Pin],
-  here: Installed[],
-  fetch: Fetch,
-): Promise<Extension> => {
-  const at = pin.source.path === undefined ? {} : { path: pin.source.path };
-  const tree = await fetched(state, { url: pin.source.git, ref: pin.source.commit, ...at }, fetch);
-  const status = treeStatus(tree, pin.digest);
-  const manifest = tree.ok && status === "verified" ? manifestOf(tree.value) : undefined;
-  const { git, commit } = pin.source;
-  const installed = here.some((each) => each.id === id && each.source.commit === commit && each.digest === pin.digest);
-  // Only the manifest of the extension the lock names counts; another one's capabilities are unknown here.
-  const own = manifest?.ok === true && manifest.value.id === id && manifest.value.version === pin.version;
-  const capabilities = own ? (manifest.value.capabilities ?? {}) : null;
-  return { id, version: pin.version, git, commit, ...at, digest: pin.digest, status, installed, capabilities };
-};
-
-// The used extensions' pins, fetched one at a time; an export pins each one its workflows use, so a missing one fails.
-const pinsOf = async (
-  state: string,
-  lock: ExtensionLock,
-  used: string[],
-  fetch: Fetch,
-): Promise<Result<Extension[]>> => {
-  const installed = installedExtensions(state);
-  if (!installed.ok) return installed;
-  const pinned = new Map(Object.entries(lock.extensions));
-  const checked: Extension[] = [];
-  for (const id of used) {
-    const pin = pinned.get(id);
-    if (pin === undefined) {
-      return refuse({ code: "document.invalid", params: { issues: [{ path: `extensions.${id}`, code: "custom" }] } });
-    }
-    checked.push(await checkedPin(state, [id, pin], installed.value, fetch));
-  }
-  return { ok: true, value: checked };
-};
-
-const usedBy = (workflows: Workflow[]): string[] => [
-  ...new Set(workflows.flatMap(({ workflow }) => extensionsOf(workflow))),
-];
-
 // Byte for byte, with each hash as imported, which tells a later import an update from a local edit; null for none chosen.
-const planOf = (stored: Stored, lock: ExtensionLock, chosen: Workflow[]): Result<Plan | null> => {
+const planOf = (stored: Stored, chosen: Workflow[]): Result<Plan | null> => {
   if (chosen.length === 0) return { ok: true, value: null };
   const hashes = chosen.map(({ text, workflow }) => [workflow.metadata.id.toLowerCase(), sha256(text)]);
   const imported = { ...stored.imported, ...Object.fromEntries(hashes) };
-  const used = new Set(usedBy(chosen));
-  const pins = Object.entries(lock.extensions).filter(([id]) => used.has(id));
-  const merged = { ...stored.lock, extensions: { ...stored.lock.extensions, ...Object.fromEntries(pins) } };
   const files: [string, string][] = [
     ...chosen.map(({ text, workflow }): [string, string] => [fileOf(workflow.metadata.id), text]),
-    [LOCK, formatLock(merged)],
     [IMPORTED, `${JSON.stringify(JSON.parse(canonicalJson(imported)), null, 2)}\n`],
   ];
   const message = chosen.map(({ workflow }) => `${workflow.metadata.id} ${workflow.metadata.version}\n`).join("");
@@ -315,23 +245,18 @@ export type ImportPlan = { review: ImportReview; plan: Plan | null };
 /**
  * Plans an import (P6 a): reads the export folder or fetches the Git ref as data, nothing checked out or run, and builds
  * the review. Its plan stores the new and updated workflows as one store.update; a workflow in conflict is never
- * replaced, no extension is installed, and a pin whose files are not its digest's refuses the import.
+ * replaced.
  */
 export const planImport = async (state: string, from: From, fetch: Fetch = fetchTree): Promise<Result<ImportPlan>> => {
   const read = await readIncoming(state, from, fetch);
   if (!read.ok) return read;
   const stored = storedOf(state);
   if (!stored.ok) return stored;
-  const { workflows, lock, index, source } = read.value;
+  const { workflows, index, source } = read.value;
   const units = workflows.map((each) => unitOf(stored.value, index, each));
   const risks = workflows.flatMap(({ workflow }) => risksOf(workflow));
-  const pins = await pinsOf(state, lock, usedBy(workflows), fetch);
-  if (!pins.ok) return pins;
-  const extensions = pins.value;
-  const mismatch = extensions.find(({ status }) => status === "mismatch");
-  if (mismatch !== undefined) return refuse({ code: "extension.digest-mismatch", params: { extension: mismatch.id } });
   const chosen = workflows.filter((_, at) => ["new", "update"].includes(units[at]?.status ?? "same"));
-  const plan = planOf(stored.value, lock, chosen);
+  const plan = planOf(stored.value, chosen);
   if (!plan.ok) return plan;
-  return { ok: true, value: { review: { source, units, risks, extensions }, plan: plan.value } };
+  return { ok: true, value: { review: { source, units, risks }, plan: plan.value } };
 };

@@ -7,7 +7,6 @@ import { t } from "./i18n.ts";
 
 type Preview = components["schemas"]["ImportPreview"];
 type Review = Preview["review"];
-type Extension = Review["extensions"][number];
 
 const short = (commit: string): string => commit.slice(0, 12);
 
@@ -75,65 +74,6 @@ const Risks = ({ risks }: { risks: Review["risks"] }) =>
     ))
   );
 
-// What an extension asks for, a line each: the hosts it calls, the credentials it uses there, files, programs.
-const asks = ({ capabilities: asked }: Extension): string[] => {
-  if (asked === null) return [t("import.unknownAsks")];
-  const credentials = Object.entries(asked.credentials ?? {}).map(([id, { hosts }]) =>
-    t("import.credential", { id, hosts: hosts.join(", ") }),
-  );
-  // Each program with every file the host may run for it, per platform.
-  const programs = Object.entries(asked.programs ?? {}).map(([id, where]) => {
-    const files = Object.entries(where).flatMap(([os, found]) => (found?.length ? [`${os}: ${found.join(", ")}`] : []));
-    return files.length > 0 ? t("import.program", { id, files: files.join("; ") }) : t("import.programNowhere", { id });
-  });
-  return [
-    ...(asked.net?.length ? [t("import.net", { hosts: asked.net.join(", ") })] : []),
-    ...credentials,
-    ...(asked.projectRead ? [t("import.projectRead")] : []),
-    ...(asked.planWrite ? [t("import.planWrite")] : []),
-    ...programs,
-  ];
-};
-
-/** The extensions the workflows use, as the import's lock pins them; the import installs none of them. */
-const Extensions = ({ extensions }: { extensions: Extension[] }) =>
-  extensions.length === 0 ? (
-    <Text>{t("import.noExtensions")}</Text>
-  ) : (
-    <List>
-      {extensions.map((extension) => (
-        <ExtensionShown key={extension.id} extension={extension} />
-      ))}
-    </List>
-  );
-
-/** One pinned extension: where from, whether its files match the lock, whether it is here, and what it asks for. */
-const ExtensionShown = ({ extension }: { extension: Extension }) => {
-  const lines = asks(extension);
-  return (
-    <List.Item>
-      <Text span ff="monospace" inherit>
-        {extension.id} {extension.version}
-      </Text>{" "}
-      {t("import.pin", {
-        git: extension.git,
-        folder: extension.path === undefined ? "no" : "yes",
-        path: extension.path ?? "",
-        commit: short(extension.commit),
-      })}{" "}
-      {t("import.pinStatus", { status: extension.status })}{" "}
-      {extension.installed ? t("import.installed") : t("import.notInstalled")}
-      {lines.length > 0 && (
-        <List withPadding>
-          {lines.map((line) => (
-            <List.Item key={line}>{line}</List.Item>
-          ))}
-        </List>
-      )}
-    </List.Item>
-  );
-};
-
 // Each license with the workflows under it, none stated counted as such.
 const licenses = (units: Review["units"]): string =>
   [...Map.groupBy(units, (unit) => unit.license ?? t("import.noLicense"))]
@@ -157,10 +97,6 @@ const ReviewShown = ({ review }: { review: Review }) => {
         {t("import.what")}
       </Title>
       <Risks risks={review.risks} />
-      <Title order={4} size="h6">
-        {t("import.extensions")}
-      </Title>
-      <Extensions extensions={review.extensions} />
       <Text>{t("import.licenses", { licenses: licenses(review.units) })}</Text>
     </Stack>
   );

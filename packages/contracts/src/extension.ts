@@ -4,12 +4,10 @@ import { NODE_CONFIGS, ProjectPath } from "./nodes.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
 import { PlainText } from "./text.ts";
-import { DataType, HandleName, JsonValue, License, semver, WorkflowId } from "./workflow.ts";
+import { DataType, HandleName, License, semver, WorkflowId } from "./workflow.ts";
 
 /** The extension manifest format (`cedarloom-extension.json`) this CedarLoom reads; readers refuse a newer one. */
 export const EXTENSION_SCHEMA_VERSION = 1;
-/** The lockfile format (`cedarloom.lock.json`) this CedarLoom writes and reads. */
-export const LOCK_SCHEMA_VERSION = 1;
 /** The export folder's index format (`cedarloom-export.json`) this CedarLoom writes and reads. */
 export const EXPORT_SCHEMA_VERSION = 1;
 /** The format of the installed extensions (`extensions.json` in the state folder) this CedarLoom writes and reads. */
@@ -117,7 +115,7 @@ const Program = z
   .strictObject({ darwin: candidates.optional(), linux: candidates.optional(), win32: candidates.optional() })
   .describe("Where the host looks for the program on each platform; none listed: not on that platform");
 
-export const Capabilities = z.strictObject({
+const Capabilities = z.strictObject({
   net: distinct(Origin)
     .max(32)
     .optional()
@@ -134,61 +132,14 @@ export const Capabilities = z.strictObject({
     ),
 });
 
-const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
-// A keyword that loads or registers a schema from elsewhere: an outside `$ref`, another meta-schema, or an `$id`.
-const foreign = (key: string, item: unknown): boolean => {
-  if (typeof item !== "string") return false;
-  if (key === "$ref" || key === "$dynamicRef") return item !== "" && !item.startsWith("#");
-  return key === "$id" || (key === "$schema" && item !== DRAFT_2020_12);
-};
-// Keywords whose values are data, and keywords that map any names (a property called `$ref`) to schemas.
-const LITERALS = new Set(["const", "enum", "default", "examples"]);
-// `dependencies` is draft 7's, which Ajv still compiles: a map to schemas (or to lists of names, which hold no text).
-const SCHEMA_MAPS = new Set([
-  "properties",
-  "patternProperties",
-  "dependentSchemas",
-  "dependencies",
-  "$defs",
-  "definitions",
-]);
-/** Whether a schema, or a list of schemas, holds a foreign keyword anywhere. */
-const outside = (value: unknown): boolean => {
-  if (Array.isArray(value)) return value.some(outside);
-  if (typeof value !== "object" || value === null) return false;
-  return Object.entries(value).some(([key, item]) => {
-    if (LITERALS.has(key)) return false;
-    if (SCHEMA_MAPS.has(key)) return typeof item === "object" && item !== null && Object.values(item).some(outside);
-    return foreign(key, item) || outside(item);
-  });
-};
-
 const ExtensionAction = z.strictObject({
   title: PlainText.min(1).max(200),
   description,
-  // JSON Schema 2020-12 allows `true` (any value) and `false` (none) as schemas too.
-  config: z
-    .union([z.boolean(), z.record(z.string(), JsonValue)])
-    .refine((schema) => !outside(schema), "a schema that stays inside itself")
-    .optional()
-    .describe(
-      "JSON Schema 2020-12 of the node's `with`: a `$ref` points inside it (`#...`), no `$id`, no other `$schema`",
-    ),
-  // `run` starts every action node and `done` or `failed` ends it, so data handles take other names.
   inputs: sized(
-    z.record(
-      HandleName.regex(/^(?!run$)/, "not `run`, the action's control input"),
-      z.strictObject({ type: DataType, required: z.boolean().optional(), description }),
-    ),
+    z.record(HandleName, z.strictObject({ type: DataType, required: z.boolean().optional(), description })),
     32,
   ).optional(),
-  outputs: sized(
-    z.record(
-      HandleName.regex(/^(?!(?:done|failed)$)/, "not `done` or `failed`, the action's control outputs"),
-      z.strictObject({ type: DataType, description }),
-    ),
-    32,
-  ).optional(),
+  outputs: sized(z.record(HandleName, z.strictObject({ type: DataType, description })), 32).optional(),
 });
 
 // A credential bound to a host the extension may not reach would never be used, or widen `net` behind the user's back.
@@ -349,21 +300,7 @@ const ExtensionPin = z.strictObject({
 });
 
 /**
- * The extensions a set of workflows needs, each pinned to a commit and the digest of its files (A29 b), so an import
- * fetches the code the exporter ran or refuses it. Git is the only source in 0.1.0 (P2 a).
- */
-export const ExtensionLock = z
-  .strictObject({
-    $schema: z.string().optional().describe("Where an editor finds this JSON Schema; readers ignore it"),
-    schemaVersion: z.literal(LOCK_SCHEMA_VERSION),
-    kind: z.literal("cedarloom.lock"),
-    extensions: sized(z.record(ExtensionId, ExtensionPin), 500),
-  })
-  .register(fileFormats, { id: "ExtensionLock" });
-export type ExtensionLock = z.infer<typeof ExtensionLock>;
-
-/**
- * The extensions installed on this machine, each pinned like a lock entry, with the ref an update follows and the
+ * The extensions installed on this machine, each pinned to a commit and the digest of its files, with the ref an update follows and the
  * capabilities the user approved. Git is the only source in 0.1.0 (P2 a), so each is a community
  * extension: its trust comes from where its code came from, never from a field of its manifest or of this file.
  */
@@ -419,8 +356,7 @@ export const formatInstalled = (installed: InstalledExtensions): string =>
 
 /**
  * The index of an export folder: each workflow at `workflows/workflow-<id in lower case>.json`, named like a draft so
- * no id becomes a Windows device name, and the extensions they need in `cedarloom.lock.json` beside this file. The
- * workflow store keeps the same layout (P3 a).
+ * no id becomes a Windows device name. The workflow store keeps the same layout (P3 a).
  */
 export const ExportIndex = z
   .strictObject({
@@ -441,8 +377,6 @@ export const ExportIndex = z
   .register(fileFormats, { id: "ExportIndex" });
 export type ExportIndex = z.infer<typeof ExportIndex>;
 
-/** The file texts of an export's index and lock: keys sorted, two spaces, a final line break. */
+/** The file text of an export's index: keys sorted, two spaces, a final line break. */
 export const formatExport = (index: ExportIndex): string =>
   `${JSON.stringify(ExportIndex.parse(sortKeys(index)), null, 2)}\n`;
-export const formatLock = (lock: ExtensionLock): string =>
-  `${JSON.stringify(ExtensionLock.parse(sortKeys(lock)), null, 2)}\n`;

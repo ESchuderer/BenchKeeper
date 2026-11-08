@@ -263,35 +263,11 @@
                 "maxLength": 2000,
                 "pattern": "^[^\\p{Cc}\\u061C\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069]*$"
               },
-              "config": {
-                "description": "JSON Schema 2020-12 of the node's `with`: a `$ref` points inside it (`#...`), no `$id`, no other `$schema`",
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {
-                      "$ref": "JsonValue.schema.json"
-                    }
-                  }
-                ]
-              },
               "inputs": {
                 "type": "object",
                 "propertyNames": {
                   "type": "string",
-                  "allOf": [
-                    {
-                      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
-                    },
-                    {
-                      "pattern": "^(?!run$)"
-                    }
-                  ]
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
                 },
                 "additionalProperties": {
                   "type": "object",
@@ -319,14 +295,7 @@
                 "type": "object",
                 "propertyNames": {
                   "type": "string",
-                  "allOf": [
-                    {
-                      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
-                    },
-                    {
-                      "pattern": "^(?!(?:done|failed)$)"
-                    }
-                  ]
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
                 },
                 "additionalProperties": {
                   "type": "object",

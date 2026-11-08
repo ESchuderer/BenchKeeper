@@ -14,7 +14,6 @@ type Shown = Extract<
   | "git.refused-source"
   | "git.too-large"
   | "git.unsafe-entry"
-  | "extension.digest-mismatch"
   | "import.not-found"
   | "plan.not-approved"
   | "plan.file-changed"
@@ -82,7 +81,6 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "git.too-large": (p) =>
     t("problem.tooLarge", { ...p, named: p.path === null ? "no" : "yes", path: escaped(p.path ?? "") }),
   "git.unsafe-entry": (p) => t("problem.unsafeEntry", { ...p, path: escaped(p.path) }),
-  "extension.digest-mismatch": (p) => t("problem.digestMismatch", p),
   "import.not-found": () => t("problem.importNotFound"),
   "plan.not-approved": () => t("problem.notApproved"),
   "plan.file-changed": (p) => t("problem.fileChanged", { path: escaped(p.path) }),

@@ -584,54 +584,6 @@ msgid "import.riskKind"
 msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} write {Writes} workflow {Calls the workflow} other {Extension action}} ({node}):"
 
 #. js-lingui-explicit-id
-msgid "import.extensions"
-msgstr "Extensions they need (this import installs none)"
-
-#. js-lingui-explicit-id
-msgid "import.noExtensions"
-msgstr "They need no extension."
-
-#. js-lingui-explicit-id
-msgid "import.pin"
-msgstr "from {git}{folder, select, yes {, folder {path},} other {}} at {commit}:"
-
-#. js-lingui-explicit-id
-msgid "import.pinStatus"
-msgstr "{status, select, verified {its files match the lock;} mismatch {its files differ from the lock;} other {not fetched;}}"
-
-#. js-lingui-explicit-id
-msgid "import.installed"
-msgstr "installed here."
-
-#. js-lingui-explicit-id
-msgid "import.notInstalled"
-msgstr "not installed here."
-
-#. js-lingui-explicit-id
-msgid "import.net"
-msgstr "Calls {hosts}"
-
-#. js-lingui-explicit-id
-msgid "import.credential"
-msgstr "Uses the credential {id} for {hosts}, without seeing its value"
-
-#. js-lingui-explicit-id
-msgid "import.projectRead"
-msgstr "Reads project files"
-
-#. js-lingui-explicit-id
-msgid "import.planWrite"
-msgstr "Proposes file writes, each applied only through a plan you approve"
-
-#. js-lingui-explicit-id
-msgid "import.program"
-msgstr "Runs {id} from {files}"
-
-#. js-lingui-explicit-id
-msgid "import.unknownAsks"
-msgstr "What it asks for is unknown: its manifest at that commit did not read"
-
-#. js-lingui-explicit-id
 msgid "import.licenseCount"
 msgstr "{license} ({count, plural, one {# workflow} other {# workflows}})"
 
@@ -668,10 +620,6 @@ msgid "problem.unsafeEntry"
 msgstr "{path} {kind, select, link {is a symbolic link} submodule {is a submodule} name {is not a portable file name} other {differs from an earlier path in case only}}, so nothing of the fetched tree is used."
 
 #. js-lingui-explicit-id
-msgid "problem.digestMismatch"
-msgstr "The lock pins {extension} at a commit whose files are not the ones it names; nothing is imported."
-
-#. js-lingui-explicit-id
 msgid "problem.importNotFound"
 msgstr "This review is no longer kept: it was applied, or is too old. Review the import again."
 
@@ -690,10 +638,6 @@ msgstr "Another CedarLoom process is applying changes; try again when it ends."
 #. js-lingui-explicit-id
 msgid "problem.runFailed"
 msgstr "Run {runId} stopped before its end; its earlier changes stay, and Runs offers their undo."
-
-#. js-lingui-explicit-id
-msgid "import.programNowhere"
-msgstr "Names the program {id} for no platform"
 
 #. js-lingui-explicit-id
 msgid "problem.storeMoved"

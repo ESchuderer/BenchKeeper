@@ -171,7 +171,7 @@ interface Change {
 type Pin = useCases.InstallPlan["pin"];
 
 // What the extension may do, in plain words.
-export const mayDo = (capabilities: useCases.Capabilities): string[] => [
+const mayDo = (capabilities: useCases.Capabilities): string[] => [
   ...(capabilities.net ?? []).map((origin) => `may send requests through CedarLoom to ${origin}`),
   ...Object.entries(capabilities.credentials ?? {}).map(
     ([id, { hosts }]) =>
@@ -361,15 +361,14 @@ export const workflowsOpen = (ctx: Context, id: string, { at }: { at?: string })
 
 type ExportOptions = { name?: string; license?: string; yes?: true };
 
-// Writes stored workflows with their extensions' lock to a folder; the user commits and pushes it with Git (P4 a).
+// Writes stored workflows to a folder; the user commits and pushes it with Git (P4 a).
 export const workflowsExport = (ctx: Context, ids: string[], folder: string, options: ExportOptions): number => {
   const { name = basename(folder), license, yes } = options;
   const about = license === undefined ? { name } : { name, license };
   const planned = useCases.planExport(ctx.state, ids, folder, about);
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, extensions } = planned.value;
-  const note = `\n  ${ids.join(", ")} with the lock of ${extensions.length} extensions; commit and push ${folder} yourself.`;
-  return change(ctx, plan, { note, data: { folder, workflows: ids, extensions }, findings: [] }, yes);
+  const note = `\n  ${ids.join(", ")}; commit and push ${folder} yourself.`;
+  return change(ctx, planned.value, { note, data: { folder, workflows: ids }, findings: [] }, yes);
 };
 
 /** Shows the profile's plan for this machine, or with --yes applies it as one run. */

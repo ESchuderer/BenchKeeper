@@ -4,14 +4,12 @@ import {
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
   EXTENSION_SCHEMA_VERSION,
-  ExtensionLock,
   ExtensionManifest,
   ExtensionUpdates,
   formatInstalled,
   INSTALLED_SCHEMA_VERSION,
   InstalledExtensions,
   isExtensionType,
-  LOCK_SCHEMA_VERSION,
   PACK_SCHEMA_VERSION,
   PackManifest,
   ProfileSelection,
@@ -23,14 +21,13 @@ import {
   WorkflowDefinition,
 } from "@cedarloom/contracts";
 import { describe, expect, test } from "vitest";
-import { ajv, published, set } from "./published.ts";
+import { published, set } from "./published.ts";
 
 const root = join(import.meta.dirname, "..");
 const read = async (path: string): Promise<unknown> => JSON.parse(await readFile(join(root, path), "utf8"));
 
 const formats: Record<string, (value: unknown) => Result<unknown>> = {
   ExtensionManifest: (value) => readDocument(ExtensionManifest, EXTENSION_SCHEMA_VERSION, value),
-  ExtensionLock: (value) => readDocument(ExtensionLock, LOCK_SCHEMA_VERSION, value),
   ExportIndex: (value) => readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, value),
   InstalledExtensions: (value) => readDocument(InstalledExtensions, INSTALLED_SCHEMA_VERSION, value),
   ExtensionUpdates: (value) => readDocument(ExtensionUpdates, UPDATES_SCHEMA_VERSION, value),
@@ -62,14 +59,12 @@ describe.each(Object.keys(formats))(
 );
 
 const manifest = await read("corpus/ExtensionManifest/1/valid-full.json");
-const lock = await read("corpus/ExtensionLock/1/valid-pins.json");
 const index = await read("corpus/ExportIndex/1/valid-export.json");
 
 // `count` entries named `<prefix><index>`, each `value`.
 const many = (count: number, value: unknown, prefix = "a"): Record<string, unknown> =>
   Object.fromEntries(Array.from({ length: count }, (_, at) => [`${prefix}${at}`, value]));
 
-const search = ["contributes", "actions", "search-issues"];
 const credential = ["capabilities", "credentials", "jira-token"];
 const report = ["contributes", "actions", "write-report"];
 const jira = ["extensions", "acme.jira"];
@@ -90,27 +85,6 @@ const manifestChanges: Change[] = [
     ["https://x.example"],
     false,
     "capabilities.credentials.jira-token.hosts.0",
-  ],
-  [
-    "a remote $ref",
-    [...search, "config", "properties", "query", "$ref"],
-    "https://x.example/s.json",
-    false,
-    "contributes.actions.search-issues.config",
-  ],
-  [
-    "a remote $ref under a property named $ref",
-    [...search, "config", "properties", "$ref"],
-    { $ref: "https://x.example/s.json" },
-    false,
-    "contributes.actions.search-issues.config",
-  ],
-  [
-    "a remote $dynamicRef",
-    [...search, "config", "$dynamicRef"],
-    "https://x.example/s",
-    false,
-    "contributes.actions.search-issues.config",
   ],
   ["a credential without its scheme", [...credential, "scheme"], undefined, true],
   [
@@ -141,22 +115,6 @@ const manifestChanges: Change[] = [
     false,
     "capabilities.credentials.jira-token.scheme.name",
   ],
-  [
-    "another meta-schema",
-    [...search, "config", "$schema"],
-    "https://x.example/meta",
-    false,
-    "contributes.actions.search-issues.config",
-  ],
-  [
-    "an $id",
-    [...search, "config", "$defs", "jql", "$id"],
-    "ExtensionManifest.schema.json",
-    false,
-    "contributes.actions.search-issues.config",
-  ],
-  ["an output named done", [...report, "outputs", "done"], { type: "string" }, true],
-  ["an input named run", [...report, "inputs", "run"], { type: "string" }, true],
   ["101 actions", ["contributes", "actions"], many(101, { title: "x" }), true],
   ["33 outputs", [...report, "outputs"], many(33, { type: "string" }), true],
   ["a host with a path", ["capabilities", "net", 1], "https://api.acme.example/v2", true],
@@ -192,7 +150,8 @@ const manifestChanges: Change[] = [
   ["a catalog that is no PO file", ["catalogs", "de"], "locales/de/messages.json", true],
 ];
 
-const lockChanges: Change[] = [
+const installed = await read("corpus/InstalledExtensions/1/valid-installed.json");
+const installedChanges: Change[] = [
   ["a password in the URL", [...jira, "source", "git"], "https://bot:secret@git.example.org/acme/jira.git", false],
   ["a user over https", [...jira, "source", "git"], "https://bot@git.example.org/acme/jira.git", false],
   ["a local repository", [...jira, "source", "git"], "file:///srv/jira.git", true],
@@ -201,7 +160,12 @@ const lockChanges: Change[] = [
   ["a backslash before a password", [...jira, "source", "git"], "https://git.example.org\\:secret@127.0.0.1:1/a", true],
   ["an empty user over https", [...jira, "source", "git"], "https://@git.example.org/acme/jira.git", false],
   ["an encoded line break", [...jira, "source", "git"], "https://git.example.org/acme/jira%0d%0ahost=x", false],
-  ["501 extensions", ["extensions"], many(501, ExtensionLock.parse(lock).extensions["acme.jira"], "acme.p"), true],
+  [
+    "501 extensions",
+    ["extensions"],
+    many(501, InstalledExtensions.parse(installed).extensions["acme.jira"], "acme.p"),
+    true,
+  ],
   ["a branch for a commit", [...jira, "source", "commit"], "main", true],
   ["a path outside the repository", [...jira, "source", "path"], "../other", false],
   ["a path into .git", [...jira, "source", "path"], "extensions/.git", false],
@@ -214,10 +178,6 @@ const lockChanges: Change[] = [
     "3F0C6D1E2B4A59687A8B9C0D1E2F30415263748596A7B8C9D0E1F2031425364A",
     true,
   ],
-];
-
-const installed = await read("corpus/InstalledExtensions/1/valid-installed.json");
-const installedChanges: Change[] = [
   ["a ref with refspec syntax", [...jira, "ref"], "main:refs/heads/x", true],
   ["a ref that climbs", [...jira, "ref"], "release/../main", false],
   ["a ref git keeps for a lock", [...jira, "ref"], "release.lock", false],
@@ -279,7 +239,6 @@ const packChanges: Change[] = [
 
 describe.each([
   ["ExtensionManifest", manifest, manifestChanges],
-  ["ExtensionLock", lock, lockChanges],
   ["ExportIndex", index, indexChanges],
   ["InstalledExtensions", installed, installedChanges],
   ["PackManifest", pack, packChanges],
@@ -292,7 +251,8 @@ describe.each([
   });
 });
 
-const git = (url: string): boolean => ExtensionLock.safeParse(set(lock, [...jira, "source", "git"], url)).success;
+const git = (url: string): boolean =>
+  InstalledExtensions.safeParse(set(installed, [...jira, "source", "git"], url)).success;
 
 test("Git URLs over https and ssh, without a password, an option or a character a terminal or helper reads", () => {
   const taken = [
@@ -332,85 +292,6 @@ test("Git URLs over https and ssh, without a password, an option or a character 
     "git@git.example.org:acme/jira%1b[31m",
   ];
   expect([taken.filter((url) => !git(url)), refusedUrls.filter(git)]).toEqual([[], []]);
-});
-
-test("each action's configuration schema compiles in Ajv's strict mode, and checks a node's `with`", async () => {
-  const parsed = ExtensionManifest.parse(manifest);
-  const config = parsed.contributes.actions["search-issues"]?.config ?? {};
-  const check = ajv.compile(config);
-  expect([check({ query: "project = X", limit: 5 }), check({ query: "" }), check({ limit: 5 })]).toEqual([
-    true,
-    false,
-    false,
-  ]);
-});
-
-test("a configuration schema may refer to itself, name the 2020-12 meta-schema, hold keywords as data, or be a boolean", () => {
-  const config = {
-    $schema: "https://json-schema.org/draft/2020-12/schema",
-    type: "object",
-    properties: {
-      $id: { type: "string" },
-      $ref: { type: "string" },
-      child: { $ref: "" },
-      ticket: { const: { $id: "ticket-1" }, default: { $ref: "x" }, examples: [{ $schema: "y" }] },
-      kind: { enum: [{ $id: "a" }] },
-    },
-  };
-  const taken = [config, true, false].map((value) =>
-    ExtensionManifest.safeParse(set(manifest, [...search, "config"], value)),
-  );
-  expect([...taken.map((result) => result.success), ajv.compile(config)({ $id: "x", child: {} })]).toEqual([
-    true,
-    true,
-    true,
-    true,
-  ]);
-});
-
-test("a foreign keyword is found in a subschema whatever the property is called, and in lists of subschemas", () => {
-  const configs = [
-    { properties: { const: { $ref: "https://x.example/s.json" } } },
-    { $defs: { enum: { $id: "other" } } },
-    { allOf: [{ type: "string" }, { $ref: "https://x.example/s.json" }] },
-    { items: { $schema: "https://x.example/meta" } },
-  ];
-  expect(
-    configs.map((config) => ExtensionManifest.safeParse(set(manifest, [...search, "config"], config)).success),
-  ).toEqual([false, false, false, false]);
-});
-
-// Every keyword of JSON Schema 2020-12 and draft 7 that holds a subschema, as Ajv compiles them: a map of names to
-// schemas (where a property may be named like a data keyword), one schema, or a list of them.
-const maps = ["properties", "patternProperties", "dependentSchemas", "dependencies", "$defs", "definitions"];
-const single = [
-  "additionalProperties",
-  "items",
-  "additionalItems",
-  "contains",
-  "propertyNames",
-  "not",
-  "if",
-  "then",
-  "else",
-  "unevaluatedItems",
-  "unevaluatedProperties",
-  "contentSchema",
-];
-const lists = ["allOf", "anyOf", "oneOf", "prefixItems"];
-
-test("a reference out of the schema is found under every keyword that holds a subschema", () => {
-  // A relative `$ref` resolves into a schema the host registered; a property named const looks like data.
-  const ref = { $ref: "host-secret.json" };
-  const configs = [
-    ...maps.flatMap((keyword) => [{ [keyword]: { const: ref } }, { [keyword]: { default: { $id: "x.json" } } }]),
-    ...single.map((keyword) => ({ [keyword]: ref })),
-    ...lists.map((keyword) => ({ [keyword]: [{ type: "string" }, ref] })),
-  ];
-  const taken = configs.filter(
-    (config) => ExtensionManifest.safeParse(set(manifest, [...search, "config"], config)).success,
-  );
-  expect([configs.length, taken]).toEqual([2 * maps.length + single.length + lists.length, []]);
 });
 
 const licensed = (license: string): boolean =>

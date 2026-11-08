@@ -117,8 +117,6 @@ export const Finding = z
     }),
     /** An extension to update or remove that is not installed. */
     finding("extension.unknown", { extension: z.string() }),
-    /** An import whose lock pins an extension at a commit whose files are not the ones the lock names. */
-    finding("extension.digest-mismatch", { extension: z.string() }),
     /** An update that asks for capabilities the user has not approved: only an approval of its exact plan applies it. */
     finding("extension.consent-needed", { extension: z.string() }),
     /** An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely. */
@@ -337,7 +335,6 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "extension.finding": { severity: "warning", effort: "manual" },
   "extension.install-refused": { severity: "error", effort: "manual" },
   "extension.unknown": { severity: "error", effort: "manual" },
-  "extension.digest-mismatch": { severity: "error", effort: "manual" },
   "extension.consent-needed": { severity: "error", effort: "command" },
   "git.failed": { severity: "error", effort: "manual" },
   "store.conflict": { severity: "error", effort: "command" },

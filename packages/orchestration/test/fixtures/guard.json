@@ -212,7 +212,190 @@
       ["git grep -O", "git grep -Ovim foo", "unreadable"],
       ["git grep --open-files-in-pager", "git grep --open-files-in-pager=vim foo", "unreadable"],
       ["git stage", "git stage a.txt", null],
-      ["CDPATH before cd", "CDPATH=/elsewhere cd x && git push origin feature", "environment"]
+      ["CDPATH before cd", "CDPATH=/elsewhere cd x && git push origin feature", "environment"],
+      ["gh pr create in the session's repository", "gh pr create --title t --body b", null],
+      ["gh pr list of another repository", "gh pr list -R other/x", "outside-profiles"],
+      ["gh pr merge", "gh pr merge 12 --squash --delete-branch", "merge"],
+      ["gh pr review --approve", "gh pr review 12 --approve", "approval"],
+      ["gh pr review -a", "gh pr review 12 -a", "approval"],
+      ["gh pr review with a comment", "gh pr review 12 --comment -b ok", null],
+      ["gh issue list in a product repository", "gh issue list", "issue-outside-hub"],
+      ["gh issue create in the hub", "gh issue create -R acme/tracker --title t --body b", null],
+      ["gh issue comment on a product repository", "gh issue comment 7 --repo acme/app --body x", "issue-outside-hub"],
+      ["gh issue view by its hub URL", "gh issue view https://github.com/acme/tracker/issues/7", null],
+      ["gh auth token", "gh auth token", "gh-config"],
+      ["gh auth status", "gh auth status", null],
+      ["gh auth setup-git", "gh auth setup-git", "gh-config"],
+      ["gh alias set with a shell", "gh alias set --shell co 'git checkout'", "gh-config"],
+      ["gh config set", "gh config set git_protocol ssh", "gh-config"],
+      ["gh secret set", "gh secret set TOKEN --body x", "forbidden"],
+      ["gh repo create", "gh repo create acme/new --private", "forbidden"],
+      ["gh release create", "gh release create v1.0.0", "forbidden"],
+      ["gh gist create", "gh gist create notes.md", "forbidden"],
+      ["a gh alias", "gh co 12", "unreadable"],
+      ["gh run list", "gh run list --limit 5", null],
+      ["gh search", "gh search issues 'is:open'", null],
+      ["GH_REPO before gh", "GH_REPO=acme/tracker gh issue list", "environment"],
+      ["gh api merge", "gh api -X PUT repos/acme/app/pulls/1/merge", "merge"],
+      ["gh api approving review", "gh api repos/{owner}/{repo}/pulls/1/reviews -f event=APPROVE", "approval"],
+      [
+        "gh api review with an event from a file",
+        "gh api repos/acme/app/pulls/1/reviews -F event=@event.txt",
+        "approval"
+      ],
+      ["gh api commenting review", "gh api repos/acme/app/pulls/1/reviews -f event=COMMENT -f body=ok", null],
+      [
+        "gh api issue comment on a product repository",
+        "gh api repos/acme/app/issues/1/comments -f body=x",
+        "issue-outside-hub"
+      ],
+      ["gh api issue comment in the hub", "gh api repos/acme/tracker/issues/7/comments -f body=x", null],
+      ["gh api of another repository", "gh api repos/other/x/pulls", "outside-profiles"],
+      ["gh api user", "gh api user", null],
+      ["gh api write outside a repository", "gh api -X POST user/repos -f name=x", "unreadable"],
+      [
+        "gh api graphql merge",
+        "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+        "merge"
+      ],
+      [
+        "gh api graphql read in a limited session",
+        "gh api graphql -f query='query { viewer { login } }'",
+        "unreadable"
+      ],
+      ["curl merge", "curl -X PUT https://api.github.com/repos/acme/app/pulls/1/merge", "merge"],
+      [
+        "curl review with a body",
+        "curl -d '{\"event\":\"APPROVE\"}' https://api.github.com/repos/acme/app/pulls/1/reviews",
+        "approval"
+      ],
+      ["curl another repository", "curl https://api.github.com/repos/other/x", "outside-profiles"],
+      ["curl a raw file", "curl -fsSL https://raw.githubusercontent.com/acme/app/main/README.md", null],
+      ["curl another host", "curl -s https://example.com/data.json", null],
+      ["curl a URL in a variable", "curl \"$URL\"", "unreadable"],
+      ["curl with a config file", "curl -K curl.cfg", "unreadable"],
+      [
+        "curl an issue in the hub",
+        "curl -H \"Authorization: token $GH_TOKEN\" https://api.github.com/repos/acme/tracker/issues -d '{\"title\":\"x\"}'",
+        null
+      ],
+      ["a gh flag before the verb", "gh pr --squash 12 merge", "unreadable"],
+      ["gh's alias new for create", "gh release new v1", "forbidden"],
+      ["gh repo new", "gh repo new x", "forbidden"],
+      ["-R attached to another repository", "gh pr list -Rother/x", "outside-profiles"],
+      ["-R in a cluster", "gh pr list -wRother/x", "outside-profiles"],
+      ["a second -R", "gh pr list -R acme/app -R other/x", "outside-profiles"],
+      [
+        "an issue URL of a product repository with -R of the hub",
+        "gh issue comment https://github.com/acme/app/issues/1 -R acme/tracker -b x",
+        "issue-outside-hub"
+      ],
+      ["gh api -X attached", "gh api -XPUT repos/acme/app/pulls/1/merge", "merge"],
+      ["gh api --method=", "gh api --method=PUT repos/acme/app/pulls/1/merge", "merge"],
+      ["gh api the last -X", "gh api -X GET -X PUT repos/acme/app/pulls/1/merge", "merge"],
+      ["gh api a field attached", "gh api repos/acme/app/pulls/1/reviews -fevent=APPROVE", "approval"],
+      ["gh api --raw-field=", "gh api repos/acme/app/pulls/1/reviews --raw-field=event=APPROVE", "approval"],
+      [
+        "gh api a field name the guard cannot read",
+        "gh api repos/acme/app/pulls/1/reviews -f \"$K=APPROVE\"",
+        "approval"
+      ],
+      [
+        "gh api --preview before the endpoint",
+        "gh api --preview repos/acme/tracker/issues -X PUT repos/acme/app/pulls/1/merge",
+        "merge"
+      ],
+      [
+        "gh api {owner} with another name",
+        "gh api -X PUT repos/{owner}/notes/contents/x.md -f message=m",
+        "outside-profiles"
+      ],
+      ["gh api a repository's settings", "gh api -X PATCH repos/acme/app -f visibility=public", "unreadable"],
+      ["gh api a repository's deletion", "gh api -X DELETE repos/acme/app", "unreadable"],
+      ["gh api a forced ref", "gh api -X PATCH repos/acme/app/git/refs/heads/main -F force=true", "unreadable"],
+      ["gh api dot segments", "gh api -X PUT repos/acme/tracker/issues/1/../../../app/pulls/1/merge", "merge"],
+      ["gh api a path in capitals", "gh api -X PUT repos/acme/app/PULLS/1/MERGE", "merge"],
+      ["gh api a percent-encoded path", "gh api -X PUT repos/acme/app/pulls/1/merg%65", "merge"],
+      ["gh api a repository by its number", "gh api repositories/123/contents/x", "unreadable"],
+      ["curl -X attached", "curl -XPUT https://api.github.com/repos/acme/app/pulls/1/merge", "merge"],
+      ["curl -X in a cluster", "curl -sX PUT https://api.github.com/repos/acme/app/pulls/1/merge", "merge"],
+      ["curl the last -X", "curl -X GET -X PUT https://api.github.com/repos/acme/app/pulls/1/merge", "merge"],
+      ["curl -T", "curl -T f https://api.github.com/repos/acme/app/pulls/1/merge", "merge"],
+      [
+        "curl -d attached",
+        "curl -d'{\"event\":\"APPROVE\"}' https://api.github.com/repos/acme/app/pulls/1/reviews",
+        "approval"
+      ],
+      ["curl -d in a cluster", "curl -sd @f https://api.github.com/repos/acme/app/pulls/1/reviews", "approval"],
+      ["curl a glob in the URL", "curl -X PUT 'https://api.github.com/repos/acme/app/pulls/1/{merge}'", "unreadable"],
+      [
+        "curl --request-target",
+        "curl --request-target /repos/acme/app/pulls/1/merge -X PUT https://api.github.com/repos/acme/tracker/issues",
+        "unreadable"
+      ],
+      [
+        "curl --expand-url",
+        "curl --variable p=merge --expand-url https://api.github.com/repos/acme/app/pulls/1/{{p}}",
+        "unreadable"
+      ],
+      [
+        "curl --next",
+        "curl https://api.github.com/repos/acme/tracker/issues -: -X PUT https://api.github.com/repos/acme/app/pulls/1/merge",
+        "unreadable"
+      ],
+      ["CURL_HOME", "CURL_HOME=/tmp/x curl https://api.github.com/repos/acme/app", "environment"],
+      ["gh repo sync", "gh repo sync --source acme/app acme/notes --force", "forbidden"],
+      ["gh repo view with --json", "gh repo view --json nameWithOwner -q .nameWithOwner", null],
+      ["gh issue transfer", "gh issue transfer 7 other/x", "unreadable"],
+      ["gh issue develop", "gh issue develop 7 --branch-repo other/x", "unreadable"],
+      ["gh variable list of another repository", "gh variable list -R other/x", "outside-profiles"],
+      ["gh variable get", "gh variable get X", null],
+      ["gh secret ls", "gh secret ls", null],
+      ["gh pr review with a word the guard cannot read", "gh pr review 12 \"$F\"", "approval"],
+      ["gh pr review --approve=true", "gh pr review 12 --approve=true", "approval"],
+      ["gh pr comment with a word the guard cannot read", "gh pr comment 1 -b hi \"$X\"", "outside-profiles"],
+      [
+        "an issue URL with a port",
+        "gh issue comment https://github.com:443/acme/app/issues/1 -b x",
+        "issue-outside-hub"
+      ],
+      [
+        "a pull request URL with user info",
+        "gh pr comment https://user@github.com/other/x/pull/1 -b x",
+        "outside-profiles"
+      ],
+      ["gh pr view -w before a URL", "gh pr view -w https://github.com/other/x/pull/1", "outside-profiles"],
+      [
+        "gh repo clone --upstream-remote-name",
+        "gh repo clone --upstream-remote-name acme/app other/x",
+        "outside-profiles"
+      ],
+      ["gh api an encoded slash", "gh api 'repos/acme/tracker%2F..%2F..%2Fother/x/pulls'", "unreadable"],
+      ["gh api /graphql by GET", "gh api /graphql -X GET -f query=x", "unreadable"],
+      [
+        "curl a backslash before @",
+        "curl -X PUT 'https://evil.example\\@api.github.com/repos/acme/app/pulls/1/merge'",
+        "unreadable"
+      ],
+      [
+        "curl a Host header",
+        "curl -X PUT -k -H 'Host: api.github.com' https://140.82.112.6/repos/acme/app/pulls/1/merge",
+        "unreadable"
+      ],
+      ["curl everyday options", "curl --retry-all-errors --no-progress-meter -D - -4 https://example.com", null],
+      ["curl brackets in a local query", "curl -s 'http://localhost:3000/api/items?filter[status]=open'", null],
+      [
+        "curl a release asset",
+        "curl -fsSLO https://objects.githubusercontent.com/github-production-release-asset-1/x",
+        null
+      ],
+      [
+        "curl one slash after the scheme",
+        "curl -X PUT -H \"Authorization: token $GH_TOKEN\" https:/api.github.com/repos/acme/app/pulls/1/merge",
+        "unreadable"
+      ],
+      ["gh api graphql/ by GET", "gh api graphql/ -X GET -f query=x", "unreadable"],
+      ["gh api an encoded slash in the query", "gh api 'search/issues?q=repo%3Aacme%2Fapp+is%3Apr'", null]
     ],
     "worker /work/fork": [
       ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],
@@ -225,7 +408,23 @@
       ["a push of every branch", "git push --all origin", "memory-main"],
       ["a push of a branch in a variable", "git push origin \"$BRANCH\"", "unreadable"],
       ["a proposal branch", "git push -u origin memory/worker-20261107", null],
-      ["a proposal branch by its full ref", "git push origin HEAD:refs/heads/memory/notes-fix", null]
+      ["a proposal branch by its full ref", "git push origin HEAD:refs/heads/memory/notes-fix", null],
+      [
+        "gh api :owner and :repo in the memory repository",
+        "gh api -X PUT repos/:owner/:repo/contents/x.md -f message=m",
+        "unreadable"
+      ],
+      ["gh api merge-upstream", "gh api -X POST repos/acme/notes/merge-upstream -f branch=main", "unreadable"],
+      [
+        "curl a push through git's protocol",
+        "curl --data-binary @pack https://github.com/acme/notes.git/git-receive-pack",
+        "unreadable"
+      ],
+      [
+        "curl git-receive-pack/ with a trailing slash",
+        "curl --data-binary @pack https://github.com/acme/notes.git/git-receive-pack/",
+        "unreadable"
+      ]
     ],
     "interactive /work/app": [
       ["main of another repository", "git push origin main", null],
@@ -236,7 +435,54 @@
         "unreadable"
       ],
       ["github.com with a trailing dot", "git push https://github.com./acme/notes.git main", "unreadable"],
-      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"]
+      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"],
+      ["gh api graphql read in an open session", "gh api graphql -f query='query { viewer { login } }'", null],
+      [
+        "gh api contents on the memory repository",
+        "gh api -X PUT repos/acme/notes/contents/x.md -f message=m -f content=Y",
+        "unreadable"
+      ],
+      ["gh issue list outside the hub in an open session", "gh issue list", "issue-outside-hub"],
+      [
+        "GraphQL mergeBranch",
+        "gh api graphql -f query='mutation { mergeBranch(input: {repositoryId: \"x\", base: \"main\", head: \"f\"}) { clientMutationId } }'",
+        "merge"
+      ],
+      [
+        "GraphQL enqueuePullRequest",
+        "gh api graphql -f query='mutation { enqueuePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+        "merge"
+      ],
+      [
+        "GraphQL createCommitOnBranch",
+        "gh api graphql -f query='mutation { createCommitOnBranch(input: {}) { clientMutationId } }'",
+        "unreadable"
+      ],
+      [
+        "GraphQL review with its event in a variable",
+        "gh api graphql -f query='mutation($e: PullRequestReviewEvent) { addPullRequestReview(input: {pullRequestId: \"x\", event: $e}) { clientMutationId } } # event: COMMENT' -f e=APPROVE",
+        "approval"
+      ],
+      [
+        "GraphQL updateIssueComment",
+        "gh api graphql -f query='mutation { updateIssueComment(input: {id: \"x\", body: \"y\"}) { clientMutationId } }'",
+        "unreadable"
+      ],
+      [
+        "GraphQL resolveReviewThread",
+        "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"x\"}) { clientMutationId } }'",
+        null
+      ],
+      [
+        "GraphQL a comma before the arguments",
+        "gh api graphql -f query='mutation { createRef,(input: {}) { clientMutationId } }'",
+        "unreadable"
+      ],
+      [
+        "GraphQL a comment before the arguments",
+        "gh api graphql -f query='mutation { updateIssueComment #x\n(input: {}) { clientMutationId } }'",
+        "unreadable"
+      ]
     ]
   }
 }

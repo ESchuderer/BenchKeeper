@@ -4,7 +4,17 @@ import { type GuardPolicy, RepoName } from "@cedarloom/contracts";
 import { type Command, RESERVED, readShell, type Script, type Word } from "./shell.ts";
 
 /** Why the guard refuses a call. */
-export type Rule = "unreadable" | "environment" | "git-config" | "forbidden" | "outside-profiles" | "memory-main";
+export type Rule =
+  | "unreadable"
+  | "environment"
+  | "git-config"
+  | "gh-config"
+  | "forbidden"
+  | "outside-profiles"
+  | "memory-main"
+  | "issue-outside-hub"
+  | "merge"
+  | "approval";
 
 export interface Denial {
   readonly rule: Rule;
@@ -32,7 +42,9 @@ const PROTECTED_NAMES =
   // Every git variable but the pager's and the prompt's: they choose its repository, configuration, editor or programs.
   "XDG_CONFIG_HOME|GIT_(?!(?:PAGER|TERMINAL_PROMPT)\\b)\\w+|EDITOR|VISUAL|CDPATH|" +
   // The tables of programs, aliases and functions bash and zsh look a command name up in.
-  "BASH_CMDS|BASH_ALIASES|commands|aliases|galiases|saliases|functions";
+  "BASH_CMDS|BASH_ALIASES|commands|aliases|galiases|saliases|functions|" +
+  // gh's repository, curl's configuration, and the editors and browsers gh runs.
+  "GH_REPO|CURL_HOME|GH_EDITOR|GH_BROWSER|BROWSER";
 const PROTECTED = new RegExp(`^(?:${PROTECTED_NAMES})$`);
 const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
@@ -268,6 +280,8 @@ const checkCommand = ({ words }: Command, context: Context): Denial | null => {
 const checkProgram = (name: string, args: readonly Word[], context: Context, moved: boolean): Denial | null => {
   const where = moved ? { ...context, folders: null } : context;
   if (name === "git") return checkGit(args, where);
+  if (name === "gh") return checkGh(args, where);
+  if (name === "curl") return checkCurl(args, where);
   return name.startsWith("git-") ? checkGit([known(name.slice(4)), ...args], where) : checkLocal(name, args);
 };
 
@@ -834,4 +848,440 @@ const checkTargets = (sub: string, words: readonly Word[], context: Context): De
   return (
     urls.map((url) => checkUrl(sub, url, words.slice(1), context.policy)).find((denial) => denial !== null) ?? null
   );
+};
+
+// A command's options, read as pflag and curl read them anywhere among its words, and its other words; null for an
+// option the guard does not know, which may take a word as its value.
+const interleaved = (args: readonly Word[], spec: Options): { options: Option[]; positionals: Word[] } | null => {
+  const found: Option[] = [];
+  const words: Word[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const word = args[i] ?? EMPTY;
+    if (word.text === "--") return { options: found, positionals: [...words, ...args.slice(i + 1)] };
+    const parsed = word.start.startsWith("-") && word.start !== "-" ? optionsOf(word, args[i + 1], spec) : [];
+    if (parsed === null) return null;
+    if (parsed.length === 0) words.push(word);
+    found.push(...parsed);
+    if (parsed.some(({ next }) => next === true)) i += 1;
+  }
+  return { options: found, positionals: words };
+};
+
+// owner/name of a github.com URL, whatever its path goes on with; null for another host.
+const urlRepoPath = (url: string): string | null => {
+  try {
+    const parsed = new URL(url);
+    if (!/^(?:www\.)?github\.com$/i.test(parsed.hostname)) return null;
+    return parsed.pathname.split("/").filter(Boolean).slice(0, 2).join("/");
+  } catch {
+    return null;
+  }
+};
+
+// The repository a gh word names: owner/name, [HOST/]owner/name or a github.com URL; null off github.com.
+const ghRepo = (text: string): string | null => {
+  const path = /^https?:\/\//i.test(text) ? urlRepoPath(text) : text.replace(/^github\.com\//i, "");
+  return path === null ? null : githubRepo(`https://github.com/${path}`);
+};
+
+// The repositories a call reaches without naming one: those of the remotes of every folder it may run in, as gh picks
+// one of them; null when the guard cannot tell, or when there is none.
+const implicitRepos = (context: Context): (string | null)[] | null => {
+  const urls = urlsOf(undefined, context);
+  return urls === null || urls.length === 0 ? null : urls.map(githubRepo);
+};
+
+// A call that reaches `repos` (null: unknown) while the session is limited to its repositories.
+const checkRepos = (repos: readonly (string | null)[] | null, context: Context, what: string): Denial | null => {
+  const { repositories } = context.policy;
+  if (repositories === null) return null;
+  if (repos === null) return unreadable(`${what} reaches a repository the guard cannot tell`);
+  const outside = repos.find((repo) => !repositories.some((allowed) => sameRepo(allowed, repo)));
+  return outside === undefined
+    ? null
+    : deny("outside-profiles", `${what} reaches ${outside ?? "a repository it cannot tell"}, outside this session's`);
+};
+
+// Issues are worked on in the hub only (A3): a call on issues of any other repository, or of one the guard cannot tell.
+const checkHub = (repos: readonly (string | null)[] | null, context: Context, what: string): Denial | null => {
+  const { hub } = context.policy;
+  const elsewhere = repos === null || hub === null || repos.some((repo) => !sameRepo(repo, hub));
+  return elsewhere ? deny("issue-outside-hub", `${what} works on issues outside the hub`) : null;
+};
+
+// gh's options that take the next word as a value in every command that has them, so a value is no positional.
+const GH_VALUED = new Set(
+  (
+    "-R --repo --hostname -q --jq -t --template --json -b --body -F --body-file -T --title -l --label -B --base --head " +
+    "--assignee --reviewer -m --milestone -p --project -L --limit -s --state -A --author -S --search --workflow " +
+    "--branch --env -o --org -u --user --upstream-remote-name"
+  ).split(" "),
+);
+// gh's own aliases of its verbs.
+const GH_ALIASES = new Map([
+  ["new", "create"],
+  ["ls", "list"],
+  ["rm", "delete"],
+  ["remove", "delete"],
+]);
+// Groups gh runs without a verb, or whose next word is no verb the guard checks.
+const GH_SINGLE = new Set(["browse", "status", "help", "version", "completion", "search"]);
+// A login or configuration change of gh itself, and the writes the owner keeps (secrets, repositories and their
+// settings, releases, anything public; A13).
+const GH_CONFIG =
+  /^(?:auth (?!status$)\S+|config (?:set|clear-cache)|alias (?!list$)\S+|extension (?!list$|search$|browse$)\S+|(?:ssh|gpg)-key (?!list$)\S+)$/;
+const GH_OWNER =
+  /^(?:(?:secret|variable) (?!list$|get$)\S+|repo (?!view$|clone$|list$)\S+|release (?!list$|view$|download$)\S+|gist (?!list$|view$)\S+|codespace \S+|ruleset (?!list$|view$|check$)\S+)$/;
+// Commands that work on no repository and write nothing.
+const GH_FREE =
+  /^(?:search|status|help|version|completion|org list|project (?:list|view)|auth status|config (?:get|list)|alias list|extension (?:list|search|browse)|gist (?:list|view)|(?:ssh|gpg)-key list|repo list)$/;
+// Commands on one repository the guard lets run there: reads, and the writes of everyday work.
+const GH_REPO_COMMANDS = new Set(
+  (
+    "issue list|issue view|issue status|issue create|issue comment|issue edit|issue close|issue reopen|issue lock|" +
+    "issue unlock|issue pin|issue unpin|pr list|pr view|pr status|pr create|pr checkout|pr diff|pr checks|pr comment|" +
+    "pr edit|pr close|pr reopen|pr ready|pr review|pr update-branch|repo view|repo clone|run list|run view|run watch|" +
+    "run rerun|run cancel|run download|workflow list|workflow view|workflow run|release list|release view|" +
+    "release download|label list|label create|label edit|cache list|browse|secret list|variable list|variable get|" +
+    "ruleset list|ruleset view|ruleset check"
+  ).split("|"),
+);
+
+// gh's command: its group and, for a group with verbs, the verb with gh's aliases resolved; null when the guard cannot
+// read it, or when a flag other than -R comes before the verb and may take it as its value.
+const ghCommand = (args: readonly Word[]): { group: string; command: string; rest: Word[] } | null => {
+  const group = args[0]?.text;
+  if (group === "--version") return { group: "version", command: "version", rest: [] };
+  if (typeof group !== "string" || group.startsWith("-")) return null;
+  if (GH_SINGLE.has(group)) return { group, command: group, rest: args.slice(1) };
+  const i = verbIndex(args);
+  const verb = args[i]?.text;
+  if (typeof verb !== "string" || verb.startsWith("-")) return null;
+  return {
+    group,
+    command: `${group} ${GH_ALIASES.get(verb) ?? verb}`,
+    rest: [...args.slice(1, i), ...args.slice(i + 1)],
+  };
+};
+
+// The index of gh's verb: the word after its group and any -R or --repo.
+const verbIndex = (args: readonly Word[]): number => {
+  let i = 1;
+  while (/^(?:-R|--repo)(?:=|$)|^-R./.test(args[i]?.start ?? ""))
+    i += /^(?:-R|--repo)$/.test(args[i]?.text ?? "") ? 2 : 1;
+  return i;
+};
+
+const checkGh = (args: readonly Word[], context: Context): Denial | null => {
+  if (args[0]?.text === "api") return checkGhApi(args.slice(1), context);
+  const read = ghCommand(args);
+  if (read === null) return unreadable("gh runs a command the guard cannot read");
+  const { group, command, rest } = read;
+  return ghRule(command, rest) ?? ghTargets(group, command, rest, context);
+};
+
+// What the guard refuses in gh whatever the repository.
+const ghRule = (command: string, rest: readonly Word[]): Denial | null => {
+  if (GH_CONFIG.test(command)) return deny("gh-config", `gh ${command}`);
+  if (GH_OWNER.test(command)) return deny("forbidden", `gh ${command}, which the owner keeps`);
+  if (command === "pr merge") return deny("merge", "gh pr merge");
+  return command === "pr review" && approves(rest) ? deny("approval", "gh pr review --approve") : null;
+};
+
+// The repository a gh command works on, and the hub for issue commands; a command the guard does not know refuses.
+const ghTargets = (group: string, command: string, rest: readonly Word[], context: Context): Denial | null => {
+  if (GH_FREE.test(command)) return null;
+  if (!GH_REPO_COMMANDS.has(command)) return unreadable(`gh ${command} is a gh command the guard does not know`);
+  const repos = ghRepos(command, rest, context);
+  return (
+    checkRepos(repos, context, `gh ${command}`) ??
+    (group === "issue" ? checkHub(repos, context, `gh ${command}`) : null)
+  );
+};
+
+// gh pr review approves with --approve or -a, alone or in a cluster; a word the guard cannot read may be either.
+const approves = (rest: readonly Word[]): boolean =>
+  rest.some(({ text, start }, i) => {
+    if (GH_VALUED.has(rest[i - 1]?.start ?? "")) return false;
+    return text === null ? /^(?:-|$)/.test(start) : /^--approve(?:=|$)/.test(text) || /^-[^-]*a/.test(text);
+  });
+
+// The value of a -R or --repo word: attached, or the next word; null when unknown, undefined for another word. -R after
+// other flags in a cluster is unknown too.
+const repoValue = ({ text, start }: Word, next: Word | undefined): string | null | undefined => {
+  if (/^-[^-]+R/.test(start)) return null;
+  if (!/^(?:-R|--repo(?:=|$))/.test(start)) return undefined;
+  if (text === "-R" || text === "--repo") return next?.text ?? null;
+  return text?.replace(/^(?:-R|--repo=)/, "") ?? null;
+};
+
+// The repositories a gh command reaches, all of them checked: each -R or --repo, the repository `gh repo view|clone`
+// names, each github.com URL among its positionals; else those of the remotes where it runs.
+const ghRepos = (command: string, rest: readonly Word[], context: Context): (string | null)[] | null => {
+  const repoOptions = rest.flatMap((word, i) => {
+    const value = repoValue(word, rest[i + 1]);
+    return value === undefined ? [] : [value];
+  });
+  const positional = rest.filter(({ start }, i) => !start.startsWith("-") && !GH_VALUED.has(rest[i - 1]?.start ?? ""));
+  const named = /^repo (?:view|clone)$/.test(command)
+    ? positional.slice(0, 1).map(({ text }) => text)
+    : positional.flatMap(({ text }) => (text === null || /^https?:\/\//i.test(text) ? [text] : []));
+  const repos = [...repoOptions, ...named].map((text) => (text === null ? null : ghRepo(text)));
+  return repos.length === 0 ? implicitRepos(context) : repos;
+};
+
+const GH_API = options(
+  "-i --include --paginate --silent --slurp --verbose | -X --method -f --raw-field -F --field -H --header --input -q " +
+    "--jq -t --template --hostname --cache -p --preview",
+);
+
+// What a gh api call sends: its method, its fields by name (null for a value read from a file), and whether a field or
+// body the guard cannot read may hide one.
+interface ApiCall {
+  readonly method: string;
+  readonly fields: ReadonlyMap<string, string | null>;
+  readonly hidden: boolean;
+}
+
+// A field of gh api: false when the guard cannot read its name.
+const addField = (fields: Map<string, string | null>, { name, value }: Option): boolean => {
+  const text = value?.text ?? null;
+  if (text === null || !text.includes("=")) return false;
+  const [key = "", ...parts] = text.split("=");
+  const field = parts.join("=");
+  fields.set(key, (name === "-F" || name === "--field") && field.startsWith("@") ? null : field);
+  return true;
+};
+
+const FIELD = /^(?:-f|-F|--field|--raw-field)$/;
+
+// gh api's method: the last -X, else POST when it sends a body, else GET; null when unknown.
+const apiMethod = (given: readonly Option[], sends: boolean): string | null => {
+  const method = given.findLast(({ name }) => name === "-X" || name === "--method");
+  if (method === undefined) return sends ? "POST" : "GET";
+  return method.value?.text?.toUpperCase() ?? null;
+};
+
+// What gh api sends; null for a method the guard cannot read, or a host other than github.com.
+const apiCall = (given: readonly Option[]): ApiCall | null => {
+  if (given.some(({ name, value }) => name === "--hostname" && value?.text !== "github.com")) return null;
+  const fields = new Map<string, string | null>();
+  const unread = given.filter(({ name }) => FIELD.test(name)).filter((option) => !addField(fields, option));
+  const hidden = unread.length > 0 || given.some(({ name }) => name === "--input");
+  const method = apiMethod(given, fields.size > 0 || hidden);
+  return method === null ? null : { method, fields, hidden };
+};
+
+// A gh api call as the guard reads it: what it sends and its one endpoint; null when it cannot read either.
+const readApi = (rest: readonly Word[]): { call: ApiCall; endpoint: string } | null => {
+  const read = interleaved(rest, GH_API);
+  if (read === null) return null;
+  const call = apiCall(read.options);
+  const [endpoint, ...more] = read.positionals;
+  return call === null || typeof endpoint?.text !== "string" || more.length > 0
+    ? null
+    : { call, endpoint: endpoint.text };
+};
+
+// The event of a review a call sends: "" without one, null when the guard cannot read it.
+const eventOf = ({ fields, hidden }: ApiCall): string | null => {
+  if (hidden || !fields.has("event")) return hidden ? null : "";
+  return fields.get("event") ?? null;
+};
+
+const checkGhApi = (rest: readonly Word[], context: Context): Denial | null => {
+  const api = readApi(rest);
+  if (api === null) return unreadable("gh api calls an endpoint, method or host the guard cannot read");
+  if (api.endpoint === "graphql" || /^\/graphql\/?$/.test(apiPath(api.endpoint) ?? ""))
+    return checkGraphql(api.call, context);
+  return checkApiPath(api.call.method, api.endpoint, eventOf(api.call), context);
+};
+
+// An endpoint's path as GitHub routes it: resolved against api.github.com (dot segments gone), percent-decoded and in
+// lower case; null for another host or a path the guard cannot decode.
+const apiPath = (endpoint: string): string | null => {
+  // An encoded slash, backslash, dot or percent may route where the decoded path does not show.
+  if (/%(?:2f|5c|2e|25)/i.test(endpoint.split(/[?#]/)[0] ?? "")) return null;
+  try {
+    const url = new URL(
+      /^https?:\/\//i.test(endpoint) ? endpoint : `/${endpoint.replace(/^\//, "")}`,
+      "https://api.github.com",
+    );
+    return /^(?:api|uploads)\.github\.com$/i.test(url.hostname) ? decodeURIComponent(url.pathname).toLowerCase() : null;
+  } catch {
+    return null;
+  }
+};
+
+// gh fills {owner} and :owner, {repo} and :repo from the repository where it runs.
+const placeholder = (part: string, which: string): boolean => part === `{${which}}` || part === `:${which}`;
+
+// The repositories owner/name names, each placeholder filled from the remotes where the call runs.
+const filled = (owner: string, name: string, context: Context): (string | null)[] | null => {
+  if (!placeholder(owner, "owner") && !placeholder(name, "repo")) return [ghRepo(`${owner}/${name}`)];
+  const implicit = implicitRepos(context);
+  return (
+    implicit?.map((repo) => {
+      const [own = "", repoName = ""] = repo?.split("/") ?? [];
+      const full = `${placeholder(owner, "owner") ? own : owner}/${placeholder(name, "repo") ? repoName : name}`;
+      return repo === null ? null : ghRepo(full);
+    }) ?? null
+  );
+};
+
+// A REST call on GitHub's API, from gh api or curl: the repository it reaches, issues on the hub only, no merge, no
+// approving review (`event`: the review's event, null when the guard cannot read it), and of the writes only those of
+// everyday work.
+const checkApiPath = (method: string, endpoint: string, event: string | null, context: Context): Denial | null => {
+  const what = `${method} ${endpoint}`;
+  const path = apiPath(endpoint);
+  if (path === null || path.startsWith("/repositories/"))
+    return unreadable(`${what} reaches what the guard cannot tell`);
+  const match = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/.exec(path);
+  if (match === null) return method === "GET" ? null : unreadable(`${what} is a GitHub write the guard does not know`);
+  const [, owner = "", name = "", rest = ""] = match;
+  const repos = filled(owner, name, context);
+  return checkRepos(repos, context, what) ?? checkRestPath(method, rest, { repos, event, what }, context);
+};
+
+// The writes a session may make in a repository: pull requests, their comments, reviews and reviewers, and runs.
+const WRITES = [
+  "POST /pulls",
+  "PATCH /pulls/\\d+",
+  "POST /pulls/\\d+/(?:comments|reviews|requested_reviewers)",
+  "DELETE /pulls/\\d+/requested_reviewers",
+  "POST /pulls/\\d+/comments/\\d+/replies",
+  "POST /pulls/\\d+/reviews/\\d+/events",
+  "PUT /pulls/\\d+/update-branch",
+  "(?:PATCH|DELETE) /pulls/comments/\\d+",
+  "POST /actions/runs/\\d+/(?:rerun|rerun-failed-jobs|cancel)",
+  "POST /actions/workflows/[^/]+/dispatches",
+].map((write) => new RegExp(`^${write}/?$`));
+
+const merges = (method: string, rest: string): boolean =>
+  (method === "PUT" && /^\/pulls\/[^/]+\/merge\/?$/.test(rest)) || (method === "POST" && /^\/merges\/?$/.test(rest));
+
+// A review created or submitted with APPROVE, or with an event the guard cannot read.
+const approvesReview = (method: string, rest: string, event: string | null): boolean =>
+  method === "POST" &&
+  /^\/pulls\/[^/]+\/reviews(?:\/[^/]+\/events)?\/?$/.test(rest) &&
+  (event === null || /^approve$/i.test(event));
+
+const checkRestPath = (
+  method: string,
+  rest: string,
+  { repos, event, what }: { repos: (string | null)[] | null; event: string | null; what: string },
+  context: Context,
+): Denial | null => {
+  if (/^\/issues(?:\/|$)/.test(rest)) return checkHub(repos, context, what);
+  if (method === "GET" || method === "HEAD") return null;
+  if (merges(method, rest)) return deny("merge", what);
+  if (approvesReview(method, rest, event)) return deny("approval", what);
+  return WRITES.some((write) => write.test(`${method} ${rest}`))
+    ? null
+    : unreadable(`${what} is a GitHub write the guard does not know`);
+};
+
+// The GraphQL mutations a session may send: replies to review threads and their resolution.
+const GRAPHQL_WRITES = new Set(["resolveReviewThread", "unresolveReviewThread", "addPullRequestReviewThreadReply"]);
+
+// gh api graphql: a merge or a review refuses, as does any other mutation the guard does not know, and any document while
+// the session is limited to repositories, as the guard cannot tell what a document reaches.
+const checkGraphql = ({ fields, hidden }: ApiCall, context: Context): Denial | null => {
+  const query = fields.get("query");
+  if (hidden || typeof query !== "string") return unreadable("gh api graphql sends a document the guard cannot read");
+  if (/\b(?:mergePullRequest|enablePullRequestAutoMerge|mergeBranch|enqueuePullRequest)\b/.test(query)) {
+    return deny("merge", "a merge through GraphQL");
+  }
+  if (/\b(?:addPullRequestReview|submitPullRequestReview)\b/.test(query)) {
+    return deny("approval", "a review through GraphQL, which may approve");
+  }
+  // GraphQL skips commas between a field and its arguments; a comment in a mutation refuses, as one may hide a call.
+  const text = query.replaceAll(",", " ");
+  const body = text.replace(/\bmutation\b\s*\w*\s*(?:\([^)]*\))?/, "");
+  const calls = [...body.matchAll(/\b(\w+)\s*\(/g)];
+  if (body !== text && (query.includes("#") || calls.some(([, name = ""]) => !GRAPHQL_WRITES.has(name)))) {
+    return unreadable("gh api graphql sends a mutation the guard does not know");
+  }
+  return context.policy.repositories === null
+    ? null
+    : unreadable("gh api graphql reaches repositories the guard cannot tell");
+};
+
+const CURL = options(
+  "-s --silent -S --show-error -f --fail --fail-with-body -L --location -i --include -I --head -v --verbose -k " +
+    "--insecure -g --globoff --compressed -N --no-buffer -G --get -O --remote-name -J --remote-header-name " +
+    "--create-dirs -# --progress-bar --http1.1 --http2 --retry-all-errors --no-progress-meter -4 -6 --ipv4 --ipv6 | " +
+    "-D --dump-header --oauth2-bearer --unix-socket -X --request -H --header -d --data --data-raw --data-binary " +
+    "--data-urlencode --data-ascii -F --form --form-string --json -T --upload-file -o --output --output-dir -u --user " +
+    "-A --user-agent -e --referer -b --cookie -c --cookie-jar -w --write-out -m --max-time --connect-timeout --retry " +
+    "--retry-delay --retry-max-time --max-redirs -x --proxy --url -r --range --cacert --capath -E --cert --key",
+);
+const CURL_BODY = /^(?:-d|--data(?:-raw|-binary|-urlencode|-ascii)?|-F|--form|--form-string|--json)$/;
+
+// curl's method: the last -X, else PUT for an upload, HEAD for -I, GET for -G or no body, else POST; null when unknown.
+const curlMethod = (given: readonly Option[]): string | null => {
+  const has = (pattern: RegExp) => given.some(({ name }) => pattern.test(name));
+  const request = given.findLast(({ name }) => name === "-X" || name === "--request");
+  if (request !== undefined) return request.value?.text?.toUpperCase() ?? null;
+  if (has(/^(?:-T|--upload-file)$/)) return "PUT";
+  if (has(/^(?:-I|--head)$/)) return "HEAD";
+  return has(/^(?:-G|--get)$/) || !has(CURL_BODY) ? "GET" : "POST";
+};
+
+// curl to GitHub: each URL it reaches, checked as gh api or git would be; an option, URL or method it cannot read
+// refuses, and so does a URL curl would expand as a glob.
+const checkCurl = (args: readonly Word[], context: Context): Denial | null => {
+  const read = interleaved(args, CURL);
+  const method = read === null ? null : curlMethod(read.options);
+  if (read === null || method === null) return unreadable("curl gets an option or method the guard cannot read");
+  const globs = !read.options.some(({ name }) => name === "-g" || name === "--globoff");
+  const urls = [
+    ...read.positionals,
+    ...read.options.flatMap(({ name, value }) => (name === "--url" ? [value ?? { text: null, start: "" }] : [])),
+  ];
+  if (urls.some(({ text }) => text === null || (globs && globbed(text))) || hostHeader(read.options)) {
+    return unreadable("curl reaches a URL or host the guard cannot read");
+  }
+  const event = read.options.some(({ name }) => CURL_BODY.test(name)) && method !== "GET" ? null : "";
+  return urls.map(({ text }) => curlUrl(text ?? "", method, event, context)).find((denial) => denial !== null) ?? null;
+};
+
+// curl expands {a,b} and [1-3] in a URL unless -g: a glob in its host, or anywhere in a GitHub URL, may reach what the
+// guard does not check.
+const globbed = (url: string): boolean => {
+  const host = /^(?:[a-z][\w+.-]*:\/\/)?([^/?#]*)/i.exec(url)?.[1] ?? "";
+  return /[{}[\]]/.test(host) || (/[{}[\]]/.test(url) && /github/i.test(host));
+};
+
+// A Host header sends the request to a host other than the URL's; one the guard cannot read may be one.
+const hostHeader = (given: readonly Option[]): boolean =>
+  given.some(({ name, value }) => {
+    const header = value?.text ?? value?.start ?? "";
+    return /^(?:-H|--header)$/.test(name) && (/^\s*host\s*:/i.test(header) || !header.includes(":"));
+  });
+
+// A curl URL as curl reaches it; null for one the guard cannot parse, or with user info, as curl takes a backslash
+// before @ for user info while a URL parser reads it as part of the host.
+const curlTarget = (url: string): URL | null => {
+  try {
+    const parsed = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `https://${url}`);
+    // curl also takes `https:/host`, one slash, which the parser here would read as a path.
+    const odd = url.includes("\\") || /^[a-z][\w+.-]*:\/(?!\/)/i.test(url);
+    return odd || parsed.username !== "" || parsed.password !== "" ? null : parsed;
+  } catch {
+    return null;
+  }
+};
+
+const curlUrl = (url: string, method: string, event: string | null, context: Context): Denial | null => {
+  const parsed = curlTarget(url);
+  if (parsed === null) return unreadable(`curl reaches ${url}, whose host the guard cannot tell`);
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  if (host === "api.github.com" || host === "uploads.github.com")
+    return checkApiPath(method, parsed.href, event, context);
+  if (!/^(?:(?:www\.)?github\.com|raw\.githubusercontent\.com|codeload\.github\.com)$/.test(host)) return null;
+  if (/\/git-receive-pack\/?$/.test(parsed.pathname)) return unreadable("curl pushes through git's own protocol");
+  const [owner = "", name = ""] = parsed.pathname.split("/").filter(Boolean);
+  return checkRepos([ghRepo(`${owner}/${name.replace(/\.git$/i, "")}`)], context, `curl ${host}`);
 };

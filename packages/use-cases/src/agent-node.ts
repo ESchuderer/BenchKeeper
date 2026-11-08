@@ -65,12 +65,10 @@ const failed = (why: string): Prepared => ({
   run: () => Promise.resolve({ ok: false, values: { error: why } }),
 });
 
-// The folder of the run's worktree, on the branch cedarloom/<run> from the project's HEAD (Q12): an act-mode agent works
-// there, and Git shows and undoes what it did.
+// The run's worktree on cedarloom/<run> from the project's HEAD (Q12): an act-mode agent works there, Git can undo it.
 const folderOf = (run: AgentRun): string => join(run.state, "worktrees", run.runId);
 
-// The run's worktree, made by the first attempt that goes and found again by a later one or a later runner. Only a
-// success is kept: the next attempt tries an add that failed again.
+// The run's worktree, made by the first attempt that goes; a failed add is not kept, so the next attempt tries again.
 const worktrees = (run: AgentRun) => {
   // A report run's agent works in the project itself, which its launch closes to writes.
   if (run.report === true) return () => Promise.resolve<Result<string>>({ ok: true, value: run.project });
@@ -92,8 +90,6 @@ const onlyPool = (registry: AccountRegistry | null): string | null => {
 // The launcher's task of an attempt: a later runner finds the attempt's launches by it.
 const taskOf = (run: AgentRun, attempt: Attempt): string => `${run.runId}:${attempt.node}#${attempt.attempt}`;
 
-// The worker of an attempt, the node's task in the worktree with its phase's model and settings, or the session it
-// resumes; or why there is none.
 const requestOf = (
   attempt: Attempt,
   run: AgentRun,
@@ -164,8 +160,7 @@ const outcomeOf = (ran: Awaited<ReturnType<LeasedWorker["run"]>>, stalled: boole
   return { ...ended(ran.value.verdict, ran.value.summary), stalled };
 };
 
-// Runs the leased worker: its session id is committed at an init line that proves the worker settings, so only such a
-// session is resumed; a session that sends nothing for `stallMs` is stopped and counts as stalled.
+// Runs the leased worker: only a session proven by its init line can resume; one silent for `stallMs` is stalled.
 const watched = async (attempt: Attempt, worker: LeasedWorker, stallMs: number) => {
   const quiet = new AbortController();
   const arm = () => setTimeout(() => quiet.abort(), stallMs);
@@ -185,8 +180,7 @@ const watched = async (attempt: Attempt, worker: LeasedWorker, stallMs: number) 
 
 type Going = { readonly stallMs: number; readonly worktree: () => Promise<Result<string>> };
 
-// The leased worker as an attempt, in the run's worktree, made now that the attempt's start is committed. An attempt
-// stopped before it went, or without its worktree, lets the lease go unused.
+// The leased worker as an attempt, made once its start is committed; one stopped before it goes leaves the lease.
 const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Going): Prepared => ({
   pid: null,
   run: async () => {
@@ -200,8 +194,7 @@ const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Go
 
 type Worktree = () => Promise<Result<string>>;
 
-// The folders a report run's agent may not write besides the project: its repository's git folder, which a linked
-// worktree shares from outside. None for an act run, whose agent works in its own worktree.
+// The git folder a linked worktree shares from outside; undefined for an act run, whose agent works in its own worktree.
 const closedOf = async (run: AgentRun): Promise<Result<readonly string[] | undefined>> => {
   if (run.report !== true) return { ok: true, value: undefined };
   const shared = await commonDir(run.project);
@@ -230,11 +223,7 @@ const attempted = async (
   return going(attempt, got.value, { stallMs: options.stallMs ?? STALL_MS, worktree });
 };
 
-/**
- * The executor of `agent.run` for one run: each attempt is a worker of the M3 launcher on the registry's Claude Code
- * pool, in the run's worktree. Every check that can refuse it comes first; it then waits for a free account lease
- * before it starts, which no timeout counts, and makes the worktree once it goes.
- */
+// `agent.run`: an M3 launcher worker per attempt in the run's worktree, after every refusal check and a free lease.
 export const agentRun = (run: AgentRun, options: AgentOptions) => {
   const worktree = worktrees(run);
   return (attempt: Attempt): Promise<Prepared> => attempted(attempt, run, options, { worktree, resume: null });
@@ -246,12 +235,7 @@ const finished = (verdict: string, summary: string | null): Prepared => ({
   run: () => Promise.resolve(ended(verdict, summary)),
 });
 
-/**
- * The recovery of `agent.run` attempts a dead runner left, for a run taken over. An attempt with a recorded session
- * ends with the verdict the launcher gave its latest launch, else with the result that launch wrote, without a relaunch.
- * With neither, it resumes the session on the account it ran on, in the run's worktree. An attempt without a session, or whose runtime cannot resume, ends
- * interrupted (Q4).
- */
+// A dead runner's agent attempt ends with its launch's verdict or result, else resumes, else ends interrupted (Q4).
 export const agentRecover = (run: AgentRun, options: AgentOptions): Recovery => {
   const worktree = worktrees(run);
   return async (left) => {

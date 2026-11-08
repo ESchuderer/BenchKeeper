@@ -86,8 +86,7 @@ export const AccountRegistry = z
     pools: z.partialRecord(Agent, z.record(Name, Pool)),
   })
   .superRefine((registry, ctx) => {
-    // shortcut: folders compare without trailing separators but otherwise as written, so another case of a folder passes;
-    // compare real paths once a command adds folders other than CedarLoom's own homes.
+    // shortcut: folders compare as written (no trailing separator), so another case passes; compare real paths once commands add other folders.
     const names = new Set<string>();
     const taken = new Set<string>();
     const claim = (seen: Set<string>, value: string, path: (string | number)[]) => {
@@ -152,8 +151,10 @@ export const Reading = z.strictObject({
   account: Name,
   window: Quota,
   usedPercent: Percent,
-  // Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order. Null: the
-  // source gave a share without a reset, which counts until the next reading replaces it, as claude-swap judges it.
+  /**
+   * Milliseconds, as toISOString writes them: the ledger compares the text, which is then the time order. Null: the
+   * source gave a share without a reset, which counts until the next reading replaces it, as claude-swap judges it.
+   */
   resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),
   source: z.enum(["worker", "cswap"]),
@@ -180,8 +181,10 @@ export const UsageSample = z.strictObject({
   resetsAt: z.iso.datetime({ precision: 3 }).nullable(),
   readAt: z.iso.datetime({ precision: 3 }),
   runId: z.uuid().nullable(),
-  // The agent's line as canonical JSON. A longer line than USAGE_RAW_LIMIT_BYTES keeps its first bytes followed by
-  // USAGE_RAW_CUT_MARKER, and is then no JSON: a line that ends with the marker was cut.
+  /**
+   * The agent's line as canonical JSON. A longer line than USAGE_RAW_LIMIT_BYTES keeps its first bytes followed by
+   * USAGE_RAW_CUT_MARKER, and is then no JSON: a line that ends with the marker was cut.
+   */
   raw: z.string(),
 });
 export type UsageSample = z.infer<typeof UsageSample>;
@@ -197,7 +200,7 @@ export const AccountSwitch = z.strictObject({
   from: Name.nullable(),
   to: Name,
   reason: z.enum(["most-headroom", "soonest-weekly-reset", "highest-tier", "no-readings"]),
-  // `launch`: a new worker's choice; `line` and `at-limit`: a running worker's move.
+  /** `launch`: a new worker's choice; `line` and `at-limit`: a running worker's move. */
   trigger: z.enum(["launch", "line", "at-limit"]),
   readings: z.array(Reading),
   candidates: z.array(z.strictObject({ account: Name, margin: z.number().nullable() })),

@@ -52,7 +52,7 @@ const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh
 // Programs that run a command from their words or later, and shells the guard does not read.
 const RUNNERS = new Set("eval trap alias hash emulate compgen complete let watch pwsh powershell".split(" "));
 // A subscript holding a command, which bash runs as arithmetic in let, read, printf -v, declare -i and [[ ]].
-const CODE_SUBSCRIPT = /\[[^\]]*(?:\$\(|`)/;
+const CODE_SUBSCRIPT = /\[[^[\]]*(?:\$\(|`)/;
 // zsh's precommand modifiers.
 const ZSH_ONLY = new Set(["noglob", "nocorrect", "-"]);
 // find's actions that run a command.
@@ -311,15 +311,18 @@ const forbiddenProgram = (name: string, args: readonly Word[]): Denial | null =>
   return args.some(({ text }) => text === verb) ? deny("forbidden", `${name} ${verb}`) : null;
 };
 
-// [[ ]] reads the operands of -eq and the like as arithmetic, subscripts and all: only a number or a plain $name, whose
-// value the guard does not know, may stand there.
+// [[ ]] reads the operands of -eq and the like as arithmetic, and -v's as a name with a subscript: only a number, a
+// plain $name or a plain name, whose value the guard does not know, may stand there.
 const ARITHMETIC = /^-(?:eq|ne|lt|le|gt|ge)$/;
 const checkTest = (args: readonly Word[]): Denial | null => {
-  const operands = args.filter(
-    (_, i) => ARITHMETIC.test(args[i - 1]?.text ?? "") || ARITHMETIC.test(args[i + 1]?.text ?? ""),
-  );
-  const code = operands.some(({ text, plain }) => plain !== true && !/^-?\d+$/.test(text ?? ""));
-  return code ? unreadable("[[ ]] compares a word as arithmetic, which bash may run") : null;
+  const at = (i: number): string => args[i]?.text ?? "";
+  const arithmetic = ({ text, plain }: Word, i: number): boolean => {
+    if (at(i - 1) === "-v") return !/^[A-Za-z_]\w*$/.test(text ?? "");
+    const compared = ARITHMETIC.test(at(i - 1)) || ARITHMETIC.test(at(i + 1));
+    return compared && plain !== true && !/^-?\d+$/.test(text ?? "");
+  };
+  const code = args.some((word, i) => arithmetic(word, i));
+  return code ? unreadable("[[ ]] reads a word as arithmetic, which bash may run") : null;
 };
 
 // The words that name variables: read's words but its options' values, an export's words; printf names none.
@@ -352,7 +355,7 @@ const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
 
 // A shell option: the script from stdin (-s) or a word (-c, fish's -C), a value next (-o), or a flag; null for none.
 const shellOption = (name: string, text: string): "value" | "stdin" | "command" | "flag" | null => {
-  if (/^-(?:[A-Za-z]*s[A-Za-z]*)?$/.test(text)) return "stdin";
+  if (/^-(?:[A-Za-rt-z]*s[A-Za-z]*)?$/.test(text)) return "stdin";
   if (
     /^--(?:command|init-command)(?:=|$)/.test(text) ||
     (name === "fish" ? /^-[A-Za-z]*[cC]/ : /^-[A-Za-z]*c/).test(text)
@@ -755,7 +758,7 @@ const pushTargets = (rest: readonly Word[]): Word[] => {
 const isLocal = (text: string): boolean => /^(?:\.{1,2}|~)?$|^(?:\.{1,2}|~)?\/|^file:\/\//.test(text);
 
 const isUrl = (text: string): boolean =>
-  /^[a-z][\w+.-]*:\/\//i.test(text) || /^(?:[^\s/@:]+@)?[^\s/@:]+\.[^\s/@:]+:/.test(text);
+  /^[a-z][\w+.-]*:\/\//i.test(text) || /^(?:[^\s/@:]+@)?[^\s/@:.]+(?:\.[^\s/@:.]+)+:/.test(text);
 
 /** The GitHub repository a remote URL names, as owner/name; null for any other host or form. */
 export const githubRepo = (url: string): string | null => {
@@ -771,7 +774,11 @@ export const githubRepo = (url: string): string | null => {
     if (!/^(?:www\.)?github\.com$/i.test(parsed.hostname)) return null;
     path = parsed.pathname;
   } else path = url.slice(scp[0].length);
-  const name = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  const name = path
+    .split("/")
+    .filter(Boolean)
+    .join("/")
+    .replace(/\.git$/i, "");
   return RepoName.safeParse(name).success ? name : null;
 };
 
@@ -988,7 +995,6 @@ const ghTargets = (group: string, command: string, rest: readonly Word[], contex
   );
 };
 
-// gh pr review approves with --approve or -a, alone or in a cluster.
 // gh pr review approves with --approve or -a, alone or in a cluster; a word the guard cannot read may be either.
 const approves = (rest: readonly Word[]): boolean =>
   rest.some(({ text, start }, i) => {
@@ -1082,7 +1088,8 @@ const eventOf = ({ fields, hidden }: ApiCall): string | null => {
 const checkGhApi = (rest: readonly Word[], context: Context): Denial | null => {
   const api = readApi(rest);
   if (api === null) return unreadable("gh api calls an endpoint, method or host the guard cannot read");
-  if (api.endpoint === "graphql" || apiPath(api.endpoint) === "/graphql") return checkGraphql(api.call, context);
+  if (api.endpoint === "graphql" || /^\/graphql\/?$/.test(apiPath(api.endpoint) ?? ""))
+    return checkGraphql(api.call, context);
   return checkApiPath(api.call.method, api.endpoint, eventOf(api.call), context);
 };
 
@@ -1090,7 +1097,7 @@ const checkGhApi = (rest: readonly Word[], context: Context): Denial | null => {
 // lower case; null for another host or a path the guard cannot decode.
 const apiPath = (endpoint: string): string | null => {
   // An encoded slash, backslash, dot or percent may route where the decoded path does not show.
-  if (/%(?:2f|5c|2e|25)/i.test(endpoint)) return null;
+  if (/%(?:2f|5c|2e|25)/i.test(endpoint.split(/[?#]/)[0] ?? "")) return null;
   try {
     const url = new URL(
       /^https?:\/\//i.test(endpoint) ? endpoint : `/${endpoint.replace(/^\//, "")}`,
@@ -1185,10 +1192,11 @@ const checkGraphql = ({ fields, hidden }: ApiCall, context: Context): Denial | n
   if (/\b(?:addPullRequestReview|submitPullRequestReview)\b/.test(query)) {
     return deny("approval", "a review through GraphQL, which may approve");
   }
-  // GraphQL skips commas and comments between a field and its arguments.
-  const body = query.replace(/\bmutation\b[\s,]*\w*[\s,]*(?:\([^)]*\))?/, "");
-  const calls = [...body.matchAll(/(\w+)(?:[\s,\uFEFF]|#[^\n\r]*)*\(/g)];
-  if (body !== query && calls.some(([, name = ""]) => !GRAPHQL_WRITES.has(name))) {
+  // GraphQL skips commas between a field and its arguments; a comment in a mutation refuses, as one may hide a call.
+  const text = query.replaceAll(",", " ");
+  const body = text.replace(/\bmutation\b\s*\w*\s*(?:\([^)]*\))?/, "");
+  const calls = [...body.matchAll(/\b(\w+)\s*\(/g)];
+  if (body !== text && (query.includes("#") || calls.some(([, name = ""]) => !GRAPHQL_WRITES.has(name)))) {
     return unreadable("gh api graphql sends a mutation the guard does not know");
   }
   return context.policy.repositories === null
@@ -1254,7 +1262,9 @@ const hostHeader = (given: readonly Option[]): boolean =>
 const curlTarget = (url: string): URL | null => {
   try {
     const parsed = new URL(/^[a-z][\w+.-]*:\/\//i.test(url) ? url : `https://${url}`);
-    return url.includes("\\") || parsed.username !== "" || parsed.password !== "" ? null : parsed;
+    // curl also takes `https:/host`, one slash, which the parser here would read as a path.
+    const odd = url.includes("\\") || /^[a-z][\w+.-]*:\/(?!\/)/i.test(url);
+    return odd || parsed.username !== "" || parsed.password !== "" ? null : parsed;
   } catch {
     return null;
   }

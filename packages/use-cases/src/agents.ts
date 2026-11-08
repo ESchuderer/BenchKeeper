@@ -12,8 +12,7 @@ import {
 } from "@cedarloom/contracts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
-// A failed check is repeated after a day: a probe on an account at its limit, a network drop, or a parser fixed in a
-// later CedarLoom would otherwise keep a version's readings off for good.
+// A failed check is retried after a day: a probe at a usage limit, a network drop or an old parser can fail it.
 const RETRY_FAILED_MS = 24 * 60 * 60 * 1000;
 
 const unavailable = (agent: Agent, error: unknown): Result<never> => ({
@@ -37,7 +36,7 @@ export interface CheckedVersions {
 const settles = (check: ContractCheckRecord, now: number): boolean =>
   check.missing.length === 0 || now - Date.parse(check.at) < RETRY_FAILED_MS;
 
-// The probes running in this process, by state folder, agent and version: launches on a new version share one.
+// The probes running in this process by state, agent and version: launches on a new version share one.
 // shortcut: per process; two CedarLoom processes launching on a new version at once still probe twice.
 const probes = new Map<string, Promise<ContractCheck>>();
 const probeOnce = (key: string, probe: () => Promise<ContractCheck>): Promise<ContractCheck> => {
@@ -46,9 +45,7 @@ const probeOnce = (key: string, probe: () => Promise<ContractCheck>): Promise<Co
   return running;
 };
 
-// The check is kept under the version the probe ran. When that is not the version read, an update came in between or
-// the init line reports another form: the read version is kept without its init line, so it is not probed on every
-// launch.
+// A check is kept under the probed version; a differing read version is kept without its init line, not reprobed.
 const records = (agent: Agent, version: string, check: ContractCheck): ContractCheckRecord[] => {
   const at = new Date().toISOString();
   const ran = check.version ?? version;
@@ -159,8 +156,7 @@ export const recordUsage = (
       readAt,
       raw,
     }));
-    // The agent's line is untrusted: a window the contract refuses, such as an over-long name, is left out, and never
-    // fails the run that reported it.
+    // The agent's line is untrusted: a window the contract refuses is left out and never fails the run.
     const kept = samples.filter((sample) => UsageSample.safeParse(sample).success);
     store.recordSamples(kept);
     return { ok: true, value: kept.length };

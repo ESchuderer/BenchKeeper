@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
 import { guardCommand, guardHookOf, type Remotes, workerPolicy } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
@@ -15,8 +15,13 @@ const Fixtures = z.object({
 });
 const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "guard.json"), "utf8")));
 const remotes: Remotes = (folder) => {
-  // git -C reaches its folder as the OS does; these fixture folders hold no links.
-  const found = fixtures.remotes[resolve(folder)];
+  // git -C reaches its folder as the OS does; these fixture folders hold no links, and on Windows lose their drive.
+  const found =
+    fixtures.remotes[
+      resolve(folder)
+        .replace(/^[A-Za-z]:/, "")
+        .replaceAll("\\", "/")
+    ];
   return found === undefined ? null : new Map(Object.entries(found));
 };
 const cases = Object.entries(fixtures.cases).flatMap(([key, list]) => {
@@ -81,3 +86,21 @@ test("a worker's policy holds its project's GitHub repositories and the hub, and
     rmSync(project, { recursive: true, force: true });
   }
 }, 30_000);
+
+test.skipIf(process.platform === "win32")(
+  "the hook runs git from an absolute folder of PATH, never one a session planted",
+  () => {
+    const dir = mkdtempSync(join(tmpdir(), "guard-path-"));
+    try {
+      mkdirSync(join(dir, "bin"));
+      writeFileSync(join(dir, "bin", "git"), `#!/bin/sh\ntouch "${join(dir, "ran")}"\n`, { mode: 0o755 });
+      const env = { ...process.env, PATH: `bin${delimiter}${process.env["PATH"] ?? ""}` };
+      const policy = JSON.stringify(fixtures.policies["worker"]);
+      spawnSync(process.execPath, [HOOK, policy], { input: bash("git push origin feature", dir), cwd: dir, env });
+      expect(existsSync(join(dir, "ran"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);

@@ -103,14 +103,23 @@
       ["zsh's short if", "if [[ -n x ]] sudo rm -rf /tmp/x", "unreadable"],
       ["heredoc bash closes early", "echo \"$(cat <<EOF\nEOF)\"; sudo rm -rf /tmp/x; echo \"\nEOF\n)\"", "unreadable"],
       ["hash -p", "hash -p /usr/bin/sudo ls; ls -la", "unreadable"],
-      ["zsh's hash name=path", "hash ls=/usr/bin/sudo; ls", "unreadable"],
-      ["printf -v into BASH_CMDS", "printf -v 'BASH_CMDS[ls]' %s /usr/bin/sudo; ls", "environment"],
       ["read into an array element", "read 'a[1]' <<< x", "unreadable"],
-      ["let of a subscript holding a command", "let 'a[$(sudo rm -rf /tmp/x)]=1'", "unreadable"],
-      ["declare -i of a subscript holding a command", "declare -i n='a[$(sudo rm -rf /tmp/x)]'", "unreadable"],
       ["[[ -v ]] of a subscript holding a command", "[[ -v 'a[$(sudo rm -rf /tmp/x)]' ]]", "unreadable"],
       ["mapfile -C", "mapfile -C 'sudo rm -rf /tmp/x' -c 1 a <<< x", "unreadable"],
-      ["command -v as a lookup", "command -v sudo", null]
+      ["command -v as a lookup", "command -v sudo", null],
+      ["printf -v with its name attached", "printf -v'BASH_CMDS[ls]' %s /bin/sh", "unreadable"],
+      ["printf -v of the token", "printf -vGH_TOKEN %s x", "unreadable"],
+      ["read -a with its name attached", "read -aGH_TOKEN <<< 'a b'", "unreadable"],
+      ["a heredoc delimiter continued", "cat <<EOF\nEO\\\nF\nsudo rm -rf /tmp/x\nEOF", "unreadable"],
+      ["a delimiter with a backslash", "cat <<EO\\\nF\n$(sudo rm -rf /tmp/x)\nEOF", "unreadable"],
+      ["zsh's emulate -c", "emulate sh -c 'sudo rm -rf /tmp/x'", "unreadable"],
+      ["compgen -C", "compgen -C 'sudo rm -rf /tmp/x' x", "unreadable"],
+      ["let", "let 'a[1]=1'", "unreadable"],
+      ["declare -i", "declare -i n=1", "unreadable"],
+      ["a numeric escape in ANSI-C quotes", "echo $'a[\\x24(sudo rm -rf /tmp/x)]'", "unreadable"],
+      ["a subscript before an expansion", "[[ 'a[$(sudo rm -rf /tmp/x)]'$x -eq 0 ]]", "unreadable"],
+      ["[[ -eq ]] of an expansion with a default", "[[ ${x:-a} -eq 0 ]]", "unreadable"],
+      ["[[ -gt ]] of a plain parameter", "[[ \"$n\" -gt 0 ]] && [[ ${#a[@]} -lt 9 ]]", null]
     ]
   }
 }

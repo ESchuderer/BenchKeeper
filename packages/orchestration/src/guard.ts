@@ -24,7 +24,19 @@ const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
 // Programs that run a command from their words or later, and shells the guard does not read.
-const RUNNERS = new Set(["eval", "trap", "alias", "hash", "watch", "pwsh", "powershell"]);
+const RUNNERS = new Set([
+  "eval",
+  "trap",
+  "alias",
+  "hash",
+  "emulate",
+  "compgen",
+  "complete",
+  "let",
+  "watch",
+  "pwsh",
+  "powershell",
+]);
 // A subscript holding a command, which bash runs as arithmetic in let, read, printf -v, declare -i and [[ ]].
 const CODE_SUBSCRIPT = /\[[^\]]*(?:\$\(|`)/;
 // zsh's precommand modifiers.
@@ -82,7 +94,7 @@ const programOf = (word: string): string => {
 export const guardCommand = (text: string): Denial | null => {
   const script = readShell(text);
   if (script.skipped) return unreadable("the command holds a form the guard does not read, such as a subshell");
-  if (script.commands.some(({ words }) => words.some((word) => CODE_SUBSCRIPT.test(word.text ?? "")))) {
+  if (script.commands.some(({ words }) => words.some((word) => CODE_SUBSCRIPT.test(word.text ?? word.start)))) {
     return unreadable("a subscript holds a command, which bash may run");
   }
   for (const command of script.commands) {
@@ -231,6 +243,7 @@ const checkCommand = ({ words }: Command): Denial | null => {
 
 const checkProgram = (name: string, args: readonly Word[]): Denial | null => {
   if (SETTERS.has(name)) return checkSetter(name, args);
+  if (name === "[[") return checkTest(args);
   if (RUNNERS.has(name)) return unreadable(`${name} runs a command the guard does not read`);
   if (SHELLS.has(name) || name === "source" || name === ".") return checkShell(name, args);
   if (name === "find" && args.some(({ text }) => FIND_RUNS.test(text ?? ""))) {
@@ -258,18 +271,36 @@ const forbiddenProgram = (name: string, args: readonly Word[]): Denial | null =>
   return args.some(({ text }) => text === verb) ? deny("forbidden", `${name} ${verb}`) : null;
 };
 
-// The words that name variables: printf's -v value, read's words but its options' values, an export's words.
+// [[ ]] reads the operands of -eq and the like as arithmetic, subscripts and all: only a number or a plain $name, whose
+// value the guard does not know, may stand there.
+const ARITHMETIC = /^-(?:eq|ne|lt|le|gt|ge)$/;
+const checkTest = (args: readonly Word[]): Denial | null => {
+  const operands = args.filter(
+    (_, i) => ARITHMETIC.test(args[i - 1]?.text ?? "") || ARITHMETIC.test(args[i + 1]?.text ?? ""),
+  );
+  const code = operands.some(({ text, plain }) => plain !== true && !/^-?\d+$/.test(text ?? ""));
+  return code ? unreadable("[[ ]] compares a word as arithmetic, which bash may run") : null;
+};
+
+// The words that name variables: read's words but its options' values, an export's words; printf names none.
 const variableWords = (name: string, args: readonly Word[]): Word[] => {
-  if (name === "printf") return args.filter((_, i) => args[i - 1]?.text === "-v");
+  if (name === "printf") return [];
   if (name !== "read") return args.filter(({ start }) => !start.startsWith("-"));
   return args.filter(({ start }, i) => !start.startsWith("-") && !/^-\w*[dinNptu]$/.test(args[i - 1]?.start ?? ""));
 };
 
+// printf -v, read into an array or by -v, declare -i (arithmetic), and mapfile's callback (-C), attached or apart.
+const setsAside = (name: string, args: readonly Word[]): boolean => {
+  const flags = args.filter(({ start }) => start.startsWith("-")).map(({ start }) => start);
+  if (name === "printf") return flags.some((option) => option.startsWith("-v"));
+  if (name === "read") return flags.some((option) => /^-[^-]*[aAv]/.test(option));
+  if (EXPORTS.has(name)) return flags.some((option) => /^-[^-]*i/.test(option));
+  return /^(?:mapfile|readarray)$/.test(name) && flags.some((option) => /^-[^-]*C/.test(option));
+};
+
 // A setter refuses on a protected or unknown name, or an array element, whose subscript bash may run; mapfile on -C.
 const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
-  if (/^(?:mapfile|readarray)$/.test(name) && args.some(({ start }) => /^-[^-]*C/.test(start))) {
-    return unreadable(`${name} -C runs a command the guard does not read`);
-  }
+  if (setsAside(name, args)) return unreadable(`${name} sets a variable or runs a command the guard does not follow`);
   const names = variableWords(name, args);
   if (names.some(({ start }) => MENTIONED.test(start)))
     return deny("environment", `${name} names a protected variable`);

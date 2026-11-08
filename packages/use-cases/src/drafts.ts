@@ -32,7 +32,7 @@ import { parseDocument } from "./use-cases.ts";
 /** The largest draft file: a workflow at the schema's bounds (1000 nodes, 5000 edges) takes about 1 MB. */
 export const DRAFT_LIMIT = 2 * 1024 * 1024;
 
-// One lower-case file per workflow id, with a prefix: docs/agents/cedarloom-rationale.md#drafts
+// One lower-case file per workflow id, with a prefix: docs/agents/git-and-processes.md#files
 const FOLDER = "drafts";
 const FILE = /^workflow-([a-z][a-z0-9_-]{0,63})\.json$/;
 // The temporary file of a draft's write (engine's tempPath), which only a crash leaves behind.
@@ -82,7 +82,7 @@ export const listDrafts = (state: string): DraftInfo[] => {
   return drafts.toSorted((a, b) => b.savedAt.localeCompare(a.savedAt) || a.id.localeCompare(b.id));
 };
 
-// No link and no wait on a FIFO (why: docs/agents/cedarloom-rationale.md#drafts).
+// No link and no wait on a FIFO: docs/agents/git-and-processes.md#files
 const READ = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
 
 // The file's status and, under the draft limit, its bytes, from one open file; undefined: none there; null: no file.

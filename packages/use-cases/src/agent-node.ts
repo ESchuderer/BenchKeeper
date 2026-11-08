@@ -89,7 +89,6 @@ const onlyPool = (registry: AccountRegistry | null): string | null => {
 // The launcher's task of an attempt: a later runner finds the attempt's launches by it.
 const taskOf = (run: AgentRun, attempt: Attempt): string => `${run.runId}:${attempt.node}#${attempt.attempt}`;
 
-// An attempt's worker: the node's task in the worktree with its phase's settings, or the session it resumes.
 const requestOf = (
   attempt: Attempt,
   run: AgentRun,
@@ -187,7 +186,7 @@ const going = (attempt: Attempt, worker: LeasedWorker, { stallMs, worktree }: Go
 
 type Worktree = () => Promise<Result<string>>;
 
-// What a report run's agent may not write besides the project: the repository's git folder a linked worktree shares.
+// The git folder a linked worktree shares from outside; undefined for an act run, whose agent works in its own worktree.
 const closedOf = async (run: AgentRun): Promise<Result<readonly string[] | undefined>> => {
   if (run.report !== true) return { ok: true, value: undefined };
   const shared = await commonDir(run.project);
@@ -216,7 +215,7 @@ const attempted = async (
   return going(attempt, got.value, { stallMs: options.stallMs ?? STALL_MS, worktree });
 };
 
-// `agent.run`: a launcher worker per attempt in the run's worktree, after every refusal check and a free lease.
+// `agent.run`: an M3 launcher worker per attempt in the run's worktree, after every refusal check and a free lease.
 export const agentRun = (run: AgentRun, options: AgentOptions) => {
   const worktree = worktrees(run);
   return (attempt: Attempt): Promise<Prepared> => attempted(attempt, run, options, { worktree, resume: null });

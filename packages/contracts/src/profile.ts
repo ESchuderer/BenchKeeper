@@ -44,7 +44,7 @@ const Text = z.union([
   }),
 ]);
 
-// A marketplace in the user settings, at a branch or tag; marketplace sources take no commit (Claude Code docs).
+// A marketplace in the user settings, at a branch or tag: sources take no commit (https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
 const Name = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 const followed = { name: Name, ref: GitRef.optional(), autoUpdate: z.boolean().optional() };
 // A GitHub repository as `owner/repo`.
@@ -117,7 +117,7 @@ const files = part("files", {
   onlyIfAbsent: z.boolean().optional(),
 });
 const projectSettings = part("settings", { set: JsonObject, commit: z.boolean() });
-// A project plugin goes into the local settings: Claude Code installs one enabled only in committed ones for no one.
+// Local settings: one only in the committed ones installs for no one (https://code.claude.com/docs/en/plugins/loading#enabled-in-project-settings-but-not-installed).
 const projectPlugin = part("plugin", {
   ...declared,
   commit: z.literal(false).describe("Written to `.claude/settings.local.json`, never committed"),

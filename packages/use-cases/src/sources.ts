@@ -97,7 +97,6 @@ const followed = async (
   return taken({ tree: kept.value.tree, entry: { ...known, seen }, waiting });
 };
 
-// Fetches each source once, pinned by commit and digest or followed by this machine's record: trees, record and waits.
 export const fetchSources = async (state: string, sources: Wanted[], fetch: Fetch, record: Followed) => {
   const trees = new Map<string, Tree>();
   const entries: Followed = {};

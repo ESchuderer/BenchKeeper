@@ -14,7 +14,7 @@ export const Finding = z
   .discriminatedUnion("code", [
     finding("document.unreadable", { path: z.string(), error: z.string() }),
     finding("document.newer-schema", { found: SchemaVersion, known: SchemaVersion, path: z.string().optional() }),
-    // `path`, here and above, names the file when the reader knows it.
+    /** `path`, here and above, names the file when the reader knows it. */
     finding("document.invalid", { issues, path: z.string().optional() }),
     finding("plan.not-approved", { planHash: Sha256, approvedHash: z.string() }),
     finding("plan.path-not-absolute", { path: z.string() }),
@@ -37,24 +37,27 @@ export const Finding = z
     finding("run.input-unknown", { input: z.string() }),
     finding("run.input-missing", { input: z.string() }),
     finding("run.input-invalid", { input: z.string(), type: z.enum(["string", "number", "boolean", "json"]) }),
-    // A stored event of a graph run that its schema refuses: the run is not replayed from a log it cannot trust.
+    /** A stored event of a graph run that its schema refuses: the run is not replayed from a log it cannot trust. */
     finding("run.event-invalid", { runId: z.string(), seq: z.int(), issues }),
-    // Another runner's process `pid` holds the graph run's lease until it ends, or took the run over.
+    /** Another runner's process `pid` holds the graph run's lease until it ends, or took the run over. */
     finding("run.lease-held", { runId: z.string(), pid: z.int() }),
     finding("run.finished", { runId: z.string(), status: z.string() }),
-    // A decision for a node of a graph run that waits for none: no approval, no gate.
+    /** A decision for a node of a graph run that waits for none: no approval, no gate. */
     finding("run.not-waiting", { runId: z.string(), node: z.string() }),
-    // A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does.
+    /** A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does. */
     finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
-    // A node type this CedarLoom does not run yet (in 0.1.0: trigger.schedule, workflow.run); nothing of the run starts.
+    /** A node type this CedarLoom does not run yet (in 0.1.0: trigger.schedule, workflow.run); nothing of the run starts. */
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
-    // No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe).
+    /** No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe). */
     finding("run.shell-missing", {}),
-    // A report run's command, precheck or (on native Windows, Q7) agent where no OS sandbox runs; nothing starts.
+    /**
+     * A report run's node that needs an OS sandbox where none runs: a command or precheck where the sandbox does not run
+     * sh (native Windows, a container that refuses bubblewrap), and on native Windows an agent (Q7); nothing starts.
+     */
     finding("run.sandbox-unavailable", { node: z.string(), reason: z.string() }),
-    // A resume or cancel named another project folder than the run's own; its commands run only there.
+    /** A resume or cancel named another project folder than the run's own; its commands run only there. */
     finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
-    // The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts.
+    /** The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts. */
     finding("run.project-missing", { project: z.string() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
@@ -62,13 +65,13 @@ export const Finding = z
     finding("store.busy", { dir: z.string() }),
     finding("store.network-filesystem", { dir: z.string(), fsType: z.string() }),
     finding("draft.not-found", { id: z.string() }),
-    // An import the server keeps no plan for: applied already, older than its latest reviews, or from before a restart.
+    /** An import the server keeps no plan for: applied already, older than its latest reviews, or from before a restart. */
     finding("import.not-found", { id: z.string() }),
     finding("draft.too-large", { id: z.string(), bytes: z.int(), limit: z.int() }),
     finding("store.newer-schema", { found: z.int(), known: z.int() }),
-    // A run store from before 0.1.0, which is not carried over (pre-release only).
+    /** A run store from before 0.1.0, which is not carried over (pre-release only). */
     finding("store.older-schema", { dir: z.string(), found: z.int(), known: z.int() }),
-    // Graph findings of a workflow; `node: null` names one of the workflow's own outputs.
+    /** Graph findings of a workflow; `node: null` names one of the workflow's own outputs. */
     finding("workflow.duplicate-id", { kind: z.enum(["node", "edge"]), id: z.string() }),
     finding("workflow.trigger-count", { count: z.int() }),
     finding("workflow.unknown-node-type", { node: z.string(), type: z.string() }),
@@ -86,103 +89,115 @@ export const Finding = z
     finding("workflow.optional-input", { node: z.string(), handle: z.string(), input: z.string() }),
     finding("workflow.schedule-input", { input: z.string() }),
     finding("workflow.report-only-write", { node: z.string() }),
-    // An extension action under a schedule: it may write through the host or change other systems (P9 b).
+    /** An extension action under a schedule: it may write through the host or change other systems (P9 b). */
     finding("workflow.report-only-extension", { node: z.string() }),
-    // A node of an extension action that is not installed here: the workflow can be kept and shared, not run.
+    /** A node of an extension action that is not installed here: the workflow can be kept and shared, not run. */
     finding("workflow.extension-missing", { node: z.string(), type: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
     finding("accounts.unknown-pool", { agent: z.string(), pool: z.string() }),
-    // A40: Codex switching stays off until the owner has read OpenAI's terms, so no Codex pool can be confirmed.
+    /** A40: Codex switching stays off until the owner has read OpenAI's terms, so no Codex pool can be confirmed. */
     finding("accounts.codex-switching-off", { pool: z.string() }),
-    // The terms a pool's confirmation answers to; it goes with every confirmation, in every output form.
+    /** The terms a pool's confirmation answers to; it goes with every confirmation, in every output form. */
     finding("accounts.pool-terms", { pool: z.string() }),
     finding("accounts.unknown-account", { account: z.string() }),
     finding("accounts.name-taken", { account: z.string() }),
-    // An account or pool name the registry's rule refuses.
+    /** An account or pool name the registry's rule refuses. */
     finding("accounts.name-invalid", { name: z.string() }),
-    // Own homes and their login are Claude Code's only, until a Codex adapter starts workers.
+    /** Own homes and their login are Claude Code's only, until a Codex adapter starts workers. */
     finding("accounts.login-unsupported", { account: z.string(), agent: z.string() }),
-    // The own home of the account is a folder another account names: it is not taken over.
+    /** The own home of the account is a folder another account names: it is not taken over. */
     finding("accounts.folder-taken", { path: z.string() }),
-    // Workers run, and logins happen, only in the account's own home, so nothing is written into another tool's.
+    /** Workers run, and logins happen, only in the account's own home, so nothing is written into another tool's. */
     finding("accounts.home-not-own", { account: z.string(), home: z.string() }),
-    // The own home, or the homes folder above it, is a link: what is written there would land in another folder.
+    /** The own home, or the homes folder above it, is a link: what is written there would land in another folder. */
     finding("accounts.home-linked", { account: z.string(), path: z.string() }),
-    // The own home does not exist yet: only the login makes it, so nothing runs on the account logged out.
+    /** The own home does not exist yet: only the login makes it, so nothing runs on the account logged out. */
     finding("accounts.home-missing", { account: z.string(), home: z.string() }),
-    // The own home or the homes folder could not be made or closed to the owner (error: the file system's).
+    /** The own home or the homes folder could not be made or closed to the owner (error: the file system's). */
     finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
-    // The agent's login ended with an error or did not start.
+    /** The agent's login ended with an error or did not start. */
     finding("accounts.login-failed", { account: z.string(), error: z.string() }),
-    // The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account.
+    /** The doctor's check of each own home's login (`claude auth status`), never beside a worker on that account. */
     finding("doctor.logged-out", { account: z.string(), home: z.string() }),
     finding("doctor.login-elsewhere", { account: z.string(), home: z.string(), configDirectory: z.string() }),
     finding("doctor.login-method", { account: z.string(), method: z.string() }),
     finding("doctor.login-unchecked", { account: z.string(), error: z.string() }),
     finding("doctor.login-skipped", { account: z.string() }),
-    // A project's level is set for a folder that exists, by its real path.
+    /** A project's level is set for a folder that exists, by its real path. */
     finding("automation.unknown-folder", { path: z.string() }),
-    // The agent CLI could not tell its version or run its contract check, so no worker of it starts.
+    /** The agent CLI could not tell its version or run its contract check, so no worker of it starts. */
     finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
-    // The CLI version's contract check shows no proof that it applied the worker settings: no worker starts unsandboxed.
+    /** The CLI version's contract check shows no proof that it applied the worker settings: no worker starts unsandboxed. */
     finding("launch.settings-unproven", { agent: z.string(), version: z.string() }),
-    // Every lease of the account is taken: the most workers it runs at once.
+    /** Every lease of the account is taken: the most workers it runs at once. */
     finding("launch.account-full", { account: z.string(), max: z.int() }),
-    // gh found a token without GH_TOKEN (error null), or the check could not tell: either way the launch is refused.
+    /** gh found a token without GH_TOKEN (error null), or the check could not tell: either way the launch is refused. */
     finding("launch.gh-login", { error: z.string().nullable() }),
-    // A managed settings file loosens the worker sandbox: a managed key outranks the worker's settings.
+    /** A managed settings file loosens the worker sandbox: a managed key outranks the worker's settings. */
     finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
-    // The agent's own login check shows no login in the account's home, so its CLI version is not probed (reason: why).
+    /** The agent's own login check shows no login in the account's home, so its CLI version is not probed (reason: why). */
     finding("launch.not-logged-in", { account: z.string(), reason: z.string() }),
-    // The latest run's init line: no workflow plugin went with it, as the pinned marketplace commit has none (info).
+    /** The latest run's init line: no workflow plugin went with it, as the pinned marketplace commit has none (info). */
     finding("doctor.plugin-none", { plugin: z.string(), commit: z.string() }),
-    // The latest run's init line: a plugin it passed did not load with its skills (errors: the plugins' load errors).
+    /** The latest run's init line: a plugin it passed did not load with its skills (errors: the plugins' load errors). */
     finding("doctor.plugin-not-loaded", { plugin: z.string(), errors: z.string() }),
-    // A managed settings file the launcher cannot read or parse, so it cannot clear it.
+    /** A managed settings file the launcher cannot read or parse, so it cannot clear it. */
     finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
-    // Git could not start, fetch, list, read or add a worktree; `error` ends its message, never the URL (a token).
+    /**
+     * Git could not start, fetch, list, read or add a worktree; `error` is the end of its message. Never the URL: it may
+     * hold a token.
+     */
     finding("git.failed", {
       step: z.enum(["start", "fetch", "list", "read", "worktree", "commit", "update"]),
       error: z.string(),
     }),
-    // The draft was opened from another stored version than the one there now (P3 a): saved only on top, never merged.
+    /**
+     * The workflow store (P3 a): a draft opened from another stored version than the one there now (an import changed
+     * it meanwhile) is saved only on top of it, never merged.
+     */
     finding("store.conflict", { id: z.string() }),
-    // A saved version must be above the stored one (semver precedence).
+    /** A saved version must be above the stored one (semver precedence). */
     finding("store.version-not-higher", { id: z.string(), stored: z.string(), found: z.string() }),
-    // Store commits carry the user's Git identity, which their configuration lacks.
+    /** Store commits carry the user's Git identity, which their configuration lacks. */
     finding("store.identity-missing", { key: z.enum(["user.name", "user.email"]) }),
-    // The branch moved since the plan was made: the apply moves nothing.
+    /** The branch moved since the plan was made: the apply moves nothing. */
     finding("store.moved", { ref: z.string(), expected: GitOid.nullable(), actual: GitOid.nullable() }),
     finding("store.not-found", { id: z.string(), commit: z.string().nullable() }),
-    // Opening a stored version as a draft never replaces a draft.
+    /** Opening a stored version as a draft never replaces a draft. */
     finding("store.draft-exists", { id: z.string() }),
-    // A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password.
+    /** A source that never reaches git: a URL or ref with a character a shell, terminal or helper reads, or a password. */
     finding("git.refused-source", { field: z.enum(["url", "ref", "path"]) }),
     finding("git.unsafe-entry", { path: z.string(), kind: z.enum(["link", "submodule", "name", "case"]) }),
-    // An extension its trust (P1 a, A31), this Node, its folder, protocol or actions refuse here, or a bundled one off.
+    /**
+     * An extension that may not run here (P1 a, A31). A Node before 25 could widen its folder's grant; one that speaks
+     * another protocol or serves other actions than its manifest names is stopped at once.
+     */
     finding("extension.refused", {
       extension: z.string(),
       reason: z.enum(["sandbox-unavailable", "windows", "protocol", "actions", "folder", "runtime", "off", "programs"]),
     }),
-    // An extension not installed or updated: manifest, entry, protocol, a duplicate, a swapped folder, its publisher.
+    /**
+     * An extension that is not installed or updated. `extension`: its id when the manifest names it. The `cedarloom`
+     * publisher is refused, as only the app ships it.
+     */
     finding("extension.install-refused", {
       extension: z.string().nullable(),
       reason: z.enum(["no-manifest", "entry", "protocol", "installed", "id", "reserved", "programs"]),
     }),
-    // An extension to update or remove that is not installed.
+    /** An extension to update or remove that is not installed. */
     finding("extension.unknown", { extension: z.string() }),
-    // An import whose lock pins an extension at a commit whose files are not the ones the lock names.
+    /** An import whose lock pins an extension at a commit whose files are not the ones the lock names. */
     finding("extension.digest-mismatch", { extension: z.string() }),
-    // An update that asks for capabilities the user has not approved: only an approval of its exact plan applies it.
+    /** An update that asks for capabilities the user has not approved: only an approval of its exact plan applies it. */
     finding("extension.consent-needed", { extension: z.string() }),
-    // An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely.
+    /** An extension that could not start, answer its handshake, or run an action; `error` says why, shown safely. */
     finding("extension.failed", {
       extension: z.string(),
       step: z.enum(["stage", "start", "initialize", "run", "doctor", "target", "worker", "session"]),
       error: z.string(),
     }),
-    // A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely.
+    /** A finding of an extension's own check (contributes.doctor), in its words from its own catalog: shown safely. */
     finding("extension.finding", {
       extension: z.string(),
       check: z.string(),
@@ -190,15 +205,15 @@ export const Finding = z
       code: z.string(),
       message: z.string(),
     }),
-    // A file of another kind where a profile belongs: BenchKeeper's profiles and presets are never imported (D33).
+    /** A file of another kind where a profile belongs: BenchKeeper's profiles and presets are never imported (D33). */
     finding("profile.foreign-kind", { kind: z.string() }),
-    // Where a profile holds a token-shaped value or an environment name for a credential; the value is never shown.
+    /** Where a profile holds a token-shaped value or an environment name for a credential; the value is never shown. */
     finding("profile.secret-like", { path: z.string() }),
     finding("profile.forbidden-setting", { path: z.string() }),
     finding("profile.parent-unknown", { pack: z.string(), path: z.string() }),
     finding("profile.parent-cycle", { chain: z.array(z.string()) }),
     finding("profile.parent-limit", { chain: z.array(z.string()), limit: z.int() }),
-    // One pack id with two sources in one composition: the files that name each.
+    /** One pack id with two sources in one composition: the files that name each. */
     finding("profile.pack-sources", { pack: z.string(), files: z.array(z.string()) }),
     finding("profile.entry-unknown", {
       pack: z.string(),
@@ -206,71 +221,78 @@ export const Finding = z
       kind: z.enum(["rules", "template", "profile", "skill"]),
     }),
     finding("profile.app-too-old", { minApp: z.string(), app: z.string() }),
-    // A part the selection or a `requires` names that the profile does not hold, both as `level.id`.
+    /** A part the selection or a `requires` names that the profile does not hold, both as `level.id`. */
     finding("profile.part-unknown", { part: z.string(), by: z.string() }),
     finding("profile.part-requires", { part: z.string(), requires: z.string() }),
-    // A file the owner changed or made since CedarLoom last wrote it: the plan leaves it as it is.
+    /** A file the owner changed or made since CedarLoom last wrote it: the plan leaves it as it is. */
     finding("profile.owner-changed", { path: z.string() }),
-    // A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile.
+    /** A `{{name}}` left in a text, at the text's JSON Pointer in the composed profile. */
     finding("profile.placeholder-unknown", { at: z.string(), placeholder: z.string() }),
     finding("profile.binding-missing", { part: z.string(), binding: z.enum(["hub", "gates"]) }),
-    // A drift line of `profiles check`, its plans and doctor (plan 2.9), and what `apply --remove` takes when offered.
+    /**
+     * A drift line of `profiles check`, its plans and the doctor (plan section 2.9): what differs from the profile, the
+     * path, part, source or item it is about, and the item `apply --remove` takes when its removal is offered.
+     */
     finding("profile.drift", {
       status: z.enum(["missing", "outdated", "deselected-present", "not-run"]),
       subject: z.string(),
       remove: z.string().nullable(),
     }),
-    // What a home holds that the profile does not name, reported only, with the item `apply --remove` takes (PF4).
+    /** What a home holds that the profile does not name, reported only, with the item `apply --remove` takes (PF4). */
     finding("profile.extra", { item: z.string() }),
-    // An `apply --remove` item the plan does not offer.
+    /** An `apply --remove` item the plan does not offer. */
     finding("profile.remove-unknown", { item: z.string() }),
-    // A `profiles init` target that holds a file, which may be a profile the owner edited, or is the selection file.
+    /** A `profiles init` target that holds a file, which may be a profile the owner edited, or is the selection file. */
     finding("profile.copy-exists", { path: z.string() }),
-    // A project file another clone wrote from a newer version of its pack than this machine has, left as it is.
+    /** A project file another clone wrote from a newer version of its pack than this machine has, left as it is. */
     finding("profile.newer-pack", { path: z.string(), recorded: z.string(), local: z.string() }),
-    // An auto part that stays off until this machine names the binding it waits for.
+    /** An auto part that stays off until this machine names the binding it waits for. */
     finding("profile.binding-waiting", { part: z.string(), binding: z.enum(["gates"]) }),
-    // A part switched on stays off while its condition fails: for `orca`, the extension is off or no program is found.
+    /** A part switched on stays off while its condition fails: for `orca`, the extension is off or no program is found. */
     finding("profile.when-unmet", { part: z.string(), when: z.enum(["orca"]) }),
-    // A plugin part not approved by name (its hooks, MCP servers and commands run in every session), with its source.
+    /**
+     * A plugin part the run did not approve by name; its plugin's hooks, MCP servers and commands run in every session.
+     * The marketplace's repository (`owner/repo` on GitHub) or Git URL, its branch or tag, and whether Claude Code
+     * updates it by itself; no source: a marketplace Claude Code already knows.
+     */
     finding("profile.approval-needed", {
       part: z.string(),
       plugin: z.string(),
       source: z.string().nullable(),
       ref: z.string().nullable(),
       autoUpdate: z.boolean(),
-      // The project folder of a project's plugin part; null for the machine's.
+      /** The project folder of a project's plugin part; null for the machine's. */
       project: z.string().nullable(),
     }),
     finding("profile.options-guarded", { part: z.string(), path: z.string() }),
-    // A files part whose targets run as programs or configure tools waits for approval by name (hub issue 130).
+    /** A files part whose targets run as programs or configure tools waits for approval by name (hub issue 130). */
     finding("profile.target-approval", {
       part: z.string(),
       title: z.string(),
       project: z.string(),
-      // Where the part's code comes from: the gates' `owner/repo@commit`, a dev container's Template and Features.
+      /** Where the part's code comes from: the gates' `owner/repo@commit`, a dev container's Template and Features. */
       source: z.string().nullable(),
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
-    // The Dev Containers CLI did not apply a part's Template, which then writes nothing.
+    /** The Dev Containers CLI did not apply a part's Template, which then writes nothing. */
     finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
-    // A target two parts write, such as the Dependabot file of two gates parts: the later part and the target.
+    /** A target two parts write, such as the Dependabot file of two gates parts: the later part and the target. */
     finding("profile.target-twice", { part: z.string(), target: z.string() }),
-    // Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository.
+    /** Two skills of one name, which would install into one folder: the folder, and each skill's pack entry or repository. */
     finding("profile.skill-twice", { folder: z.string(), skills: z.array(z.string()) }),
-    // A skill whose files hold `.claude-plugin/`, so Claude Code would load it as a plugin: the skill and the file.
+    /** A skill whose files hold `.claude-plugin/`, so Claude Code would load it as a plugin: the skill and the file. */
     finding("profile.skill-plugin", { skill: z.string(), path: z.string() }),
-    // A files part's target that a link leads outside the project, into its Git folder or onto a sealed file.
+    /** A files part's target that a link leads outside the project, into its Git folder or onto a sealed file. */
     finding("profile.target-linked", { part: z.string(), target: z.string(), path: z.string() }),
-    // The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread.
+    /** The owner's CLAUDE.md does not import AGENTS.md, and no CLAUDE.local.md block does, so the manual goes unread. */
     finding("profile.agents-unread", { path: z.string() }),
-    // A Git source that follows a branch or tag holds a file that may run (anything but .md and .txt at mode 100644).
+    /** A Git source that follows a branch or tag holds a file that may run (anything but .md and .txt at mode 100644). */
     finding("profile.pack-unpinned", { source: z.string(), path: z.string() }),
     finding("profile.source-digest", { source: z.string(), expected: z.string(), found: z.string() }),
-    // A new commit at a followed ref, taken once this machine has seen it there for 3 days.
+    /** A new commit at a followed ref, taken once this machine has seen it there for 3 days. */
     finding("profile.source-waiting", { source: z.string(), commit: z.string(), offered: z.string() }),
-    // The commit in use of a followed source, which its new commit waits to replace, can no longer be fetched.
+    /** The commit in use of a followed source, which its new commit waits to replace, can no longer be fetched. */
     finding("profile.source-unavailable", { source: z.string(), commit: z.string() }),
     finding("git.too-large", {
       path: z.string().nullable(),
@@ -278,26 +300,29 @@ export const Finding = z
       limit: z.int(),
       unit: z.enum(["files", "bytes"]),
     }),
-    // An outbox intent whose approval names another intent: nothing is queued.
+    /** An outbox intent whose approval names another intent: nothing is queued. */
     finding("outbox.not-approved", { key: z.string(), hash: Sha256, approvedHash: z.string() }),
     finding("outbox.not-found", { id: z.string() }),
-    // A key that holds another intent already, entry `id`: nothing is queued.
+    /** A key that holds another intent already, entry `id`: nothing is queued. */
     finding("outbox.key-taken", { key: z.string(), id: z.string() }),
-    // An entry for another repository than the hub, the only tracker (A3 b): it fails, and nothing is written.
+    /** An entry for another repository than the hub, the only tracker (A3 b): it fails, and nothing is written. */
     finding("outbox.not-hub", { id: z.string(), repo: z.string() }),
-    // The entry's status does not allow the step, such as a send of one that ended, or `sending`: another process sends it.
+    /** The entry's status does not allow the step, such as a send of one that ended, or `sending`: another process sends it. */
     finding("outbox.status", { id: z.string(), status: z.string() }),
-    // A sent entry with nothing to undo: it changed nothing on the issue, or it deleted a comment, which stays deleted.
+    /** A sent entry with nothing to undo: it changed nothing on the issue, or it deleted a comment, which stays deleted. */
     finding("outbox.not-undoable", { id: z.string(), reason: z.enum(["unchanged", "no-inverse"]) }),
-    // The tracker was unreachable, failed or rate-limited (its retry headers as sent); the entry stays queued.
+    /**
+     * The tracker was not reached, or answered with a server error or a rate limit: the entry stays queued. A rate
+     * limit keeps GitHub's retry-after (seconds) and x-ratelimit-reset (epoch seconds) as sent, null without them.
+     */
     finding("tracker.unavailable", {
       error: z.string(),
       retryAfter: z.string().nullable(),
       rateLimitReset: z.string().nullable(),
     }),
-    // The tracker refused the write with an HTTP status, such as an issue that is gone or a token without the permission.
+    /** The tracker refused the write with an HTTP status, such as an issue that is gone or a token without the permission. */
     finding("tracker.refused", { status: z.int(), error: z.string() }),
-    // An answer CedarLoom cannot read: the entry fails, as a retry reads the same; the write may have happened.
+    /** An answer CedarLoom cannot read: the entry fails, as a retry reads the same; the write may have happened. */
     finding("tracker.invalid-answer", { error: z.string() }),
   ])
   .register(contracts, { id: "Finding" });

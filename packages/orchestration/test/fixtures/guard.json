@@ -1,11 +1,29 @@
 {
-  "source": "Command shapes as agents and people type them: Claude Code's commit with a heredoc message, the usual install pipe, every evasion of the guard's review, and everyday forms outside the guard's grammar, which it refuses. A case's rule is the guard's answer, null when it lets the call run. Cases are grouped by policy and folder; each is its name, the command and the rule.",
+  "source": "Command shapes as agents and people type them: Claude Code's commit with a heredoc message, git's documented push, fetch, clone, config and remote forms, the usual install pipe, every evasion of the guard's reviews, and everyday forms outside the guard's grammar, which it refuses. A case's rule is the guard's answer, null when it lets the call run. Cases are grouped by policy and folder; each is its name, the command and the rule.",
   "policies": {
     "worker": {
       "schemaVersion": 1,
       "repositories": ["acme/app", "acme/tracker"],
       "hub": "acme/tracker",
       "memory": "acme/notes"
+    },
+    "interactive": {
+      "schemaVersion": 1,
+      "repositories": null,
+      "hub": "acme/tracker",
+      "memory": "acme/notes"
+    }
+  },
+  "remotes": {
+    "/work/app": {
+      "origin": ["https://github.com/acme/app.git"]
+    },
+    "/work/fork": {
+      "origin": ["git@github.com:acme/app.git"],
+      "upstream": ["https://github.com/other/fork.git"]
+    },
+    "/work/notes": {
+      "origin": ["git@github.com:acme/notes.git"]
     }
   },
   "cases": {
@@ -106,7 +124,119 @@
       ["[[ -eq ]] of an expansion with a default", "[[ ${x:-a} -eq 0 ]]", "unreadable"],
       ["[[ -gt ]] of a plain parameter", "[[ \"$n\" -gt 0 ]] && [[ ${#a[@]} -lt 9 ]]", null],
       ["bash's old arithmetic", "echo $[1 + 2]", "unreadable"],
-      ["[[ -v ]] of a default holding a subscript", "[[ -v ${x:-'a[$(sudo rm -rf /tmp/x)]'} ]]", "unreadable"]
+      ["[[ -v ]] of a default holding a subscript", "[[ -v ${x:-'a[$(sudo rm -rf /tmp/x)]'} ]]", "unreadable"],
+      ["status", "git status --short", null],
+      ["a commit message that holds -n", "git commit -m \"-n is no flag here\"", null],
+      ["commit --no-verify", "git commit --no-verify -m wip", "forbidden"],
+      ["commit -nm", "git commit -nm wip", "forbidden"],
+      ["push to the session's own repository", "git push -u origin feature/guard", null],
+      ["push --force-with-lease", "git push --force-with-lease origin feature", "forbidden"],
+      ["push +refspec", "git push origin +feature", "forbidden"],
+      ["push -uf", "git push -uf origin feature", "forbidden"],
+      ["clone inside the profiles over ssh", "git clone git@github.com:acme/app.git copy", null],
+      ["a push of a branch named by a substitution", "git push origin \"$(git branch --show-current)\"", "unreadable"],
+      ["git -c credential.helper", "git -c credential.helper= push origin feature", "git-config"],
+      ["config sets an identity", "git config user.email bot@example.com", "git-config"],
+      ["config reads a key", "git config --get user.email", null],
+      ["remote set-url", "git remote set-url origin https://github.com/other/repo", "git-config"],
+      ["a git alias", "git pf", "unreadable"],
+      ["a push named only in a comment", "git log --oneline -3 # git push --force", null],
+      ["a push behind timeout", "timeout 60 git push --force origin feature", "forbidden"],
+      ["a forced push in a parameter's default", "echo ${X:-$(git push --force origin x)}", "forbidden"],
+      ["a subcommand in ANSI-C quotes", "git $'push' -f origin x", "unreadable"],
+      ["escaped quotes in a commit message", "git commit -m \"say \\\"hi\\\" -n\"", null],
+      ["a line continuation before the push", "true && \\\n  git push -f origin x", "forbidden"],
+      ["a forced push in a variable", "F=--force; git push $F origin x", "unreadable"],
+      ["--no-verify from a substitution", "git commit \"$(echo --no-verify)\" -m x", "unreadable"],
+      ["git in capitals", "GIT push -f origin x", "forbidden"],
+      ["git.exe", "git.exe push -f origin x", "forbidden"],
+      ["git-push by its path", "/usr/libexec/git-core/git-push -f origin x", "forbidden"],
+      ["an abbreviated --no-verify", "git commit --no-veri -m x", "forbidden"],
+      ["an abbreviated --mirror", "git push --mirr origin", "forbidden"],
+      ["merge --no-verify", "git merge --no-verify feature", "forbidden"],
+      ["remote add after an option", "git remote -v add evil https://example.com/x", "git-config"],
+      ["clone -c attached", "git clone -ccore.hooksPath=/dev/null https://github.com/acme/app", "git-config"],
+      ["rebase -x", "git rebase -x 'npm test' main", "unreadable"],
+      ["--force-if-includes alone", "git push --force-if-includes origin feature", null],
+      ["git log with a format", "git log --format='%H %s' -5", null],
+      ["git maintenance", "git maintenance run --task=gc", null],
+      ["push to a URL outside the profiles", "git push https://github.com/other/repo.git main", "outside-profiles"],
+      ["-C into a repository outside the profiles", "git -C ../notes push origin main", "outside-profiles"],
+      ["cd into a repository outside the profiles", "cd /work/notes && git pull", "outside-profiles"],
+      ["clone outside the profiles", "git clone --depth 1 https://github.com/other/thing", "outside-profiles"],
+      ["-C into a folder in a variable", "git -C \"$DIR\" push origin main", "unreadable"],
+      ["--git-dir naming another repository", "git --git-dir=/elsewhere/.git push origin feature", "unreadable"],
+      ["a cluster with a digit before -f", "git push -4f origin feature", "forbidden"],
+      ["a brace list of options", "git push origin {-f,feature}", "unreadable"],
+      [
+        "an abbreviated --push-option before a URL",
+        "git push --pu x https://github.com/acme/notes.git main",
+        "outside-profiles"
+      ],
+      ["-o in a cluster before a URL", "git push -vo x https://github.com/acme/notes.git main", "outside-profiles"],
+      [
+        "an abbreviated --repo before a URL",
+        "git push --rep origin https://github.com/acme/notes.git main",
+        "outside-profiles"
+      ],
+      ["fetch --dep before a URL", "git fetch --dep 1 https://github.com/other/x", "outside-profiles"],
+      ["fetch --multiple", "git fetch --multiple origin https://github.com/other/x", "outside-profiles"],
+      ["a transport helper address", "git push https::https://github.com/acme/notes.git main", "unreadable"],
+      ["an ssh host alias", "git push gh:acme/notes.git main", "unreadable"],
+      ["cd behind command", "command cd /work/notes && git push origin main", "outside-profiles"],
+      ["pushd", "pushd /work/notes && git pull", "outside-profiles"],
+      ["env -C", "env -C /work/notes git push origin main", "unreadable"],
+      ["find -execdir", "find /work/notes/.git -maxdepth 0 -execdir git push origin main \\;", "unreadable"],
+      ["submodule add", "git submodule add https://github.com/other/x", "unreadable"],
+      ["push --recurse-submodules=on-demand", "git push --recurse-submodules=on-demand origin feature", "unreadable"],
+      ["archive --remote", "git archive --remote=https://github.com/other/x HEAD", "outside-profiles"],
+      ["a global option that takes the next word", "git --attr-source status push --force origin main", "forbidden"],
+      ["--exec-path with a folder", "git --exec-path=/tmp/x push origin feature", "unreadable"],
+      ["--config-env", "git --config-env=core.hooksPath=HOOKS status", "git-config"],
+      ["config --unset", "git config --unset core.hooksPath", "git-config"],
+      ["an abbreviated --unset-all", "git config --unset-a core.hooksPath", "git-config"],
+      ["am --no-v", "git am --no-v x.patch", "forbidden"],
+      ["rebase --ex", "git rebase --ex 'npm test' main", "unreadable"],
+      ["fetch --upload-pack", "git fetch --upload-pack=/tmp/x origin", "unreadable"],
+      ["clone -u", "git clone -u /tmp/x https://github.com/acme/app", "unreadable"],
+      ["submodule foreach", "git submodule foreach 'git status'", "unreadable"],
+      ["bisect run", "git bisect run npm test", "unreadable"],
+      ["GIT_EDITOR before a commit", "GIT_EDITOR=vim git commit", "environment"],
+      ["GIT_COMMON_DIR before a push", "GIT_COMMON_DIR=/work/notes/.git git push origin main", "environment"],
+      ["an attached commit message", "git commit --message=\"$MSG\"", null],
+      ["a push to the session's remote by --repo", "git push --repo=origin", null],
+      ["a global option the guard does not know", "git --frobnicate push origin feature", "unreadable"],
+      ["git --no-pager", "git --no-pager log -1", null],
+      ["git -P", "git -P diff", null],
+      ["git --version", "git --version", null],
+      ["git grep -O", "git grep -Ovim foo", "unreadable"],
+      ["git grep --open-files-in-pager", "git grep --open-files-in-pager=vim foo", "unreadable"],
+      ["git stage", "git stage a.txt", null],
+      ["CDPATH before cd", "CDPATH=/elsewhere cd x && git push origin feature", "environment"]
+    ],
+    "worker /work/fork": [
+      ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],
+      ["remote update", "git remote update", "outside-profiles"]
+    ],
+    "interactive /work/notes": [
+      ["a push of main to the memory repository", "git push origin main", "memory-main"],
+      ["a push of HEAD:main", "git push origin HEAD:main", "memory-main"],
+      ["a push without a refspec", "git push", "memory-main"],
+      ["a push of every branch", "git push --all origin", "memory-main"],
+      ["a push of a branch in a variable", "git push origin \"$BRANCH\"", "unreadable"],
+      ["a proposal branch", "git push -u origin memory/worker-20261107", null],
+      ["a proposal branch by its full ref", "git push origin HEAD:refs/heads/memory/notes-fix", null]
+    ],
+    "interactive /work/app": [
+      ["main of another repository", "git push origin main", null],
+      ["main of the memory repository from another folder", "cd ../notes && git push origin main", "memory-main"],
+      [
+        "ssh on port 443 to the memory repository",
+        "git push ssh://git@ssh.github.com:443/acme/notes.git main",
+        "unreadable"
+      ],
+      ["github.com with a trailing dot", "git push https://github.com./acme/notes.git main", "unreadable"],
+      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"]
     ]
   }
 }

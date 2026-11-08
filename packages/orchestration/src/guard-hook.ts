@@ -1,7 +1,41 @@
+import { execFileSync } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
-import { guardCommand } from "./guard.ts";
+import { guardCommand, type Remotes } from "./guard.ts";
+import { programPath } from "./program.ts";
+
+// The fetch and push URLs of a folder's remotes as git reads them, its insteadOf rewrites applied; null when git cannot
+// read them. git comes from an absolute folder of PATH: the hook runs outside the sandbox, and a relative entry would
+// let the session's own files stand in for it.
+const gitRemotes: Remotes = (folder) => {
+  const git = programPath("git", process.env);
+  if (git === undefined) return null;
+  try {
+    const listed = execFileSync(git, ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
+      encoding: "utf8",
+      timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    });
+    const remotes = new Map<string, string[]>();
+    for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {
+      remotes.set(name, [...new Set([...(remotes.get(name) ?? []), url])]);
+    }
+    return remotes;
+  } catch {
+    return null;
+  }
+};
+
+// A folder's remotes, read once per hook run.
+const once = (remotes: Remotes): Remotes => {
+  const read = new Map<string, ReturnType<Remotes>>();
+  return (folder) => {
+    if (!read.has(folder)) read.set(folder, remotes(folder));
+    return read.get(folder) ?? null;
+  };
+};
 
 const field = (object: unknown, key: string): unknown =>
   typeof object === "object" && object !== null ? Reflect.get(object, key) : undefined;
@@ -45,17 +79,18 @@ const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: s
 };
 
 // Why the guard refuses one PreToolUse input, or null; what it cannot read refuses (A79).
-const guardHook = (input: string, policyJson: string | null): string | null => {
-  if (policyJson === null || readPolicy(policyJson) === null) return "its policy is missing or invalid";
+const guardHook = (input: string, policyJson: string | null, remotes: Remotes): string | null => {
+  const policy = policyJson === null ? null : readPolicy(policyJson);
+  if (policy === null) return "its policy is missing or invalid";
   const call = commandOf(readCall(input));
   if (call === null || typeof call === "string") return call;
-  const denial = guardCommand(call.command);
+  const denial = guardCommand(call.command, call.cwd, policy, remotes);
   return denial === null ? null : `${denial.detail} (${denial.rule})`;
 };
 
 // Exit code 2 with the reason on stderr refuses; the launch's onFailure "block" makes a crash refuse too.
 try {
-  const reason = guardHook(await text(process.stdin), process.argv[2] ?? null);
+  const reason = guardHook(await text(process.stdin), process.argv[2] ?? null, once(gitRemotes));
   if (reason !== null) {
     process.stderr.write(`CedarLoom's guard refused this call: ${reason}.\n`);
     process.exitCode = 2;

@@ -1,23 +1,38 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
-import { guardCommand } from "@cedarloom/orchestration";
+import { guardCommand, type Remotes } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 import { z } from "zod";
 
 const Fixtures = z.object({
   policies: z.record(z.string(), GuardPolicy),
+  remotes: z.record(z.string(), z.record(z.string(), z.array(z.string()))),
   // Keyed by "<policy> <folder>": each case's name, command and the rule that refuses it (null: it runs).
   cases: z.record(z.string(), z.array(z.tuple([z.string(), z.string(), z.string().nullable()]))),
 });
 const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "guard.json"), "utf8")));
-const cases = Object.values(fixtures.cases).flatMap((list) =>
-  list.map(([name, command, rule]) => ({ name, command, rule })),
-);
+const remotes: Remotes = (folder) => {
+  // git -C reaches its folder as the OS does; these fixture folders hold no links, and on Windows lose their drive.
+  const found =
+    fixtures.remotes[
+      resolve(folder)
+        .replace(/^[A-Za-z]:/, "")
+        .replaceAll("\\", "/")
+    ];
+  return found === undefined ? null : new Map(Object.entries(found));
+};
+const cases = Object.entries(fixtures.cases).flatMap(([key, list]) => {
+  const [policy = "", cwd = ""] = key.split(" ");
+  return list.map(([name, command, rule]) => ({ name, policy, cwd, command, rule }));
+});
 
-test.each(cases)("$name", ({ command, rule }) => {
-  expect(guardCommand(command)?.rule ?? null).toBe(rule);
+test.each(cases)("$name", ({ policy, cwd, command, rule }) => {
+  const chosen = fixtures.policies[policy];
+  if (chosen === undefined) throw new Error(`no policy ${policy}`);
+  expect(guardCommand(command, cwd, chosen, remotes)?.rule ?? null).toBe(rule);
 });
 
 const HOOK = join(import.meta.dirname, "..", "src", "guard-hook.ts");
@@ -51,3 +66,21 @@ test("the hook reads a Monitor command as a Bash one, refuses PowerShell, and le
     hook(call("Read", { file_path: "/x" })),
   ]).toEqual(["refused", "refused", "runs", "runs"]);
 }, 30_000);
+
+test.skipIf(process.platform === "win32")(
+  "the hook runs git from an absolute folder of PATH, never one a session planted",
+  () => {
+    const dir = mkdtempSync(join(tmpdir(), "guard-path-"));
+    try {
+      mkdirSync(join(dir, "bin"));
+      writeFileSync(join(dir, "bin", "git"), `#!/bin/sh\ntouch "${join(dir, "ran")}"\n`, { mode: 0o755 });
+      const env = { ...process.env, PATH: `bin${delimiter}${process.env["PATH"] ?? ""}` };
+      const policy = JSON.stringify(fixtures.policies["worker"]);
+      spawnSync(process.execPath, [HOOK, policy], { input: bash("git push origin feature", dir), cwd: dir, env });
+      expect(existsSync(join(dir, "ran"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);

@@ -76,9 +76,12 @@ const stopLine = (head: string, step: Step): string => {
     const inputs = each.inputs.map((name) => `\`${name}\``).join(", ") || "none";
     return `\`${each.command}\` with the inputs ${inputs} as given`;
   });
-  const message = JSON.stringify(step.message ?? "");
   const goOn = next.length === 0 ? "; the workflow ends there" : ` and the commands that go on: ${next.join("; ")}`;
-  return `${head} stop the stage. Show the user ${message}${goOn}. Never start a next stage yourself.`;
+  // The message in a block of its own, after the commands: a stray backtick in it opens no code span over them.
+  const message = inert(step.message ?? "")
+    .split("\n")
+    .join("\n  > ");
+  return `${head} stop the stage. Show the user the message below${goOn}. Never start a next stage yourself.\n\n  > ${message}\n`;
 };
 
 // What Codex does for one step, in prose; nothing for the start.

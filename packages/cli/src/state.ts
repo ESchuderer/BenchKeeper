@@ -13,5 +13,5 @@ const folder = (env: Env, own: string, xdg: string, fallback: string): string =>
 export const stateDir = (env: Env): string =>
   folder(env, "CEDARLOOM_STATE_DIR", "XDG_STATE_HOME", join(".local", "state"));
 
-/** The config folder, which holds the account registry: CEDARLOOM_CONFIG_DIR, else `cedarloom` in XDG_CONFIG_HOME, else in ~/.config. */
+/** The config folder: CEDARLOOM_CONFIG_DIR, else `cedarloom` in XDG_CONFIG_HOME, else in ~/.config. */
 export const configDir = (env: Env): string => folder(env, "CEDARLOOM_CONFIG_DIR", "XDG_CONFIG_HOME", ".config");

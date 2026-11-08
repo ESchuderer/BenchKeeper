@@ -1,4 +1,4 @@
-import { type ChildProcess, execFile, spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { Socket } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -220,20 +220,6 @@ export const claudeAuthStatus =
         else resolve(statusOf(error === null ? 0 : error.code, stdout, error?.message));
       });
     });
-
-/**
- * Runs Claude Code's own login in this terminal, `claude auth login` (https://code.claude.com/docs/en/cli-reference),
- * with `env`, which names the account's config folder. Tells the exit code, or null with the error when it did not
- * start. `command` is the CLI as for claudeRuntime.
- */
-export const claudeLogin =
-  (command: Command) =>
-  (env: Record<string, string>): { readonly code: number | null; readonly error?: string } => {
-    const [file, ...prefix] = command;
-    // Its output goes to stderr, the same terminal, so stdout keeps only CedarLoom's result (also with --json).
-    const ran = spawnSync(file, [...prefix, "auth", "login"], { env, stdio: ["inherit", 2, "inherit"] });
-    return ran.error === undefined ? { code: ran.status } : { code: null, error: ran.error.message };
-  };
 
 /**
  * The Claude Code adapter: runs `claude -p` with stream-json output under the account's config folder. `command` is the

@@ -1469,28 +1469,6 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.swap-unlinked";
-            params: {
-                account: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.swap-busy";
-            params: {
-                account: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.swap-unavailable";
-            params: Record<string, never>;
-        } | {
-            /** @constant */
-            code: "accounts.swap-setting";
-            params: {
-                key: string;
-            };
-        } | {
-            /** @constant */
             code: "accounts.name-taken";
             params: {
                 account: string;
@@ -2857,28 +2835,6 @@ export interface components {
             code: "accounts.unknown-account";
             params: {
                 account: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.swap-unlinked";
-            params: {
-                account: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.swap-busy";
-            params: {
-                account: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.swap-unavailable";
-            params: Record<string, never>;
-        } | {
-            /** @constant */
-            code: "accounts.swap-setting";
-            params: {
-                key: string;
             };
         } | {
             /** @constant */

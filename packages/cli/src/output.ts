@@ -1,7 +1,7 @@
 import { type Finding, severityOf } from "@cedarloom/contracts";
 import type { PlanPreview } from "@cedarloom/contracts";
 import type { ClaudeLaunch } from "@cedarloom/adapter-claude";
-import type { AgentOptions, Fetch, Keyring, LoginRun, LoginStatus } from "@cedarloom/use-cases";
+import type { AgentOptions, Fetch, Keyring } from "@cedarloom/use-cases";
 import { describe } from "./messages.ts";
 
 export interface Io {
@@ -10,10 +10,6 @@ export interface Io {
   env: Record<string, string | undefined>;
   /** Settles when a long-running command such as `ui` should end; the program waits for SIGINT or SIGTERM. */
   untilStopped: () => Promise<void>;
-  /** Runs the agent's own login in this terminal with `env`, and tells how it ended. */
-  login: (env: Record<string, string>) => LoginRun;
-  /** Asks the agent for the login of the config folder `env` names. */
-  authStatus: (env: Readonly<Record<string, string>>) => Promise<LoginStatus>;
   /** How Git sources are fetched: over https and ssh unless a test hands over its own trees. */
   fetch?: Fetch;
   /** Standard input as text once it ends; null when it is a terminal, where a token typed into it would show. */

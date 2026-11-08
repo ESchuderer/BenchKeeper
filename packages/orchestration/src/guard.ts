@@ -40,11 +40,11 @@ const GUARDED = /(?:^|[^\w.-])(?:gh|git|curl)\b/i;
 const PROTECTED_NAMES =
   "GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_CONFIG_DIR|GH_HOST|SSH_ASKPASS|HOME|" +
   // Every git variable but the pager's and the prompt's: they choose its repository, configuration, editor or programs.
-  "XDG_CONFIG_HOME|GIT_(?!(?:PAGER|TERMINAL_PROMPT)\\b)\\w+|" +
+  "XDG_CONFIG_HOME|GIT_(?!(?:PAGER|TERMINAL_PROMPT)\\b)\\w+|EDITOR|VISUAL|CDPATH|" +
   // The tables of programs, aliases and functions bash and zsh look a command name up in.
   "BASH_CMDS|BASH_ALIASES|commands|aliases|galiases|saliases|functions|" +
   // gh's repository, curl's configuration, and the editors and browsers gh runs.
-  "GH_REPO|CURL_HOME|GH_EDITOR|GH_BROWSER|EDITOR|VISUAL|BROWSER";
+  "GH_REPO|CURL_HOME|GH_EDITOR|GH_BROWSER|BROWSER";
 const PROTECTED = new RegExp(`^(?:${PROTECTED_NAMES})$`);
 const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
@@ -405,9 +405,11 @@ const moved = (folders: readonly string[] | null, value: Word | undefined): read
 };
 
 const GLOBAL_FLAGS = new Set(
-  "-p --paginate -P --no-pager --bare --no-replace-objects --literal-pathspecs --glob-pathspecs --noglob-pathspecs " +
+  (
+    "-p --paginate -P --no-pager --bare --no-replace-objects --literal-pathspecs --glob-pathspecs --noglob-pathspecs " +
     "--icase-pathspecs --no-optional-locks --no-lazy-fetch --no-advice -v --version -h --help --html-path --man-path " +
-    "--info-path --exec-path".split(" "),
+    "--info-path --exec-path"
+  ).split(" "),
 );
 const GLOBAL_VALUED = new Set(["--namespace", "--super-prefix", "--attr-source", "--list-cmds"]);
 
@@ -609,7 +611,7 @@ const unknownWord = (sub: string, rest: readonly Word[]): Denial | null => {
 // The git commands the guard knows; any other word may be an alias, which could hide a push.
 const GIT_COMMANDS = new Set(
   (
-    "add am annotate apply archive bisect blame branch bundle cat-file check-attr check-ignore check-mailmap " +
+    "add stage am annotate apply archive bisect blame branch bundle cat-file check-attr check-ignore check-mailmap " +
     "check-ref-format checkout checkout-index cherry cherry-pick citool clean clone commit commit-graph commit-tree " +
     "config count-objects describe diff diff-files diff-index diff-tree difftool fetch for-each-ref format-patch fsck " +
     "gc grep hash-object help hook init interpret-trailers lfs log ls-files ls-remote ls-tree maintenance merge " +
@@ -678,12 +680,14 @@ const RUNNER_OPTIONS = new Map<string, readonly string[]>([
   ["ls-remote", ["--upload-pack", "--exec"]],
   ["archive", ["--exec"]],
   ["difftool", ["--extcmd"]],
+  ["grep", ["--open-files-in-pager"]],
 ]);
 // Options and commands with which git runs a command or program of its own choosing, which the guard does not read.
 const RUNS: readonly ((sub: string, rest: readonly Word[]) => boolean)[] = [
   (sub, rest) => rest.some((word) => (RUNNER_OPTIONS.get(sub) ?? []).some((option) => abbreviates(word, option, 3))),
   (sub, rest) => ["rebase", "difftool", "mergetool"].includes(sub) && hasShortFlag(rest, "x", "", ""),
   (sub, rest) => ["clone", "ls-remote"].includes(sub) && hasShortFlag(rest, "u", "objc", ""),
+  (sub, rest) => sub === "grep" && hasShortFlag(rest, "O", "efABCm", ""),
   (sub, rest) => sub === "submodule" && rest.some(({ text }) => text === "foreach"),
   (sub, rest) => sub === "bisect" && rest[0]?.text === "run",
 ];

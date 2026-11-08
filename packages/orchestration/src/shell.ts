@@ -63,8 +63,8 @@ class Builder {
 
 // Pathname and brace expansion turn a word with *, ?, [...] or {a,b} or {a..b} outside quotes into other words.
 const expands = (bare: string): boolean => {
-  const brace = /\{([^}]*)\}/.exec(bare)?.[1];
-  return /[*?]|\[[^\]]*\]/.test(bare) || (brace !== undefined && /,|\.\./.test(brace));
+  const brace = /\{([^{}]*)\}/.exec(bare)?.[1];
+  return /[*?]|\[[^[\]]*\]/.test(bare) || (brace !== undefined && /,|\.\./.test(brace));
 };
 
 interface Heredoc {

@@ -26,7 +26,7 @@ const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh
 // Programs that run a command from their words or later, and shells the guard does not read.
 const RUNNERS = new Set("eval trap alias hash emulate compgen complete let watch pwsh powershell".split(" "));
 // A subscript holding a command, which bash runs as arithmetic in let, read, printf -v, declare -i and [[ ]].
-const CODE_SUBSCRIPT = /\[[^\]]*(?:\$\(|`)/;
+const CODE_SUBSCRIPT = /\[[^[\]]*(?:\$\(|`)/;
 // zsh's precommand modifiers.
 const ZSH_ONLY = new Set(["noglob", "nocorrect", "-"]);
 // find's actions that run a command.
@@ -255,7 +255,8 @@ const checkTest = (args: readonly Word[]): Denial | null => {
     const compared = ARITHMETIC.test(at(i - 1)) || ARITHMETIC.test(at(i + 1));
     return compared && plain !== true && !/^-?\d+$/.test(text ?? "");
   };
-  return args.some(arithmetic) ? unreadable("[[ ]] reads a word as arithmetic, which bash may run") : null;
+  const code = args.some((word, i) => arithmetic(word, i));
+  return code ? unreadable("[[ ]] reads a word as arithmetic, which bash may run") : null;
 };
 
 // The words that name variables: read's words but its options' values, an export's words; printf names none.
@@ -288,7 +289,7 @@ const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
 
 // A shell option: the script from stdin (-s) or a word (-c, fish's -C), a value next (-o), or a flag; null for none.
 const shellOption = (name: string, text: string): "value" | "stdin" | "command" | "flag" | null => {
-  if (/^-(?:[A-Za-z]*s[A-Za-z]*)?$/.test(text)) return "stdin";
+  if (/^-(?:[A-Za-rt-z]*s[A-Za-z]*)?$/.test(text)) return "stdin";
   if (
     /^--(?:command|init-command)(?:=|$)/.test(text) ||
     (name === "fish" ? /^-[A-Za-z]*[cC]/ : /^-[A-Za-z]*c/).test(text)

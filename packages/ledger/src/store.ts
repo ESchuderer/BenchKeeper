@@ -48,7 +48,7 @@ const emptyLog = (db: DatabaseSync): void => {
   }
 };
 
-/** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
+/** A hold on a lease: its process keeps it while it works, and the OS releases it on any exit. */
 export interface LeaseLock {
   release(this: void): void;
 }
@@ -93,7 +93,7 @@ const hold = (path: string): LeaseLock | null => {
   };
 };
 
-// Whether a launcher holds the run's lock; a lock nobody holds is removed.
+// Whether a process holds the lease's lock; a lock nobody holds is removed.
 const lockHeld = (path: string): boolean => {
   const probe = takeLock(path);
   if (probe === null) return true;
@@ -371,7 +371,7 @@ export const connect = <T>(dir: string, use: (db: DatabaseSync) => T): Result<T>
   try {
     chmodSync(join(dir, "runs.sqlite"), 0o600);
     db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA foreign_keys = ON");
-    // Read again in the transaction: a graph store opens without the store lock, so another process may create it first.
+    // Read again in the transaction: the outbox opens without the store lock, so another process may create it first.
     const created = (): number => {
       if (versionOf(db) === 0) db.exec(`${BASELINE.join("")} PRAGMA user_version = ${SCHEMA}`);
       return versionOf(db);

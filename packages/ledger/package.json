@@ -2,7 +2,7 @@
   "name": "@cedarloom/ledger",
   "version": "0.0.0",
   "private": true,
-  "description": "The CedarLoom run store: plans, approvals, the apply journal and graph runs with their event logs in SQLite, undo backups as files.",
+  "description": "The CedarLoom run store: plans, approvals, the apply journal and the outbox of writes to hub issues in SQLite, undo backups as files.",
   "license": "MIT",
   "type": "module",
   "exports": {

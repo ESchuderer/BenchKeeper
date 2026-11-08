@@ -42,7 +42,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Reserved config
 
-`profile.ts` (`RESERVED`). Config folders under `.config/` that a plugin's options never write: CedarLoom's own, Claude Code's by its XDG name (a `CLAUDE_CONFIG_DIR` there; any other folder that variable names is refused when the file is written), and the credential stores the worker launcher denies (`packages/orchestration/src/env.ts`).
+`profile.ts` (`RESERVED`). Config folders under `.config/` that a plugin's options never write: CedarLoom's own, Claude Code's by its XDG name (a `CLAUDE_CONFIG_DIR` there; any other folder that variable names is refused when the file is written), and the user's credential stores.
 
 ### Tokens
 
@@ -123,11 +123,11 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Managed settings
 
-`managed.ts`. The launch preflight reads the managed settings files as Claude Code does and counts against a launch whatever loosens the sandbox (https://code.claude.com/docs/en/settings-reference).
+`managed.ts`. Reads the managed settings files as Claude Code does and finds whatever loosens the sandbox (https://code.claude.com/docs/en/settings-reference).
 - **Merge order.** `managed-settings.json`, then `managed-settings.d/*.json` by name, hidden files left out (https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams).
 - **Invalid values.** A quoted `"true"` or `"false"` counts as that Boolean, as Claude Code reads it; any other invalid value keeps the sandbox strict (https://code.claude.com/docs/en/managed-settings#invalid-values-inside-sandbox).
 - **Proxies.** A proxy port of the policy's own takes over filtering: Claude Code stops applying its domain lists to it (`#sandbox-network-httpproxyport` and `#sandbox-network-socksproxyport` in the settings reference).
-- **What loosens whatever follows.** List entries, hosts beyond GitHub, and a policy helper, whose output replaces the files the preflight reads (https://code.claude.com/docs/en/settings-reference#policyhelper).
+- **What loosens whatever follows.** List entries, hosts beyond GitHub, and a policy helper, whose output replaces the files read (https://code.claude.com/docs/en/settings-reference#policyhelper).
 - **Sources.** `policyProblems` and `cachedPolicyProblems` read every place Claude Code 2.1.316 reads a policy from, and `cedarloom doctor` warns when one switches hooks (`disableAllHooks`, `allowManagedHooksOnly`) or the sandbox (`sandbox.enabled`, `sandbox.filesystem.disabled`) off for the user's own sessions, or cannot be read:
   - the configuration profile's plists, per user (`/Library/Managed Preferences/<user>/com.anthropic.claudecode.plist`) and the device's, converted by `/usr/bin/plutil -convert json`;
   - the `Settings` value under `HKLM` and `HKCU\SOFTWARE\Policies\ClaudeCode` through `reg.exe`, and under WSL the Windows ones (`/mnt/c/Windows/System32/reg.exe`, `/mnt/c/Program Files/ClaudeCode`);

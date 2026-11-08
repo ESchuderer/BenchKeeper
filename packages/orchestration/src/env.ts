@@ -21,7 +21,7 @@ export const NETWORK_SETTINGS = [
   "CLAUDE_CODE_CLIENT_KEY_PASSPHRASE",
 ] as const;
 
-/** What an agent process gets of the launcher's environment, by an allowlist: no login variable or hidden override. */
+/** What a child process gets of CedarLoom's environment, by an allowlist: no login variable or hidden override. */
 export const cleanEnv = (
   parent: Readonly<Record<string, string | undefined>>,
   platform: NodeJS.Platform,
@@ -38,9 +38,5 @@ export const cleanEnv = (
   return Object.fromEntries(inherited);
 };
 
-/**
- * The hosts a worker reaches: GitHub only, until repositories name the package registries they need (owner decision,
- * 2026-11-06). Until then a package install fails: a tool that uses the sandbox proxy gets a 403 response from it, and
- * one that bypasses the proxy a name resolution error (https://code.claude.com/docs/en/sandboxing).
- */
+/** GitHub's hosts: a managed policy that lets sandboxed commands reach only these loosens nothing (owner decision, 2026-11-06). */
 export const GITHUB_DOMAINS = ["github.com", "*.github.com", "*.githubusercontent.com"] as const;

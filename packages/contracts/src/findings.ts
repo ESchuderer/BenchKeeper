@@ -128,7 +128,7 @@ export const Finding = z
      * hold a token.
      */
     finding("git.failed", {
-      step: z.enum(["start", "fetch", "list", "read", "worktree", "commit", "update"]),
+      step: z.enum(["start", "fetch", "list", "read", "commit", "update"]),
       error: z.string(),
     }),
     /**

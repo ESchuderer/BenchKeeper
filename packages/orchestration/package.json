@@ -2,7 +2,7 @@
   "name": "@cedarloom/orchestration",
   "version": "0.0.0",
   "private": true,
-  "description": "The worker launcher of CedarLoom: the clean allowlisted environment of a worker, the paths and hosts it may not reach, the checks that refuse a launch, and the guard hook of its shell commands.",
+  "description": "The guard hook of a Claude Code session's shell commands, the clean environment of CedarLoom's child processes, program lookup, and the reader of Claude Code's managed settings.",
   "license": "MIT",
   "type": "module",
   "exports": {

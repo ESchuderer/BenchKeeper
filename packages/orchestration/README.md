@@ -4,7 +4,7 @@ The guard hook that reads every shell command a Claude Code session runs through
 
 ## The guard hook
 
-`@cedarloom/orchestration/guard-hook` is a Claude Code `PreToolUse` command hook for the Bash and Monitor tools. It takes its policy as JSON in its argument, reads the call from stdin, and refuses with exit code 2 and the reason on stderr. It stops agent mistakes, not a determined hostile agent: the narrow token a session holds is the hard limit (A13).
+`@cedarloom/orchestration/guard-hook` is a Claude Code `PreToolUse` command hook for the Bash and Monitor tools. It takes its policy as JSON in its argument, reads the call from stdin, and refuses with exit code 2 and the reason on stderr. A policy's `repositories: "origin"` stands for the working folder's `origin` with the hub and the memory repository, read for each call; `merge: "workflow"` lets an agent of a workflow script (`agent_type` `workflow-subagent`) merge a pull request, but not by GraphQL. It stops agent mistakes, not a determined hostile agent: the narrow token a session holds is the hard limit (A13).
 
 It reads a command by structure and refuses every form outside this grammar (A79): simple commands with their assignments, redirections and wrappers (`env`, `command`, `builtin`, `exec`, `nohup`, `time`, `nice`, `timeout`, `stdbuf`, `setsid`, `ionice`, `caffeinate`, `xargs`, each with the options it knows); pipelines and lists; quotes, parameter expansions, `$(...)` and arithmetic that holds no command; heredocs and here-strings, an unquoted heredoc's `$(...)` read too; and `if`, `for`, `while` and `until`, every condition and body command read.
 
@@ -12,7 +12,7 @@ It also refuses when it cannot read the call at all: input that is no JSON, a mi
 
 ### In a session
 
-No CedarLoom launch hands the hook to a session any more: workflows run in the agent tools, and the plugin CedarLoom builds for them is to ship the hook as its `PreToolUse` hook (owner decision, 2026-11-08). How the worker launch kept a session from switching the hook off is in this file's history before that decision.
+No CedarLoom launch hands the hook to a session any more: workflows run in the agent tools, and the plugin CedarLoom builds for them ships the hook as its `PreToolUse` hook, its merges by the automation level (owner decision, 2026-11-08; [the emitter](../emitter/README.md#the-hooks)). `pnpm --filter @cedarloom/orchestration run build` bundles it, and `@cedarloom/orchestration/exit-hook`, into `packages/cli/hooks/`. How the worker launch kept a session from switching the hook off is in this file's history before that decision.
 
 ### The OS credential store
 

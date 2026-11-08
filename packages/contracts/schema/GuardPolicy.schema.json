@@ -10,16 +10,25 @@
     "repositories": {
       "anyOf": [
         {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9-]{1,39}\\/(?!\\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
-          }
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9-]{1,39}\\/(?!\\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
+              }
+            },
+            {
+              "type": "string",
+              "const": "origin"
+            }
+          ]
         },
         {
           "type": "null"
         }
-      ]
+      ],
+      "description": "origin: the repositories of the working folder's origin, read when the hook runs"
     },
     "hub": {
       "anyOf": [
@@ -41,6 +50,14 @@
         {
           "type": "null"
         }
+      ]
+    },
+    "merge": {
+      "description": "workflow (Auto): a merge from an agent of a workflow script, which a stage reaches only after its reviewer agreed; refuse when absent",
+      "type": "string",
+      "enum": [
+        "refuse",
+        "workflow"
       ]
     }
   },

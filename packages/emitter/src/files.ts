@@ -54,20 +54,28 @@ export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile
   }
   // "./" first: cd reads no option from it (-P), and CDPATH takes no part.
   const cwd = typeof config["cwd"] === "string" ? `cd ${quoted(`./${config["cwd"]}`)} || exit 1\n` : "";
+  // The script's own status as its last line, which Claude Code's exit hook reads whatever the agent adds to the call.
+  const script = `#!/bin/sh\n(\n${cwd}${textIn(node, "command")}\n)\nstatus=$?\necho "cedarloom-exit $status"\nexit "$status"\n`;
   const skill = `${frontmatter({ name, description: describe(`${head}: runs its command`), [OWN]: true })}Run the script \`scripts/run.sh\` of this skill's folder with \`sh\`, from the project folder, exactly once. Report its exit code and the last 100 lines of its output.\n`;
   return [
     { path: `steps/${name}/SKILL.md`, content: skill },
     { path: `steps/${name}/agents/openai.yaml`, content: USER_ONLY },
-    { path: `steps/${name}/scripts/run.sh`, content: `#!/bin/sh\n${cwd}${textIn(node, "command")}\n` },
+    { path: `steps/${name}/scripts/run.sh`, content: script },
   ];
 };
 
-/** A tool's plugin manifest: the step skills and that tool's stage skills. */
+/** A tool's plugin manifest: the step skills and that tool's stage skills, and its hooks file if it has one. */
 export const manifestOf = (
   workflow: WorkflowDefinition,
-  { plugin, level, folder }: { plugin: string; level: AutomationLevel; folder: string },
+  { plugin, level, folder, hooks }: { plugin: string; level: AutomationLevel; folder: string; hooks?: string },
 ): string => {
   const description = describe(`The CedarLoom workflow ${titleOf(workflow)}, at the automation level ${level}.`);
-  const manifest = { name: plugin, version: workflow.metadata.version, description, skills: ["./steps/", folder] };
+  const manifest = {
+    name: plugin,
+    version: workflow.metadata.version,
+    description,
+    skills: ["./steps/", folder],
+    ...(hooks === undefined ? {} : { hooks }),
+  };
   return `${JSON.stringify(manifest, null, 2)}\n`;
 };

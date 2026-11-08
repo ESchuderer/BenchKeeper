@@ -1,11 +1,15 @@
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
-import { buildPackage, type PackageFile } from "@cedarloom/emitter";
+import { buildPackage, type Hooks, type PackageFile } from "@cedarloom/emitter";
 import { expect, test } from "vitest";
 import { type Call, passing, report, runScript } from "./script.ts";
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
+const GUARD = join(import.meta.dirname, "..", "..", "orchestration", "src", "guard-hook.ts");
+const HOOKS: Hooks = { guard: "// guard\n", exits: "// exits\n", hub: null, memory: null };
 const read = (name: string): WorkflowDefinition =>
   WorkflowDefinition.parse(JSON.parse(readFileSync(join(corpus, name), "utf8")));
 
@@ -32,7 +36,7 @@ const workflow = (nodes: Node[], edges: string[], more: object = {}): WorkflowDe
 };
 
 const built = (definition: WorkflowDefinition, level: AutomationLevel): PackageFile[] => {
-  const result = buildPackage(definition, level);
+  const result = buildPackage(definition, level, HOOKS);
   if (!result.ok) throw new Error(JSON.stringify(result.finding));
   return result.value;
 };
@@ -49,6 +53,9 @@ test("a workflow builds into one plugin folder: a skill per step, a skill and a 
     "claude/start/SKILL.md",
     "codex/start/SKILL.md",
     "codex/start/agents/openai.yaml",
+    "hooks/claude-code.json",
+    "hooks/exits.mjs",
+    "hooks/guard.mjs",
     "steps/lint/SKILL.md",
     "steps/lint/agents/openai.yaml",
     "steps/lint/scripts/run.sh",
@@ -67,17 +74,17 @@ test("a workflow builds into one plugin folder: a skill per step, a skill and a 
   expect(order.every((at) => at >= 0) && Math.max(order[0] ?? -1, order[1] ?? -1) < (order[2] ?? -1)).toBe(true);
   expect((order[2] ?? -1) < (order[3] ?? -1)).toBe(true);
   const manifest = JSON.parse(fileOf(files, ".claude-plugin/plugin.json"));
-  expect([manifest.name, manifest.version, manifest.skills]).toEqual([
+  expect([manifest.name, manifest.version, manifest.skills, manifest.hooks]).toEqual([
     "build-and-review",
     "1.0.0",
     ["./steps/", "./claude/"],
+    "./hooks/claude-code.json",
   ]);
   // A fresh step reads and searches only; the stage's command is the user's alone to run.
   expect(fileOf(files, "agents/review.md")).toContain('name: "review"\n');
   expect(fileOf(files, "agents/review.md")).toContain('tools: "Read, Grep, Glob"\n');
   expect(fileOf(files, "claude/start/SKILL.md")).toContain("disable-model-invocation: true\n");
   expect(fileOf(files, "claude/start/SKILL.md")).toContain("`build-and-review:run-start`");
-  expect(fileOf(files, "steps/lint/scripts/run.sh")).toBe("#!/bin/sh\npnpm lint\n");
   // A step runs inside its stage only: no model loads it on its own.
   expect(fileOf(files, "steps/review/SKILL.md")).toContain("disable-model-invocation: true\n");
 });
@@ -146,7 +153,7 @@ test("workflow text in skill content never runs as a command when the skill load
   expect(fileOf(files, "claude/start/SKILL.md")).not.toMatch(/pwned|curl/);
   expect(fileOf(files, "claude/start/SKILL.md")).toContain("- `x` (string)\n");
   // cd reads no option from a path such as -P.
-  expect(fileOf(files, "steps/b/scripts/run.sh")).toBe("#!/bin/sh\ncd './-P' || exit 1\npwd\n");
+  expect(fileOf(files, "steps/b/scripts/run.sh")).toContain("\ncd './-P' || exit 1\npwd\n");
 });
 
 test("a stage script runs its steps in waves, retries a failed agent, passes inputs on, and stops at a gate", async () => {
@@ -235,7 +242,7 @@ test("a workflow the level's gates cannot split, whose names clash or that Claud
     ],
     ["start.start>a_b.run", "a_b.approved>x.run", "x.done>a-b.run", "a-b.approved>y.run"],
   );
-  expect([crossing, twice, taken, reserved, invalid, folded].map((each) => buildPackage(each, "auto"))).toEqual([
+  expect([crossing, twice, taken, reserved, invalid, folded].map((each) => buildPackage(each, "auto", HOOKS))).toEqual([
     { ok: false, finding: { code: "package.cross-stage", params: { edge: "e4" } } },
     { ok: false, finding: { code: "package.two-stages", params: { node: "a" } } },
     { ok: false, finding: { code: "package.name-taken", params: { name: "run-start", node: "run-start" } } },
@@ -245,3 +252,63 @@ test("a workflow the level's gates cannot split, whose names clash or that Claud
     { ok: false, finding: { code: "package.name-taken", params: { name: "a-b-approved", node: "a-b" } } },
   ]);
 });
+
+test.skipIf(process.platform === "win32")(
+  "a step script's last line is its own exit status, after a cd that fails too",
+  () => {
+    const files = built(
+      workflow(
+        [
+          start,
+          ["a", "command.run", { command: "echo out\nexit 3" }],
+          ["b", "command.run", { command: "pwd", cwd: "gone" }],
+        ],
+        ["start.start>a.run", "start.start>b.run"],
+      ),
+      "auto",
+    );
+    const folder = mkdtempSync(join(tmpdir(), "steps-"));
+    try {
+      const ran = ["a", "b"].map((step) => {
+        writeFileSync(join(folder, `${step}.sh`), fileOf(files, `steps/${step}/scripts/run.sh`));
+        const result = spawnSync("sh", [`${step}.sh`], { cwd: folder, encoding: "utf8" });
+        return [result.status, result.stdout.trimEnd().split("\n").at(-1)];
+      });
+      expect(ran).toEqual([
+        [3, "cedarloom-exit 3"],
+        [1, "cedarloom-exit 1"],
+      ]);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  },
+);
+
+test("the package's guard lets an agent of a workflow script merge at Auto only, never the session itself", () => {
+  const project = mkdtempSync(join(tmpdir(), "guarded-"));
+  try {
+    execFileSync("git", ["init", "-q", project]);
+    execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
+    const merge = (agent?: string) =>
+      JSON.stringify({
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 12 --squash" },
+        cwd: project,
+        agent_type: agent,
+      });
+    const verdicts = (["supervised", "checkpoint", "auto"] as const).map((level) => {
+      const hooks = JSON.parse(fileOf(built(read("valid-build-and-review.json"), level), "hooks/claude-code.json"));
+      const [, policy = ""]: string[] = hooks.hooks.PreToolUse[0].hooks[0].args;
+      return [merge("workflow-subagent"), merge()].map(
+        (input) => spawnSync(process.execPath, [GUARD, policy], { input, encoding: "utf8" }).status,
+      );
+    });
+    expect(verdicts).toEqual([
+      [2, 2],
+      [2, 2],
+      [0, 2],
+    ]);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+}, 30_000);

@@ -8,7 +8,8 @@ import { expect, test } from "vitest";
 import { z } from "zod";
 
 const Fixtures = z.object({
-  policies: z.record(z.string(), GuardPolicy),
+  // As a call meets them: the hook has read `origin` already, and `workflow` merges only for a workflow's agent.
+  policies: z.record(z.string(), GuardPolicy.extend({ repositories: z.array(z.string()).nullable() })),
   remotes: z.record(z.string(), z.record(z.string(), z.array(z.string()))),
   // Keyed by "<policy> <folder>": each case's name, command and the rule that refuses it (null: it runs).
   cases: z.record(z.string(), z.array(z.tuple([z.string(), z.string(), z.string().nullable()]))),
@@ -71,6 +72,37 @@ test("the hook reads a Monitor command as a Bash one, refuses PowerShell and a r
   ]).toEqual(["refused", "refused", "runs", "runs", "refused", "runs"]);
 }, 30_000);
 
+test("at Auto the hook lets a workflow's agent merge in its project's origin, and refuses the session itself", () => {
+  const project = mkdtempSync(join(tmpdir(), "guard-"));
+  try {
+    execFileSync("git", ["init", "-q", project]);
+    execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
+    const policy = JSON.stringify({
+      schemaVersion: 1,
+      repositories: "origin",
+      hub: null,
+      memory: null,
+      merge: "workflow",
+    });
+    const as = (command: string, agent?: string) =>
+      hook(
+        JSON.stringify({
+          ...JSON.parse(bash(command, project)),
+          ...(agent === undefined ? {} : { agent_type: agent }),
+        }),
+        policy,
+      );
+    expect([
+      as("gh pr merge 3 --squash", "workflow-subagent"),
+      as("gh pr merge 3 --squash"),
+      as("gh pr merge 3 --squash", "general-purpose"),
+      as("git push https://github.com/other/x main", "workflow-subagent"),
+    ]).toEqual(["runs", "refused", "refused", "refused"]);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+}, 30_000);
+
 test("a worker's policy holds its project's GitHub repositories, the hub and the memory repository, whose main no push reaches, and its hook runs from the package", () => {
   const project = mkdtempSync(join(tmpdir(), "guard-"));
   try {
@@ -124,3 +156,37 @@ test.skipIf(process.platform === "win32")(
   },
   30_000,
 );
+
+const EXIT_HOOK = join(import.meta.dirname, "..", "src", "exit-hook.ts");
+
+test("the exit hook keeps a step script's own exit code whatever the agent adds, and refuses a report that differs", () => {
+  const data = mkdtempSync(join(tmpdir(), "exits-"));
+  try {
+    const run = (mode: string, payload: object) => {
+      const ran = spawnSync(process.execPath, [EXIT_HOOK, mode], {
+        input: JSON.stringify({ session_id: "s1", agent_id: "a1", ...payload }),
+        encoding: "utf8",
+        env: { ...process.env, CLAUDE_PLUGIN_DATA: data },
+      });
+      return ran.status === 0 ? "runs" : `exit ${ran.status}`;
+    };
+    const script = "sh '/plugin/steps/ship/scripts/run.sh'";
+    // The agent appended an echo: Bash exits 0, and the script's own last line says 3.
+    const ran = { tool_name: "Bash", tool_input: { command: `${script}; echo "EXIT=$?"` } };
+    const report = (exitCode: number, agent = "a1") =>
+      run("verify", { tool_name: "StructuredOutput", tool_input: { exitCode, output: "" }, agent_id: agent });
+    expect([
+      report(3),
+      run("record", { ...ran, tool_response: { stdout: "shipping\ncedarloom-exit 3\nEXIT=0", stderr: "" } }),
+      report(0),
+      report(3),
+      report(3, "a2"),
+      report(-1, "a2"),
+      run("record", { ...ran, error: "Exit code 1\ncedarloom-exit 1" }),
+      report(1),
+      run("verify", { tool_name: "StructuredOutput", tool_input: { verdict: "agree" } }),
+    ]).toEqual(["exit 2", "runs", "exit 2", "runs", "exit 2", "runs", "runs", "runs", "runs"]);
+  } finally {
+    rmSync(data, { recursive: true, force: true });
+  }
+}, 30_000);

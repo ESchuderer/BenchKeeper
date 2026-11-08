@@ -1,8 +1,8 @@
 import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
-import { guardCommand, type Remotes } from "./guard.ts";
-import { gitRemotes } from "./session-guard.ts";
+import { type CallPolicy, guardCommand, type Remotes } from "./guard.ts";
+import { gitRemotes, originRepos } from "./session-guard.ts";
 
 // A folder's remotes, with or without a typed URL, read once per hook run.
 const once = (remotes: Remotes): Remotes => {
@@ -27,11 +27,19 @@ const readPolicy = (json: string): GuardPolicy | null => {
 };
 
 // The parts of a PreToolUse input the guard reads; null for input that is no JSON.
-const readCall = (input: string): { tool: unknown; command: unknown; cwd: unknown; isolation: unknown } | null => {
+const readCall = (
+  input: string,
+): { tool: unknown; command: unknown; cwd: unknown; isolation: unknown; agent: unknown } | null => {
   try {
     const call: unknown = JSON.parse(input);
     const [command, isolation] = ["command", "isolation"].map((key) => field(field(call, "tool_input"), key));
-    return { tool: field(call, "tool_name"), command, cwd: field(call, "cwd"), isolation };
+    return {
+      tool: field(call, "tool_name"),
+      command,
+      cwd: field(call, "cwd"),
+      isolation,
+      agent: field(call, "agent_type"),
+    };
   } catch {
     return null;
   }
@@ -57,13 +65,27 @@ const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: s
     : located(command, cwd);
 };
 
+/**
+ * The policy as this call meets it: `origin` read from the working folder, with the hub and the memory repository; a
+ * merge only for an agent of a workflow script, which a stage reaches after its reviewer agreed (Auto, owner 2026-11-08).
+ */
+const callPolicy = (policy: GuardPolicy, cwd: string, agent: unknown): CallPolicy => ({
+  ...policy,
+  repositories:
+    policy.repositories === "origin"
+      ? [...new Set([...originRepos(cwd), policy.hub, policy.memory].filter((repo) => repo !== null))]
+      : policy.repositories,
+  merge: policy.merge === "workflow" && agent === "workflow-subagent" ? "workflow" : "refuse",
+});
+
 // Why the guard refuses one PreToolUse input, or null; what it cannot read refuses (A79).
 const guardHook = (input: string, policyJson: string | null, remotes: Remotes): string | null => {
   const policy = policyJson === null ? null : readPolicy(policyJson);
   if (policy === null) return "its policy is missing or invalid";
-  const call = commandOf(readCall(input));
+  const read = readCall(input);
+  const call = commandOf(read);
   if (call === null || typeof call === "string") return call;
-  const denial = guardCommand(call.command, call.cwd, policy, remotes);
+  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, read?.agent), remotes);
   return denial === null ? null : `${denial.detail} (${denial.rule})`;
 };
 

@@ -1,10 +1,11 @@
 import { type AutomationLevel, type Result, severityOf, type WorkflowDefinition } from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine/validate";
-import { claudeFiles, workflowOf } from "./claude.ts";
+import { claudeFiles, type Hooks, workflowOf } from "./claude.ts";
 import { codexFiles } from "./codex.ts";
 import { type PackageFile, stepFiles } from "./files.ts";
 import { nameOf, precheckOf, skillOf, stagesOf } from "./stages.ts";
 
+export type { Hooks } from "./claude.ts";
 export type { PackageFile } from "./files.ts";
 export { type Source, type StageScript, type Step, stageScript } from "./runner.ts";
 
@@ -16,10 +17,15 @@ const RESERVED = [
 ];
 
 /**
- * Builds a workflow at an automation level into the files of one plugin folder, sorted by path, or says why it builds
- * none: a validator error, a name Claude Code keeps, a stage the level's gates cannot split, or a name taken twice.
+ * Builds a workflow at an automation level, with the hooks Claude Code runs it under, into the files of one plugin folder,
+ * sorted by path, or says why it builds none: a validator error, a name Claude Code keeps, a stage the level's gates
+ * cannot split, or a name taken twice.
  */
-export const buildPackage = (workflow: WorkflowDefinition, level: AutomationLevel): Result<PackageFile[]> => {
+export const buildPackage = (
+  workflow: WorkflowDefinition,
+  level: AutomationLevel,
+  hooks: Hooks,
+): Result<PackageFile[]> => {
   const error = validateWorkflow(workflow).find((finding) => severityOf(finding) === "error");
   if (error !== undefined) return { ok: false, finding: error };
   const plugin = nameOf(workflow.metadata.id);
@@ -40,7 +46,7 @@ export const buildPackage = (workflow: WorkflowDefinition, level: AutomationLeve
   const taken = names.find((each, index) => names.findIndex((other) => other.name === each.name) !== index);
   if (taken !== undefined) return { ok: false, finding: { code: "package.name-taken", params: taken } };
   const files = [
-    ...claudeFiles(workflow, stages.value, { plugin, level }),
+    ...claudeFiles(workflow, stages.value, { plugin, level, hooks }),
     ...codexFiles(workflow, stages.value, { plugin, level }),
     ...steps.flatMap((node) => stepFiles(workflow, node)),
     ...precheckOf(workflow),

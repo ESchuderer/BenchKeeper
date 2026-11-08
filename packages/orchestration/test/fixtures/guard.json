@@ -12,6 +12,13 @@
       "repositories": null,
       "hub": "acme/tracker",
       "memory": "acme/notes"
+    },
+    "auto-workflow": {
+      "schemaVersion": 1,
+      "repositories": ["acme/app", "acme/tracker"],
+      "hub": "acme/tracker",
+      "memory": "acme/notes",
+      "merge": "workflow"
     }
   },
   "remotes": {
@@ -488,6 +495,25 @@
         "gh api graphql -f query='mutation { updateIssueComment #x\n(input: {}) { clientMutationId } }'",
         "unreadable"
       ]
+    ],
+    "auto-workflow /work/app": [
+      [
+        "a workflow agent at Auto merges a pull request of its project",
+        "gh pr merge 12 --squash --delete-branch",
+        null
+      ],
+      ["a workflow agent at Auto merges through the REST API", "gh api -X PUT repos/acme/app/pulls/1/merge", null],
+      [
+        "a merge at Auto still reaches only the project's repositories",
+        "gh pr merge 12 -R other/x",
+        "outside-profiles"
+      ],
+      [
+        "a merge through GraphQL stays refused: the guard cannot tell its repository",
+        "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+        "merge"
+      ],
+      ["an approval stays refused at every level", "gh pr review 12 --approve", "approval"]
     ]
   }
 }

@@ -1,4 +1,9 @@
-import type { AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
+import {
+  type AutomationLevel,
+  GUARD_SCHEMA_VERSION,
+  type GuardPolicy,
+  type WorkflowDefinition,
+} from "@cedarloom/contracts";
 import { stageScript } from "./runner.ts";
 import { inputsOf, nextsOf, PRECHECK_SCRIPT, precheckOf, type Stage, scriptOf, skillOf } from "./stages.ts";
 import { describe, frontmatter, manifestOf, type PackageFile, titleOf } from "./files.ts";
@@ -62,15 +67,68 @@ const workflowFile = (
   return { path: `workflows/${workflowOf(stage)}.js`, content: stageScript(meta, scriptOf(workflow, stage, context)) };
 };
 
-/** Claude Code's part of the package: its manifest, a skill and a workflow script per stage, and the step subagents. */
+/**
+ * What the package's hooks run: the guard's and the exit hook's built files (`hooks/guard.mjs`, `hooks/exits.mjs` of
+ * the CLI package), and this machine's hub and memory repositories, which the guard lets a session reach besides the
+ * working folder's origin.
+ */
+export type Hooks = {
+  readonly guard: string;
+  readonly exits: string;
+  readonly hub: string | null;
+  readonly memory: string | null;
+};
+
+const HOOKS = "hooks/claude-code.json";
+
+// Node.js runs a hook's file, its arguments passed as they are (no shell); Claude Code fills in the plugin's folder.
+const hookOf = (file: string, ...args: string[]): Record<string, unknown> => ({
+  type: "command",
+  command: "node",
+  args: [`\${CLAUDE_PLUGIN_ROOT}/hooks/${file}`, ...args],
+});
+
+/**
+ * The hooks file: the guard before every shell call and agent, its merges by level (Auto: an agent of a workflow script,
+ * owner 2026-11-08), and the exit hook, which keeps each step script's status and refuses a report that differs. A crash
+ * or timeout of the guard or of `verify` refuses (`onFailure`, Claude Code 2.1.295 or later); Codex reads no such file.
+ */
+const hooksFile = (level: AutomationLevel, { hub, memory }: Hooks): PackageFile => {
+  const policy: GuardPolicy = {
+    schemaVersion: GUARD_SCHEMA_VERSION,
+    repositories: "origin",
+    hub,
+    memory,
+    merge: level === "auto" ? "workflow" : "refuse",
+  };
+  const record = [{ matcher: "Bash", hooks: [hookOf("exits.mjs", "record")] }];
+  const hooks = {
+    PreToolUse: [
+      {
+        matcher: "Bash|Monitor|PowerShell|Agent",
+        hooks: [{ ...hookOf("guard.mjs", JSON.stringify(policy)), onFailure: "block" }],
+      },
+      { matcher: "StructuredOutput", hooks: [{ ...hookOf("exits.mjs", "verify"), onFailure: "block" }] },
+    ],
+    PostToolUse: record,
+    PostToolUseFailure: record,
+  };
+  return { path: HOOKS, content: `${JSON.stringify({ hooks }, null, 2)}\n` };
+};
+
+/** Claude Code's part of the package: its manifest and hooks, a skill and a workflow script per stage, the subagents. */
 export const claudeFiles = (
   workflow: WorkflowDefinition,
   stages: Stage[],
-  { plugin, level }: { plugin: string; level: AutomationLevel },
+  { plugin, level, hooks }: { plugin: string; level: AutomationLevel; hooks: Hooks },
 ): PackageFile[] => {
   const nextOf = nextsOf(workflow, stages, (stage) => `/${plugin}:${stage.name}`);
+  const manifest = manifestOf(workflow, { plugin, level, folder: "./claude/", hooks: `./${HOOKS}` });
   return [
-    { path: ".claude-plugin/plugin.json", content: manifestOf(workflow, { plugin, level, folder: "./claude/" }) },
+    { path: ".claude-plugin/plugin.json", content: manifest },
+    hooksFile(level, hooks),
+    { path: "hooks/guard.mjs", content: hooks.guard },
+    { path: "hooks/exits.mjs", content: hooks.exits },
     ...stages.flatMap((stage) => [
       stageSkill(workflow, stage, plugin),
       workflowFile(workflow, stage, { plugin, level, nextOf }),

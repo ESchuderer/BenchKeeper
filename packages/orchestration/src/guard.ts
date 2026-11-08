@@ -30,8 +30,14 @@ export type Remotes = (folder: string, url?: string) => ReadonlyMap<string, read
 /** The key under which Remotes returns a URL typed on the command line. */
 export const TYPED_REMOTE = "cedarloom-typed-url";
 
+/**
+ * A policy as one call meets it: the repositories read, and `merge: "workflow"` only where the hook found an agent of a
+ * workflow script (Auto), which lets that call merge.
+ */
+export type CallPolicy = Omit<GuardPolicy, "repositories"> & { readonly repositories: readonly string[] | null };
+
 interface Context {
-  readonly policy: GuardPolicy;
+  readonly policy: CallPolicy;
   readonly remotes: Remotes;
   /** Every folder a command of the text may run in (the session's, and each literal `cd`); null when one is unknown. */
   readonly folders: readonly string[] | null;
@@ -109,7 +115,7 @@ const programOf = (word: string): string => {
 };
 
 /** Whether the guard refuses the shell command `text`, run in the folder `folder`, and why; null to let it run. */
-export const guardCommand = (text: string, folder: string, policy: GuardPolicy, remotes: Remotes): Denial | null => {
+export const guardCommand = (text: string, folder: string, policy: CallPolicy, remotes: Remotes): Denial | null => {
   const script = readShell(text);
   if (script.skipped) return unreadable("the command holds a form the guard does not read, such as a subshell");
   if (script.commands.some(({ words }) => words.some((word) => CODE_SUBSCRIPT.test(word.text ?? word.start)))) {
@@ -837,7 +843,7 @@ const proposals = (refspecs: readonly Word[]): boolean =>
   refspecs.length > 0 &&
   refspecs.every(({ text }) => text !== null && /^[^:]*:(?:refs\/heads\/)?memory\/[^:]+$/.test(text));
 
-const checkUrl = (sub: string, url: string, refspecs: readonly Word[], policy: GuardPolicy): Denial | null => {
+const checkUrl = (sub: string, url: string, refspecs: readonly Word[], policy: CallPolicy): Denial | null => {
   const repo = githubRepo(url);
   if (policy.repositories !== null && !policy.repositories.some((allowed) => sameRepo(allowed, repo))) {
     return deny("outside-profiles", `git ${sub} reaches ${repo ?? url}, outside this session's repositories`);
@@ -958,7 +964,8 @@ const GH_REPO_COMMANDS = new Set(
   (
     "issue list|issue view|issue status|issue create|issue comment|issue edit|issue close|issue reopen|issue lock|" +
     "issue unlock|issue pin|issue unpin|pr list|pr view|pr status|pr create|pr checkout|pr diff|pr checks|pr comment|" +
-    "pr edit|pr close|pr reopen|pr ready|pr review|pr update-branch|repo view|repo clone|run list|run view|run watch|" +
+    "pr edit|pr close|pr reopen|pr ready|pr review|pr update-branch|pr merge|repo view|repo clone|run list|run view|" +
+    "run watch|" +
     "run rerun|run cancel|run download|workflow list|workflow view|workflow run|release list|release view|" +
     "release download|label list|label create|label edit|cache list|browse|secret list|variable list|variable get|" +
     "ruleset list|ruleset view|ruleset check"
@@ -995,14 +1002,14 @@ const checkGh = (args: readonly Word[], context: Context): Denial | null => {
   const read = ghCommand(args);
   if (read === null) return unreadable("gh runs a command the guard cannot read");
   const { group, command, rest } = read;
-  return ghRule(command, rest) ?? ghTargets(group, command, rest, context);
+  return ghRule(command, rest, context) ?? ghTargets(group, command, rest, context);
 };
 
 // What the guard refuses in gh whatever the repository.
-const ghRule = (command: string, rest: readonly Word[]): Denial | null => {
+const ghRule = (command: string, rest: readonly Word[], context: Context): Denial | null => {
   if (GH_CONFIG.test(command)) return deny("gh-config", `gh ${command}`);
   if (GH_OWNER.test(command)) return deny("forbidden", `gh ${command}, which the owner keeps`);
-  if (command === "pr merge") return deny("merge", "gh pr merge");
+  if (command === "pr merge" && context.policy.merge !== "workflow") return deny("merge", "gh pr merge");
   return command === "pr review" && approves(rest) ? deny("approval", "gh pr review --approve") : null;
 };
 
@@ -1193,7 +1200,7 @@ const checkRestPath = (
 ): Denial | null => {
   if (/^\/issues(?:\/|$)/.test(rest)) return checkHub(repos, context, what);
   if (method === "GET" || method === "HEAD") return null;
-  if (merges(method, rest)) return deny("merge", what);
+  if (merges(method, rest)) return context.policy.merge === "workflow" ? null : deny("merge", what);
   if (approvesReview(method, rest, event)) return deny("approval", what);
   return WRITES.some((write) => write.test(`${method} ${rest}`))
     ? null

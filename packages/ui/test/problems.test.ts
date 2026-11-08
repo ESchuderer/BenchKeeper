@@ -4,7 +4,8 @@ import "../src/workflow/jitless.ts";
 import { describe } from "../src/workflow/problems.ts";
 
 test("a finding the editor has no sentence for shows as its code", () => {
-  expect(describe(Finding.parse({ code: "store.busy", params: { dir: "/s" } }))).toBe("store.busy");
+  const finding = Finding.parse({ code: "store.network-filesystem", params: { dir: "/s", fsType: "nfs" } });
+  expect(describe(finding)).toBe("store.network-filesystem");
 });
 
 test("a file refused for thousands of issues names the first ten and counts the rest", () => {

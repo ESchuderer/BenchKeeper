@@ -35,7 +35,9 @@ const reviewText = ({ source, units, risks, extensions }: ImportReview): string 
     "Workflows",
     ...units.map(unitLine),
     "What they do",
-    ...risks.map(({ workflow, node, kind, text }) => `  ${workflow} ${node}  ${kind}: ${shown(text, 100_000)}`),
+    ...risks.map(
+      ({ workflow, node, kind, text }) => `  ${workflow} ${node}  ${kind}: ${shown(text, Number.POSITIVE_INFINITY)}`,
+    ),
     "Extensions they need (this import installs none)",
     ...extensions.flatMap(extensionLines),
     `Licenses: ${licenses.join(", ")}`,

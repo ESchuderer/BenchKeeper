@@ -1,7 +1,8 @@
 import type { Api } from "@cedarloom/client";
-import { Refusal, readDocument, WORKFLOW_SCHEMA_VERSION, WorkflowDefinition } from "@cedarloom/contracts";
+import { readDocument, WORKFLOW_SCHEMA_VERSION, WorkflowDefinition } from "@cedarloom/contracts";
 import { Button, Group, Stack, Text, Title } from "@mantine/core";
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
+import { refused } from "../call.ts";
 import { t, when } from "../i18n.ts";
 import type { Change } from "./document.ts";
 import { describe } from "./problems.ts";
@@ -21,17 +22,13 @@ let held: WorkflowDefinition | null = null;
 
 const idOf = (workflow: WorkflowDefinition): string => workflow.metadata.id.toLowerCase();
 
-/** The answer's data, or why there is none: the server's first finding as a sentence, the status, or no server. */
+/** The answer's data (none for an empty answer), or why there is none: the server's findings, or no server. */
 const ask = async <T,>(
   request: () => Promise<{ data?: T; error?: unknown; response: Response }>,
 ): Promise<Answer<T>> => {
   try {
     const { data, error, response } = await request();
-    if (error === undefined) return { data };
-    const first = Refusal.safeParse(error).data?.findings[0];
-    return {
-      problem: first === undefined ? t("error.failed", { status: response.status, error: "" }) : describe(first),
-    };
+    return error === undefined ? { data } : { problem: refused(error, response.status) };
   } catch {
     return { problem: t("error.unreachable") };
   }

@@ -4,7 +4,8 @@ import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./ex
 import { GitSource, PACK_ID, PackId, skillFolder, skillName } from "./pack.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
-import { PlainText, shown, UNSAFE } from "./text.ts";
+import { shown, UNSAFE } from "./escape.ts";
+import { PlainText } from "./text.ts";
 import type { Json } from "./json.ts";
 import { JsonValue, License, SEMVER, semver } from "./workflow.ts";
 

@@ -1,5 +1,5 @@
 import type { Result } from "./documents.ts";
-import { isPlainText } from "./text.ts";
+import { isPlainText } from "./escape.ts";
 
 /** An extension's catalog for one language: each English text of its manifest to the text in that language. */
 export type Catalog = ReadonlyMap<string, string>;

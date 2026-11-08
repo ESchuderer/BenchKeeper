@@ -30,34 +30,7 @@ export {
   planUpdate,
   type UpdatePlan,
 } from "./extensions.ts";
-export {
-  automationSettings,
-  type GateRun,
-  type LevelChange,
-  levelAtGate,
-  type Mode,
-  mode,
-  planLevel,
-  switchMode,
-} from "./automation.ts";
-export { type CheckedVersions, checkedVersions, recordUsage, type UsageOf } from "./agents.ts";
-export {
-  type Decided,
-  type LaunchHost,
-  launchWorker,
-  leaseWorker,
-  type WorkerOutcome,
-  type WorkerRequest,
-} from "./launch.ts";
-export {
-  type AccountRequest,
-  chooseAccount,
-  chooseMove,
-  loadRegistry,
-  MAX_CONCURRENT,
-  type MoveRequest,
-  ownHome,
-} from "./accounts.ts";
+export { automationSettings, type LevelChange, planLevel } from "./automation.ts";
 export {
   type Approval,
   applyPlan,
@@ -66,25 +39,9 @@ export {
   loadPlan,
   previewPlan,
   previewUndo,
-  showLaunch,
   showRun,
   undoRun,
 } from "./use-cases.ts";
-export type { AgentOptions, Phase } from "./agent-node.ts";
-export {
-  cancelRun,
-  decideRun,
-  type GraphOutcome,
-  listGraphRuns,
-  planGraphRun,
-  type RunOptions,
-  resumeRun,
-  runWorkflow,
-  showGraphRun,
-  type Waiting,
-  waitsOf,
-} from "./workflows.ts";
-export { type FetchTree, pluginProblems, WORKFLOW_PLUGIN, workflowPlugin } from "./plugins.ts";
 export {
   type Choice,
   checkProfile,

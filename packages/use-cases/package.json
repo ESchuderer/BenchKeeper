@@ -27,8 +27,6 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@cedarloom/accounts": "workspace:*",
-    "@cedarloom/agent-contracts": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/engine": "workspace:*",
     "@cedarloom/extension-host": "workspace:*",
@@ -39,7 +37,6 @@
     "@cedarloom/work-items": "workspace:*"
   },
   "devDependencies": {
-    "@cedarloom/adapter-claude": "workspace:*",
     "zod": "catalog:"
   }
 }

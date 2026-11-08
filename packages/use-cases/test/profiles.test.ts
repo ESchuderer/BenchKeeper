@@ -168,7 +168,7 @@ test("a Claude Code home not made yet is named as the disk will name it, through
   expect(claudeHome({ CLAUDE_CONFIG_DIR: join(link, "home") })).toBe(join(realpathSync.native(folder), "home"));
 });
 
-test("a plugin's options never land in CedarLoom's state, where the worker homes are", async () => {
+test("a plugin's options never land in CedarLoom's state", async () => {
   const { config, state, home, user } = machine();
   mkdirSync(join(user, ".config"));
   // A junction on Windows, which needs no extra privilege; a symbolic link elsewhere.

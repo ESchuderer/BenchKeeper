@@ -1,8 +1,6 @@
 import { join } from "node:path";
-import { setTimeout } from "node:timers/promises";
 import {
   type Finding,
-  type LaunchRecord,
   PLAN_SCHEMA_VERSION,
   Plan,
   type PlanPreview,
@@ -16,7 +14,6 @@ import {
 import { apply, type Outcome, planUndo, readJson, recover } from "@cedarloom/engine";
 import { openStore } from "@cedarloom/git";
 import { openRunStore, openRunView, planHash, type RunStore, type RunView, sha256 } from "@cedarloom/ledger";
-import { pluginProblems } from "./plugins.ts";
 
 export { parseDocument, readJson, readOptionalJson } from "@cedarloom/engine";
 
@@ -35,20 +32,8 @@ const notFound = (runId: string): Result<never> => ({
 const approvedHash = (approval: Approval, plan: Plan): string =>
   approval.approve ?? (approval.yes === true ? planHash(plan) : "");
 
-const BUSY_TRIES = 3;
-
-/** Runs `work` again while another CedarLoom process holds the store: three tries, a second apart. */
-export const retryBusy = async <T>(work: () => Result<T>): Promise<Result<T>> => {
-  let result = work();
-  for (let tries = 1; tries < BUSY_TRIES && !result.ok && result.finding.code === "store.busy"; tries += 1) {
-    await setTimeout(1000);
-    result = work();
-  }
-  return result;
-};
-
 /** Opens the store for a change, removes what interrupted runs left, and closes it again. */
-export const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {
+const withStore = <T>(state: string, work: (store: RunStore) => Result<T>): Result<T> => {
   const store = openRunStore(state);
   if (!store.ok) return store;
   try {
@@ -117,13 +102,6 @@ export const showRun = (state: string, runId: string): Result<{ run: Run; steps:
     return { ok: true, value: { run, steps: detail.steps } };
   });
 
-/** A worker run as the ledger keeps it, with the totals its session reported. */
-export const showLaunch = (state: string, runId: string): Result<LaunchRecord> =>
-  withView(state, (view) => {
-    const launch = view?.launch(runId);
-    return launch === undefined ? notFound(runId) : { ok: true, value: launch };
-  });
-
 /** Plans the undo of a run and writes nothing. */
 export const previewUndo = (state: string, runId: string): Result<UndoPreview> =>
   withView(state, (view) => {
@@ -154,14 +132,8 @@ export const undoRun = (
     return { ok: true, value: settled(outcome, skipped, runId) };
   });
 
-/**
- * Interrupted and failed runs no undo has dealt with, what the latest run's init line shows about its plugins, and a
- * store this CedarLoom cannot read.
- */
+/** Interrupted and failed runs no undo has dealt with, and a store this CedarLoom cannot read. */
 export const doctor = (state: string): Finding[] => {
-  const problems = withView(state, (view) => ({
-    ok: true,
-    value: [...(view?.problems() ?? []), ...pluginProblems(view?.latestPlugins() ?? null)],
-  }));
+  const problems = withView(state, (view) => ({ ok: true, value: view?.problems() ?? [] }));
   return problems.ok ? problems.value : [problems.finding];
 };

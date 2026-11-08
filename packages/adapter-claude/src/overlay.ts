@@ -80,6 +80,8 @@ const FIXED = {
   isolatePeerMachines: true,
   allowedHttpHookUrls: [],
   httpHookAllowedEnvVars: [],
+  // A skill's inline commands (!`cmd`) run without the PreToolUse guard hook (trial, Claude Code 2.1.316).
+  disableSkillShellExecution: true,
 };
 
 // A failed guard refuses its call; a lower settings file's disableAllHooks does not apply (code.claude.com/docs/en/hooks).

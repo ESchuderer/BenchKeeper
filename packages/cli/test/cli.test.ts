@@ -1125,3 +1125,16 @@ test("work-items token stores the piped hub-issues token without printing it, an
     0,
   ]);
 });
+
+test("a token typed on the command line instead of piped in is never repeated in a usage error", async () => {
+  const { cli, keyring } = setup();
+  for (const argv of [
+    ["work-items", "token", "github_pat_11FAKE_0123"],
+    ["work-items", "token", "--token=github_pat_11FAKE_0123"],
+    ["work-items", "github_pat_11FAKE_0123"],
+  ]) {
+    const typed = await cli(...argv);
+    expect([typed.code, `${typed.out}${typed.err}`.includes("FAKE")]).toEqual([EXIT.usage, false]);
+  }
+  expect(keyring.size).toBe(0);
+});

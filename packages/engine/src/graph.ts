@@ -1,6 +1,6 @@
 import type { HandleType, WorkflowDefinition } from "@cedarloom/contracts";
 
-/** Whether an edge may join two handles: `unchecked` passes a `json` value on to a typed input, checked when it runs. */
+/** Whether an edge may join two handles: `unchecked` passes a `json` value on to a typed input, unknown to a validator. */
 export type Compatibility = "yes" | "unchecked" | "no";
 
 /** The one compatibility rule of typed handles, for the editor while a user drags an edge and for the CLI validator. */
@@ -27,12 +27,12 @@ export const own = <T>(record: Readonly<Record<string, T>> | undefined, key: str
   record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined;
 
 /**
- * Node types that wait until after 0.1.0 (owner, 2026-11-06): a schedule of CedarLoom's own, as users schedule
- * `cloom workflows run` themselves, and child workflows. The validator refuses them, and the editor does not offer them.
+ * Node types that wait until after 0.1.0 (owner, 2026-11-06): schedules and child workflows. The validator refuses
+ * them, and the editor does not offer them.
  */
 export const LATER_TYPES: ReadonlySet<string> = new Set(["trigger.schedule", "workflow.run"]);
 
-/** The node types of workflow schema version 1, with their handles. Their configuration and execution come later. */
+/** The node types of workflow schema version 1, with their handles; the contracts' `NODE_CONFIGS` configure them. */
 export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   "trigger.manual": { inputs: {}, outputs: { start: control } },
   "trigger.schedule": { inputs: {}, outputs: { start: control } },

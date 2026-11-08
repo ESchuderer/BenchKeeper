@@ -1,5 +1,5 @@
 import { githubTracker } from "@cedarloom/adapter-github";
-import { type Intent, IssueLink, IssueRef, type OutboxEntry, RepoName, type Result, shown } from "@cedarloom/contracts";
+import { type Intent, IssueRef, type OutboxEntry, RepoName, type Result, shown } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { Argument, type Command, InvalidArgumentError } from "@commander-js/extra-typings";
 import { change, refused } from "./commands.ts";
@@ -13,11 +13,6 @@ const issueRef = (value: string): IssueRef => {
   const parsed = IssueRef.safeParse({ repo, number: Number(number) });
   if (!parsed.success) throw new InvalidArgumentError("give the issue as owner/repo#number");
   return parsed.data;
-};
-
-const runIdOf = (value: string): string => {
-  if (!IssueLink.shape.runId.safeParse(value).success) throw new InvalidArgumentError("give the run's id");
-  return value;
 };
 
 const repoName = (value: string): string => {
@@ -93,11 +88,7 @@ const send = async (ctx: Context): Promise<number> => {
   if (!hub.ok) return refused(ctx, "outbox", hub.finding);
   const token = await useCases.readSecret(useCases.HUB_ISSUES, ctx.io.keyring);
   if (!token.ok) return refused(ctx, "outbox", token.finding);
-  return listed(
-    ctx,
-    useCases.sendOutbox(ctx.state, ctx.config, githubTracker(hub.value, token.value)),
-    "Nothing was due.",
-  );
+  return listed(ctx, useCases.sendOutbox(ctx.state, githubTracker(hub.value, token.value)), "Nothing was due.");
 };
 
 // Never prints the token, not even in part.
@@ -111,7 +102,7 @@ const storeToken = async (ctx: Context): Promise<number> => {
   return EXIT.ok;
 };
 
-// The owner's step: nothing here tells who asks, and a worker's sandbox keeps it from the token a send needs.
+// The owner's step: nothing here tells who asks.
 const retry = async (ctx: Context, id: string): Promise<number> => {
   const entry = await useCases.retryEntry(ctx.state, id);
   if (!entry.ok) return refused(ctx, "outbox", entry.finding);
@@ -119,20 +110,11 @@ const retry = async (ctx: Context, id: string): Promise<number> => {
   return EXIT.ok;
 };
 
-const link = async (ctx: Context, runId: string, issue: IssueRef): Promise<number> => {
-  const links = await useCases.linkRun(ctx.state, ctx.config, runId, issue);
-  if (!links.ok) return refused(ctx, "links", links.finding);
-  const lines = links.value.map((each) => `  ${each.issue.repo}#${each.issue.number}`);
-  emit(ctx, "links", { runId, links: links.value }, [`Run ${runId} is linked to:`, ...lines].join("\n"));
-  return EXIT.ok;
-};
-
 const mirror = (ctx: Context, repo: string, on: boolean, yes?: true): number => {
   const plan = useCases.planMirroring(ctx.config, repo, on);
   if (!plan.ok) return refused(ctx, "plan", plan.finding);
-  const note = on
-    ? `\n  The next send posts a comment for each ended run of ${repo} linked to a hub issue, once.`
-    : `\n  Runs of ${repo} post nothing.`;
+  // shortcut: nothing posts while no run links to a hub issue; the setting waits for runs that report again.
+  const note = on ? `\n  Nothing posts for ${repo} yet: no run links to a hub issue.` : `\n  ${repo} posts nothing.`;
   return change(ctx, plan.value, { note, data: { repository: repo, mirroring: on }, findings: [] }, yes);
 };
 
@@ -168,9 +150,7 @@ const writes = (group: Command, ctx: () => Context, done: Done): void => {
  * 2026-11-08). CedarLoom's own calls on hub issues use that token (A37).
  */
 export const workItemsGroup = (program: Command, ctx: () => Context, done: Done): void => {
-  const group = program
-    .command("work-items")
-    .description("hub issues as work items: the owner's outbox, links and token");
+  const group = program.command("work-items").description("hub issues as work items: the owner's outbox and token");
   group
     .command("token")
     .description("store the hub-issues token, piped in on standard input, in the OS credential store")
@@ -189,7 +169,7 @@ export const workItemsGroup = (program: Command, ctx: () => Context, done: Done)
     });
   group
     .command("send")
-    .description("send the due entries to the hub, after queuing the comments of linked runs that mirror")
+    .description("send the due entries to the hub")
     .action(async () => done(await send(ctx())));
   group
     .command("retry")
@@ -197,14 +177,8 @@ export const workItemsGroup = (program: Command, ctx: () => Context, done: Done)
     .argument("<id>", "the outbox entry")
     .action(async (id) => done(await retry(ctx(), id)));
   group
-    .command("link")
-    .description("link a run to a hub issue, in this machine's ledger only")
-    .addArgument(new Argument("<run>", "the run's id").argParser(runIdOf))
-    .addArgument(new Argument("<issue>", "the hub issue as owner/repo#number").argParser(issueRef))
-    .action(async (runId, issue) => done(await link(ctx(), runId, issue)));
-  group
     .command("mirror")
-    .description("switch the posts of a project repository's linked runs on or off; with --yes, save it as one run")
+    .description("switch mirroring of a project repository on or off; with --yes, save it as one run")
     .addArgument(new Argument("<repository>", "the project repository as owner/repo").argParser(repoName))
     .addArgument(new Argument("<state>").choices(["on", "off"] as const))
     .option("--yes", "save it as computed now")

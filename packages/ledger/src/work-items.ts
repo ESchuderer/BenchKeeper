@@ -1,15 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import {
-  canonicalJson,
-  Finding,
-  Intent,
-  IssueLink,
-  IssueRef,
-  OutboxEntry,
-  RemoteComment,
-  type Result,
-} from "@cedarloom/contracts";
+import { canonicalJson, Finding, Intent, OutboxEntry, RemoteComment, type Result } from "@cedarloom/contracts";
 import { filesystemType } from "./filesystem.ts";
 import { sha256 } from "./hash.ts";
 import { column, connect, type LeaseLock, leaseHeld, newLease, now, stateDir, transaction } from "./store.ts";
@@ -22,14 +13,6 @@ export type Settled =
   | { status: "sent"; remote: RemoteComment | null }
   | { status: "failed" | "pending"; finding: Finding };
 
-/** A linked run that has ended: how (a graph run's status or a worker's verdict), and its project folder. */
-export interface EndedLink {
-  runId: string;
-  issue: IssueRef;
-  project: string;
-  ended: string;
-}
-
 /** A sender's hold on an entry: the entry as claimed, and its lease, which the OS releases when the sender ends. */
 export interface OutboxClaim extends LeaseLock {
   entry: OutboxEntry;
@@ -41,7 +24,7 @@ const leaseOf = (id: string, attempt: number): string => `outbox-${id}.${attempt
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
 /**
- * The outbox of writes to hub issues and the runs linked to hub issues, in the run store's database. It takes no store
+ * The outbox of writes to hub issues, in the run store's database. It takes no store
  * lock: each write is one short transaction, so a send waits on the tracker without holding anything but its entry's
  * lease, and a process that ends while sending leaves the entry due again.
  */
@@ -167,51 +150,6 @@ export class WorkItemStore {
     });
   }
 
-  /** Links a recorded run (a worker launch or a graph run) to a hub issue, once; the run's links. */
-  link(runId: string, issue: IssueRef): Result<IssueLink[]> {
-    const link = IssueLink.parse({ runId, issue, linkedAt: now() });
-    const run = this.#db
-      .prepare("SELECT 1 FROM launches WHERE runId = ?1 UNION ALL SELECT 1 FROM graph_runs WHERE id = ?1")
-      .get(link.runId);
-    if (run === undefined) return refuse({ code: "run.not-found", params: { runId } });
-    this.#db
-      .prepare("INSERT INTO issue_links VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
-      .run(link.runId, link.issue.repo, link.issue.number, link.linkedAt);
-    return { ok: true, value: this.links(link.runId) };
-  }
-
-  /** The hub issues a run is linked to, in the order they were linked. */
-  links(runId: string): IssueLink[] {
-    return this.#db
-      .prepare("SELECT runId, repo, number, linkedAt FROM issue_links WHERE runId = ? ORDER BY linkedAt, rowid")
-      .all(runId)
-      .map(({ repo, number, ...row }) => IssueLink.parse({ ...row, issue: { repo, number } }));
-  }
-
-  /**
-   * The linked runs that have ended, in the order they were linked: a graph run by its status, a worker by its verdict,
-   * each with the project folder of its graph run (a worker's task starts with its graph run's id).
-   */
-  endedLinks(): EndedLink[] {
-    return this.#db
-      .prepare(
-        `SELECT l.runId, l.repo, l.number, l.linkedAt, g.project, g.status AS ended
-           FROM issue_links l JOIN graph_runs g ON g.id = l.runId WHERE g.finishedAt IS NOT NULL
-         UNION ALL
-         SELECT l.runId, l.repo, l.number, l.linkedAt, g.project, w.verdict
-           FROM issue_links l JOIN launches w ON w.runId = l.runId JOIN graph_runs g ON g.id = substr(w.task, 1, 36)
-           WHERE w.finishedAt IS NOT NULL
-         ORDER BY linkedAt, runId`,
-      )
-      .all()
-      .map(({ runId, repo, number, project, ended }) => ({
-        runId: String(runId),
-        issue: IssueRef.parse({ repo, number }),
-        project: String(project),
-        ended: String(ended),
-      }));
-  }
-
   close(): void {
     this.#db.close();
   }
@@ -233,7 +171,7 @@ export class WorkItemStore {
 }
 
 /**
- * Opens the outbox and issue links of the state folder `dir` (created private), without the store lock: refused on a
+ * Opens the outbox of the state folder `dir` (created private), without the store lock: refused on a
  * network filesystem or for a store at another schema.
  */
 export const openWorkItemStore = (dir: string, detect = filesystemType): Result<WorkItemStore> => {

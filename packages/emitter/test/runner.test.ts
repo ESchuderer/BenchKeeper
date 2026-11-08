@@ -32,7 +32,7 @@ const never = (call: Call): unknown => (isCommand(call) ? { exitCode: 1, output:
 
 // Step a's command fails; every other command passes and every agent answers.
 const failingA = (call: Call): unknown => {
-  if (call.prompt.includes('/plugin/a"')) return { exitCode: 1, output: "no" };
+  if (call.prompt.includes("/plugin/a'")) return { exitCode: 1, output: "no" };
   return isCommand(call) ? passing : "ok";
 };
 
@@ -59,8 +59,9 @@ test("a stage runs in waves, retries a failed agent, gives it its context, and s
   const answer = (call: Call): unknown => {
     if (isCommand(call)) return passing;
     tries += 1;
-    // The review's first agent dies; its retry runs it again.
-    return tries === 1 ? null : "two findings";
+    // The review's first agent stalls on every attempt and throws; its retry runs it again.
+    if (tries === 1) throw new Error("agent stalled on all 6 attempts");
+    return "two findings";
   };
   const [ran, calls] = await runScript(stage, answer, { focus: "the parser" });
   // The command that goes on carries the input its stage reads; the gate shows the work it asks about.
@@ -68,7 +69,7 @@ test("a stage runs in waves, retries a failed agent, gives it its context, and s
   expect(ran).toEqual(
     report(["start", "lint", "tests", "review"], [], [], { stops, outputs: { report: "two findings" } }),
   );
-  expect(calls.some(({ prompt }) => prompt.includes('sh "/plugin/steps/lint/scripts/run.sh"'))).toBe(true);
+  expect(calls.some(({ prompt }) => prompt.includes("sh '/plugin/steps/lint/scripts/run.sh'"))).toBe(true);
   const reviews = calls.filter(({ options }) => options?.["label"] === "review");
   expect(
     reviews.every(({ options, prompt }) => options?.["agentType"] === "w:review" && prompt.includes("the parser")),

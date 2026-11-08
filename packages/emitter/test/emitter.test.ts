@@ -69,7 +69,7 @@ test("a workflow builds into one plugin folder: a skill per step, a skill and a 
   expect(fileOf(files, "steps/review/SKILL.md")).toContain("disable-model-invocation: true\n");
 });
 
-test("each level keeps its gates: Supervised all three, Checkpoint the merge, Auto none", () => {
+test("each level keeps its gates, and a stop carries the inputs every later stage reads, across a stage that reads none", async () => {
   const nodes: Node[] = [start, ["a", "agent.run", { task: "A." }], ["b", "agent.run", { task: "B." }]];
   const gates: Node[] = ["implementation", "verdict", "merge"].map((gate) => [
     gate,
@@ -83,7 +83,10 @@ test("each level keeps its gates: Supervised all three, Checkpoint the merge, Au
       "b.done>merge.run",
       "merge.approved>c.run",
       "c.done>d.run",
+      "@topic>a.context",
+      "@topic>c.context",
     ]),
+    { inputs: { topic: { type: "string", required: true } } },
   );
   const scripts = (level: AutomationLevel) =>
     built(definition, level)
@@ -99,6 +102,11 @@ test("each level keeps its gates: Supervised all three, Checkpoint the merge, Au
     ["workflows/run-merge-approved.js", "workflows/run-start.js"],
     ["workflows/run-start.js"],
   ]);
+  // At Supervised the stage between verdict and merge reads no input, and still hands on what the last stage reads.
+  const verdict = fileOf(built(definition, "supervised"), "workflows/run-verdict-approved.js");
+  const [stopped] = await runScript(verdict, () => "done", { topic: "parser" });
+  const stops = [{ gate: "merge", message: "Go?", next: ['/w:merge-approved {"topic":"parser"}'] }];
+  expect(stopped).toEqual(report(["b"], [], [], { stops }));
 });
 
 test("workflow text in skill content never runs as a command when the skill loads, and no unreviewed text reaches it", () => {

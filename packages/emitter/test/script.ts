@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -15,18 +15,23 @@ export const runScript = async (
   answer: (call: Call) => unknown,
   inputs: object = {},
 ): Promise<[unknown, Call[]]> => {
-  const file = join(mkdtempSync(join(tmpdir(), "cedarloom-emitter-")), "stage.mjs");
-  writeFileSync(
-    file,
-    `export default async (agent, parallel, args) => {\n${script.replace("export const meta", "const meta")}\n};\n`,
-  );
-  const module: { default: (...given: unknown[]) => Promise<unknown> } = await import(pathToFileURL(file).href);
-  const calls: Call[] = [];
-  const agent = async (prompt: string, options?: Record<string, unknown>): Promise<unknown> => {
-    calls.push({ prompt, options });
-    return answer({ prompt, options });
-  };
-  return [await module.default(agent, parallel, JSON.stringify({ root: "/plugin", inputs })), calls];
+  const folder = mkdtempSync(join(tmpdir(), "cedarloom-emitter-"));
+  try {
+    const file = join(folder, "stage.mjs");
+    writeFileSync(
+      file,
+      `export default async (agent, parallel, args) => {\n${script.replace("export const meta", "const meta")}\n};\n`,
+    );
+    const module: { default: (...given: unknown[]) => Promise<unknown> } = await import(pathToFileURL(file).href);
+    const calls: Call[] = [];
+    const agent = async (prompt: string, options?: Record<string, unknown>): Promise<unknown> => {
+      calls.push({ prompt, options });
+      return answer({ prompt, options });
+    };
+    return [await module.default(agent, parallel, JSON.stringify({ root: "/plugin", inputs })), calls];
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 };
 
 // A stage's report: the steps that ran, failed and were skipped, with no stop and no output unless `more` says.

@@ -19,11 +19,9 @@ const argsText = (workflow: WorkflowDefinition, stage: Stage): string => {
     const input = workflow.inputs?.[name];
     return `- \`${name}\` (${input?.type ?? "json"}${input?.required === true ? ", required" : ""})`;
   });
-  const inputs =
-    lines.length === 0
-      ? "an empty object: this stage reads no input"
-      : `the JSON object given in the arguments of this command ($ARGUMENTS); an input left out takes its default:\n${lines.join("\n")}`;
-  return `Pass as its args a JSON object: \`root\` the text \`\${CLAUDE_PLUGIN_ROOT}\`, and \`inputs\` ${inputs}`;
+  // Always the arguments as given: a stage that reads no input passes on those a later stage reads.
+  const reads = lines.length === 0 ? "This stage reads none of them." : `This stage reads:\n${lines.join("\n")}`;
+  return `Pass as its args a JSON object: \`root\` the text \`\${CLAUDE_PLUGIN_ROOT}\`, and \`inputs\` the JSON object given in the arguments of this command ($ARGUMENTS), or {} when there are none; an input left out takes its default. ${reads}`;
 };
 
 /** The command that starts a stage: a skill only the user runs, as the stage after a gate is the user's to start. */
@@ -75,10 +73,20 @@ export const claudeFiles = (
   stages: Stage[],
   { plugin, level }: { plugin: string; level: AutomationLevel },
 ): PackageFile[] => {
+  // The inputs a stage and every stage after it read: each stop carries them on, through stages that read none.
+  const carried = (stage: Stage): string[] => {
+    const reached = new Set([stage]);
+    for (const each of reached) {
+      for (const next of stages.filter((other) => each.nodes.some((node) => node.id === other.from?.node))) {
+        reached.add(next);
+      }
+    }
+    return [...new Set([...reached].flatMap((each) => inputsOf(workflow, each)))];
+  };
   const nextOf = (gate: string): Next[] =>
     stages
       .filter((stage) => stage.from?.node === gate)
-      .map((stage) => ({ command: `/${plugin}:${stage.name}`, inputs: inputsOf(workflow, stage) }));
+      .map((stage) => ({ command: `/${plugin}:${stage.name}`, inputs: carried(stage) }));
   const manifest = {
     name: plugin,
     version: workflow.metadata.version,

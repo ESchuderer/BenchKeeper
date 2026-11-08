@@ -72,20 +72,28 @@ type State = {
 
 type Ran = { exitCode: number; output: string };
 
+/** A JSON object's entries, or none for any other value. */
+const objectOf = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null ? { ...value } : {};
+
 /** The args, `{root, inputs}` as JSON text or a value: the inputs over the defaults; a required one missing ends the run. */
 const argsOf = (args: unknown, stage: StageScript): { root: string; inputs: Record<string, unknown> } => {
-  const given: unknown = typeof args === "string" && args.trim() !== "" ? JSON.parse(args) : args;
-  const { root, inputs: passed }: { root?: unknown; inputs?: unknown } =
-    typeof given === "object" && given !== null ? given : {};
-  const inputs = { ...stage.defaults, ...(typeof passed === "object" && passed !== null ? passed : {}) };
+  const given = objectOf(typeof args === "string" && args.trim() !== "" ? JSON.parse(args) : args);
+  const inputs = { ...stage.defaults, ...objectOf(given["inputs"]) };
   const missing = stage.required.filter((name) => !Object.hasOwn(inputs, name));
   if (missing.length > 0) throw new Error(`The workflow needs the inputs ${missing.join(", ")}.`);
-  return { root: typeof root === "string" ? root : "", inputs };
+  const root = typeof given["root"] === "string" ? given["root"] : "";
+  // Without it no script runs: the stage ends now, not after its checks' rounds.
+  if (root === "" && stage.steps.some((step) => step.script !== undefined)) {
+    throw new Error("The stage needs the plugin's folder as args.root.");
+  }
+  return { root, inputs };
 };
 
 const valueOf = (state: State, source: Source | undefined): unknown => {
   if (source === undefined) return undefined;
-  return "input" in source ? state.inputs[source.input] : state.values.get(source.output);
+  if ("output" in source) return state.values.get(source.output);
+  return Object.hasOwn(state.inputs, source.input) ? state.inputs[source.input] : undefined;
 };
 
 /** A command or check step: an agent runs the step's script and reports; null when it could not. */
@@ -97,8 +105,10 @@ const runCommand = async (step: Step, state: State, rt: Runtime): Promise<Ran | 
     properties: { exitCode: { type: "integer" }, output: { type: "string" } },
   };
   // A model reports the result: the prompt leaves it nothing to add (a low effort reported a failed check as passed).
-  const prompt = `From the project folder, run this command with Bash exactly as written, once, with no redirect, pipe or other command added:\nsh "${state.root}/${step.script ?? ""}"\nThen return the exit code Bash printed for it, and the last 100 lines of its output. If the command did not run, return -1.`;
-  const ran = await rt.agent(prompt, { label: step.id, schema });
+  const path = `'${`${state.root}/${step.script ?? ""}`.replaceAll("'", `'\\''`)}'`;
+  const prompt = `From the project folder, run this command with Bash exactly as written, once, with no redirect, pipe or other command added:\nsh ${path}\nThen return the exit code Bash printed for it, and the last 100 lines of its output, empty when it printed nothing. If the command did not run, return -1.`;
+  // A thrown call (the agent stalled on every attempt) is a failed try, as null is.
+  const ran: unknown = await rt.agent(prompt, { label: step.id, schema }).catch(() => null);
   return typeof ran === "object" && ran !== null && "exitCode" in ran && "output" in ran
     ? { exitCode: Number(ran.exitCode), output: String(ran.output) }
     : null;
@@ -120,7 +130,7 @@ const textOf = (value: unknown): string => (typeof value === "string" ? value : 
 /** An agent step's agent, started again while it fails, `retries` times at most; null when every try failed. */
 const attempt = async (step: Step, prompt: string, rt: Runtime): Promise<unknown> => {
   for (let tries = 0; tries <= (step.retries ?? 0); tries += 1) {
-    const result = await rt.agent(prompt, step.options);
+    const result: unknown = await rt.agent(prompt, step.options).catch(() => null);
     if (result !== null) return result;
   }
   return null;
@@ -212,12 +222,15 @@ const runStage = async (stage: StageScript, rt: Runtime): Promise<Report> => {
   for (let wave = ready(); wave.length > 0; wave = ready()) {
     await rt.parallel(wave.slice(0, stage.concurrency).map((step) => () => settle(step, state, rt)));
   }
+  const stuck = stage.steps.filter((step) => !state.settled.has(step.id)).map((step) => step.id);
+  if (stuck.length > 0) throw new Error(`The steps ${stuck.join(", ")} wait on steps outside their stage.`);
   for (const [name, source] of Object.entries(stage.outputs)) state.report.outputs[name] = valueOf(state, source);
   return state.report;
 };
 
 /** The functions a stage script carries, in the order it declares them. */
 const RUNNER = [
+  objectOf,
   argsOf,
   valueOf,
   runCommand,

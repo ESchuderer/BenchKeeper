@@ -189,7 +189,7 @@ export const workItemsGroup = (program: Command, ctx: () => Context, done: Done)
     });
   group
     .command("send")
-    .description("send the due entries to the hub, after queueing the comments of linked runs that mirror")
+    .description("send the due entries to the hub, after queuing the comments of linked runs that mirror")
     .action(async () => done(await send(ctx())));
   group
     .command("retry")

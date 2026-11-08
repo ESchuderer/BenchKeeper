@@ -14,9 +14,6 @@ import {
   PROTOCOL,
   runAction,
   shutdown,
-  type WorkerAnswers,
-  type WorkerCall,
-  type WorkerCallParams,
 } from "@cedarloom/extension-sdk";
 import {
   CancellationTokenSource,
@@ -30,7 +27,6 @@ import { z } from "zod";
 import { executor } from "./exec.ts";
 import { type Credentials, fetcher, messageOf } from "./fetch.ts";
 import { framesUpTo } from "./reader.ts";
-import { WORKER_ANSWERS, WORKER_PARAMS } from "./workers.ts";
 import { type Launch, type Sandbox, type SandboxPolicy, unavailable } from "./sandbox.ts";
 import { type Transport, transport } from "./transport.ts";
 
@@ -61,8 +57,6 @@ export type HostLimits = {
   execs: number;
   /** How long the extension's own checks may take to answer the doctor. */
   doctorMs: number;
-  /** How long a worker runner may take to answer one of its calls. */
-  callMs: number;
 };
 export const HOST_LIMITS: HostLimits = {
   messageBytes: 1024 * 1024,
@@ -80,8 +74,6 @@ export const HOST_LIMITS: HostLimits = {
   execs: 4,
   // claude-swap's check may fetch usage with its own 10 s timeouts and refresh a login, which a stop can break.
   doctorMs: 40_000,
-  // A call may run a program, which host/exec allows 120 s: the call has a margin beyond its exec.
-  callMs: 130_000,
 };
 
 export type ExtensionLaunch = {
@@ -119,16 +111,10 @@ export type RunningExtension = {
    * `extension.failed` (step doctor) when it does not answer within `doctorMs` or answers what the host refuses.
    */
   doctor: () => Promise<Finding[]>;
-  /**
-   * Asks one of its worker runners (`contributes.workerRunners`): `extension.failed` (step worker) for an extension
-   * that is not bundled, a runner its manifest does not name, no answer within `callMs`, or a request or an answer
-   * outside the call's contract.
-   */
-  worker: <C extends WorkerCall>(call: C, params: WorkerCallParams[C]) => Promise<Result<WorkerAnswers[C]>>;
 };
 
 type Refusal = "sandbox-unavailable" | "windows" | "protocol" | "actions" | "folder" | "runtime" | "programs";
-type Step = "start" | "initialize" | "run" | "doctor" | "worker";
+type Step = "start" | "initialize" | "run" | "doctor";
 
 const refused = (extension: string, reason: Refusal): Finding => ({
   code: "extension.refused",
@@ -377,41 +363,6 @@ const DoctorAnswer = (checks: string[]) =>
       .max(50),
   });
 
-// What a contributed call names, in the extension's manifest, and its answer's contract.
-type Contributed<A> = {
-  step: "worker";
-  what: string;
-  names: object | undefined;
-  name: string;
-  answer: z.ZodType<A>;
-};
-
-// Starting workers is the app's own extensions' work, within `callMs`.
-const askOf =
-  (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) =>
-  async <A>(call: string, params: object, { step, what, names, name, answer }: Contributed<A>): Promise<Result<A>> => {
-    if (trust !== "bundled") return failed(manifest.id, step, `${what}s are the app's own extensions' only`);
-    if (!Object.hasOwn(names ?? {}, name)) return failed(manifest.id, step, `no ${what} ${name}`);
-    const asked = Promise.resolve().then(() => session.connection.sendRequest(call, params));
-    const answered = await within(asked, limits.callMs, `no answer within ${limits.callMs} ms`).catch(
-      (error: unknown) => new Error(session.broken() ?? messageOf(error)),
-    );
-    if (answered instanceof Error) return failed(manifest.id, step, answered.message);
-    const parsed = answer.safeParse(answered);
-    return parsed.success ? { ok: true, value: parsed.data } : failed(manifest.id, step, "an answer the host refuses");
-  };
-
-const workerOf = (manifest: Manifest, trust: Trust, session: Session, limits: HostLimits) => {
-  const ask = askOf(manifest, trust, session, limits);
-  return async <C extends WorkerCall>(call: C, params: WorkerCallParams[C]): Promise<Result<WorkerAnswers[C]>> => {
-    if (!WORKER_PARAMS[call].safeParse(params).success)
-      return failed(manifest.id, "worker", "a request outside its contract");
-    const names = manifest.contributes.workerRunners;
-    const answer = WORKER_ANSWERS[call];
-    return ask(call, params, { step: "worker", what: "worker runner", names, name: params.runner, answer });
-  };
-};
-
 const doctorOf = async (manifest: Manifest, session: Session, limits: HostLimits): Promise<Finding[]> => {
   const checks = Object.keys(manifest.contributes.doctor ?? {});
   if (checks.length === 0) return [];
@@ -432,13 +383,12 @@ const doctorOf = async (manifest: Manifest, session: Session, limits: HostLimits
 };
 
 const running = (
-  { manifest, trust }: Pick<ExtensionLaunch, "manifest" | "trust">,
+  { manifest }: Pick<ExtensionLaunch, "manifest">,
   session: Session,
   logs: ReturnType<typeof logBook>,
   limits: HostLimits,
 ): RunningExtension => ({
   doctor: () => doctorOf(manifest, session, limits),
-  worker: workerOf(manifest, trust, session, limits),
   run: async (request, signal) => {
     const id = manifest.id;
     if (signal?.aborted === true) return failed(id, "run", "cancelled by the host");

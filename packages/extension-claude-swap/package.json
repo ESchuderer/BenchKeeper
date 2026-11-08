@@ -2,7 +2,7 @@
   "name": "@cedarloom/extension-claude-swap",
   "version": "0.0.0",
   "private": true,
-  "description": "CedarLoom's own claude-swap extension, cedarloom.claude-swap: every Claude Code account's usage and the account interactive sessions use, from the user's claude-swap, for the workers' choice, the doctor and cedarloom claude-swap status.",
+  "description": "CedarLoom's own claude-swap extension, cedarloom.claude-swap: the user's claude-swap accounts with their usage, its switch and its auto mode, for the doctor and the cedarloom claude-swap verbs.",
   "license": "MIT",
   "type": "module",
   "exports": {

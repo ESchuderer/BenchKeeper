@@ -1509,7 +1509,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "worker";
+                step: "stage" | "start" | "initialize" | "run" | "doctor";
                 error: string;
             };
         } | {
@@ -2771,7 +2771,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "worker";
+                step: "stage" | "start" | "initialize" | "run" | "doctor";
                 error: string;
             };
         } | {

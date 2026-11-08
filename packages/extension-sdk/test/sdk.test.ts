@@ -73,7 +73,7 @@ const actions: Record<string, Action> = {
 type Connected = { host: MessageConnection; toExtension: PassThrough; logs: LogParams[]; exited: Promise<number> };
 
 /** The host's end of a connection to an extension on in-memory streams, the log lines it got, and its exit. */
-const connect = (more: Pick<ExtensionOptions, "doctor" | "workers"> = {}): Connected => {
+const connect = (more: Pick<ExtensionOptions, "doctor"> = {}): Connected => {
   const [toExtension, toHost] = [new PassThrough(), new PassThrough()];
   const exited = Promise.withResolvers<number>();
   defineExtension(actions, { input: toExtension, output: toHost, onExit: exited.resolve, ...more });
@@ -252,25 +252,4 @@ test("the doctor's checks run in the language initialize named and run programs 
     { findings: [{ check: "setup", severity: "info", code: "example.language", message: "de tool --version" }] },
     { findings: [] },
   ]);
-});
-
-const failed = (error: unknown) => Reflect.get(Object(error), "code");
-// A worker runner whose worker state is the exit code of a program the host runs, and whose release fails.
-const workers: ExtensionOptions["workers"] = {
-  "worker/show": async ({ dispatch }, { exec }) => ({
-    state: String((await exec({ program: "tool", args: [dispatch] })).code),
-    settled: false,
-  }),
-  "worker/release": () => Promise.reject(new Error("no handle")),
-};
-
-test("a worker runner's calls reach their handlers, which run programs through the host; a failing call answers its reason, a call left out MethodNotFound", async () => {
-  const { host } = connect({ workers });
-  host.onRequest(hostExec, ({ args }) => ({ code: args?.[0] === "d1" ? 3 : 0, stdout: "", stderr: "" }));
-  await host.sendRequest(initialize, hello);
-  expect([
-    await host.sendRequest("worker/show", { runner: "claude", dispatch: "d1" }),
-    await host.sendRequest("worker/release", { runner: "claude", handles: [] }).then(String, failed),
-    await host.sendRequest("worker/start", { runner: "claude" }).then(String, failed),
-  ]).toEqual([{ state: "3", settled: false }, ACTION_FAILED, ErrorCodes.MethodNotFound]);
 });

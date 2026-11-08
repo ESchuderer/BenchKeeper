@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { Agent } from "./accounts.ts";
 import { sortKeys } from "./json.ts";
 import { NODE_CONFIGS, ProjectPath } from "./nodes.ts";
 import { Sha256 } from "./plan.ts";
@@ -248,11 +247,6 @@ export const ExtensionManifest = z
         .optional()
         .describe(
           "Its actions the CLI offers as verbs under its noun (the id after `cedarloom.`); bundled extensions only",
-        ),
-      workerRunners: sized(z.record(ActionId, z.strictObject({ agent: Agent })), 8)
-        .optional()
-        .describe(
-          "Where it starts a supervised worker on a given launch line (the worker/* calls); bundled extensions only",
         ),
     }),
     catalogs: sized(z.record(LanguageTag, ProjectPath.regex(/\.po$/, "a .po file")), 100)

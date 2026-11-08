@@ -38,7 +38,6 @@ const EXTENSION_STEPS = {
   initialize: "answer its handshake",
   run: "run an action",
   doctor: "answer the doctor's checks",
-  worker: "answer as a worker runner",
 } as const;
 const INSTALL_REFUSALS = {
   "no-manifest": "its folder has no cedarloom-extension.json",

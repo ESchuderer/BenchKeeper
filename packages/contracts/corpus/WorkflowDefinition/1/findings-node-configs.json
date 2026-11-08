@@ -17,7 +17,7 @@
       "id": "agent",
       "type": "agent.run",
       "with": {
-        "phase": "ship",
+        "effort": "extreme",
         "task": ""
       }
     },
@@ -46,24 +46,10 @@
       }
     },
     {
-      "id": "read",
-      "type": "file.read",
-      "with": {
-        "path": "/etc/hosts"
-      }
-    },
-    {
       "id": "start",
       "type": "trigger.manual",
       "with": {
         "precheck": ""
-      }
-    },
-    {
-      "id": "write",
-      "type": "file.write",
-      "with": {
-        "path": "../outside.md"
       }
     }
   ],
@@ -120,28 +106,6 @@
       },
       "to": {
         "node": "gate",
-        "handle": "run"
-      }
-    },
-    {
-      "id": "e6",
-      "from": {
-        "node": "start",
-        "handle": "start"
-      },
-      "to": {
-        "node": "read",
-        "handle": "run"
-      }
-    },
-    {
-      "id": "e7",
-      "from": {
-        "node": "start",
-        "handle": "start"
-      },
-      "to": {
-        "node": "write",
         "handle": "run"
       }
     },

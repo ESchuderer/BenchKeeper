@@ -155,13 +155,12 @@
               "precheck",
               "command",
               "agent",
-              "write",
               "workflow"
             ]
           },
           "text": {
             "type": "string",
-            "description": "The command, task, schedule, path or workflow in full"
+            "description": "The command, task, schedule or workflow in full"
           }
         },
         "required": [

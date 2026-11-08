@@ -545,17 +545,24 @@ test("extensions: a manifest's unknown key reaches the terminal escaped, never a
   expect(refused.err).toContain("\\u001b[2K\\u001b]8;;https://evil.example\\u0007x");
 });
 
-test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none, --yes from Git at a moving ref and --ref with a folder exit 64", async () => {
-  const { root, state, cli } = setup();
-  // Store commits carry the user's Git identity, from a home folder of the test's own.
+// The corpus workflow `name` with `more` nodes as the draft w in `state`; store commits carry the Git identity of a home
+// folder of the test's own.
+const drafted = (root: string, state: string, name: string, more: object[] = []): WorkflowDefinition => {
   writeFileSync(join(root, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
   vi.stubEnv("HOME", root);
   vi.stubEnv("XDG_CONFIG_HOME", root);
   const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
-  const sample = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
-  const draft = WorkflowDefinition.parse({ ...sample, metadata: { ...sample.metadata, id: "w" } });
+  const sample = JSON.parse(readFileSync(join(corpus, name), "utf8"));
+  const nodes = [...sample.nodes, ...more];
+  const draft = WorkflowDefinition.parse({ ...sample, metadata: { ...sample.metadata, id: "w" }, nodes });
   mkdirSync(join(state, "drafts"), { recursive: true });
   writeFileSync(join(state, "drafts", "workflow-w.json"), formatWorkflow(draft));
+  return draft;
+};
+
+test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none, --yes from Git at a moving ref and --ref with a folder exit 64", async () => {
+  const { root, state, cli } = setup();
+  const draft = drafted(root, state, "valid-build-and-review.json");
   const saved = await cli("workflows", "save", "w", "--yes", "--json");
   const history = json((await cli("workflows", "history", "w", "--json")).out);
   const none = await cli("workflows", "history", "9w");
@@ -590,6 +597,18 @@ test("workflows save stores a draft as a version, history lists it, export write
     EXIT.usage,
     [EXIT.ok, 1, EXIT.usage, EXIT.usage, EXIT.usage, false],
   ]);
+});
+
+test("an import's review shows a command line by line, so a comment never hides the line sh runs next", async () => {
+  const { root, state, cli } = setup();
+  drafted(root, state, "valid-minimal.json", [
+    { id: "two", type: "command.run", with: { command: "echo ok #\necho second" } },
+  ]);
+  await cli("workflows", "save", "w", "--yes");
+  await cli("workflows", "export", "w", "--to", join(root, "shared"), "--yes");
+  const review = await setup().cli("import", join(root, "shared"));
+  vi.unstubAllEnvs();
+  expect(review.out).toContain("  w two  command: echo ok #\n      echo second\n");
 });
 
 // The fixture extension as the app's `id`, contributing `contributes`.

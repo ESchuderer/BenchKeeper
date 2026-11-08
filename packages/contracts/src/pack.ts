@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Commit, description, FolderDigest, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
 import { fileFormats } from "./registry.ts";
+import { skillName } from "./skill-name.ts";
 import { PlainText } from "./text.ts";
 import { License, semver } from "./workflow.ts";
 
@@ -42,12 +43,10 @@ const Entry = z.discriminatedUnion("kind", [
   }),
 ]);
 
-// A skill's folder is its name (https://agentskills.io/specification); Claude Code reads rules from Markdown only.
-export const skillName = (name: string): boolean => /^[a-z0-9-]{1,64}$/.test(name) && !/^-|-$|--/.test(name);
-
 /** The folder a skill from Git installs into: the last part of its path, else of its repository's name. */
 export const skillFolder = (source: GitSource): string =>
   (source.path ?? source.git.replace(/\.git$/, "")).split(/[/:]/).at(-1) ?? "";
+// A skill's folder is its name; Claude Code reads rules from Markdown only.
 const fits = (path: string, kind: z.infer<typeof Entry>["kind"]): boolean => {
   if (kind === "skill") return skillName(path.slice(path.lastIndexOf("/") + 1));
   if (kind === "template") return true;

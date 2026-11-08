@@ -35,10 +35,10 @@ type Shown = Extract<
 // A file can break in thousands of places (x and y on 1000 nodes): the first ten show where to start.
 const SHOWN = 10;
 
-const issues = (list: { path: string; code: string }[]): string => {
+const issues = (list: { path: string; code: string; char?: string | undefined }[]): string => {
   const named = list
     .slice(0, SHOWN)
-    .map((issue) => `${issue.path || "(top)"} ${issue.code}`)
+    .map((issue) => `${issue.path || "(top)"} ${issue.char ?? issue.code}`)
     .join(", ");
   return list.length > SHOWN ? t("problem.moreIssues", { issues: named, count: list.length - SHOWN }) : named;
 };
@@ -72,6 +72,10 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "workflow.report-only-write": (p) => t("problem.reportOnlyWrite", p),
   "workflow.unreachable": (p) => t("problem.unreachable", p),
   "workflow.stray-entry": (p) => t("problem.strayEntry", p),
+  "workflow.skill-name": (p) => t("problem.skillName", p),
+  "workflow.duplicate-skill": (p) => t("problem.duplicateSkill", p),
+  "workflow.check-source": (p) => t("problem.checkSource", p),
+  "workflow.check-output": (p) => t("problem.checkOutput", p),
   "run.node-unsupported": (p) => t("problem.nodeUnsupported", p),
   "git.failed": (p) => t("problem.gitFailed", p),
   "git.refused-source": (p) => t("problem.refusedSource", p),

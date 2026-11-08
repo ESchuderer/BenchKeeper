@@ -239,6 +239,9 @@
                         },
                         "code": {
                           "type": "string"
+                        },
+                        "char": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -1157,6 +1160,9 @@
                         },
                         "code": {
                           "type": "string"
+                        },
+                        "char": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -1685,6 +1691,130 @@
                 "required": [
                   "section",
                   "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.skill-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.duplicate-skill"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "of": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "name",
+                  "of"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.check-source"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "from"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.check-output"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle"
                 ],
                 "additionalProperties": false
               }
@@ -4045,7 +4175,6 @@
                     "precheck",
                     "command",
                     "agent",
-                    "write",
                     "workflow"
                   ]
                 },
@@ -5088,6 +5217,9 @@
                         },
                         "code": {
                           "type": "string"
+                        },
+                        "char": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -6006,6 +6138,9 @@
                         },
                         "code": {
                           "type": "string"
+                        },
+                        "char": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -6534,6 +6669,130 @@
                 "required": [
                   "section",
                   "node"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.skill-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.duplicate-skill"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "of": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "name",
+                  "of"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.check-source"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "from"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "workflow.check-output"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "handle"
                 ],
                 "additionalProperties": false
               }
@@ -8894,7 +9153,6 @@
                     "precheck",
                     "command",
                     "agent",
-                    "write",
                     "workflow"
                   ]
                 },

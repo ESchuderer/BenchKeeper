@@ -1,4 +1,4 @@
-import { type Finding, type HandleType, NODE_CONFIGS, type WorkflowDefinition } from "@cedarloom/contracts";
+import { type Finding, type HandleType, NODE_CONFIGS, skillName, type WorkflowDefinition } from "@cedarloom/contracts";
 import { compatibility, LATER_TYPES, NODE_TYPES, type NodeType, own } from "./graph.ts";
 
 type Edge = WorkflowDefinition["edges"][number];
@@ -29,15 +29,21 @@ const isTrigger = (node: { type: string }): boolean => node.type.startsWith("tri
 
 type Node = WorkflowDefinition["nodes"][number];
 
+type Issue = { path: string; code: string; char?: string };
+
 /** The issues of a node's `with` (checked as `{}` when absent), or a finding when its type is unknown. */
-const configIssues = (node: Node): { path: string; code: string }[] | Finding => {
+const configIssues = (node: Node): Issue[] | Finding => {
   const schema = own(NODE_CONFIGS, node.type);
   // NODE_CONFIGS names the same types as NODE_TYPES (a test checks it).
   if (own(NODE_TYPES, node.type) === undefined || schema === undefined) {
     return { code: "workflow.unknown-node-type", params: { node: node.id, type: node.type } };
   }
   const config = schema.safeParse(node.with ?? {});
-  return config.success ? [] : config.error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }));
+  if (config.success) return [];
+  return config.error.issues.map((issue): Issue => {
+    const char: unknown = issue.code === "custom" ? issue.params?.["char"] : undefined;
+    return { path: issue.path.join("."), code: issue.code, ...(typeof char === "string" ? { char } : {}) };
+  });
 };
 
 const nodeFindings = ({ nodes }: Graph): Finding[] => {
@@ -181,7 +187,6 @@ const unreachable = ({ nodes, types, reach }: Graph): Finding[] => {
 const REPORTING = new Set([
   "trigger.manual",
   "trigger.schedule",
-  "file.read",
   "condition",
   "join",
   "human.approval",
@@ -191,7 +196,7 @@ const REPORTING = new Set([
 
 /**
  * A28: a report run, as a schedule starts, has only nodes of a type known not to write, so a type added later is
- * refused until it is listed: no file.write, and no workflow.run, whose child the validator cannot see.
+ * refused until it is listed, and so is workflow.run, whose child the validator cannot see.
  */
 const reportOnly = (nodes: WorkflowDefinition["nodes"]): Finding[] =>
   nodes.flatMap((node): Finding[] =>
@@ -208,17 +213,59 @@ const strays = ({ workflow, types }: Graph): Finding[] =>
       .map((node): Finding => ({ code: "workflow.stray-entry", params: { section, node } })),
   );
 
+// Each agent step writes one skill folder, named by its `skill` or its id in lower case; a bad `skill` is a config issue.
+const skillFolders = ({ nodes }: Graph): Finding[] => {
+  const named = new Map<string, string>();
+  return nodes
+    .filter((node) => node.type === "agent.run")
+    .flatMap((node): Finding[] => {
+      const set: unknown = node.with?.["skill"];
+      const name = typeof set === "string" ? set : node.id.toLowerCase();
+      if (typeof set !== "string" && !skillName(name)) {
+        return [{ code: "workflow.skill-name", params: { node: node.id, name } }];
+      }
+      const of = named.get(name);
+      if (of === undefined) named.set(name, node.id);
+      return of === undefined ? [] : [{ code: "workflow.duplicate-skill", params: { node: node.id, name, of } }];
+    });
+};
+
+// A check holds back the agent step before it from ending, so only that step's `done` starts it, and only its own
+// `done` leads on: a hook's result reaches no other node.
+const checkPlacement = ({ nodes, edges }: Graph): Finding[] => {
+  const typeOf = new Map(nodes.map((node) => [node.id, node.type]));
+  return nodes
+    .filter((node) => node.type === "command.run" && node.with?.["role"] === "check")
+    .flatMap((node): Finding[] => {
+      const sources = edges.flatMap(({ from, to }) =>
+        "node" in to &&
+        to.node === node.id &&
+        ("input" in from || typeOf.get(from.node) !== "agent.run" || from.handle !== "done")
+          ? ["node" in from ? from.node : from.input]
+          : [],
+      );
+      const outputs = edges.flatMap(({ from }) =>
+        "node" in from && from.node === node.id && from.handle !== "done" ? [from.handle] : [],
+      );
+      return [
+        ...[...new Set(sources)].map(
+          (from): Finding => ({ code: "workflow.check-source", params: { node: node.id, from } }),
+        ),
+        ...[...new Set(outputs)].map(
+          (handle): Finding => ({ code: "workflow.check-output", params: { node: node.id, handle } }),
+        ),
+      ];
+    });
+};
+
 type Item = Graph["resolved"][number];
 
-// A control input fed by two exclusive outputs of one node waits forever, so its node is skipped; a join `any` merges.
-const exclusiveSources = ({ nodes, types, resolved }: Graph): Finding[] => {
-  const merges = new Set(
-    nodes.filter((node) => node.type === "join" && node.with?.["policy"] === "any").map((n) => n.id),
-  );
+// A control input fed by two exclusive outputs of one node waits forever, so its node is skipped.
+const exclusiveSources = ({ types, resolved }: Graph): Finding[] => {
   const fed = new Map<string, { node: string; handle: string; from: string; outputs: Set<string> }>();
   for (const { edge, to: type } of resolved) {
     const { from, to } = edge;
-    if (!("node" in from) || !("node" in to) || type !== "control" || merges.has(to.node)) continue;
+    if (!("node" in from) || !("node" in to) || type !== "control") continue;
     if (own(types.get(from.node)?.outputs, from.handle)?.exclusive !== true) continue;
     const key = `${to.node}\0${to.handle}\0${from.node}`;
     const entry = fed.get(key) ?? { node: to.node, handle: to.handle, from: from.node, outputs: new Set<string>() };
@@ -265,8 +312,9 @@ const valid = ({ from, to }: Item): boolean => typeof from === "string" && typeo
 
 /**
  * The findings of a workflow's graph, beyond its schema: duplicate ids, one trigger, known node types, edges between
- * existing, compatible handles, one source per data input and output, joins with branches, no cycle, and every node
- * reached, and no node type that waits until after 0.1.0. Edges of nodes of an unknown type get no further findings.
+ * existing, compatible handles, one source per data input and output, joins with branches, no cycle, every node
+ * reached, one skill folder name per agent step, checks right after an agent step, and no node type that waits until
+ * after 0.1.0. Edges of nodes of an unknown type get no further findings.
  * None with severity `error`: the editor and the CLI accept the workflow.
  */
 export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
@@ -304,6 +352,8 @@ export const validateWorkflow = (workflow: WorkflowDefinition): Finding[] => {
     unreachable,
     strays,
     scheduledReports,
+    skillFolders,
+    checkPlacement,
   ];
   return checks.flatMap((check) => check(graph));
 };

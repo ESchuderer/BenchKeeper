@@ -6,23 +6,43 @@
     "task": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 100000
+      "maxLength": 100000,
+      "pattern": "^[^\\u0000-\\u0008\\u000B-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u180E\\u200B\\u200E\\u200F\\u2028-\\u202E\\u2060-\\u2064\\u2066-\\u2069\\uFEFF\\uFFF9-\\uFFFB]*$"
     },
-    "provider": {
-      "description": "`claude-code` when absent",
+    "skill": {
+      "description": "The name of the step's skill folder (https://agentskills.io/specification); from the node id when absent",
+      "type": "string",
+      "pattern": "^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "model": {
+      "description": "A model alias (opus, sonnet, haiku, fable, inherit) or a model id; the session's model when absent",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/[\\]-]{0,199}$"
+    },
+    "effort": {
+      "description": "The reasoning effort; the session's when absent",
       "type": "string",
       "enum": [
-        "claude-code"
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
       ]
     },
-    "phase": {
-      "description": "Picks the pinned model and effort of the phase; `implement` when absent",
-      "type": "string",
-      "enum": [
-        "plan",
-        "implement",
-        "review"
-      ]
+    "tools": {
+      "description": "The Claude Code tools the step's agent may use; Read, Grep and Glob when fresh, else the session's",
+      "minItems": 1,
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,127}$"
+      }
+    },
+    "fresh": {
+      "description": "Runs the step in a fresh context that wrote none of the work, as a reviewer does",
+      "type": "boolean"
     }
   },
   "required": [

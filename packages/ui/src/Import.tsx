@@ -63,9 +63,13 @@ const Risks = ({ risks }: { risks: Review["risks"] }) =>
           {lines.map((risk) => (
             <List.Item key={`${risk.node} ${risk.kind} ${risk.text}`}>
               {t("import.riskKind", { kind: risk.kind, node: risk.node })}{" "}
-              <Text span ff="monospace" inherit>
-                {/* No cut: the contract bounds the text, and its escapes can make it longer than it is. */}
-                {shown(risk.text, Number.POSITIVE_INFINITY)}
+              <Text span ff="monospace" inherit style={{ whiteSpace: "pre-wrap" }}>
+                {/* No cut: the contract bounds the text, and its escapes can make it longer than it is. Line by line:
+                    a line break shown as a space would show a comment where sh runs the next line. */}
+                {risk.text
+                  .split("\n")
+                  .map((line) => shown(line, Number.POSITIVE_INFINITY))
+                  .join("\n")}
               </Text>
             </List.Item>
           ))}

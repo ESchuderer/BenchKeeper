@@ -16,8 +16,8 @@ const undoHint = (p: { runId: string; undoes: string | null }): string =>
 const PIPE =
   "Copy it, then pipe the clipboard in: pbpaste | cedarloom work-items token (macOS; wl-paste on Linux, Get-Clipboard in PowerShell).";
 // An issue's path holds a document's own keys, which may come from elsewhere (an extension's manifest): shown safely.
-const issueList = (issues: { path: string; code: string }[]): string =>
-  issues.map((i) => `${shown(i.path, 200) || "(top)"} ${i.code}`).join(", ");
+const issueList = (issues: { path: string; code: string; char?: string | undefined }[]): string =>
+  issues.map((i) => `${shown(i.path, 200) || "(top)"} ${i.char ?? i.code}`).join(", ");
 // A node's input, or (node null) one of the workflow's own outputs.
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
@@ -113,7 +113,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.duplicate-edge": (p) =>
     `Edge ${p.edge} joins the same output to the same input as edge ${p.of}; remove one.`,
   "workflow.exclusive-sources": (p) =>
-    `Input ${p.handle} of node ${p.node} waits for outputs of ${p.from} of which only one fires, so ${p.node} is always skipped; merge them in a join with policy any.`,
+    `Input ${p.handle} of node ${p.node} waits for outputs of ${p.from} of which only one fires, so ${p.node} is always skipped; give each branch a node of its own.`,
   "workflow.optional-input": (p) =>
     `Input ${p.handle} of node ${p.node} needs a value, but the workflow input ${p.input} it comes from is optional and has no default.`,
   "workflow.schedule-input": (p) =>
@@ -122,6 +122,13 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Node ${p.node} may write files, but a schedule starts this workflow, and a scheduled run only reports.`,
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
+  "workflow.skill-name": (p) =>
+    `Agent step ${p.node} writes its skill folder under the name ${p.name}, which is no skill name (a to z, 0 to 9, single hyphens inside); give the step a skill.`,
+  "workflow.duplicate-skill": (p) =>
+    `Agent steps ${p.node} and ${p.of} both write the skill folder ${p.name}; give one of them another skill.`,
+  "workflow.check-source": (p) =>
+    `Check ${p.node} starts from ${p.from}, but a check runs right after the done of the agent step it holds back.`,
+  "workflow.check-output": (p) => `Check ${p.node} leads on from its ${p.handle}; a check leads on from done only.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,

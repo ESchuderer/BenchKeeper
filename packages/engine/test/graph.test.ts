@@ -27,8 +27,6 @@ const configured: Record<string, object> = {
   "trigger.schedule": { cron: "0 3 * * *", precheck: "true" },
   "agent.run": { task: "Review." },
   "command.run": { command: "true" },
-  "file.read": { path: "in.md" },
-  "file.write": { path: "out.md" },
   "human.approval": { message: "Go on?" },
   "workflow.run": { workflow: "child.json" },
 };
@@ -120,8 +118,8 @@ const goldenFindings: Record<string, string[]> = {
   "findings-optional-input.json": ["workflow.optional-input"],
   // A schedule waits until after 0.1.0, and so does workflow.run, whose config is then not checked.
   "findings-schedule-input.json": ["run.node-unsupported", "workflow.schedule-input"],
-  "findings-report-only-write.json": ["run.node-unsupported", "workflow.report-only-write"],
-  "findings-node-configs.json": Array.from({ length: 8 }, (_, index) =>
+  "findings-report-only-write.json": ["run.node-unsupported", "run.node-unsupported", "workflow.report-only-write"],
+  "findings-node-configs.json": Array.from({ length: 6 }, (_, index) =>
     index === 2 ? "run.node-unsupported" : "workflow.invalid-config",
   ),
 };
@@ -158,12 +156,10 @@ test("twin edges (one output to one input twice) are one finding; a join fed by 
   ]);
 });
 
-test("skips: exclusive outputs into one control input are a warning, unless a join with policy any merges them", () => {
+test("skips: exclusive outputs into one control input are a warning", () => {
   const graph = workflow(
-    [start, "c:command.run", "a:human.approval", "x:command.run", 'm:join:{"policy":"any"}', 'k:join:{"policy":"all"}'],
+    [start, "c:command.run", "a:human.approval", "x:command.run", 'k:join:{"policy":"all"}'],
     ["start.start>c.run", "c.done>a.run", "c.failed>a.run", "a.approved>x.run", "a.rejected>x.run"].concat([
-      "a.approved>m.branches",
-      "a.rejected>m.branches",
       "c.done>k.branches",
       "c.failed>k.branches",
     ]),
@@ -370,10 +366,11 @@ test("every node type has a configuration schema, and a node's `with` is checked
       'start:trigger.manual:{"precheck":"test -d .git"}',
       "a:command.run:{}",
       'b:command.run:{"command":"pnpm test","cwd":"../up"}',
-      'c:agent.run:{"task":"Plan it.","phase":"plan","provider":"claude-code"}',
-      'd:file.read:{"path":"/etc/hosts"}',
+      'c:agent.run:{"task":"Plan it.","skill":"plan-it","model":"opus","effort":"xhigh","tools":["Read","mcp__docs__search"]}',
+      'd:agent.run:{"task":"Review.","skill":"Review_it","fresh":true,"tools":[]}',
+      'e:command.run:{"command":"echo \u202eexe.txt"}',
     ],
-    ["start.start>a.run", "start.start>b.run", "start.start>c.run", "start.start>d.run"],
+    ["start.start>a.run", "start.start>b.run", "start.start>c.run", "start.start>d.run", "start.start>e.run"],
   );
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.invalid-config", params: { node: "a", issues: [{ path: "command", code: "invalid_type" }] } },
@@ -388,18 +385,56 @@ test("every node type has a configuration schema, and a node's `with` is checked
         ],
       },
     },
-    { code: "workflow.invalid-config", params: { node: "d", issues: [{ path: "path", code: "invalid_format" }] } },
+    // A skill folder's name follows the Agent Skills rules; an agent with no tool does not start.
+    {
+      code: "workflow.invalid-config",
+      params: {
+        node: "d",
+        issues: [
+          { path: "skill", code: "invalid_format" },
+          { path: "tools", code: "too_small" },
+        ],
+      },
+    },
+    // What nobody sees is named.
+    {
+      code: "workflow.invalid-config",
+      params: { node: "e", issues: [{ path: "command", code: "custom", char: "U+202E" }] },
+    },
   ]);
 });
 
-test("A28: a workflow a schedule starts may not write a file; the same graph started by hand may", () => {
-  const nodes = ["start:trigger.schedule", "w:file.write"];
-  expect(validateWorkflow(workflow(nodes, ["start.start>w.run"]))).toEqual([
-    { code: "run.node-unsupported", params: { node: "start", type: "trigger.schedule" } },
-    { code: "workflow.report-only-write", params: { node: "w" } },
+test("each agent step writes a skill folder of its own name; a check runs right after an agent step and leads on from done", () => {
+  const graph = workflow(
+    [
+      start,
+      "Review_It:agent.run",
+      "review:agent.run",
+      "Review:agent.run",
+      'x:agent.run:{"task":"X.","skill":"review"}',
+    ].concat([
+      'c:command.run:{"command":"true","role":"check"}',
+      'd:command.run:{"command":"true","role":"check"}',
+      "k:command.run",
+    ]),
+    ["start.start>Review_It.run", "start.start>review.run", "start.start>Review.run", "start.start>x.run"].concat([
+      "review.done>c.run",
+      "c.failed>k.run",
+      "start.start>d.run",
+    ]),
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    // Without a skill, the id in lower case names the folder; review_it is no Agent Skills name.
+    { code: "workflow.skill-name", params: { node: "Review_It", name: "review_it" } },
+    { code: "workflow.duplicate-skill", params: { node: "Review", name: "review", of: "review" } },
+    { code: "workflow.duplicate-skill", params: { node: "x", name: "review", of: "review" } },
+    { code: "workflow.check-output", params: { node: "c", handle: "failed" } },
+    { code: "workflow.check-source", params: { node: "d", from: "start" } },
   ]);
-  expect(validateWorkflow(workflow([start, "w:file.write"], ["start.start>w.run"]))).toEqual([]);
-  // A child workflow could write, and the validator cannot see it: under a schedule, workflow.run is refused too.
+});
+
+test("A28: a workflow a schedule starts holds only node types known not to write", () => {
+  // A child workflow could write, and the validator cannot see it: under a schedule, workflow.run is refused.
   expect(codes(workflow(["start:trigger.schedule", "c:workflow.run"], ["start.start>c.run"]))).toEqual([
     "run.node-unsupported",
     "run.node-unsupported",

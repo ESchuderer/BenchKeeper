@@ -38,8 +38,6 @@ export const NODE_TYPES: Readonly<Record<string, NodeType>> = {
   "trigger.schedule": { inputs: {}, outputs: { start: control } },
   "agent.run": { inputs: { ...run, context: text }, outputs: { ...ended, result: text } },
   "command.run": { inputs: run, outputs: { ...ended, stdout: text, exitCode: { type: "number" } } },
-  "file.read": { inputs: run, outputs: { ...ended, content: text } },
-  "file.write": { inputs: { ...run, content: text }, outputs: ended },
   condition: {
     inputs: { ...run, value: { type: "boolean", required: true } },
     outputs: { true: branch, false: branch },

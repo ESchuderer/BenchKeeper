@@ -91,7 +91,6 @@
           "precheck": ["Precheck"],
           "command": ["Command"],
           "agent": ["Agent task"],
-          "write": ["Writes"],
           "workflow": ["Calls the workflow"],
           "other": [["kind"]]
         }
@@ -152,6 +151,20 @@
       ["binding"],
       "."
     ],
+    "problem.checkOutput": [
+      "Check ",
+      ["node"],
+      " leads on from its ",
+      ["handle"],
+      "; a check leads on from done only."
+    ],
+    "problem.checkSource": [
+      "Check ",
+      ["node"],
+      " starts from ",
+      ["from"],
+      ", but a check runs right after the done of the agent step it holds back."
+    ],
     "problem.cycle": ["The nodes ", ["nodes"], " form a cycle; repeats need an explicit loop node."],
     "problem.danglingEdge": ["Edge ", ["edge"], " starts or ends at ", ["ref"], ", which does not exist."],
     "problem.documentInvalid": ["It does not match the workflow schema: ", ["issues"], "."],
@@ -194,6 +207,15 @@
       "; remove one."
     ],
     "problem.duplicateId": ["More than one ", ["kind"], " has the id ", ["id"], "."],
+    "problem.duplicateSkill": [
+      "Agent steps ",
+      ["node"],
+      " and ",
+      ["of"],
+      " both write the skill folder ",
+      ["name"],
+      "; give one of them another skill."
+    ],
     "problem.exclusiveSources": [
       "Input ",
       ["handle"],
@@ -203,7 +225,7 @@
       ["from"],
       " of which only one fires, so ",
       ["node"],
-      " is always skipped; merge them in a join with policy any."
+      " is always skipped; give each branch a node of its own."
     ],
     "problem.extra": [
       ["item"],
@@ -268,6 +290,13 @@
       " needs a default."
     ],
     "problem.severity": [["severity", "select", { "error": ["Error"], "warning": ["Warning"], "other": ["Note"] }]],
+    "problem.skillName": [
+      "Agent step ",
+      ["node"],
+      " writes its skill folder under the name ",
+      ["name"],
+      ", which is no skill name (a to z, 0 to 9, single hyphens inside); give the step a skill."
+    ],
     "problem.sourceWaiting": [
       ["source"],
       " has a new commit ",

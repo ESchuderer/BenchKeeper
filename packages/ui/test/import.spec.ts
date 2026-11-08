@@ -18,8 +18,8 @@ let state = "";
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const FILES = ["cedarloom-export.json", "workflows/workflow-w.json"];
 
-// A command whose right-to-left override (U+202E) would show it to a reader as "echo txt.exe" (Trojan Source).
-const TROJAN = { id: "trojan", type: "command.run", with: { command: "echo \u202Eexe.txt" } };
+// A command whose second line a review showing line breaks as spaces would show as part of a comment.
+const TWO_LINES = { id: "two", type: "command.run", with: { command: "echo ok #\necho second" } };
 
 // The corpus's build-and-review stored on the machine of `at` as `id`, with `more` nodes.
 const store = (at: string, id: string, more: object[] = []): void => {
@@ -31,10 +31,10 @@ const store = (at: string, id: string, more: object[] = []): void => {
   applyPlan(at, save.value.plan, { yes: true });
 };
 
-// Another machine's export of the corpus's build-and-review as w, with TROJAN, served as one commit of any Git source.
+// Another machine's export of the corpus's build-and-review as w, with TWO_LINES, served as one commit of any Git source.
 const exported = (root: string): Fetch => {
   const from = join(root, "from");
-  store(from, "w", [TROJAN]);
+  store(from, "w", [TWO_LINES]);
   const folder = join(from, "shared");
   const exporting = planExport(from, ["w"], folder, { name: "Team flows" });
   if (!exporting.ok) throw new Error("w was not exported");
@@ -64,7 +64,7 @@ test.afterAll(async () => {
   }
 });
 
-test("an import shows every command and agent task, a bidirectional control escaped, before anything is stored, is offered again only after a new review once the store moved, imports on the user's word, and then offers nothing; the view passes axe", async () => {
+test("an import shows every command and agent task, line by line, before anything is stored, is offered again only after a new review once the store moved, imports on the user's word, and then offers nothing; the view passes axe", async () => {
   await page.goto(server.url);
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Import" }).click();
   const main = page.getByRole("main");
@@ -74,10 +74,12 @@ test("an import shows every command and agent task, a bidirectional control esca
   // The review takes the focus, so a screen reader reads it first.
   await expect(main.getByRole("heading", { level: 3 })).toBeFocused();
   await expect(main.getByRole("row").filter({ hasText: /^w/ })).toHaveCount(1);
-  // The override shows as its escape, so the line reads as the command that runs.
-  for (const line of ["pnpm lint", "pnpm test", "Review the changes and list findings.", "echo \\u202eexe.txt"]) {
+  for (const line of ["pnpm lint", "pnpm test", "Review the changes and list findings."]) {
     await expect(main.getByRole("listitem").filter({ hasText: line })).toHaveCount(1);
   }
+  expect(await main.getByRole("listitem").filter({ hasText: "echo second" }).innerText()).toContain(
+    "echo ok #\necho second",
+  );
   await accessible(page);
   // The store moves on before Import: the plan shown no longer applies, so the review leaves with its Import.
   store(state, "elsewhere");

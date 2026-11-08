@@ -211,7 +211,7 @@ const REPORTING = new Set([
  * refused until it is listed: no file.write, and no workflow.run, whose child the validator cannot see. No extension
  * action either, which may write through the host or change other systems (P9 b).
  */
-export const reportOnly = (nodes: WorkflowDefinition["nodes"]): Finding[] =>
+const reportOnly = (nodes: WorkflowDefinition["nodes"]): Finding[] =>
   nodes.flatMap((node): Finding[] => {
     if (isExtensionType(node.type)) return [{ code: "workflow.report-only-extension", params: { node: node.id } }];
     return REPORTING.has(node.type) ? [] : [{ code: "workflow.report-only-write", params: { node: node.id } }];

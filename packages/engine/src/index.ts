@@ -1,28 +1,5 @@
 export { type ApplyOptions, apply, type Outcome, type Phase, type StoreBranch } from "./apply.ts";
 export {
-  type ApprovalGate,
-  levelAt,
-  type OwnerOnly,
-  type Question,
-  routeQuestion,
-  stricterLevel,
-  waitsAtGraphGate,
-  waitsForOwner,
-} from "./automation.ts";
-export {
-  type Attempt,
-  capped,
-  DEFAULT_GATES,
-  type ExecuteOptions,
-  type Executors,
-  execute,
-  type Gates,
-  type Left,
-  OUTPUT_CAP,
-  type Prepared,
-  type Recovery,
-} from "./execute.ts";
-export {
   asidePath,
   errorCode,
   hashFile,
@@ -33,13 +10,5 @@ export {
   writeAtomic,
 } from "./files.ts";
 export { recover } from "./recover.ts";
-export {
-  type Action,
-  replay,
-  resolveInputs,
-  type Step,
-  startRun,
-  step,
-} from "./schedule.ts";
 export { planUndo, type UndoPlan } from "./undo.ts";
-export { reportOnly, validateWorkflow } from "./validate.ts";
+export { validateWorkflow } from "./validate.ts";

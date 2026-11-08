@@ -25,10 +25,7 @@ const views = (handles: Readonly<Record<string, { type: HandleType }>> | undefin
 
 const card = (id: string, data: CardData, position: Position): Node<CardData> => ({ id, type: "card", position, data });
 
-/**
- * The canvas of a workflow: a node per workflow node at its `layout` position, nodes without one in a row below the
- * placed ones, and an edge per workflow edge. Nothing else of the canvas is kept: the workflow is the only source.
- */
+// Nodes without a `layout` position go in a row below; nothing else of the canvas is kept, the workflow is the source.
 export const project = (workflow: WorkflowDefinition): { nodes: Node<CardData>[]; edges: Edge[] } => {
   const placed = workflow.layout?.nodes ?? {};
   const ys = workflow.nodes.flatMap((node) => own(placed, node.id)?.y ?? []);

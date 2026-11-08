@@ -15,8 +15,7 @@ const Init = z.looseObject({
   claude_code_version: z.unknown(),
   model: z.string(),
   tools: z.array(z.string()).optional(),
-  // The Agent SDK's SDKSystemMessage (https://code.claude.com/docs/en/agent-sdk/typescript). A field of another form is
-  // left out, so it never costs the line its settings proof.
+  // Other forms are left out, so they never cost the settings proof: docs/agents/cedarloom-rationale.md#stream-json
   plugins: z
     .array(z.looseObject({ name: z.string() }))
     .optional()
@@ -28,16 +27,14 @@ const Init = z.looseObject({
     .catch(undefined),
 });
 
-// The usage share arrives as a fraction and the reset in Unix seconds; a share above 1 or a reset past the year 2286
-// means the format changed, and the line is not read.
+// A fraction and Unix seconds; a share above 1 or a reset past 2286 means the format changed, so the line is not read.
 const Window = z.looseObject({
   status: z.string(),
   utilization: z.number().min(0).max(1).optional(),
   resetsAt: z.int().min(0).max(1e10).optional(),
 });
 
-// Undocumented for `claude -p`, so read only on versions whose contract check passed. Observed: 2.1.316 reports every
-// window in `unifiedWindows`, 2.1.309 the limiting window at the top.
+// Undocumented for `claude -p`: read only after a passed contract check (2.1.316: unifiedWindows; 2.1.309: top level).
 const RateLimit = z.looseObject({
   type: z.literal("rate_limit_event"),
   rate_limit_info: Window.extend({
@@ -54,8 +51,7 @@ const Result = z.looseObject({
 });
 
 const Tokens = z.int().min(0).max(Number.MAX_SAFE_INTEGER);
-// What a result reports of the session's spend: the cost and each model's tokens, read apart from the result itself, so
-// a field of another shape costs only the totals, never the verdict.
+// Read apart from the result, so a field of another shape costs only the totals, never the verdict.
 const Spend = z.looseObject({
   total_cost_usd: z.number().min(0).max(1e9),
   modelUsage: z.record(
@@ -69,9 +65,7 @@ const Spend = z.looseObject({
   ),
 });
 
-// The session's totals over every model it used, subagents included, which `usage` leaves out
-// (https://code.claude.com/docs/en/agent-sdk/cost-tracking); none when the result reports none, or only zeros, as the
-// result of a crashed session may.
+// Over every model and subagent; null for none or all zeros: docs/agents/cedarloom-rationale.md#stream-json
 const totalsOf = (raw: Json): RunTotals | null => {
   const spend = Spend.safeParse(raw);
   if (!spend.success) return null;
@@ -90,9 +84,7 @@ const totalsOf = (raw: Json): RunTotals | null => {
 
 type RateLimitInfo = z.infer<typeof RateLimit>["rate_limit_info"];
 
-// Claude Code's window names in the agent-neutral quota model; a window not listed is reported but not stored.
-// 2.1.316's unifiedWindows schema names five_hour, seven_day and seven_day_overage_included, the Fable limit (as
-// claude-swap v0.30.0 maps it); seven_day_opus and seven_day_sonnet are the usage report's names for those models.
+// Claude Code's window names; an unlisted one is reported, not stored: docs/agents/cedarloom-rationale.md#quota-names
 const QUOTA: Readonly<Record<string, UsageWindow["quota"]>> = {
   five_hour: "fiveHour",
   seven_day: "sevenDay",
@@ -118,11 +110,7 @@ const parseJson = (line: string): Json => {
   }
 };
 
-/**
- * Splits stdout into lines, and ends with `null` in place of a line longer than `max` bytes: a string past the engine's
- * limit (https://nodejs.org/api/buffer.html#bufferconstantsmax_string_length) throws where no caller can catch it. The
- * size is checked per chunk, so a line passes `max` by one chunk at most.
- */
+// A line over `max` bytes ends the lines as `null`: docs/agents/cedarloom-rationale.md#stream-json
 export async function* lines(input: AsyncIterable<Buffer>, max: number): AsyncGenerator<string | null> {
   let parts: Buffer[] = [];
   let size = 0;
@@ -164,10 +152,7 @@ const initEvent = (data: z.infer<typeof Init>, raw: Json): Extract<AgentEvent, {
   return { type: "init", sessionId, agentVersion, model, tools, settingsApplied, plugins, raw };
 };
 
-/**
- * Turns stream-json lines into events, one call per line. A rate-limit line becomes a usage event only after the init
- * line named a version that `verified` accepts; otherwise, like every line it does not know, it stays `other`.
- */
+// A rate-limit line becomes usage only after the init line named a `verified` version; unknown lines stay `other`.
 export const streamParser = (verified: (version: string) => boolean): ((line: string) => AgentEvent) => {
   let version: string | undefined;
   return (line) => {

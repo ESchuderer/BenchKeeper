@@ -36,9 +36,6 @@ export const workflowsRun = async (
 ): Promise<number> =>
   ran(ctx, await useCases.runWorkflow(ctx.state, file, inputs, { ...runOptions(ctx, project), report }));
 
-// Without --yes, what a resume or a cancel would do; nothing changes. A cancel starts nothing, so it needs no folder.
-// What becomes of the attempts still running: a live runner ends them cancelled; a dead runner's end interrupted,
-// except an agent's that a resume recovers and a write whose apply run applied.
 const ATTEMPTS = {
   live: "Running now; its runner ends them cancelled:",
   resume:
@@ -47,6 +44,7 @@ const ATTEMPTS = {
     "Left running when its runner died; a write whose apply run applied ends cancelled with its file written, the others end interrupted:",
 } as const;
 
+// Without --yes: what a resume or a cancel would do; a cancel starts nothing, so it needs no folder.
 const preview = (ctx: Context, runId: string, project: string | undefined, verb: "resume" | "cancel"): number => {
   const plan = useCases.planGraphRun(ctx.state, runId, { verb, project });
   if (!plan.ok) return fail(ctx, "run", [plan.finding], EXIT.refused);
@@ -80,8 +78,7 @@ interface Acting {
 // A configuration value as text: the validator checked that these are strings.
 const said = (value: Json | undefined): string => (typeof value === "string" ? value : JSON.stringify(value ?? ""));
 
-// A write's content as the owner reads it before approving: its lines and tabs as they are, every other control or
-// bidirectional character as an escape, so the untrusted content cannot move the cursor or rewrite what is shown.
+// Lines and tabs as they are, other control and bidirectional characters escaped, so content cannot move the cursor.
 const escaped = (content: string): string =>
   content
     .split("\n")

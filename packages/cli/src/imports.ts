@@ -42,10 +42,7 @@ const reviewText = ({ source, units, risks, extensions }: ImportReview): string 
   ].join("\n");
 };
 
-/**
- * Shows the review of an import from an export folder or a Git source, and its plan; with --yes stores the new and
- * updated workflows as one run, which runs undo takes back (P6 a: an import is always reviewed).
- */
+// Shows an import's review and plan; with --yes stores the workflows as one run, which runs undo takes back (P6 a).
 export const importCommand = async (ctx: Context, from: useCases.From, yes?: true): Promise<number> => {
   const planned = await useCases.planImport(ctx.state, from, ctx.io.fetch);
   if (!planned.ok) return refused(ctx, "plan", planned.finding);

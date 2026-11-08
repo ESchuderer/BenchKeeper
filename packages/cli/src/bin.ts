@@ -11,8 +11,7 @@ const untilStopped = (): Promise<void> =>
     for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => resolve());
   });
 
-// Claude Code by its file, never by its bare name; off PATH, where its installer puts it
-// (https://code.claude.com/docs/en/troubleshoot-install), so a missing one fails to start.
+// By its file where its installer puts it, never its bare name: https://code.claude.com/docs/en/troubleshoot-install
 const native = join(homedir(), ".local", "bin", process.platform === "win32" ? "claude.exe" : "claude");
 const claude = [programPath("claude", process.env) ?? native] as const;
 

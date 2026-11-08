@@ -62,13 +62,7 @@ const errors = (app: FastifyInstance, log: (text: string) => void): void => {
 
 const components = createJsonSchemaTransformObject({ schemaRegistry: contracts });
 const self = { $ref: "#/components/schemas/WorkflowJsonInput" };
-/**
- * The workflow JSON as a request carries it. Fastify's JSON parser refuses a `__proto__` key and a `constructor` object
- * with a `prototype` key at any depth (400 FST_ERR_CTP_INVALID_JSON_BODY), so the document says so, and clients and
- * Schemathesis send only JSON that reaches the route. Only the document: a recursive zod schema would overflow the stack
- * on deeply nested values, which readDocument refuses with a finding. The first branch has no `type: "array"`, so the
- * generated client type stays `unknown` and not one TypeScript refuses as circular.
- */
+// The workflow JSON a request carries, without a recursive schema: docs/agents/cedarloom-rationale.md#workflow-json
 const WorkflowJsonInput = {
   anyOf: [
     { not: { type: "object" }, items: self },
@@ -90,11 +84,7 @@ const description = [
 // One segment of a route pattern as a regular expression: `:name` matches any one segment, anything else itself.
 const segment = (part: string): string => (part.startsWith(":") ? "[^/]+" : RegExp.escape(part));
 
-/**
- * 404 for a path no route has, 405 with an Allow header for a path that other methods have (RFC 9110, 15.5.6). It
- * answers before the body is read, so a body-carrying method such as QUERY gets the same answer, and it answers the
- * files' misses too, so an API path the web UI's `/*` route caught (GET /api/session) still gets its 405.
- */
+// 404 for an unknown path, 405 with Allow for another method's (RFC 9110, 15.5.6), before the body and for files too.
 const methods = (app: FastifyInstance): void => {
   const routes: { method: string; path: RegExp }[] = [];
   app.addHook("onRoute", ({ method, url }) => {
@@ -113,14 +103,14 @@ const methods = (app: FastifyInstance): void => {
   app.addHook("onRequest", async (req, reply) => (req.routeOptions.url === undefined ? answer(req, reply) : undefined));
 };
 
-// A request must arrive whole within 30 s: Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
-// Closing ends the open event streams too, so a stopped `cedarloom ui` exits at once.
-// A JSON body with a __proto__ or constructor.prototype key is refused: Fastify's default, stated as CedarLoom's policy.
 const SERVER = {
   bodyLimit: BODY_LIMIT,
   frameworkErrors,
+  // Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
   requestTimeout: 30_000,
+  // Ends the open event streams too, so a stopped `cedarloom ui` exits at once.
   forceCloseConnections: true,
+  // Fastify's defaults, stated as CedarLoom's policy.
   onProtoPoisoning: "error",
   onConstructorPoisoning: "error",
 } as const;
@@ -145,8 +135,7 @@ export const buildApp = async (options: AppOptions): Promise<FastifyInstance> =>
       return object;
     },
   });
-  // Plain HTTP on loopback: no HSTS, and the whole CSP spelled out (helmet's defaults allow https: sources and upgrade
-  // requests to https). Mantine writes its CSS variables into a style element, so styles may be inline.
+  // Loopback HTTP: no HSTS, the whole CSP (helmet's defaults allow https: and upgrade); Mantine needs inline styles.
   await app.register(helmet, {
     hsts: false,
     contentSecurityPolicy: {
@@ -172,8 +161,7 @@ export const buildApp = async (options: AppOptions): Promise<FastifyInstance> =>
   await app.register(graphRunRoutes, { state });
   await app.register(importRoutes, { state, fetch });
   await app.register(profileRoutes, { config, state, machine, app: options.app, fetch });
-  // The package is CommonJS typed as ESM: its typed export is the bare plugin, so it gets the same fastify-plugin wrap
-  // as its own module.exports, which shares reply.sse with the routes beside it.
+  // CommonJS typed as ESM: wrapped as its module.exports is, so reply.sse reaches the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));
   await app.register(eventRoutes, { state, every, log });
   if (ui !== undefined && existsSync(join(ui, "index.html")))

@@ -28,13 +28,7 @@ const MAX_LINE_BYTES = 64 * 1024 * 1024;
 // The probe asks for the shortest answer, so a check spends little of the account's usage.
 const PROBE_PROMPT = "Reply with the single word OK.";
 
-// On SIGTERM the CLI stops the process tree of a running command and exits; a slow reader delays the exit by 30 s at most
-// (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm). Windows has no POSIX signals: kill() ends the CLI
-// at once and leaves its commands running (https://nodejs.org/api/child_process.html#subprocesskillsignal), so taskkill
-// ends the whole tree there, also at once and without the CLI's SessionEnd hooks. It runs from System32, not from PATH.
-// A CLI still running `killAfterMs` after SIGTERM gets SIGKILL with its process group; its exit clears the timer, since a
-// signal sent after it would reach any process that reuses its ID
-// (https://nodejs.org/api/child_process.html#subprocesskillsignal).
+// Cancel and kill, also on Windows: docs/agents/git-and-processes.md#stopping-claude-code
 const TASKKILL = join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");
 const stop = (child: ChildProcess, killAfterMs: number): void => {
   // Once the CLI has exited, Windows may give its process ID to another process, whose tree taskkill would end.
@@ -53,16 +47,8 @@ const stop = (child: ChildProcess, killAfterMs: number): void => {
   child.once("exit", () => clearTimeout(timer));
 };
 
-// On POSIX the CLI runs in a process group of its own, so a kill reaches the commands it started there. A watcher holds
-// a pipe from the host and, when the pipe closes before the host says the CLI exited (the host died, also by SIGKILL or
-// with its terminal), stops the CLI as a cancel does: SIGTERM, on which the CLI stops its running command's tree, whose
-// Bash tool commands lead groups of their own (Claude Code 2.1.316), then SIGKILL to the CLI's group while it is
-// still there after the grace. A group with members keeps its ID from reuse
-// (https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap04.html, 4.17).
-// On Windows the CLI runs outside the host's job object, which would end the CLI with the host but leave the commands
-// that broke away from it running (hub issue 142); the watcher ends the CLI's whole tree with taskkill instead.
-// shortcut: a CLI that ignores SIGTERM leaves the commands in groups of their own running, on a cancel too (hub issue
-// 143).
+// Stops the CLI should the host die first: docs/agents/git-and-processes.md#stopping-claude-code
+// shortcut: a CLI ignoring SIGTERM leaves commands in groups of their own running, on a cancel too (hub issue 143).
 const WATCHER = `let exited = false;
 const [pid, grace] = process.argv.slice(1).map(Number);
 const taskkill = process.argv[3];
@@ -81,9 +67,7 @@ host.on("close", () => {
   }, 250);
 });`;
 
-// The CLI's process, detached: on POSIX in a process group of its own, on Windows outside the host's job object; a
-// watcher stops it should the host die first. A CLI the host cannot watch (no watcher started: EAGAIN, EMFILE, ENFILE)
-// is stopped at once.
+// Detached, with a watcher; a CLI no watcher can watch (EAGAIN, EMFILE, ENFILE) is stopped at once.
 const spawned = (file: string, args: readonly string[], launch: ClaudeLaunch, killAfterMs: number) => {
   const child = spawn(file, args, { cwd: launch.cwd, env: launchEnv(launch), detached: true, windowsHide: true });
   if (child.pid === undefined) return child;
@@ -141,9 +125,7 @@ const run = (
   });
   async function* events(): AsyncGenerator<AgentEvent> {
     const parse = streamParser(verified);
-    // A reader that leaves early (a session without the settings proof, a throw) must not close stdout: the CLI would
-    // die of EPIPE on its next line, before a cancel reaches it, and leave its commands running. Its output is drained
-    // instead (readable.iterator is stable since Node 24: https://nodejs.org/api/stream.html#readableiteratoroptions).
+    // An early leave drains stdout instead of closing it: docs/agents/git-and-processes.md#stopping-claude-code
     try {
       for await (const line of lines(child.stdout.iterator({ destroyOnReturn: false }), MAX_LINE_BYTES)) {
         if (line === null) {
@@ -166,11 +148,7 @@ const run = (
   };
 };
 
-/**
- * Checks a probe's events: the version ran, its tool list lacks the settings' sentinel (so the CLI applied the
- * settings), at least one usage window has a share and a reset time (without one, nothing ages the reading out), and
- * the result succeeded.
- */
+// Version ran, sentinel gone (settings applied), a window with a share and a reset (else nothing ages it out), result succeeded.
 const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   const events: AgentEvent[] = [];
   for await (const event of session.events) events.push(event);
@@ -191,8 +169,7 @@ const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   };
 };
 
-// The fields of `claude auth status` the doctor reads (https://code.claude.com/docs/en/cli-reference); the CLI prints
-// more, and `configDirectory` only from 2.1.268.
+// The fields the doctor reads (https://code.claude.com/docs/en/cli-reference); `configDirectory` only from 2.1.268.
 const AuthStatus = z.object({ authMethod: z.string(), configDirectory: z.string().optional() });
 
 // The JSON a CLI printed, or undefined when it is none.
@@ -204,8 +181,7 @@ const json = (text: string): unknown => {
   }
 };
 
-// The login status a finished `claude auth status` reports: its JSON with exit 0 (logged in) or 1 (logged out). `code`
-// is the exit code, or why the CLI did not run (ENOENT), with `message` the error's.
+// Exit 0 logged in, 1 logged out; `code` is the exit code or why the CLI did not run (ENOENT), `message` the error's.
 const statusOf = (code: number | string | undefined, stdout: string, message: string | undefined): LoginStatus => {
   const status = AuthStatus.safeParse(json(stdout));
   if (status.success && code === 1) return { kind: "logged-out" };

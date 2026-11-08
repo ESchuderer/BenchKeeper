@@ -15,10 +15,7 @@ const runVerb = async (ctx: Context, id: string, action: string, allow: string[]
   return EXIT.ok;
 };
 
-/**
- * The verbs the app's own extensions contribute (`contributes.commands`), each under the extension's noun, its id
- * after `cedarloom.`: `cedarloom orca status` runs the action `status` of `cedarloom.orca` and prints its outputs.
- */
+// The app's own extensions' verbs under their noun: `cedarloom orca status` runs `status` of `cedarloom.orca`.
 export const contributedGroups = (program: Command, ctx: () => Context, done: (code: number) => void): void => {
   const { app, config } = ctx();
   const bundled = useCases.bundledExtensions(app, config);

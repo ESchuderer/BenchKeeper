@@ -1,8 +1,9 @@
 import { type AutomationLevel, type Result, severityOf, type WorkflowDefinition } from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine/validate";
 import { claudeFiles, workflowOf } from "./claude.ts";
+import { codexFiles } from "./codex.ts";
 import { type PackageFile, stepFiles } from "./files.ts";
-import { nameOf, skillOf, stagesOf } from "./stages.ts";
+import { nameOf, precheckOf, skillOf, stagesOf } from "./stages.ts";
 
 export type { PackageFile } from "./files.ts";
 export { type Source, type StageScript, type Step, stageScript } from "./runner.ts";
@@ -40,7 +41,9 @@ export const buildPackage = (workflow: WorkflowDefinition, level: AutomationLeve
   if (taken !== undefined) return { ok: false, finding: { code: "package.name-taken", params: taken } };
   const files = [
     ...claudeFiles(workflow, stages.value, { plugin, level }),
+    ...codexFiles(workflow, stages.value, { plugin, level }),
     ...steps.flatMap((node) => stepFiles(workflow, node)),
+    ...precheckOf(workflow),
   ];
   return { ok: true, value: files.toSorted((a, b) => (a.path < b.path ? -1 : 1)) };
 };

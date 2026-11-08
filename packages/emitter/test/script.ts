@@ -28,17 +28,29 @@ export const runScript = async (
       calls.push({ prompt, options });
       return answer({ prompt, options });
     };
-    return [await module.default(agent, parallel, JSON.stringify({ root: "/plugin", inputs })), calls];
+    return [sortedLists(await module.default(agent, parallel, JSON.stringify({ root: "/plugin", inputs }))), calls];
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
 };
 
+const byText = (a: unknown, b: unknown): number => (String(a) < String(b) ? -1 : 1);
+
+// A report's step lists in sorted order: the order in which side-by-side steps finish is timing, which no test pins.
+const sortedLists = (value: unknown): unknown => {
+  if (typeof value !== "object" || value === null) return value;
+  const lists = ["done", "failed", "skipped"].map((key) => [key, Reflect.get(value, key)]);
+  return {
+    ...value,
+    ...Object.fromEntries(lists.map(([key, list]) => [key, Array.isArray(list) ? list.toSorted(byText) : list])),
+  };
+};
+
 // A stage's report: the steps that ran, failed and were skipped, with no stop and no output unless `more` says.
 export const report = (done: string[], failed: string[] = [], skipped: string[] = [], more: object = {}): object => ({
-  done,
-  failed,
-  skipped,
+  done: done.toSorted(byText),
+  failed: failed.toSorted(byText),
+  skipped: skipped.toSorted(byText),
   stops: [],
   outputs: {},
   ...more,

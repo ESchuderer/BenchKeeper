@@ -95,6 +95,12 @@ test("a failing check sends its agent step back with what it said, and a check s
   expect(calls.some(({ prompt, options }) => options?.["label"] === "impl" && prompt.includes("1 failed"))).toBe(true);
   const [failed] = await runScript(stageOf(steps), never);
   expect(failed).toEqual(report(["start"], ["impl", "c"]));
+  // A check's own retries run first: a flaky check passing on its retry never sends the step back.
+  const flaky = steps.map((each) => (each.id === "c" ? { ...each, retries: 1 } : each));
+  checked = 0;
+  const [retried, again] = await runScript(stageOf(flaky), once);
+  expect(retried).toEqual(report(["start", "impl", "c"]));
+  expect(again.some(({ prompt }) => prompt.includes("1 failed"))).toBe(false);
 });
 
 test("after a gate the next stage starts from its output; a condition picks a branch, and fail_fast ends a stage", async () => {

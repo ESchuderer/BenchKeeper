@@ -1,6 +1,6 @@
 import { type StageScript, type Step, stageScript } from "@cedarloom/emitter";
 import { expect, test } from "vitest";
-import { type Call, runScript as runText } from "./script.ts";
+import { type Call, passing, report, runScript as runText } from "./script.ts";
 
 // Runs a stage as its written script.
 const runScript = (stage: StageScript, answer: (call: Call) => unknown, inputs: object = {}) =>
@@ -25,17 +25,6 @@ const stageOf = (steps: Step[], more: Partial<StageScript> = {}): StageScript =>
   outputs: {},
   ...more,
 });
-// A stage's report: the steps that ran, failed and were skipped, with no stop and no output unless `more` says.
-const report = (done: string[], failed: string[] = [], skipped: string[] = [], more: object = {}): object => ({
-  done,
-  failed,
-  skipped,
-  stops: [],
-  outputs: {},
-  ...more,
-});
-
-const passing = { exitCode: 0, output: "ok" };
 const isCommand = ({ options }: Call): boolean => options?.["schema"] !== undefined;
 
 // Every check fails; every agent answers.

@@ -28,3 +28,15 @@ export const runScript = async (
   };
   return [await module.default(agent, parallel, JSON.stringify({ root: "/plugin", inputs })), calls];
 };
+
+// A stage's report: the steps that ran, failed and were skipped, with no stop and no output unless `more` says.
+export const report = (done: string[], failed: string[] = [], skipped: string[] = [], more: object = {}): object => ({
+  done,
+  failed,
+  skipped,
+  stops: [],
+  outputs: {},
+  ...more,
+});
+
+export const passing = { exitCode: 0, output: "ok" };

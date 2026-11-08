@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { type AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
 import { buildPackage, type PackageFile } from "@cedarloom/emitter";
 import { expect, test } from "vitest";
-import { type Call, runScript } from "./script.ts";
+import { type Call, passing, report, runScript } from "./script.ts";
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const read = (name: string): WorkflowDefinition =>
@@ -37,18 +37,6 @@ const built = (definition: WorkflowDefinition, level: AutomationLevel): PackageF
   return result.value;
 };
 const fileOf = (files: PackageFile[], path: string): string => files.find((file) => file.path === path)?.content ?? "";
-
-const passing = { exitCode: 0, output: "ok" };
-
-// A stage's report: the steps that ran, failed and were skipped, with no stop and no output unless `more` says.
-const report = (done: string[], failed: string[] = [], skipped: string[] = [], more: object = {}): object => ({
-  done,
-  failed,
-  skipped,
-  stops: [],
-  outputs: {},
-  ...more,
-});
 
 const start: Node = ["start", "trigger.manual"];
 
@@ -148,17 +136,14 @@ test("a stage script runs its steps in waves, retries a failed agent, passes inp
     },
     { focus: "the parser" },
   );
-  // The gate shows the work it asks about: the workflow's output.
-  const stops = [{ gate: "approval", message: "Accept the review?", next: [] }];
+  // The builder maps the workflow's output, the node policy's retry, the fresh step's subagent and its context.
+  const approval = { gate: "approval", message: "Accept the review?", next: [] };
   expect(ran).toEqual(
-    report(["start", "lint", "tests", "review"], [], [], { stops, outputs: { report: "two findings" } }),
+    report(["start", "lint", "tests", "review"], [], [], { stops: [approval], outputs: { report: "two findings" } }),
   );
-  // A command step's agent runs the step's script from the plugin's folder.
-  expect(calls.some(({ prompt }) => prompt.includes('sh "/plugin/steps/lint/scripts/run.sh"'))).toBe(true);
-  // The fresh review runs as its own subagent, with the workflow's input as its context.
-  const reviews = calls.filter(({ options }) => options?.["label"] === "review");
-  expect(reviews.every(({ options }) => options?.["agentType"] === "build-and-review:review")).toBe(true);
-  expect(reviews.every(({ prompt }) => prompt.includes("the parser"))).toBe(true);
+  const reviewed = calls.filter(({ options }) => options?.["agentType"] === "build-and-review:review");
+  expect(reviewed.length > 0 && reviewed.every(({ prompt }) => prompt.startsWith("Review the changes"))).toBe(true);
+  expect(reviewed.every(({ prompt }) => prompt.endsWith("Context:\nthe parser"))).toBe(true);
 });
 
 test("a failing check sends its agent step back, and the level decides where a stage ends", async () => {

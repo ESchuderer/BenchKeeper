@@ -114,7 +114,7 @@ export const extensionToStart = (paths: Paths, id: string): Result<Startable> =>
 };
 
 /** The app's own extension `id` started in English, the CLI's language for now. */
-export const startBundled = async (paths: Paths, id: string) => {
+const startBundled = async (paths: Paths, id: string) => {
   const startable = extensionToStart(paths, id);
   return startable.ok ? startExtension({ ...startable.value, locale: "en" }) : startable;
 };

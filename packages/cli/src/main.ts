@@ -1,16 +1,8 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Agent, Commit, GitUrl, PackRef, WorkflowId } from "@cedarloom/contracts";
-import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
+import { Commit, GitUrl, PackRef, WorkflowId } from "@cedarloom/contracts";
+import { Argument, Command, CommanderError, InvalidArgumentError } from "@commander-js/extra-typings";
 import {
-  accountsAdd,
-  accountsConfirm,
-  accountsHome,
-  accountsList,
-  accountsPolicy,
-  accountsStatus,
-  accountsSwitch,
-  accountsLogin,
   componentsSwitch,
   doctor,
   extensionsAdd,
@@ -213,81 +205,6 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action((run, options) => done(runsUndo(ctx(), run, options)));
 };
 
-// The accounts commands that act through claude-swap: interactive sessions' account and claude-swap's settings.
-const swapCommands = (accounts: Command, ctx: Ctx, done: Done): void => {
-  accounts
-    .command("switch")
-    .description("show switching interactive sessions to an account through claude-swap; with --yes, switch")
-    .argument("<name>", "the account, whose claude-swap alias is its name")
-    .addOption(
-      new Option("--target <target>", "what switches")
-        .choices(["interactive"] as const)
-        .default("interactive" as const),
-    )
-    .option("--yes", "switch as shown now")
-    .action(async (name, options) => done(await accountsSwitch(ctx(), name, options)));
-  const policy = accounts
-    .command("policy")
-    .description("show claude-swap's settings, which its auto mode switches by")
-    .action(async () => done(await accountsPolicy(ctx(), null)));
-  policy
-    .command("set")
-    .description("show setting one of claude-swap's settings; with --yes, set it through claude-swap, which checks it")
-    .argument("<key>", "such as autoswitch.threshold")
-    .argument("<value>")
-    .option("--yes", "set as shown now")
-    .action(async (key, value, options) => done(await accountsPolicy(ctx(), { key, value }, options)));
-};
-
-const accountsGroup = (program: Command, ctx: Ctx, done: Done): void => {
-  const accounts = program.command("accounts").description("agent accounts: config folders and pools, no credential");
-  accounts
-    .command("list")
-    .description("list the accounts and their pools")
-    .action(async () => done(await accountsList(ctx())));
-  accounts
-    .command("status")
-    .description(
-      "show the account a new worker of each confirmed pool would start on now (leases and the worker's model aside), and its windows",
-    )
-    .action(async () => done(await accountsStatus(ctx())));
-  swapCommands(accounts, ctx, done);
-  accounts
-    .command("pool")
-    .description("account pools")
-    .command("confirm")
-    .description(
-      "confirm that you hold and pay for every account of a pool; with --yes, new workers switch between them",
-    )
-    .argument("<pool>")
-    .addOption(new Option("--agent <agent>", "the pool's agent").choices(Agent.options).default("claude" as const))
-    .option("--move-running", "running workers move to another account of the pool at their line or limit")
-    .option("--no-move-running", "running workers stay on their account (off when never set)")
-    .option("--yes", "confirm as planned now")
-    .action((pool, options) => done(accountsConfirm(ctx(), pool, options)));
-  accounts
-    .command("add")
-    .description("show the registration of an account with its own home on this machine; with --yes, make it")
-    .argument("<account>")
-    .addOption(new Option("--agent <agent>", "the account's agent").choices(Agent.options).default("claude" as const))
-    .option("--pool <pool>", "the pool it joins; none when unset")
-    .option("--yes", "add as planned now")
-    .action((name, options) => done(accountsAdd(ctx(), name, options)));
-  accounts
-    .command("home")
-    .description(
-      "show the move of an account into its own home on this machine; with --yes, make it, keeping the old folder as an alias",
-    )
-    .argument("<account>")
-    .option("--yes", "move as planned now")
-    .action((name, options) => done(accountsHome(ctx(), name, options)));
-  accounts
-    .command("login")
-    .description("log an account in with the agent's own login, in its own home")
-    .argument("<account>")
-    .action((name) => done(accountsLogin(ctx(), name)));
-};
-
 const extensionsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const extensions = program
     .command("extensions")
@@ -440,7 +357,6 @@ const GROUPS = [
   runsGroup,
   workflowsGroup,
   importGroup,
-  accountsGroup,
   extensionsGroup,
   componentsGroup,
   modeGroup,
@@ -478,7 +394,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
   for (const group of GROUPS) group(program, ctx, done);
   program
     .command("doctor")
-    .description("report interrupted runs, store problems, and each account's login in its own home")
+    .description("report interrupted runs, store problems, and the extensions' and the profile's checks")
     .action(async () => done(await doctor(ctx())));
   program
     .command("ui")

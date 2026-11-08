@@ -1,8 +1,6 @@
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import {
-  type Account,
-  Agent,
   type AutomationLevel,
   type ExtensionManifest,
   type Finding,
@@ -10,8 +8,6 @@ import {
   severityOf,
   type Plan,
   type PlanPreview,
-  QuotaWindow,
-  type Reading,
   type Result,
   type RunResult,
   shown as printable,
@@ -19,7 +15,6 @@ import {
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
 import { graphRunShow } from "./graphs.ts";
-import { describe } from "./messages.ts";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
@@ -164,18 +159,11 @@ export const runsUndo = (ctx: Context, runId: string, approval: Approval): numbe
 export const machineOf = (ctx: Context) => ({ home: useCases.claudeHome(ctx.io.env), user: homedir() });
 
 export const doctor = async (ctx: Context): Promise<number> => {
-  const host = { parent: ctx.io.env, platform: process.platform, status: ctx.io.authStatus };
-  const [logins, own, profile] = await Promise.all([
-    useCases.checkLogins(ctx.state, ctx.config, host),
+  const [own, profile] = await Promise.all([
     useCases.extensionChecks({ state: ctx.state, app: ctx.app, config: ctx.config }),
     useCases.profileDoctor(ctx.config, ctx.state, machineOf(ctx), { app: ctx.app, fetch: ctx.io.fetch }),
   ]);
-  const findings = [
-    ...useCases.doctor(ctx.state),
-    ...(logins.ok ? logins.value : [logins.finding]),
-    ...own,
-    ...profile,
-  ];
+  const findings = [...useCases.doctor(ctx.state), ...own, ...profile];
   emit(ctx, "doctor", { findings }, findings.length > 0 ? "" : "No problems found.");
   report(ctx, findings, "out");
   return findings.some((finding) => severityOf(finding) === "error") ? EXIT.refused : EXIT.ok;
@@ -185,13 +173,11 @@ export const doctor = async (ctx: Context): Promise<number> => {
 export const refused = (
   ctx: Context,
   format:
-    | "accounts"
     | "draft"
     | "extensions"
     | "intent"
     | "levels"
     | "links"
-    | "login"
     | "mode"
     | "outbox"
     | "plan"
@@ -218,203 +204,6 @@ interface Change {
   readonly data: object;
   readonly findings: Finding[];
 }
-
-// An account's aliases, after its home in the list.
-const aliases = ({ aliases: folders = [] }: Account): string =>
-  folders.length > 0 ? `  (alias ${folders.join(", ")})` : "";
-
-// An account's windows a choice counts now, below its line: the 5-hour and 7-day ones always, once any is known.
-const windowLines = (name: string, readings: readonly Reading[], now: number): string[] => {
-  const own = readings.filter((reading) => reading.account === name);
-  const age = (readAt: string): number => Math.floor((now - Date.parse(readAt)) / 60_000);
-  const unknown = QuotaWindow.options.filter((window) => !own.some((reading) => reading.window === window));
-  return own.length === 0
-    ? []
-    : [
-        ...own.map(
-          (r) =>
-            `  ${r.window}  ${r.usedPercent}%  ${r.source}, read ${age(r.readAt)} min ago, resets ${r.resetsAt ?? "unknown"}`,
-        ),
-        ...unknown.map((window) => `  ${window}  unknown`),
-      ];
-};
-
-const pathsOf = (ctx: Context) => ({ state: ctx.state, app: ctx.app, config: ctx.config });
-
-// claude-swap's readings of the accounts, kept before they are shown, and its interactive account; what keeps it from
-// answering is reported.
-const readSwap = async (ctx: Context): Promise<useCases.Interactive | null> => {
-  const { findings, interactive } = await useCases.readSwapAccounts(pathsOf(ctx));
-  report(ctx, findings);
-  return interactive;
-};
-
-export const accountsList = async (ctx: Context): Promise<number> => {
-  const loaded = useCases.loadRegistry(ctx.config);
-  if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
-  const registry = loaded.value;
-  await readSwap(ctx);
-  const now = Date.now();
-  const status = useCases.accountsStatus(ctx.state, registry, now);
-  if (!status.ok) return refused(ctx, "accounts", status.finding);
-  const { readings, pools } = status.value;
-  const confirmed = pools.map(({ agent, pool }) => ({ agent, pool }));
-  // The derived state, as the choice sees it: a pool whose accounts changed since its confirmation is not confirmed.
-  const pool = ({ agent, pool: name }: Account): string =>
-    name === null
-      ? "-"
-      : `${name} (${confirmed.some((p) => p.agent === agent && p.pool === name) ? "confirmed" : "not confirmed"})`;
-  const lines = (registry?.accounts ?? []).flatMap((a) => [
-    `${a.name}  ${a.agent}  ${pool(a)}  ${a.home}${aliases(a)}`,
-    ...windowLines(a.name, readings, now),
-  ]);
-  const none = "No accounts yet. Add one with: cedarloom accounts add <name>";
-  emit(ctx, "accounts", { registry, confirmed, readings }, lines.length > 0 ? lines.join("\n") : none);
-  return EXIT.ok;
-};
-
-/** Shows, per confirmed pool, the account a new worker would start on now and its windows. */
-export const accountsStatus = async (ctx: Context): Promise<number> => {
-  const loaded = useCases.loadRegistry(ctx.config);
-  if (!loaded.ok) return refused(ctx, "accounts", loaded.finding);
-  const interactive = await readSwap(ctx);
-  const now = Date.now();
-  const status = useCases.accountsStatus(ctx.state, loaded.value, now);
-  if (!status.ok) return refused(ctx, "accounts", status.finding);
-  const { readings, pools } = status.value;
-  const lines = pools.flatMap(({ agent, pool, selection: s }) =>
-    s.ok
-      ? [
-          `${agent} ${pool}: new workers start on ${s.account.name} (${s.reason})`,
-          ...windowLines(s.account.name, readings, now),
-        ]
-      : [`${agent} ${pool}: no account for new workers (${s.reason})`],
-  );
-  const shown = pools.map(({ agent, pool, selection: s }) => ({
-    agent,
-    pool,
-    account: s.ok ? s.account.name : null,
-    reason: s.reason,
-  }));
-  const none = "No confirmed pool. Confirm one with: cedarloom accounts pool confirm <pool>";
-  const swapped =
-    interactive === null
-      ? []
-      : [
-          `interactive sessions: ${interactive.account ?? "an account no alias links"} (claude-swap account ${interactive.number})`,
-        ];
-  const human = [...swapped, ...(lines.length > 0 ? lines : [none])].join("\n");
-  emit(ctx, "accounts-status", { pools: shown, readings, interactive }, human);
-  return EXIT.ok;
-};
-
-/** Shows the interactive switch to an account, or with --yes makes it through claude-swap. */
-export const accountsSwitch = async (ctx: Context, name: string, { yes }: { yes?: true }): Promise<number> => {
-  const switched = await useCases.switchInteractive(pathsOf(ctx), name, yes === true);
-  if (!switched.ok) return refused(ctx, "accounts", switched.finding);
-  const { number, switched: done, orca } = switched.value;
-  const outcome = done ? "now use" : "already use";
-  // An account interactive sessions already use answers switched: false also without --yes.
-  const preview = yes !== true;
-  const orcaLine = orcaFollowed(orca, preview);
-  const human =
-    done === null
-      ? `Switches interactive sessions to ${name}: cswap switch ${number}${orcaLine}\nNothing changed. Run the command again with --yes.`
-      : `Interactive sessions ${outcome} ${name} (claude-swap account ${number}).${orcaLine}`;
-  const followed = orca?.ok === false ? { finding: orca.finding } : orca && { outputs: orca.value };
-  emit(ctx, "accounts-switch", { account: name, number, switched: done, orca: followed }, human);
-  // The approval covered both: an Orca on a saved account that did not follow fails the command, though claude-swap's
-  // switch stays.
-  return !preview && orcaStayed(orca) ? EXIT.refused : EXIT.ok;
-};
-
-// Whether Orca's Claude panes use a saved account, as its extension names the mode.
-const managed = ({ mode }: Record<string, unknown>): boolean => typeof mode === "string" && mode !== "system";
-// Whether Orca's follow failed, or Orca on a saved account did not follow.
-const orcaStayed = (orca: Result<Record<string, unknown>> | null): boolean =>
-  orca !== null && (!orca.ok || (managed(orca.value) && orca.value["followed"] !== true));
-
-// What Orca's managed Claude account did, or does with --yes; nothing while its panes use the System default or Orca
-// does not run.
-const orcaFollowed = (orca: Result<Record<string, unknown>> | null, preview: boolean): string => {
-  if (orca === null) return "";
-  if (!orca.ok) return `\nOrca's Claude account did not follow: ${describe(orca.finding)}`;
-  if (!managed(orca.value)) return "";
-  const { followed, hint } = orca.value;
-  if (preview) return "\nOrca uses managed accounts: with --yes, cedarloom orca follow runs too.";
-  if (followed === true) return "\nOrca's new Claude panes use it too.";
-  return `\nOrca's Claude account did not follow: ${String(hint)}`;
-};
-
-/** Shows claude-swap's settings; with a setting and its value and --yes, sets it through claude-swap. */
-export const accountsPolicy = async (
-  ctx: Context,
-  setting: { key: string; value: string } | null,
-  { yes }: { yes?: true } = {},
-): Promise<number> => {
-  const checked = setting === null ? null : useCases.checkSwapSetting(setting.key);
-  if (checked?.ok === false) return refused(ctx, "accounts", checked.finding);
-  if (setting !== null && yes !== true) {
-    const human = `Sets claude-swap's ${setting.key} to ${setting.value}: cswap config set -- ${setting.key} ${setting.value}\nNothing changed. Run the command again with --yes.`;
-    emit(ctx, "accounts-policy", { set: { [setting.key]: setting.value }, values: null }, human);
-    return EXIT.ok;
-  }
-  const set = setting === null ? {} : { [setting.key]: setting.value };
-  const values = await useCases.swapPolicy(pathsOf(ctx), set);
-  if (!values.ok) return refused(ctx, "accounts", values.finding);
-  const lines = Object.entries(values.value).map(([key, value]) => `${key}  ${String(value)}`);
-  emit(ctx, "accounts-policy", { set, values: values.value }, lines.join("\n"));
-  return EXIT.ok;
-};
-
-export const accountsConfirm = (
-  ctx: Context,
-  pool: string,
-  { agent, yes, moveRunning }: { agent: Agent; yes?: true; moveRunning?: boolean },
-): number => {
-  const planned = useCases.planConfirm(ctx.config, {
-    agent,
-    pool,
-    ...(moveRunning === undefined ? {} : { moveRunning }),
-  });
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  return change(ctx, planned.value.plan, { note: "", data: {}, findings: planned.value.findings }, yes);
-};
-
-/** Shows the registration of an account with its own home, or with --yes makes it. */
-export const accountsAdd = (
-  ctx: Context,
-  name: string,
-  { agent, pool, yes }: { agent: Agent; pool?: string; yes?: true },
-): number => {
-  const planned = useCases.planAdd(ctx.config, ctx.state, { name, agent, pool: pool ?? null });
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, home } = planned.value;
-  const note = `\nThen log in there with: cedarloom accounts login ${name}`;
-  return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
-};
-
-/** Shows the move of an account into its own home, or with --yes makes it; an account there already is reported. */
-export const accountsHome = (ctx: Context, name: string, { yes }: { yes?: true }): number => {
-  const planned = useCases.planHome(ctx.config, ctx.state, name);
-  if (!planned.ok) return refused(ctx, "plan", planned.finding);
-  const { plan, home } = planned.value;
-  if (plan === null) {
-    emit(ctx, "home", { account: name, home }, `Account ${name} is in its own home: ${home}`);
-    return EXIT.ok;
-  }
-  const note = `\nThen log in there with: cedarloom accounts login ${name}`;
-  return change(ctx, plan, { note, data: { home }, findings: [] }, yes);
-};
-
-/** Runs the agent's own login for the account, in its own home only. */
-export const accountsLogin = (ctx: Context, name: string): number => {
-  const host = { parent: ctx.io.env, platform: process.platform, run: ctx.io.login };
-  const login = useCases.loginAccount(ctx.config, ctx.state, name, host);
-  if (!login.ok) return refused(ctx, "login", login.finding);
-  emit(ctx, "login", { account: name, home: login.value.home }, `Logged in: account ${name}, in ${login.value.home}.`);
-  return EXIT.ok;
-};
 
 type Pin = useCases.InstallPlan["pin"];
 

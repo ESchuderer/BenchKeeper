@@ -2,7 +2,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { text as readAll } from "node:stream/consumers";
-import { claudeAuthStatus, claudeLogin, claudeRuntime } from "@cedarloom/adapter-claude";
+import { claudeRuntime } from "@cedarloom/adapter-claude";
 import { programPath } from "@cedarloom/use-cases";
 import { osKeyring } from "./keyring.ts";
 import { main } from "./main.ts";
@@ -22,8 +22,6 @@ process.exitCode = await main(process.argv.slice(2), {
   err: (text) => process.stderr.write(text),
   env: process.env,
   untilStopped,
-  login: claudeLogin(claude),
-  authStatus: claudeAuthStatus(claude),
   agent: claudeRuntime(claude),
   stdin: async () => (process.stdin.isTTY ? null : readAll(process.stdin)),
   keyring: osKeyring,

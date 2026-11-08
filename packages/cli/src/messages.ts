@@ -161,14 +161,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     "(https://support.claude.com/en/articles/13189465). Neither page says whether moving new work between accounts " +
     "you hold yourself falls under these rules.",
   "accounts.unknown-account": (p) => `The registry has no account named ${p.account}.`,
-  "accounts.swap-unlinked": (p) =>
-    `claude-swap has no account with the alias ${p.account}. Link it: cswap alias <its number in cswap list> ${p.account}`,
-  "accounts.swap-busy": (p) =>
-    `CedarLoom workers run on ${p.account}, so the interactive account does not move onto it until they end, as claude-swap's auto mode does not.`,
-  "accounts.swap-unavailable": () =>
-    "claude-swap is not installed, its extension is switched off, or its version is not one CedarLoom reads: cedarloom doctor says which.",
-  "accounts.swap-setting": (p) =>
-    `${p.key} is not one of claude-swap's auto mode settings (autoswitch.*), the only ones CedarLoom sets: cswap config set changes the others.`,
   "accounts.name-taken": (p) => `The registry has an account named ${p.account} already.`,
   "accounts.name-invalid": (p) =>
     `${p.name} is no name for an account or a pool: a lowercase letter or digit, then up to 31 more of them, - or _.`,
@@ -176,11 +168,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Account ${p.account} is a ${p.agent} account; own homes and their login are for Claude Code accounts for now.`,
   "accounts.folder-taken": (p) => `${p.path} is a folder another account names already; it is not taken over.`,
   "accounts.home-not-own": (p) =>
-    `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs or logs in there: move it with cedarloom accounts home ${p.account} --yes, then log in with cedarloom accounts login ${p.account}.`,
+    `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs there.`,
   "accounts.home-linked": (p) =>
     `The own home of account ${p.account} is a link or lies in one (${p.path}), so nothing runs or logs in there; make ${p.path} a real folder.`,
-  "accounts.home-missing": (p) =>
-    `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it; log in first with: cedarloom accounts login ${p.account}`,
+  "accounts.home-missing": (p) => `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it.`,
   "accounts.home-unusable": (p) =>
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
   "accounts.login-failed": (p) =>
@@ -195,7 +186,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "doctor.login-skipped": (p) =>
     `The login of account ${p.account} was not checked: a worker runs on it, and the check could renew its login.`,
   "launch.not-logged-in": (p) =>
-    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked; log in with: cedarloom accounts login ${p.account}`,
+    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked.`,
   "doctor.plugin-none": (p) =>
     `Workers run without the ${p.plugin} plugin: the pinned marketplace commit ${p.commit} has none yet, or it could not be fetched.`,
   "doctor.plugin-not-loaded": (p) =>

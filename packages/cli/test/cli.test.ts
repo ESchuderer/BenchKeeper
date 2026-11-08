@@ -8,26 +8,17 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { Fetch, Keyring, LoginStatus } from "@cedarloom/use-cases";
-import { Finding, formatRegistry, formatWorkflow, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
+import type { Fetch, Keyring } from "@cedarloom/use-cases";
+import { Finding, formatWorkflow, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
 import { configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
-
-// The agent logins the commands started, each by its environment, the exit code the next one ends with, and the login
-// status every home reports; null: logged in, in the folder it was asked about.
-interface Logins {
-  readonly started: Record<string, string>[];
-  code: number;
-  status: LoginStatus | null;
-}
 
 // The keyring in memory: no test reads or writes the OS credential store.
 const memoryKeyring = (entries: Map<string, string>): Keyring => ({
@@ -50,13 +41,11 @@ const setup = (
 ): {
   root: string;
   state: string;
-  logins: Logins;
   keyring: Map<string, string>;
   cli: (...argv: string[]) => Promise<{ code: number; out: string; err: string }>;
 } => {
   const root = mkdtempSync(join(tmpdir(), "cedarloom-cli-"));
   const state = join(root, "state");
-  const logins: Logins = { started: [], code: 0, status: null };
   const keyring = new Map<string, string>();
   const cli = async (...argv: string[]): Promise<{ code: number; out: string; err: string }> => {
     let [out, err] = ["", ""];
@@ -65,16 +54,6 @@ const setup = (
       err: (t: string) => (err += t),
       env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
       untilStopped: () => stopped,
-      login: (env: Record<string, string>) => {
-        logins.started.push(env);
-        return { code: logins.code };
-      },
-      authStatus: async (env: Readonly<Record<string, string>>): Promise<LoginStatus> =>
-        logins.status ?? {
-          kind: "logged-in",
-          authMethod: "claude.ai",
-          configDirectory: env["CLAUDE_CONFIG_DIR"] ?? null,
-        },
       // No test starts an agent.
       agent: claudeRuntime(["false"]),
       // The app's own extensions: none unless a test puts one there.
@@ -85,7 +64,7 @@ const setup = (
     };
     return { code: await main(argv, io), out, err };
   };
-  return { root, state, logins, keyring, cli };
+  return { root, state, keyring, cli };
 };
 
 const planFile = (root: string, value: unknown, name = "plan.json"): string => {
@@ -292,161 +271,6 @@ test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, t
   expect(configDir({})).toBe(join(homedir(), ".config", "cedarloom"));
 });
 
-// A Claude Code account in /accounts.
-const account = (name: string, pool: string | null) => {
-  return { name, agent: "claude" as const, home: `/accounts/${name}`, pool, added: "2026-11-05T12:00:00.000Z" };
-};
-
-// A temporary setup with a registry: work in the unconfirmed pool main, solo in none.
-const withRegistry = () => {
-  const { root, state, logins, cli } = setup();
-  mkdirSync(join(root, "config"), { recursive: true });
-  writeFileSync(
-    join(root, "config", "accounts.json"),
-    formatRegistry({
-      schemaVersion: 1,
-      accounts: [account("work", "main"), account("solo", null)],
-      pools: { claude: { main: { confirmedAt: null, confirmedFor: [] } } },
-    }),
-  );
-  return { root, state, logins, cli };
-};
-
-test("accounts: an account moves into its own home with --yes, and its login runs only there", async () => {
-  const { state, logins, cli } = withRegistry();
-  const home = join(state, "homes", "work");
-  const early = await cli("accounts", "login", "work");
-  expect([early.code, early.err]).toEqual([
-    EXIT.refused,
-    expect.stringContaining("cedarloom accounts home work --yes"),
-  ]);
-  const shown = await cli("accounts", "home", "work");
-  expect([shown.code, shown.out]).toEqual([EXIT.ok, expect.stringContaining("Nothing changed")]);
-  expect(json((await cli("accounts", "home", "work", "--yes", "--json")).out)).toMatchObject({ status: "applied" });
-  expect((await cli("accounts", "list")).out).toContain(
-    `work  claude  main (not confirmed)  ${home}  (alias /accounts/work)`,
-  );
-  expect(json((await cli("accounts", "home", "work", "--json")).out)).toMatchObject({ format: "cedarloom.home", home });
-  expect(logins.started).toEqual([]);
-  const login = await cli("accounts", "login", "work");
-  expect(login.code).toBe(EXIT.ok);
-  expect(logins.started).toEqual([expect.objectContaining({ CLAUDE_CONFIG_DIR: home })]);
-  // The doctor checks the login in each own home and names an account that is not in its own home yet.
-  const checked = await cli("doctor");
-  expect([checked.code, checked.out]).toEqual([
-    EXIT.refused,
-    expect.stringContaining("Account solo names /accounts/solo"),
-  ]);
-  logins.status = { kind: "logged-out" };
-  expect((await cli("doctor")).out).toContain(`Account work is not logged in in its own home ${home}`);
-  logins.status = null;
-  logins.code = 1;
-  const failed = await cli("accounts", "login", "work", "--json");
-  expect([failed.code, json(failed.out)]).toEqual([
-    EXIT.refused,
-    expect.objectContaining({
-      findings: [{ code: "accounts.login-failed", params: { account: "work", error: "exit code 1" } }],
-    }),
-  ]);
-  expect((await cli("accounts", "home", "nobody")).code).toBe(EXIT.refused);
-});
-
-test("accounts: a relative --state is taken from the working folder, so an own home is an absolute folder", async () => {
-  const { root, cli } = withRegistry();
-  const state = relative(process.cwd(), join(root, "elsewhere"));
-  const moved = await cli("--state", state, "--json", "accounts", "home", "work", "--yes");
-  expect([moved.code, json(moved.out)]).toEqual([EXIT.ok, expect.objectContaining({ status: "applied" })]);
-  expect((await cli("accounts", "list")).out).toContain(join(root, "elsewhere", "homes", "work"));
-});
-
-test("accounts: an account is added with its own home by a plan, and its login runs there", async () => {
-  const { state, logins, cli } = setup();
-  // The preview changes nothing: still no registry.
-  expect((await cli("accounts", "add", "work", "--pool", "main")).code).toBe(EXIT.ok);
-  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null });
-  expect(json((await cli("accounts", "add", "work", "--pool", "main", "--yes", "--json")).out)).toMatchObject({
-    format: "cedarloom.run",
-    status: "applied",
-  });
-  const home = join(state, "homes", "work");
-  expect((await cli("accounts", "list")).out).toBe(`work  claude  main (not confirmed)  ${home}\n`);
-  expect((await cli("accounts", "login", "work")).code).toBe(EXIT.ok);
-  expect(logins.started).toEqual([expect.objectContaining({ CLAUDE_CONFIG_DIR: home })]);
-  const again = await cli("accounts", "add", "work", "--json");
-  expect(again.code).toBe(EXIT.refused);
-  expect(json(again.out)).toMatchObject({ findings: [{ code: "accounts.name-taken", params: { account: "work" } }] });
-});
-
-test("accounts: the list shows each account with its pool, says when there are none, and refuses a broken registry", async () => {
-  // No registry yet: no accounts, checked in the JSON form rather than the text.
-  expect(json((await setup().cli("accounts", "list", "--json")).out)).toMatchObject({ registry: null, confirmed: [] });
-  const { root, cli } = withRegistry();
-  expect((await cli("accounts", "list")).out).toBe(
-    "work  claude  main (not confirmed)  /accounts/work\nsolo  claude  -  /accounts/solo\n",
-  );
-  writeFileSync(join(root, "config", "accounts.json"), "{}");
-  expect((await cli("accounts", "list", "--json")).code).toBe(EXIT.data);
-});
-
-test("accounts: a pool's confirmation carries the terms warning in every output form; Codex pools are refused", async () => {
-  const { cli } = withRegistry();
-  const codex = await cli("--json", "accounts", "pool", "confirm", "main", "--agent", "codex");
-  expect([codex.code, json(codex.out)["findings"]]).toMatchObject([
-    EXIT.refused,
-    [{ code: "accounts.codex-switching-off" }],
-  ]);
-  const terms = { code: "accounts.pool-terms", params: { pool: "main" } };
-  const preview = await cli("accounts", "pool", "confirm", "main");
-  expect(preview.err).toContain("warning:");
-  expect(json((await cli("accounts", "pool", "confirm", "main", "--json")).out)).toMatchObject({
-    format: "cedarloom.plan",
-    findings: [terms],
-  });
-  expect(json((await cli("accounts", "pool", "confirm", "main", "--yes", "--json")).out)).toMatchObject({
-    format: "cedarloom.run",
-    status: "applied",
-    findings: [terms],
-  });
-  expect((await cli("accounts", "list")).out).toContain("main (confirmed)");
-  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({
-    confirmed: [{ agent: "claude", pool: "main" }],
-  });
-});
-
-test("accounts: list shows the windows a choice counts now, status the account a confirmed pool's new worker gets", async () => {
-  const { state, cli } = withRegistry();
-  expect(json((await cli("accounts", "status", "--json")).out)).toMatchObject({ pools: [], readings: [] });
-  await cli("accounts", "pool", "confirm", "main", "--yes");
-  const store = openRunStore(state);
-  if (!store.ok) throw new Error(store.finding.code);
-  const fiveHour = {
-    account: "work",
-    window: "fiveHour",
-    usedPercent: 42,
-    resetsAt: "2099-01-01T00:00:00.000Z",
-    readAt: new Date().toISOString(),
-    source: "cswap",
-  } as const;
-  store.value.recordReading(fiveHour);
-  // Past its reset, so unknown.
-  store.value.recordReading({
-    ...fiveHour,
-    window: "sevenDay",
-    resetsAt: "2026-01-01T00:00:00.000Z",
-    source: "worker",
-  });
-  store.value.close();
-  expect(json((await cli("accounts", "list", "--json")).out)).toMatchObject({ readings: [fiveHour] });
-  expect(json((await cli("accounts", "status", "--json")).out)).toEqual({
-    format: "cedarloom.accounts-status",
-    schemaVersion: 1,
-    pools: [{ agent: "claude", pool: "main", account: "work", reason: "no-readings" }],
-    readings: [fiveHour],
-    // No claude-swap here: no interactive account.
-    interactive: null,
-  });
-});
-
 test("mode shows the level of running work and switches it with --yes, at each run's next gate", async () => {
   const { root, state, cli } = setup();
   const running = async () => json((await cli("mode", "--json")).out)["running"];
@@ -632,8 +456,6 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
     err: () => undefined,
     env: {},
     untilStopped: () => stopped.promise,
-    login: () => ({ code: null }),
-    authStatus: async () => ({ kind: "logged-out" }) as const,
     agent: claudeRuntime(["false"]),
     stdin: async () => null,
     keyring: memoryKeyring(new Map()),
@@ -1076,25 +898,6 @@ test("a verb the app's own extension contributes runs its action and prints its 
     EXIT.refused,
     [{ code: "extension.refused", params: { extension: "cedarloom.example", reason: "off" } }],
   ]);
-});
-
-test("accounts switch --yes exits refused when Orca on a saved account does not follow, though claude-swap switched; a preview never does", async () => {
-  const { root, cli } = setup();
-  ship(root, "cedarloom.claude-swap", {
-    actions: { status: { title: "Status" } },
-    switchTargets: { interactive: { agent: "claude" } },
-  });
-  const orca = ship(root, "cedarloom.orca", { actions: { status: { title: "Status" }, follow: { title: "Follow" } } });
-  await cli("accounts", "add", "elsewhere", "--yes");
-  await cli("accounts", "add", "work", "--yes");
-  // work is the account interactive sessions use already; without --yes nothing follows, so nothing is refused.
-  const shown = await cli("accounts", "switch", "work", "--target", "interactive");
-  // Orca stays on its saved account: say, an Orca older than 1.4.252.
-  writeFileSync(join(orca, "follow.json"), JSON.stringify({ mode: "managed-other", followed: false, hint: "older" }));
-  const stayed = await cli("accounts", "switch", "elsewhere", "--target", "interactive", "--yes");
-  unlinkSync(join(orca, "follow.json"));
-  const followed = await cli("accounts", "switch", "elsewhere", "--target", "interactive", "--yes");
-  expect([shown.code, stayed.code, followed.code]).toEqual([EXIT.ok, EXIT.refused, EXIT.ok]);
 });
 
 test("components switch turns the app's own extension off as one run, which extensions list shows", async () => {

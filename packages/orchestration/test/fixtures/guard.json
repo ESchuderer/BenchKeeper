@@ -205,7 +205,14 @@
       ["GIT_COMMON_DIR before a push", "GIT_COMMON_DIR=/work/notes/.git git push origin main", "environment"],
       ["an attached commit message", "git commit --message=\"$MSG\"", null],
       ["a push to the session's remote by --repo", "git push --repo=origin", null],
-      ["a global option the guard does not know", "git --frobnicate push origin feature", "unreadable"]
+      ["a global option the guard does not know", "git --frobnicate push origin feature", "unreadable"],
+      ["git --no-pager", "git --no-pager log -1", null],
+      ["git -P", "git -P diff", null],
+      ["git --version", "git --version", null],
+      ["git grep -O", "git grep -Ovim foo", "unreadable"],
+      ["git grep --open-files-in-pager", "git grep --open-files-in-pager=vim foo", "unreadable"],
+      ["git stage", "git stage a.txt", null],
+      ["CDPATH before cd", "CDPATH=/elsewhere cd x && git push origin feature", "environment"]
     ],
     "worker /work/fork": [
       ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],

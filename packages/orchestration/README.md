@@ -30,6 +30,19 @@ It also refuses when it cannot read the call at all: input that is no JSON, a mi
 | zsh's `=cmd`, `noglob`, `nocorrect`, `-`, glob qualifiers, `=(...)`, `${(...)...}`, short `if [[ ... ]] cmd`                                                                      | the bash forms                                                       |
 | the PowerShell tool                                                                                                                                                               | the Bash tool; on Windows the launch requires Git Bash               |
 
+### Everyday git forms it refuses
+
+| Form                                                                                                                 | Instead                                            |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `git push --force`, `-f`, `+branch`, `--force-with-lease`, `--mirror`                                                | a new branch and a pull request                    |
+| `--no-verify`, `git commit -n`                                                                                       | fix what the hooks report                          |
+| `git -c key=value`, `git config key value`, `git remote add` or `set-url`, `git clone -c`                            | the repository's configuration as the owner set it |
+| `git rebase -x`, `git submodule foreach`, `git bisect run`, `git difftool --extcmd`, `git grep -O`, `--upload-pack`  | the command itself                                 |
+| an alias or another git command the guard does not know, `git $sub`, a word it cannot read where an option may stand | the command's own name and literal options         |
+| a remote, URL or folder it cannot tell (`--git-dir`, `env -C`), a repository outside the session's                   | the session's repositories by their remote name    |
+| a push that may update `main` of the memory repository                                                               | a `memory/<name>` branch                           |
+| `GIT_*` variables but `GIT_PAGER` and `GIT_TERMINAL_PROMPT`, `EDITOR`, `VISUAL`, `CDPATH`                            | options on the command line                        |
+
 ### Known limits
 
 - Data run as code when it expands: a variable's value used in arithmetic or as a subscript (`x='y[$(cmd)]'; echo $((x))`), `${x@P}`, `PS4` with `set -x`. A subscript written out with a command in it refuses, as does arithmetic in `[[ ]]` on anything but a number or a plain `$name`, and `$'...'` with a numeric escape.

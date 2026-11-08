@@ -1,36 +1,10 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type StageScript, type Step, stageScript } from "@cedarloom/emitter";
 import { expect, test } from "vitest";
+import { type Call, runScript as runText } from "./script.ts";
 
-type Call = { prompt: string; options: Record<string, unknown> | undefined };
-
-const parallel = (thunks: (() => Promise<unknown>)[]): Promise<unknown[]> =>
-  Promise.all(thunks.map((thunk) => thunk()));
-
-// Runs a stage's script as the workflow runtime does: its body in an async function, with agent, parallel and the args
-// a stage skill passes, the plugin's folder and the inputs.
-const runScript = async (
-  stage: StageScript,
-  answer: (call: Call) => unknown,
-  inputs: object = {},
-): Promise<[unknown, Call[]]> => {
-  const script = stageScript({ name: "run-start", description: "W: the stage start" }, stage);
-  const file = join(mkdtempSync(join(tmpdir(), "cedarloom-emitter-")), "stage.mjs");
-  writeFileSync(
-    file,
-    `export default async (agent, parallel, args) => {\n${script.replace("export const meta", "const meta")}\n};\n`,
-  );
-  const module: { default: (...given: unknown[]) => Promise<unknown> } = await import(pathToFileURL(file).href);
-  const calls: Call[] = [];
-  const agent = async (prompt: string, options?: Record<string, unknown>): Promise<unknown> => {
-    calls.push({ prompt, options });
-    return answer({ prompt, options });
-  };
-  return [await module.default(agent, parallel, JSON.stringify({ root: "/plugin", inputs })), calls];
-};
+// Runs a stage as its written script.
+const runScript = (stage: StageScript, answer: (call: Call) => unknown, inputs: object = {}) =>
+  runText(stageScript({ name: "run-start", description: "W: the stage start" }, stage), answer, inputs);
 
 // A step that runs once the outputs `run` names fired, after their nodes settled.
 const step = (id: string, kind: Step["kind"], run: string[] = [], more: Partial<Step> = {}): Step => ({

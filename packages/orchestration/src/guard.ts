@@ -1192,10 +1192,11 @@ const checkGraphql = ({ fields, hidden }: ApiCall, context: Context): Denial | n
   if (/\b(?:addPullRequestReview|submitPullRequestReview)\b/.test(query)) {
     return deny("approval", "a review through GraphQL, which may approve");
   }
-  // GraphQL skips commas and comments between a field and its arguments.
-  const body = query.replace(/\bmutation\b[\s,]*\w*[\s,]*(?:\([^)]*\))?/, "");
-  const calls = [...body.matchAll(/(\w+)(?:[\s,\uFEFF]|#[^\n\r]*)*\(/g)];
-  if (body !== query && calls.some(([, name = ""]) => !GRAPHQL_WRITES.has(name))) {
+  // GraphQL skips commas between a field and its arguments; a comment in a mutation refuses, as one may hide a call.
+  const text = query.replaceAll(",", " ");
+  const body = text.replace(/\bmutation\b\s*\w*\s*(?:\([^)]*\))?/, "");
+  const calls = [...body.matchAll(/\b(\w+)\s*\(/g)];
+  if (body !== text && (query.includes("#") || calls.some(([, name = ""]) => !GRAPHQL_WRITES.has(name)))) {
     return unreadable("gh api graphql sends a mutation the guard does not know");
   }
   return context.policy.repositories === null

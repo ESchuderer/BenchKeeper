@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { ExtensionManifest, type Result } from "@cedarloom/contracts";
 import {
@@ -728,64 +728,6 @@ test("the doctor asks an extension's own checks once and shows their texts safel
   ]);
 });
 
-// The fixture as a switch target for Claude Code's interactive account.
-const switching = (): ExtensionManifest => {
-  const plain = manifestOf(ACTIONS);
-  const switchTargets = { interactive: { agent: "claude" } };
-  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, switchTargets } });
-};
-const INTERACTIVE = { target: "interactive" };
-
-test("a switch target answers each call within its contract, its accounts by number, an alias only where one is set", async () => {
-  const fixture = await extension({ manifest: switching() });
-  const answers = [
-    await fixture.target("target/probe", INTERACTIVE),
-    await fixture.target("target/accounts", INTERACTIVE),
-    await fixture.target("target/current", INTERACTIVE),
-    await fixture.target("target/select", { ...INTERACTIVE, number: 2 }),
-    await fixture.target("target/tick", INTERACTIVE),
-    await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.cooldownSeconds": "600" } }),
-  ];
-  const when = "2026-11-07T10:00:00.000Z";
-  const window = { window: "fiveHour", usedPercent: 91, resetsAt: when, readAt: when };
-  expect(answers.map(codeOf)).toEqual([
-    { status: "supported", detail: "cswap 1.2.3" },
-    {
-      accounts: [
-        { number: 1, alias: "work", active: true, disabled: false, held: false, threshold: 90, windows: [window] },
-        { number: 2, active: false, disabled: false, held: true, threshold: null, windows: [] },
-      ],
-    },
-    { number: 1 },
-    { switched: true, from: 1, to: 2, reason: "asked" },
-    { code: 0, events: [{ at: when, from: 1, to: 2, reason: "over the line", trigger: "proactive" }] },
-    { values: { "autoswitch.threshold": 90, "autoswitch.cooldownSeconds": "600" } },
-  ]);
-});
-
-test("a call of an extension that is not the app's own, to a target the manifest does not name, with settings its answer could not hold, answered outside the contract, or not in time fails", async () => {
-  const wraps = {
-    wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
-  };
-  const community = await extension({ manifest: switching(), trust: "community", platform: "darwin", sandbox: wraps });
-  const fixture = await extension({ manifest: switching() });
-  const bad = await extension({ manifest: switching(), locale: "x-bad-target" });
-  const slow = await extension({ manifest: switching(), locale: "x-slow-target", limits: { targetMs: 200 } });
-  expect([
-    codeOf(await community.target("target/probe", INTERACTIVE)),
-    codeOf(await fixture.target("target/probe", { target: "elsewhere" })),
-    codeOf(await fixture.target("target/policy", { ...INTERACTIVE, set: { "autoswitch.note": "ring\u0007" } })),
-    codeOf(await bad.target("target/probe", INTERACTIVE)),
-    codeOf(await slow.target("target/current", INTERACTIVE)),
-  ]).toEqual([
-    failure("target", "switch targets are the app's own extensions' only"),
-    failure("target", "no switch target elsewhere"),
-    failure("target", "settings its answer could not hold"),
-    failure("target", "an answer the host refuses"),
-    failure("target", "no answer within 200 ms"),
-  ]);
-});
-
 // The fixture as a worker runner for Claude Code, and a worker for it to start.
 const runners = (): ExtensionManifest => {
   const plain = manifestOf(ACTIONS);
@@ -801,13 +743,14 @@ const START = {
   repository: "/work/repo",
 };
 
-test("a worker runner starts, shows and releases a worker within its contract; not the app's own, unnamed, answering or asked outside the contract fails", async () => {
+test("a worker runner starts, shows and releases a worker within its contract; not the app's own, unnamed, answering or asked outside the contract, or not in time fails", async () => {
   const wraps = {
     wrap: (launch: Parameters<NonNullable<ExtensionLaunch["sandbox"]>["wrap"]>[0]) => Promise.resolve(launch),
   };
   const community = await extension({ manifest: runners(), trust: "community", platform: "darwin", sandbox: wraps });
   const fixture = await extension({ manifest: runners() });
   const bad = await extension({ manifest: runners(), locale: "x-bad-worker" });
+  const slow = await extension({ manifest: runners(), locale: "x-slow-worker", limits: { callMs: 200 } });
   const show = { runner: "claude", dispatch: "ctx_1" };
   expect([
     codeOf(await fixture.worker("worker/start", START)),
@@ -818,6 +761,7 @@ test("a worker runner starts, shows and releases a worker within its contract; n
     codeOf(await bad.worker("worker/start", START)),
     codeOf(await fixture.worker("worker/start", { ...START, line: [] })),
     codeOf(await fixture.worker("worker/start", { ...START, line: ["cswap", "run\u0007"] })),
+    codeOf(await slow.worker("worker/show", show)),
   ]).toEqual([
     { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
     { state: "succeeded", settled: true },
@@ -827,32 +771,6 @@ test("a worker runner starts, shows and releases a worker within its contract; n
     failure("worker", "an answer the host refuses"),
     failure("worker", "a request outside its contract"),
     failure("worker", "a request outside its contract"),
-  ]);
-});
-
-// The fixture as a session provider whose program `runtime` the host finds as `node` on PATH, so the line's first word
-// is the host's lookup, never the extension's own.
-const providing = (): ExtensionManifest => {
-  const plain = withPrograms({ runtime: ["node"] });
-  const sessionProviders = { claude: { agent: "claude", program: "runtime" } };
-  return ExtensionManifest.parse({ ...plain, contributes: { ...plain.contributes, sessionProviders } });
-};
-
-test("a session line is the provider's program as the host finds it, then exactly run <number> --require-session --; another shape, a bad number or an unnamed provider fails", async () => {
-  const fixture = await extension({ manifest: providing() });
-  const bad = await extension({ manifest: providing(), locale: "x-bad-session" });
-  const line = await fixture.session({ provider: "claude", number: 2 });
-  expect([
-    line.ok ? [basename(line.value[0] ?? "").replace(/\.exe$/, ""), ...line.value.slice(1)] : line.finding,
-    codeOf(await bad.session({ provider: "claude", number: 2 })),
-    codeOf(await fixture.session({ provider: "claude", number: 0 })),
-    codeOf(await fixture.session({ provider: "claude", number: 1e21 })),
-    codeOf(await fixture.session({ provider: "elsewhere", number: 2 })),
-  ]).toEqual([
-    ["node", "run", "2", "--require-session", "--"],
-    failure("session", "a line of another shape"),
-    failure("session", "a request outside its contract"),
-    failure("session", "a request outside its contract"),
-    failure("session", "no session provider elsewhere"),
+    failure("worker", "no answer within 200 ms"),
   ]);
 });

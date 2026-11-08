@@ -94,7 +94,7 @@ const recordChoice = (
   store.recordSwitch({ ...row, at: new Date(judged).toISOString(), readings: counts });
 };
 
-/** A window of an account as claude-swap's switch target answers it: times with any offset, null when not known. */
+/** A window of an account as claude-swap reported it: times with any offset, null when not known. */
 export interface SwapWindow {
   readonly window: Quota;
   readonly usedPercent: number;

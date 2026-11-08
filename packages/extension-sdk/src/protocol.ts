@@ -78,71 +78,6 @@ export type DoctorResult = { findings: DoctorFinding[] };
 export const doctorRun = new RequestType0<DoctorResult, void>("doctor/run");
 
 /**
- * The calls of a switch target (its manifest's `contributes.switchTargets`, bundled extensions only): where it switches
- * an agent's account, such as claude-swap's for Claude Code. Each names the target; the host bounds the time and checks
- * each answer. An account is named by the target's number, which every account has; an alias only some have, and no
- * email crosses.
- */
-export type TargetParams = { target: string };
-/** Whether the target's program is there and speaks a version this extension reads: `detail` says why not. */
-export type TargetProbe = { status: "supported" | "partial" | "unsupported"; detail: string };
-/**
- * A window of an account as the target reads it: a share in percent, when it resets, and when it was read (null:
- * not recently enough to decide on).
- */
-export type TargetWindow = { window: string; usedPercent: number; resetsAt: string | null; readAt: string | null };
-/**
- * An account as the target knows it, by its number and maybe an alias, with its switch line in percent if any. `held`:
- * nothing should start on it until the user acts, such as a login to renew.
- */
-export type TargetAccount = {
-  number: number;
-  alias?: string | undefined;
-  active: boolean;
-  disabled: boolean;
-  held: boolean;
-  threshold: number | null;
-  windows: TargetWindow[];
-};
-/** A switch the target made: when, from which account to which, why, and what started it. */
-export type SwitchEvent = { at: string; from: number | null; to: number; reason: string; trigger: string };
-export type TargetSelectParams = TargetParams & { number: number };
-export type TargetSelect = { switched: boolean; from: number | null; to: number; reason: string };
-/** One round of the target's own switching: its exit code and the switches it made. */
-export type TargetTick = { code: number | null; events: SwitchEvent[] };
-/** The target's settings; `set` changes the named ones first. */
-export type TargetPolicyParams = TargetParams & { set?: Record<string, string> };
-export type TargetPolicy = { values: Record<string, string | number | boolean> };
-/** The calls of a switch target. */
-export const TARGET_CALLS = [
-  "target/probe",
-  "target/accounts",
-  "target/current",
-  "target/select",
-  "target/tick",
-  "target/policy",
-] as const;
-export type TargetCall = (typeof TARGET_CALLS)[number];
-/** What each call of a switch target sends. */
-export type TargetCallParams = {
-  "target/probe": TargetParams;
-  "target/accounts": TargetParams;
-  "target/current": TargetParams;
-  "target/select": TargetSelectParams;
-  "target/tick": TargetParams;
-  "target/policy": TargetPolicyParams;
-};
-/** What each call of a switch target answers. */
-export type TargetAnswers = {
-  "target/probe": TargetProbe;
-  "target/accounts": { accounts: TargetAccount[] };
-  "target/current": { number: number | null };
-  "target/select": TargetSelect;
-  "target/tick": TargetTick;
-  "target/policy": TargetPolicy;
-};
-
-/**
  * The calls of a worker runner (its manifest's `contributes.workerRunners`, bundled extensions only): where it starts a
  * supervised worker of an agent on a launch line the host gives, such as an Orca worker in a worktree. Each names the
  * runner; the host bounds the time and checks each answer.
@@ -175,16 +110,6 @@ export type WorkerAnswers = {
   "worker/show": WorkerShow;
   "worker/release": { released: boolean };
 };
-
-/**
- * The call of a session provider (its manifest's `contributes.sessionProviders`, bundled extensions only): the prefix
- * of a launch line that runs its agent as the account of that number. The host checks the prefix and puts the
- * provider's program, as it finds it, first.
- */
-export const SESSION_CALLS = ["session/line"] as const;
-export type SessionCall = (typeof SESSION_CALLS)[number];
-export type SessionCallParams = { "session/line": { provider: string; number: number } };
-export type SessionAnswers = { "session/line": { argv: string[] } };
 
 /** The host ends an extension with `shutdown`, then `exit`. */
 export const shutdown = new RequestType0<null, void>("shutdown");

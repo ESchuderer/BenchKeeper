@@ -121,18 +121,18 @@ const startBundled = async (paths: Paths, id: string) => {
 
 /**
  * Runs the action `action` of the app's own extension `id` once, as a CLI verb of its noun: with the programs the user
- * allowed it to run (`allow`, its config), without inputs, within a minute, and stops it.
+ * allowed it to run (`allow`, its config) and the inputs the user gave, within a minute, and stops it.
  */
 export const runBundled = async (
   paths: Paths,
   id: string,
   action: string,
-  allow: readonly string[] = [],
+  { allow = [], inputs = {} }: { allow?: readonly string[]; inputs?: Record<string, string> } = {},
 ): Promise<Result<Record<string, unknown>>> => {
   const started = await startBundled(paths, id);
   if (!started.ok) return started;
   try {
-    const request = { action, config: { allow }, inputs: {}, run: randomUUID() };
+    const request = { action, config: { allow }, inputs, run: randomUUID() };
     return await started.value.run(request, AbortSignal.timeout(60_000));
   } finally {
     await started.value.stop();

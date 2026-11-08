@@ -6,11 +6,7 @@ import {
   olderRelease,
   type ProgramVersion,
   programVersion,
-  type SessionHandlers,
-  type TargetAccount,
-  type TargetHandlers,
-  type TargetProbe,
-  type TargetWindow,
+  shellWord,
   valueAt as at,
 } from "@cedarloom/extension-sdk";
 
@@ -26,7 +22,7 @@ type Exec = Pick<ActionContext, "exec">;
 const HELD = new Set(["relogin_required", "no_credentials"]);
 const held = (row: unknown): boolean => HELD.has(String(at(row, "usageStatus")));
 // The settings of claude-swap's auto mode, the only ones CedarLoom shows or sets: others, such as run.shareHistory,
-// change the sharing session mode relies on (switching plan 14.3).
+// change how claude-swap runs Claude Code itself (switching plan 14.3).
 const AUTO_SETTINGS = "autoswitch.";
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -59,15 +55,21 @@ const cswap = async ({ exec }: Exec, args: string[], timeoutMs = FETCH_MS): Prom
   return answer;
 };
 
-// A model's own weekly window, as CedarLoom names it (`sevenDay:fable`); a name it cannot hold is left out.
+// A model's own weekly window, such as `sevenDay:fable`; a name of another form is left out.
 const scopedName = (name: unknown): string | undefined =>
   typeof name === "string" && /^[A-Za-z]{1,20}$/.test(name) ? `sevenDay:${name.toLowerCase()}` : undefined;
 
 /**
- * An account's windows. claude-swap trusts a row's usage only while its `usageStatus` is `ok`: a row it no longer
- * trusts gives its last good windows without a read time, so CedarLoom drops what it kept of them.
+ * A window of an account: a share in percent, when it resets, and when claude-swap read it (null: it no longer trusts
+ * that share).
  */
-const windowsOf = (row: unknown): TargetWindow[] => {
+type Window = { window: string; usedPercent: number; resetsAt: string | null; readAt: string | null };
+
+/**
+ * An account's windows. claude-swap trusts a row's usage only while its `usageStatus` is `ok`: a row it no longer
+ * trusts gives its last good windows without a read time.
+ */
+const windowsOf = (row: unknown): Window[] => {
   const trusted = at(row, "usageStatus") === "ok";
   const usage = trusted ? at(row, "usage") : at(row, "lastGoodUsage");
   const readAt = trusted ? textOr(at(row, "usageFetchedAt"), null) : null;
@@ -86,16 +88,28 @@ const windowsOf = (row: unknown): TargetWindow[] => {
     const resetsAt = textOr(at(entry, "resetsAt"), null);
     return [{ window, usedPercent: Math.min(100, Math.max(0, pct)), resetsAt, readAt }];
   });
-  // Without last good windows, the two every account has, unread, still drop what CedarLoom kept.
+  // Without last good windows, the two every account has, unread.
   const unread = ["fiveHour", "sevenDay"].map((window) => ({ window, usedPercent: 0, resetsAt: null, readAt: null }));
   return trusted || windows.length > 0 ? windows.slice(0, 16) : unread;
 };
 
-// Only an alias that can be a CedarLoom account's name links one (switching plan 1.6).
+// A short plain alias only: claude-swap's aliases are the user's own text.
 const ALIAS = /^[a-z0-9_-]{1,32}$/;
 
-// An account by its number; a row without one is left out, so the host takes the rest of the answer.
-const accountOf = (row: unknown): TargetAccount[] => {
+/**
+ * An account by its number, with its alias if any and its switch line in percent if any; `held`: claude-swap starts
+ * nothing on it until the user logs in again. A row without a number is left out. No email leaves the extension.
+ */
+type Account = {
+  number: number;
+  alias?: string;
+  active: boolean;
+  disabled: boolean;
+  held: boolean;
+  threshold: number | null;
+  windows: Window[];
+};
+const accountOf = (row: unknown): Account[] => {
   const [number, alias, threshold] = [at(row, "number"), at(row, "alias"), at(row, "threshold")];
   if (!Number.isInteger(number) || Number(number) < 1) return [];
   return [
@@ -124,73 +138,71 @@ const versionProblem = (version: string): string | undefined => {
   return older ? `claude-swap ${version} is older than ${OBSERVED}` : undefined;
 };
 
-/** Whether the claude-swap found is a version whose JSON this extension reads, and why not. */
-const judged = async (context: Exec, found: ProgramVersion): Promise<TargetProbe> => {
-  if (!found.installed) return { status: "unsupported", detail: `claude-swap is not installed: ${found.reason}` };
-  const problem = versionProblem(found.version);
-  if (problem !== undefined) return { status: "unsupported", detail: problem };
-  try {
-    await cswap(context, ["status"]);
-  } catch (error) {
-    return { status: "unsupported", detail: messageOf(error) };
+/** The list action: claude-swap's accounts with their usage, from `cswap list --json`. */
+export const list = async (context: Exec): Promise<{ accounts: Account[] }> => ({
+  accounts: (await rowsOf(context)).flatMap(accountOf).slice(0, 64),
+});
+
+// claude-swap's account numbers as a user types them.
+const NUMBER = /^[1-9]\d{0,5}$/;
+
+/**
+ * The switch action: interactive sessions, and new workers, use claude-swap's account `account` (its number), switched by
+ * `cswap switch`, which it runs only once the user names cswap with `--allow`. A switch waits on Claude Code's locks,
+ * about 18 s at most (switching plan 1.5).
+ */
+export const switchTo = async ({
+  exec,
+  config,
+  inputs,
+}: Pick<ActionContext, "exec" | "config" | "inputs">): Promise<Record<string, unknown>> => {
+  const given = inputs["account"];
+  const number = typeof given === "string" ? given : "";
+  if (!NUMBER.test(number)) throw new Error(`not a claude-swap account number: ${withoutEmails(number).slice(0, 40)}`);
+  const runs = `cswap switch ${number}`;
+  if (!allowed(config, "cswap")) {
+    return { runs, approve: `cedarloom claude-swap switch --account ${number} --allow cswap` };
   }
-  return { status: "supported", detail: `claude-swap ${found.version}` };
+  const answer = await cswap({ exec }, ["switch", number], VERB_MS);
+  const [from, to] = [at(answer, "from", "number"), at(answer, "to", "number")];
+  if (typeof to !== "number") throw new Error(`${runs} named no account it switched to`);
+  return { switched: at(answer, "switched") === true, ...(typeof from === "number" ? { from } : {}), to };
 };
 
-/** The switch target `interactive`: the default home's account, which claude-swap switches. */
-export const targets: TargetHandlers = {
-  "target/probe": async (_params, context) => judged(context, await probeOf(context)),
-  "target/accounts": async (_params, context) => ({
-    accounts: (await rowsOf(context)).flatMap(accountOf).slice(0, 64),
-  }),
-  "target/current": async (_params, context) => {
-    const active = at(await cswap(context, ["status"]), "active");
-    const number = at(active, "number");
-    return { number: at(active, "managed") === true && typeof number === "number" ? number : null };
-  },
-  // A switch waits on Claude Code's locks, about 18 s at most (switching plan 1.5).
-  "target/select": async ({ number }, context) => {
-    const answer = await cswap(context, ["switch", String(number)], 60_000);
-    const [from, to] = [at(answer, "from", "number"), at(answer, "to", "number")];
-    if (typeof to !== "number") throw new Error(`cswap switch ${number} named no account it switched to`);
-    const reason = at(answer, "reason");
-    return {
-      switched: at(answer, "switched") === true,
-      from: typeof from === "number" ? from : null,
-      to,
-      reason: typeof reason === "string" ? reason : "",
-    };
-  },
-  // claude-swap's auto mode settings (cswap config); `set` goes through `cswap config set`, which checks each value.
-  "target/policy": async ({ set = {} }, context) => {
-    const other = Object.keys(set).find((key) => !key.startsWith(AUTO_SETTINGS));
-    if (other !== undefined) throw new Error(`${other} is not one of claude-swap's ${AUTO_SETTINGS}* settings`);
-    for (const [key, value] of Object.entries(set)) {
-      // After --, a value that starts with - stays a value.
-      const ran = await context.exec({ program: "cswap", args: ["config", "set", "--", key, value], timeoutMs: MS });
-      const why = withoutEmails(ran.stderr.trim().split("\n")[0] ?? "").slice(0, 300);
-      if (ran.code !== 0) throw new Error(`cswap config set ${key} exited with ${ran.code}: ${why}`);
+/**
+ * The settings action: claude-swap's auto mode settings (`cswap config`). With `key` and `value`, it sets one first
+ * through `cswap config set`, which checks it, only once the user names cswap with `--allow`.
+ */
+export const settings = async ({
+  exec,
+  config,
+  inputs,
+}: Pick<ActionContext, "exec" | "config" | "inputs">): Promise<Record<string, unknown>> => {
+  const [key, value] = [inputs["key"], inputs["value"]];
+  if (key !== undefined || value !== undefined) {
+    if (typeof key !== "string" || typeof value !== "string") throw new Error("a setting needs both key and value");
+    if (!key.startsWith(AUTO_SETTINGS))
+      throw new Error(`${key} is not one of claude-swap's ${AUTO_SETTINGS}* settings`);
+    if (!allowed(config, "cswap")) {
+      // Quoted only where a shell needs it, so the line pastes into cmd.exe too, where single quotes stay.
+      const [k, v] = [key, value].map((word) => (/^[\w.@%+=:,/-]+$/.test(word) ? word : shellWord(word)));
+      return {
+        runs: `cswap config set -- ${k} ${v}`,
+        approve: `cedarloom claude-swap settings --key ${k} --value ${v} --allow cswap`,
+      };
     }
-    const settings = at(await cswap(context, ["config"]), "settings");
-    const values = (Array.isArray(settings) ? settings : []).flatMap(
-      (setting): [string, string | number | boolean][] => {
-        const [key, value] = [at(setting, "key"), at(setting, "value")];
-        const kept = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
-        return typeof key === "string" && key.startsWith(AUTO_SETTINGS) && kept ? [[key, value]] : [];
-      },
-    );
-    return { values: Object.fromEntries(values) };
-  },
-};
-
-/** The session provider `claude`: claude-swap's session mode runs Claude Code as one of its accounts, by number. */
-export const sessions: SessionHandlers = {
-  "session/line": async ({ number }, context) => {
-    const row = (await rowsOf(context)).find((each) => at(each, "number") === number);
-    if (row === undefined) throw new Error(`claude-swap has no account ${number}`);
-    if (held(row)) throw new Error(`claude-swap holds account ${number} until a new login`);
-    return { argv: ["cswap", "run", String(number), "--require-session", "--"] };
-  },
+    // After --, a value that starts with - stays a value.
+    const ran = await exec({ program: "cswap", args: ["config", "set", "--", key, value], timeoutMs: MS });
+    const why = withoutEmails(ran.stderr.trim().split("\n")[0] ?? "").slice(0, 300);
+    if (ran.code !== 0) throw new Error(`cswap config set ${key} exited with ${ran.code}: ${why}`);
+  }
+  const listed = at(await cswap({ exec }, ["config"]), "settings");
+  const values = (Array.isArray(listed) ? listed : []).flatMap((setting): [string, string | number | boolean][] => {
+    const [name, kept] = [at(setting, "key"), at(setting, "value")];
+    const plain = typeof kept === "string" || typeof kept === "number" || typeof kept === "boolean";
+    return typeof name === "string" && name.startsWith(AUTO_SETTINGS) && plain ? [[name, kept]] : [];
+  });
+  return { settings: Object.fromEntries(values) };
 };
 
 const finding = (severity: DoctorFinding["severity"], code: string, message: string): DoctorFinding => ({
@@ -210,11 +222,11 @@ const reloginOf = (row: unknown): DoctorFinding => {
 
 /**
  * The doctor's check, with two calls (`--version` and `list`, whose JSON schema it checks): without claude-swap, or with
- * one whose JSON this extension does not read, multi-account switching is off and workers run on one account; an
- * account whose login died is named with its fix.
+ * one whose JSON this extension does not read, no account switches and every session runs on the default home's login;
+ * an account whose login died is named with its fix.
  */
 export const doctor = async (context: Exec): Promise<DoctorFinding[]> => {
-  const off = "multi-account switching is off, and workers run on one account";
+  const off = "no account switches, and every session runs on the default home's login";
   const unsupported = (detail: string) => [finding("warning", "claude-swap.unsupported", `${detail}: ${off}.`)];
   try {
     const found = await probeOf(context);
@@ -256,7 +268,7 @@ const INSTALLERS: [string, string[]][] = [
   ["pipx", ["install"]],
 ];
 // Below the minute a CLI verb's action has; claude-swap and the menu bar's packages download once.
-const INSTALL_MS = 55_000;
+const VERB_MS = 55_000;
 
 /**
  * The install action: nothing to do while claude-swap is here; otherwise the command it runs, which it runs only once
@@ -277,7 +289,7 @@ export const install = async (
     if (!allowed(config, program)) {
       return { installed: false, runs, approve: `cedarloom claude-swap install --allow ${program}` };
     }
-    const ran = await exec({ program, args: [...args, spec], timeoutMs: INSTALL_MS });
+    const ran = await exec({ program, args: [...args, spec], timeoutMs: VERB_MS });
     if (ran.code !== 0) throw new Error(`${runs} exited with ${ran.code}: ${ran.stderr.trim().slice(-500)}`);
     const now = await probeOf({ exec });
     if (!now.installed) throw new Error(`${runs} ran, and cswap is still not found: ${now.reason}`);

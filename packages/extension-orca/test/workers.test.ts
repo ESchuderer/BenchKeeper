@@ -1,5 +1,5 @@
 import { startWorker, workers } from "@cedarloom/extension-orca";
-import type { ExecParams, ExecResult, TargetContext } from "@cedarloom/extension-sdk";
+import type { ExecParams, ExecResult, CallContext } from "@cedarloom/extension-sdk";
 import { expect, test } from "vitest";
 
 // Orca 1.4.251's answers as the live test of 2026-11-07 got them, cut to the fields read, paths replaced.
@@ -41,7 +41,7 @@ const orca = ({ main = false, blocked = WAITING, screen = PROMPT, failing = "" }
   };
   return { exec, ran };
 };
-const on = (exec: TargetContext["exec"]): TargetContext => ({ locale: "en", exec });
+const on = (exec: CallContext["exec"]): CallContext => ({ locale: "en", exec });
 const START = {
   worktree: "path:/work/repo-fix",
   line: ["/home/me/.local/bin/cswap", "run", "1", "--require-session", "--", "--append-system-prompt", "it's"],

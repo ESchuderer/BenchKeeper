@@ -1,13 +1,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { auto, autoOff, autoOn, doctor, install, sessions, status, targets } from "@cedarloom/extension-claude-swap";
 import {
-  type DoctorFinding,
-  type ExecParams,
-  type ExecResult,
-  HOST_MISSING,
-  type TargetContext,
-} from "@cedarloom/extension-sdk";
+  auto,
+  autoOff,
+  autoOn,
+  doctor,
+  install,
+  list,
+  settings,
+  status,
+  switchTo,
+} from "@cedarloom/extension-claude-swap";
+import { type DoctorFinding, type ExecParams, type ExecResult, HOST_MISSING } from "@cedarloom/extension-sdk";
 import { expect, test } from "vitest";
 
 // claude-swap 0.30.0's own answers to --version, list --json and status --json, recorded with three of its accounts;
@@ -49,23 +53,17 @@ const notFound = (program: string) =>
 const missing = async (): Promise<ExecResult> => {
   throw notFound("cswap");
 };
-const on = (exec: TargetContext["exec"]): TargetContext => ({ locale: "en", exec });
-const INTERACTIVE = { target: "interactive" };
-const accounts = async (exec: TargetContext["exec"]) =>
-  (await targets["target/accounts"]?.(INTERACTIVE, on(exec)))?.accounts;
-const probe = async (exec: TargetContext["exec"]) => (await targets["target/probe"]?.(INTERACTIVE, on(exec)))?.status;
-const current = async (exec: TargetContext["exec"]) =>
-  (await targets["target/current"]?.(INTERACTIVE, on(exec)))?.number;
+const accounts = async (exec: (request: ExecParams) => Promise<ExecResult>) => (await list({ exec })).accounts;
 const codes = (findings: DoctorFinding[]) => findings.map(({ check, severity, code }) => [check, severity, code]);
 // The recorded list with its first account's row changed.
 const firstRow = (change: (row: Record<string, unknown>) => Record<string, unknown>): string => {
-  const list: unknown = JSON.parse(LIST);
-  const rows: unknown = Reflect.get(Object(list), "accounts");
+  const parsed: unknown = JSON.parse(LIST);
+  const rows: unknown = Reflect.get(Object(parsed), "accounts");
   const [first, ...rest] = Array.isArray(rows) ? rows : [];
-  return JSON.stringify({ ...Object(list), accounts: [change(Object(first)), ...rest] });
+  return JSON.stringify({ ...Object(parsed), accounts: [change(Object(first)), ...rest] });
 };
 
-// The recorded first account, as the target answers it.
+// The recorded first account, as the list answers it.
 const WORK = {
   number: 1,
   alias: "work",
@@ -95,7 +93,7 @@ const WORK = {
   ],
 };
 
-test("the interactive target lists claude-swap's accounts by number with their windows and read times; a row it no longer trusts gives its windows without one", async () => {
+test("the list gives claude-swap's accounts by number with their windows and read times; a row it no longer trusts gives its windows without one", async () => {
   const listed = await accounts(cswap());
   const distrusted = firstRow(({ usage, alias: _alias, ...row }) => ({
     ...row,
@@ -130,7 +128,7 @@ test("the interactive target lists claude-swap's accounts by number with their w
   ]);
 });
 
-test("a row without a number is left out, an alias no CedarLoom account can have is dropped, and an account whose login died is held and sends both windows unread", async () => {
+test("a row without a number is left out, an alias that is no short plain name is dropped, and an account whose login died is held with both windows unread", async () => {
   const unnumbered = firstRow(({ number: _number, ...row }) => row);
   const odd = firstRow((row) => ({ ...row, alias: "Work Laptop" }));
   const dead = firstRow(({ usage: _usage, ...row }) => ({ ...row, usageStatus: "relogin_required", usage: null }));
@@ -181,13 +179,20 @@ const refusal = JSON.stringify({
   },
 });
 
-const select = (answer: string) =>
-  targets["target/select"]?.({ ...INTERACTIVE, number: 1 }, on(cswap({ switch: answer })));
+const switched = (answer: string, config: unknown = { allow: ["cswap"] }, account = "1") =>
+  switchTo({ exec: cswap({ switch: answer }), config, inputs: { account } });
 
-test("select switches claude-swap to the account by its number and answers from and to by number; a refusal fails without the email", async () => {
-  expect([await select(SWITCHED), await select(refusal)?.catch(namesEmail)]).toEqual([
-    { switched: true, from: 3, to: 1, reason: "switched" },
+test("switch runs cswap switch on the account's number only with cswap allowed and answers from and to by number; a refusal fails without the email, and a number that is none fails", async () => {
+  expect([
+    await switched(SWITCHED, {}),
+    await switched(SWITCHED),
+    await switched(refusal).catch(namesEmail),
+    await switched(SWITCHED, { allow: ["cswap"] }, "1 --all").catch(() => "refused"),
+  ]).toEqual([
+    { runs: "cswap switch 1", approve: "cedarloom claude-swap switch --account 1 --allow cswap" },
+    { switched: true, from: 3, to: 1 },
     false,
+    "refused",
   ]);
 });
 
@@ -226,42 +231,30 @@ test("install shows what it runs and runs it only with its program allowed, with
   ]);
 });
 
-test("the probe takes claude-swap from 0.30.0 with JSON schemaVersion 1; missing, older, unreadable or another schema is unsupported", async () => {
-  const newer = JSON.stringify({ ...JSON.parse(recorded("status.json")), schemaVersion: 2 });
-  expect([
-    await probe(cswap()),
-    await probe(cswap({}, "cswap 0.31.2\n")),
-    await probe(missing),
-    await probe(cswap({}, "cswap 0.29.0\n")),
-    await probe(cswap({}, "cswap dev\n")),
-    await probe(cswap({ status: newer })),
-  ]).toEqual(["supported", "supported", "unsupported", "unsupported", "unsupported", "unsupported"]);
-});
-
-test("the current account is the one claude-swap manages and has active; a login it does not manage is none", async () => {
-  const answer = JSON.parse(recorded("status.json"));
-  const unmanaged = JSON.stringify({ ...answer, active: { ...answer.active, managed: false } });
-  expect([await current(cswap()), await current(cswap({ status: unmanaged }))]).toEqual([3, null]);
-});
-
-test("the doctor says when multi-account switching is off and names an account whose login died", async () => {
+test("the doctor reads claude-swap from 0.30.0 with JSON schemaVersion 1, says when it switches no account and names an account whose login died", async () => {
   const dead = firstRow(({ usage: _usage, ...row }) => ({ ...row, usageStatus: "relogin_required", usage: null }));
+  const newer = JSON.stringify({ ...JSON.parse(LIST), schemaVersion: 2 });
   const findings = [
     await doctor({ exec: missing }),
     await doctor({ exec: cswap({}, "cswap 0.29.0\n") }),
+    await doctor({ exec: cswap({}, "cswap dev\n") }),
     await doctor({ exec: cswap() }),
     await doctor({ exec: cswap({ list: dead }) }),
     await doctor({ exec: cswap({ list: "{}" }) }),
+    await doctor({ exec: cswap({ list: newer }) }),
   ];
+  const unsupported = [["claude-swap", "warning", "claude-swap.unsupported"]];
   expect(findings.map(codes)).toEqual([
     [["claude-swap", "info", "claude-swap.missing"]],
-    [["claude-swap", "warning", "claude-swap.unsupported"]],
+    unsupported,
+    unsupported,
     [["claude-swap", "info", "claude-swap.ready"]],
     [
       ["claude-swap", "info", "claude-swap.ready"],
       ["claude-swap", "warning", "claude-swap.relogin"],
     ],
-    [["claude-swap", "warning", "claude-swap.unsupported"]],
+    unsupported,
+    unsupported,
   ]);
 });
 
@@ -269,20 +262,6 @@ test("the status action says whether claude-swap is installed, its version, its 
   expect([await status({ exec: missing }), await status({ exec: cswap() })]).toEqual([
     { installed: false },
     { installed: true, version: "0.30.0", accounts: 3, active: 3 },
-  ]);
-});
-
-const line = (number: number, list?: string) =>
-  sessions["session/line"]?.({ provider: "claude", number }, on(cswap(list === undefined ? {} : { list }))).catch(
-    () => "failed",
-  );
-
-test("the session line runs claude-swap's session mode on a listed account; one it holds or does not list fails", async () => {
-  const dead = firstRow(({ usage: _usage, ...row }) => ({ ...row, usageStatus: "relogin_required", usage: null }));
-  expect([await line(2), await line(1, dead), await line(9)]).toEqual([
-    { argv: ["cswap", "run", "2", "--require-session", "--"] },
-    "failed",
-    "failed",
   ]);
 });
 
@@ -317,20 +296,33 @@ test("auto mode is claude-swap's menu bar service on macOS, installed only with 
   ]);
 });
 
-test("the policy is claude-swap's auto mode settings, set through cswap config set; a setting without a value or outside auto mode is left out, and one outside auto mode is never set", async () => {
+test("settings are claude-swap's auto mode settings, set through cswap config set only with cswap allowed; one outside auto mode is never set", async () => {
   const ran: string[][] = [];
   const exec = async (request: ExecParams) => {
     ran.push(request.args ?? []);
     return cswap()(request);
   };
-  const policy = await targets["target/policy"]?.({ ...INTERACTIVE, set: { "autoswitch.threshold": "85" } }, on(exec));
-  const other = targets["target/policy"]?.({ ...INTERACTIVE, set: { "run.shareHistory": "false" } }, on(exec));
+  const [allowed, threshold] = [{ allow: ["cswap"] }, { key: "autoswitch.threshold", value: "85" }];
+  const shown = await settings({ exec, config: {}, inputs: threshold });
+  const values = Object((await settings({ exec, config: allowed, inputs: threshold }))["settings"]);
+  const other = settings({ exec, config: allowed, inputs: { key: "run.shareHistory", value: "false" } });
   await expect(other).rejects.toThrow("run.shareHistory");
   expect([
-    policy?.values["autoswitch.threshold"],
-    policy?.values["autoswitch.strategy"],
-    "autoswitch.weeklyThreshold" in (policy?.values ?? {}),
-    "run.shareHistory" in (policy?.values ?? {}),
+    shown,
+    values["autoswitch.threshold"],
+    values["autoswitch.strategy"],
+    "autoswitch.weeklyThreshold" in values,
+    "run.shareHistory" in values,
     ran.filter(([command, flag]) => command === "config" && flag === "set"),
-  ]).toEqual([90, "best", false, false, [["config", "set", "--", "autoswitch.threshold", "85"]]]);
+  ]).toEqual([
+    {
+      runs: "cswap config set -- autoswitch.threshold 85",
+      approve: "cedarloom claude-swap settings --key autoswitch.threshold --value 85 --allow cswap",
+    },
+    90,
+    "best",
+    false,
+    false,
+    [["config", "set", "--", "autoswitch.threshold", "85"]],
+  ]);
 });

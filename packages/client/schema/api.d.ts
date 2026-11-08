@@ -1644,7 +1644,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker" | "session";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "worker";
                 error: string;
             };
         } | {
@@ -2907,7 +2907,7 @@ export interface components {
             params: {
                 extension: string;
                 /** @enum {string} */
-                step: "stage" | "start" | "initialize" | "run" | "doctor" | "target" | "worker" | "session";
+                step: "stage" | "start" | "initialize" | "run" | "doctor" | "worker";
                 error: string;
             };
         } | {

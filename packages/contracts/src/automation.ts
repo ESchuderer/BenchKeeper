@@ -11,7 +11,8 @@ import { fileFormats } from "./registry.ts";
  * workflow version the owner has not approved in the project yet (owner, 2026-11-07). Supervised sends every question
  * to the owner; Checkpoint and Auto send the owner's questions (taste, scope, money, legal, risk, anything public or
  * hard to undo) and take a safe default for the others, flagged for review. A project's level wins over the default,
- * and fresh installs start Supervised.
+ * and fresh installs start Supervised. These are the owner's rules for the plugin CedarLoom builds for the agent tools;
+ * CedarLoom itself runs no workflow and enforces none of them.
  */
 export const AutomationLevel = z.enum(["supervised", "checkpoint", "auto"]);
 export type AutomationLevel = z.infer<typeof AutomationLevel>;

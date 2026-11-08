@@ -351,6 +351,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "tracker.refused": (p) => `The tracker refused the write with HTTP ${p.status}: ${shown(p.error, 300)}`,
   "tracker.invalid-answer": (p) =>
     `The tracker's answer is not what CedarLoom reads (${shown(p.error, 300)}); the entry failed, and the write may have happened.`,
+  "managed.guard-off": (p) =>
+    p.key.startsWith("sandbox.")
+      ? `${p.path} sets ${p.key} in Claude Code's managed policy, which switches the sandbox off for every Claude Code session on this machine.`
+      : `${p.path} sets ${p.key} in Claude Code's managed policy, which switches hooks off for every Claude Code session on this machine, CedarLoom's guard among them.`,
+  "managed.unreadable": (p) =>
+    `${p.path} holds a managed Claude Code policy that cannot be read (${shown(p.error, 100)}), so whether it switches hooks or the sandbox off is unknown.`,
   "work-items.no-hub": () => "This machine binds no hub. Name it: cedarloom profiles bind hub <owner/repo> --yes",
   "work-items.not-hub": (p) =>
     `${p.repo} is not this machine's hub (${p.hub}); CedarLoom works on hub issues only, so nothing was queued or linked.`,

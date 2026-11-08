@@ -67,8 +67,8 @@ const host = {
   platform: process.platform,
   home: "/home/dev",
   gh: [node, "-e", "process.exit(1)"],
-  // No managed policy: the machine's own would make these tests depend on it.
-  managed: null,
+  // No managed settings: the machine's own would make these tests depend on it.
+  managedDir: null,
   fetchTree: marketplace(["workflow", "benchkeeper"]),
 } as const;
 
@@ -501,15 +501,14 @@ test("the version check tries a store another process holds again a second later
 test("managed settings that loosen the sandbox, or cannot be read, refuse a Claude Code launch before anything else", async () => {
   const { state, config, work } = setup();
   const managedDir = mkdtempSync(join(tmpdir(), "cedarloom-managed-"));
-  const managed = { files: [managedDir], preferences: null, reg: null };
   const file = join(managedDir, "managed-settings.json");
   writeFileSync(file, JSON.stringify({ sandbox: { enabled: false } }));
-  await expect(launchWorker(state, config, request(work), { ...host, managed })).resolves.toEqual({
+  await expect(launchWorker(state, config, request(work), { ...host, managedDir })).resolves.toEqual({
     ok: false,
     finding: { code: "launch.sandbox-overridden", params: { path: file, key: "sandbox.enabled" } },
   });
   writeFileSync(file, "{");
-  await expect(launchWorker(state, config, request(work), { ...host, managed })).resolves.toEqual({
+  await expect(launchWorker(state, config, request(work), { ...host, managedDir })).resolves.toEqual({
     ok: false,
     finding: { code: "launch.managed-settings-unreadable", params: { path: file, error: "not JSON" } },
   });
@@ -517,23 +516,11 @@ test("managed settings that loosen the sandbox, or cannot be read, refuse a Clau
   expect(readdirSync(state)).toEqual(["homes"]);
   // Claude Code's managed settings do not apply to a Codex launch, which goes on to its own refusals.
   await expect(
-    launchWorker(state, config, { ...request(work), agent: "codex" }, { ...host, managed }),
+    launchWorker(state, config, { ...request(work), agent: "codex" }, { ...host, managedDir }),
   ).resolves.toEqual({
     ok: true,
     value: { kind: "no-account", reason: "unknown-pool" },
   });
-});
-
-test("a server-managed policy cached in the worker's home that loosens the sandbox refuses the launch, and leaves no worker folder", async () => {
-  const { state, config, work } = setup();
-  const cache = join(ownHome(state, "work"), "remote-settings.json");
-  writeFileSync(cache, JSON.stringify({ disableAllHooks: true }));
-  const managed = { files: [], preferences: null, reg: null };
-  await expect(launchWorker(state, config, request(work), { ...host, managed })).resolves.toEqual({
-    ok: false,
-    finding: { code: "launch.sandbox-overridden", params: { path: cache, key: "disableAllHooks" } },
-  });
-  expect(readdirSync(join(state, "workers"))).toEqual([]);
 });
 
 test("a run's labels take the permission mode the launch was built with: a plan launch records plan", async () => {

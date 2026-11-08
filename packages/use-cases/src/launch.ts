@@ -19,11 +19,8 @@ import {
   GITHUB_DOMAINS,
   ghProbe,
   guardHookOf,
-  cachedPolicyProblems,
-  type ManagedPlaces,
-  type ManagedProblem,
-  managedPlaces,
-  policyProblems,
+  managedProblems,
+  managedSettingsDir,
   readResult,
   resultPrompt,
   workerEnv,
@@ -77,15 +74,17 @@ export interface LaunchHost {
   readonly home: string;
   /** The gh command of the token probe; gh on the worker's PATH when unset. */
   readonly gh?: readonly [string, ...string[]];
-  /** Where Claude Code's managed policy is read from; the platform's when unset; none when null, the home's cache too. */
-  readonly managed?: ManagedPlaces | null;
+  /** The folder of Claude Code's managed settings files; the platform's when unset, none when null. */
+  readonly managedDir?: string | null;
   /** Reads the marketplace's plugins at the pinned commit; the git package's fetch over https when unset. */
   readonly fetchTree?: FetchTree;
 }
 
-// A managed policy that loosens the worker sandbox or switches its guard hook off, or cannot be read, refuses every
-// launch of Claude Code: a managed key outranks --settings.
-const refusalOf = ([problem]: readonly ManagedProblem[]): Result<null> => {
+// Claude Code's managed settings files that loosen the worker sandbox or switch its guard hook off, or cannot be read,
+// refuse every launch of it: a managed key outranks --settings.
+const managedRefusal = (host: LaunchHost, agent: Agent): Result<null> => {
+  const dir = host.managedDir === undefined ? managedSettingsDir(host.platform) : host.managedDir;
+  const [problem] = agent === "claude" && dir !== null ? managedProblems(dir) : [];
   if (problem === undefined) return { ok: true, value: null };
   if (problem.kind === "unreadable") {
     const params = { path: problem.path, error: problem.error };
@@ -95,12 +94,6 @@ const refusalOf = ([problem]: readonly ManagedProblem[]): Result<null> => {
     ok: false,
     finding: { code: "launch.sandbox-overridden", params: { path: problem.path, key: problem.key } },
   };
-};
-
-// The machine's managed places, before any account is chosen.
-const managedRefusal = (host: LaunchHost, agent: Agent): Result<null> => {
-  const places = host.managed === undefined ? managedPlaces(host.platform, host.parent) : host.managed;
-  return refusalOf(agent === "claude" && places !== null ? policyProblems(places) : []);
 };
 
 type Verdict = NonNullable<LaunchRecord["verdict"]>;
@@ -404,9 +397,6 @@ export const leaseWorker = async <L extends Launch>(
   if (!prepared.ok) return prepared;
   const { runId, dir, build } = prepared.value;
   const probe = build([]);
-  // The server-managed policy cached in the home the worker runs in.
-  const cached = refusalOf(request.agent === "claude" && host.managed !== null ? cachedPolicyProblems(probe.home) : []);
-  if (!cached.ok) return refused(dir, cached);
   const { agent, task, runtime } = request;
   const checked = await checkedVersions(state, agent, runtime, { env: probe.env, probe, account: account.name });
   if (!checked.ok) return refused(dir, checked);

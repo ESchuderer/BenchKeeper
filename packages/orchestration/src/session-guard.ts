@@ -31,13 +31,14 @@ export const gitRemotes: Remotes = (folder) => {
 };
 
 /**
- * A worker's guard policy: the GitHub repositories of its project's remotes and the hub, the hub from this machine's
+ * A worker's guard policy: the GitHub repositories of its project's origin and the hub, the hub from this machine's
  * binding; no memory repository yet. A project without GitHub remotes leaves the worker the hub alone.
  */
 export const workerPolicy = (project: string, binding: string | null): GuardPolicy => {
   // A binding the policy cannot hold, such as owner/., counts as none: issue commands refuse.
   const hub = RepoName.safeParse(binding).success ? binding : null;
-  const urls = [...(gitRemotes(project)?.values() ?? [])].flat();
+  // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
+  const urls = gitRemotes(project)?.get("origin") ?? [];
   const named = [...urls.map(githubRepo), hub].filter((repo) => repo !== null);
   return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory: null };
 };

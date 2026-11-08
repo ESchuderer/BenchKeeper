@@ -71,7 +71,12 @@ test("a worker's policy holds its project's GitHub repositories and the hub, and
   const project = mkdtempSync(join(tmpdir(), "guard-"));
   try {
     execFileSync("git", ["init", "-q", project]);
-    execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
+    for (const [name, url] of [
+      ["origin", "git@github.com:acme/app.git"],
+      ["upstream", "https://github.com/other/x"],
+    ]) {
+      execFileSync("git", ["-C", project, "remote", "add", name ?? "", url ?? ""]);
+    }
     const policy = workerPolicy(project, "acme/tracker");
     expect(policy).toEqual({
       schemaVersion: 1,

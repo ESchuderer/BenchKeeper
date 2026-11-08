@@ -12,7 +12,7 @@ It also refuses when it cannot read the call at all: input that is no JSON, a mi
 
 ### In a worker session
 
-The launch gives every worker the hook through `--settings`: a `PreToolUse` hook on `Bash|Monitor|PowerShell` in exec form (this Node.js, the hook's file, the policy's JSON), `timeout` 10 and `onFailure: "block"`. The policy holds the GitHub repositories of the project's remotes and the hub this machine binds. What keeps the worker from switching the hook off:
+The launch gives every worker the hook through `--settings`: a `PreToolUse` hook on `Bash|Monitor|PowerShell` in exec form (this Node.js, the hook's file, the policy's JSON), `timeout` 10 and `onFailure: "block"`. The policy holds the GitHub repositories of the project's `origin` remote (pending owner decision: not a fork's upstream) and the hub this machine binds. What keeps the worker from switching the hook off:
 
 | Way round                                                                                                                                       | What stops it                                                                                                                                                                                                                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

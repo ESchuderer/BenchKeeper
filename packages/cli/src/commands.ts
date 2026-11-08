@@ -306,7 +306,9 @@ export const accountsSwitch = async (ctx: Context, name: string, { yes }: { yes?
   if (!switched.ok) return refused(ctx, "accounts", switched.finding);
   const { number, switched: done, orca } = switched.value;
   const outcome = done ? "now use" : "already use";
-  const orcaLine = orcaFollowed(orca, done === null);
+  // An account interactive sessions already use answers switched: false also without --yes.
+  const preview = yes !== true;
+  const orcaLine = orcaFollowed(orca, preview);
   const human =
     done === null
       ? `Switches interactive sessions to ${name}: cswap switch ${number}${orcaLine}\nNothing changed. Run the command again with --yes.`
@@ -315,7 +317,7 @@ export const accountsSwitch = async (ctx: Context, name: string, { yes }: { yes?
   emit(ctx, "accounts-switch", { account: name, number, switched: done, orca: followed }, human);
   // The approval covered both: an Orca on a saved account that did not follow fails the command, though claude-swap's
   // switch stays.
-  return done !== null && orcaStayed(orca) ? EXIT.refused : EXIT.ok;
+  return !preview && orcaStayed(orca) ? EXIT.refused : EXIT.ok;
 };
 
 // Whether Orca's Claude panes use a saved account, as its extension names the mode.

@@ -1057,7 +1057,7 @@ test("a verb the app's own extension contributes runs its action and prints its 
   ]);
 });
 
-test("accounts switch --yes exits refused when Orca on a saved account does not follow, though claude-swap switched", async () => {
+test("accounts switch --yes exits refused when Orca on a saved account does not follow, though claude-swap switched; a preview never does", async () => {
   const { root, cli } = setup();
   ship(root, "cedarloom.claude-swap", {
     actions: { status: { title: "Status" } },
@@ -1065,12 +1065,15 @@ test("accounts switch --yes exits refused when Orca on a saved account does not 
   });
   const orca = ship(root, "cedarloom.orca", { actions: { status: { title: "Status" }, follow: { title: "Follow" } } });
   await cli("accounts", "add", "elsewhere", "--yes");
+  await cli("accounts", "add", "work", "--yes");
+  // work is the account interactive sessions use already; without --yes nothing follows, so nothing is refused.
+  const shown = await cli("accounts", "switch", "work", "--target", "interactive");
   // Orca stays on its saved account: say, an Orca older than 1.4.252.
   writeFileSync(join(orca, "follow.json"), JSON.stringify({ mode: "managed-other", followed: false, hint: "older" }));
   const stayed = await cli("accounts", "switch", "elsewhere", "--target", "interactive", "--yes");
   unlinkSync(join(orca, "follow.json"));
   const followed = await cli("accounts", "switch", "elsewhere", "--target", "interactive", "--yes");
-  expect([stayed.code, followed.code]).toEqual([EXIT.refused, EXIT.ok]);
+  expect([shown.code, stayed.code, followed.code]).toEqual([EXIT.ok, EXIT.refused, EXIT.ok]);
 });
 
 test("components switch turns the app's own extension off as one run, which extensions list shows", async () => {

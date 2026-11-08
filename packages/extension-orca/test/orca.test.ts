@@ -149,6 +149,8 @@ const now = async (): Promise<void> => undefined;
 const accountsOrca = (version: string, lists: string | string[], { selected = HOME, swap = true } = {}) => {
   const ran: string[][] = [];
   const pending = [lists].flat();
+  // Only a list takes the next of `lists`.
+  const nextList = (): string => (pending.length > 1 ? pending.shift() : pending[0]) ?? "";
   const state = JSON.stringify({
     id: "local-select",
     ok: true,
@@ -157,12 +159,12 @@ const accountsOrca = (version: string, lists: string | string[], { selected = HO
   const exec = async ({ program, args = [] }: ExecParams): Promise<ExecResult> => {
     ran.push(args);
     if (program === "cswap" && !swap) throw absent("cswap");
-    const answers: Record<string, string> = {
-      "--version": version,
-      status: recorded("status-running.json"),
-      account: args[1] === "select" ? state : ((pending.length > 1 ? pending.shift() : pending[0]) ?? ""),
+    const answers: Record<string, () => string> = {
+      "--version": () => version,
+      status: () => recorded("status-running.json"),
+      account: () => (args[1] === "select" ? state : nextList()),
     };
-    return { code: 0, stdout: answers[args[0] ?? ""] ?? "", stderr: "" };
+    return { code: 0, stdout: answers[args[0] ?? ""]?.() ?? "", stderr: "" };
   };
   return { exec, selects: () => ran.filter(([command, verb]) => command === "account" && verb === "select") };
 };

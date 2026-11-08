@@ -138,8 +138,7 @@ const FOLLOWS =
 
 // Whether claude-swap is installed: only with it does Orca's managed account follow the default home's; without it,
 // Orca chooses that account itself and CedarLoom only reports it (owner, hub issue 135).
-const swapInstalled = async ({ exec }: Exec): Promise<boolean> =>
-  (await programVersion(exec, "cswap", MS).catch(() => ({ installed: false }))).installed;
+const swapInstalled = async ({ exec }: Exec): Promise<boolean> => (await programVersion(exec, "cswap", MS)).installed;
 const ORCAS_OWN = "without claude-swap, Orca chooses its managed Claude account itself; CedarLoom only reports it";
 
 // Why Orca cannot select the default home's saved account for its panes; none when it can.
@@ -175,7 +174,9 @@ const accountFindings = async (context: Exec, version: string): Promise<DoctorFi
     return [finding("info", "orca.accounts-managed", later)];
   }
   const other = "Orca's Claude panes use a saved account other than the default home's";
-  if (!(await swapInstalled(context))) return [finding("info", "orca.accounts-elsewhere", `${other}: ${ORCAS_OWN}.`)];
+  // The doctor reports what it can: a claude-swap that does not answer its version counts as none.
+  if (!(await swapInstalled(context).catch(() => false)))
+    return [finding("info", "orca.accounts-elsewhere", `${other}: ${ORCAS_OWN}.`)];
   const fix = unfollowable(accounts, version) ?? `run cedarloom orca follow, or ${FOLLOWS}`;
   return [
     finding("warning", "orca.accounts-elsewhere", `${other}, so claude-swap's switches do not reach them: ${fix}.`),

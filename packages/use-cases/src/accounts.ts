@@ -1,20 +1,19 @@
 import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { counted, isConfirmed, type Move, type Selection, selectAccount, selectMove } from "@cedarloom/accounts";
+import { counted, type Move, type Selection, selectAccount, selectMove } from "@cedarloom/accounts";
 import {
   type Account,
   ACCOUNTS_SCHEMA_VERSION,
   AccountRegistry,
   type AccountSwitch,
   Agent,
-  type Quota,
   type Reading,
   type Result,
   readDocument,
   sameFolder,
 } from "@cedarloom/contracts";
 import type { RunStore } from "@cedarloom/ledger";
-import { readOptionalJson, withStore, withView } from "./use-cases.ts";
+import { readOptionalJson, withStore } from "./use-cases.ts";
 
 /** The registry file in the config folder. */
 const registryPath = (config: string): string => join(config, "accounts.json");
@@ -94,37 +93,6 @@ const recordChoice = (
   store.recordSwitch({ ...row, at: new Date(judged).toISOString(), readings: counts });
 };
 
-/** A window of an account as claude-swap's switch target answers it: times with any offset, null when not known. */
-export interface SwapWindow {
-  readonly window: Quota;
-  readonly usedPercent: number;
-  readonly resetsAt: string | null;
-  readonly readAt: string | null;
-}
-
-// A time with any offset as the ledger compares it: UTC with milliseconds.
-const utc = (time: string): string => new Date(time).toISOString();
-
-/**
- * Keeps claude-swap's windows of `account` as its readings, next to the workers' own: the newest per window counts. A
- * window without a read time (claude-swap's row was not ok, so it no longer trusts that share) drops the stored
- * claude-swap reading of that window; a worker's stays. Returns how many were kept.
- */
-export const keepSwapReadings = (state: string, account: string, windows: readonly SwapWindow[]): Result<number> =>
-  withStore(state, (store) => {
-    let kept = 0;
-    for (const { window, usedPercent, resetsAt, readAt } of windows) {
-      if (readAt === null) {
-        store.dropReading({ account, window, source: "cswap" });
-        continue;
-      }
-      const reset = resetsAt === null ? null : utc(resetsAt);
-      store.recordReading({ account, window, usedPercent, resetsAt: reset, readAt: utc(readAt), source: "cswap" });
-      kept += 1;
-    }
-    return { ok: true, value: kept };
-  });
-
 /**
  * Chooses the account a new worker of the task starts on, under the store's lock, and records the choice in the ledger
  * with the pool's readings the choice counted and each candidate's margin. A pool that yields no account records
@@ -191,26 +159,4 @@ export const chooseMove = (
       recordChoice(store, { readings, judged }, row);
     }
     return { ok: true, value: move };
-  });
-
-/**
- * The readings a choice at `now` counts, and per confirmed pool the account a new worker would start on, leases and the
- * worker's model aside. Nothing is recorded; a state folder without a store has no readings.
- */
-export const accountsStatus = (
-  state: string,
-  registry: AccountRegistry | null,
-  now?: number,
-): Result<{ readings: Reading[]; pools: { agent: Agent; pool: string; selection: Selection }[] }> =>
-  withView(state, (view) => {
-    const judged = now ?? Date.now();
-    const readings = counted(view?.readings() ?? [], judged);
-    const pools = Agent.options.flatMap((agent) =>
-      Object.keys(registry?.pools[agent] ?? {}).flatMap((pool) =>
-        registry !== null && isConfirmed(registry, { agent, pool })
-          ? [{ agent, pool, selection: selectAccount(registry, { agent, pool }, readings, judged) }]
-          : [],
-      ),
-    );
-    return { ok: true, value: { readings, pools } };
   });

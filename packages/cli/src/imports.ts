@@ -1,6 +1,6 @@
 import { type ImportReview, shown } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
-import { change, mayDo, refused } from "./commands.ts";
+import { change, refused } from "./commands.ts";
 import { type Context, EXIT, emit } from "./output.ts";
 
 const AS = {
@@ -16,18 +16,8 @@ const unitLine = ({ id, status, stored, version, changes }: ImportReview["units"
   return `  ${id}  ${stored === null ? "" : `${stored} -> `}${version}  ${AS[status]}  ${nodes}`;
 };
 
-const extensionLines = (extension: ImportReview["extensions"][number]): string[] => {
-  const { id, version, status, installed, capabilities } = extension;
-  const may =
-    capabilities === null ? ["what it may do is unknown: not fetched, or no manifest of its own"] : mayDo(capabilities);
-  return [
-    `  ${id} ${version}  ${status}  ${installed ? "installed" : "not installed"}`,
-    ...(may.length > 0 ? may : ["asks for no capabilities"]).map((line) => `    ${line}`),
-  ];
-};
-
-/** The review for people: each workflow with its status, every line that runs or writes, the extensions, the licenses. */
-const reviewText = ({ source, units, risks, extensions }: ImportReview): string => {
+/** The review for people: each workflow with its status, every line that runs or writes, the licenses. */
+const reviewText = ({ source, units, risks }: ImportReview): string => {
   const from = "folder" in source ? source.folder : `${source.git} ${source.ref} at commit ${source.commit}`;
   const licenses = [...new Set(units.map(({ license }) => license ?? "none stated"))];
   return [
@@ -38,8 +28,6 @@ const reviewText = ({ source, units, risks, extensions }: ImportReview): string 
     ...risks.map(
       ({ workflow, node, kind, text }) => `  ${workflow} ${node}  ${kind}: ${shown(text, Number.POSITIVE_INFINITY)}`,
     ),
-    "Extensions they need (this import installs none)",
-    ...extensions.flatMap(extensionLines),
     `Licenses: ${licenses.join(", ")}`,
   ].join("\n");
 };

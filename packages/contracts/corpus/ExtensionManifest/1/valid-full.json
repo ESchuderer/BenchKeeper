@@ -27,13 +27,6 @@
       "search-issues": {
         "title": "Search issues",
         "description": "Runs a JQL query.",
-        "config": {
-          "type": "object",
-          "properties": { "query": { "$ref": "#/$defs/jql" }, "limit": { "type": "integer", "minimum": 1 } },
-          "required": ["query"],
-          "additionalProperties": false,
-          "$defs": { "jql": { "type": "string", "minLength": 1 } }
-        },
         "inputs": { "project": { "type": "string", "required": true } },
         "outputs": { "issues": { "type": "json", "description": "The issues found" }, "count": { "type": "number" } }
       },

@@ -40,10 +40,10 @@ export {
 export * from "./protocol.ts";
 
 /**
- * What an action gets: its node's `with`, its data inputs, the run's id, the user's language and its grant (from
- * `initialize`), a signal the host's cancel aborts, a log that reaches the run's log, and `fetch` and `exec` through the
- * host, which the host's cancel of the run cancels too. A refused or failed call throws an error with `HOST_REFUSED` or
- * `HOST_FAILED` as its `code`, and an `exec` of a program not installed here one with `HOST_MISSING`.
+ * What an action gets: its caller's configuration, its data inputs, the run's id, the user's language and its grant
+ * (from `initialize`), a signal the host's cancel aborts, a log that reaches the run's log, and `fetch` and `exec`
+ * through the host, which the host's cancel of the run cancels too. A refused or failed call throws an error with
+ * `HOST_REFUSED` or `HOST_FAILED` as its `code`, and an `exec` of a program not installed here one with `HOST_MISSING`.
  */
 export type ActionContext = Omit<RunParams, "action"> & {
   locale: string;

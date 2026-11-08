@@ -60,12 +60,9 @@
     "import.applied": ["Imported", ["runId", "select", { "none": [], "other": [" in run ", ["runId"]] }], "."],
     "import.apply": ["Import"],
     "import.changes": ["Nodes"],
-    "import.credential": ["Uses the credential ", ["id"], " for ", ["hosts"], ", without seeing its value"],
-    "import.extensions": ["Extensions they need (this import installs none)"],
     "import.from": ["From ", ["git"], " at ", ["ref"], ", commit ", ["commit"]],
     "import.fromFolder": ["From ", ["folder"]],
     "import.git": ["Git URL of the export"],
-    "import.installed": ["installed here."],
     "import.license": ["License"],
     "import.licenseCount": [
       ["license"],
@@ -74,41 +71,15 @@
       ")"
     ],
     "import.licenses": ["Licenses: ", ["licenses"]],
-    "import.net": ["Calls ", ["hosts"]],
-    "import.noExtensions": ["They need no extension."],
     "import.noLicense": ["none stated"],
     "import.noRisks": ["They run no command or agent and write no file."],
     "import.nodes": [["added"], " added, ", ["changed"], " changed, ", ["removed"], " removed"],
-    "import.notInstalled": ["not installed here."],
     "import.nothing": ["Nothing to import: every workflow is the same as stored or in conflict."],
-    "import.pin": [
-      "from ",
-      ["git"],
-      ["folder", "select", { "yes": [", folder ", ["path"], ","], "other": [] }],
-      " at ",
-      ["commit"],
-      ":"
-    ],
-    "import.pinStatus": [
-      [
-        "status",
-        "select",
-        {
-          "verified": ["its files match the lock;"],
-          "mismatch": ["its files differ from the lock;"],
-          "other": ["not fetched;"]
-        }
-      ]
-    ],
     "import.plan": [
       "Importing stores ",
       ["count", "plural", { "one": ["#", " workflow"], "other": ["#", " workflows"] }],
       " as one run."
     ],
-    "import.planWrite": ["Proposes file writes, each applied only through a plan you approve"],
-    "import.program": ["Runs ", ["id"], " from ", ["files"]],
-    "import.programNowhere": ["Names the program ", ["id"], " for no platform"],
-    "import.projectRead": ["Reads project files"],
     "import.ref": ["Branch or tag"],
     "import.review": ["Review"],
     "import.riskKind": [
@@ -143,7 +114,6 @@
       ]
     ],
     "import.units": ["Workflows in this import"],
-    "import.unknownAsks": ["What it asks for is unknown: its manifest at that commit did not read"],
     "import.version": ["Version"],
     "import.versionChange": [["stored"], " to ", ["version"]],
     "import.what": ["What they do"],
@@ -184,11 +154,6 @@
     ],
     "problem.cycle": ["The nodes ", ["nodes"], " form a cycle; repeats need an explicit loop node."],
     "problem.danglingEdge": ["Edge ", ["edge"], " starts or ends at ", ["ref"], ", which does not exist."],
-    "problem.digestMismatch": [
-      "The lock pins ",
-      ["extension"],
-      " at a commit whose files are not the ones it names; nothing is imported."
-    ],
     "problem.documentInvalid": ["It does not match the workflow schema: ", ["issues"], "."],
     "problem.documentNewer": ["It has schema version ", ["found"], "; this CedarLoom reads up to ", ["known"], "."],
     "problem.documentUnreadable": [["path"], " cannot be read (", ["error"], ")."],

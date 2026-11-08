@@ -65,7 +65,7 @@ const actions: Record<string, Action> = {
       if (signal.aborted) stop();
       else signal.addEventListener("abort", stop);
     }),
-  // Fetches through the host the request its node's `with` holds, and says what it was granted.
+  // Fetches through the host the request its configuration holds, and says what it was granted.
   fetch: async ({ config, fetch, granted }) => ({ answer: await fetch(Object(config)), granted }),
   granted: ({ granted }) => ({ granted }),
 };

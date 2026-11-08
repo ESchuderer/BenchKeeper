@@ -1,10 +1,10 @@
 import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { formatInstalled, type Result } from "@cedarloom/contracts";
+import type { Result } from "@cedarloom/contracts";
 import { openStore } from "@cedarloom/git";
 import { applyPlan, planExport, planImport, planSave, saveDraft } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
-import { gitFixtures, gitIdentity, ok, testRoot } from "./harness.ts";
+import { gitIdentity, ok, testRoot } from "./harness.ts";
 
 const root = testRoot("imports");
 gitIdentity(root);
@@ -19,7 +19,7 @@ const store = (state: string, version: string, more: object[] = [], onTop = fals
   ok(applyPlan(state, ok(planSave(state, "w", { onTop })).plan, { yes: true }));
 };
 const exported = (state: string, folder: string): string => {
-  ok(applyPlan(state, ok(planExport(state, ["w"], folder, { name: "Team flows" })).plan, { yes: true }));
+  ok(applyPlan(state, ok(planExport(state, ["w"], folder, { name: "Team flows" })), { yes: true }));
   return folder;
 };
 const refusal = <T>(result: Result<T>): unknown => (result.ok ? "planned" : result.finding);
@@ -132,9 +132,7 @@ test.skipIf(process.platform === "win32")(
     writeFileSync(join(elsewhere, "workflow-w.json"), readFileSync(join(folder, "workflows", "workflow-w.json")));
     const linked = join(from, "linked");
     mkdirSync(linked);
-    for (const name of ["cedarloom-export.json", "cedarloom.lock.json"]) {
-      writeFileSync(join(linked, name), readFileSync(join(folder, name)));
-    }
+    writeFileSync(join(linked, "cedarloom-export.json"), readFileSync(join(folder, "cedarloom-export.json")));
     symlinkSync(elsewhere, join(linked, "workflows"));
     expect(refusal(await planImport(machine(), { folder: linked }))).toEqual({
       code: "apply.symlink",
@@ -142,64 +140,3 @@ test.skipIf(process.platform === "win32")(
     });
   },
 );
-
-const { fetchLocal, publish } = gitFixtures(root);
-
-// The extension the workflow uses, published as its own repository.
-const JIRA = {
-  schemaVersion: 1,
-  kind: "cedarloom.extension",
-  id: "acme.jira",
-  version: "2.1.0",
-  name: "Jira",
-  api: "1.0",
-  runtime: { kind: "node", entry: "main.mjs" },
-  capabilities: { net: ["https://acme.atlassian.net"] },
-  contributes: { actions: { search: { title: "Search" } } },
-};
-
-test("an import from Git fetches each extension it uses at its pinned commit, installs none, and refuses one whose files are not its digest's", async () => {
-  const [from, to] = [machine(), machine()];
-  const jira = publish("jira", { "cedarloom-extension.json": JSON.stringify(JIRA), "main.mjs": "" });
-  const tree = ok(await fetchLocal({ url: jira, ref: "main" }, { parent: mkdtempSync(join(root, "fetch-")) }));
-  const pin = { version: "2.1.0", source: { git: jira, commit: tree.commit }, digest: tree.digest };
-  const installed = {
-    schemaVersion: 1,
-    kind: "cedarloom.extensions",
-    extensions: { "acme.jira": { ...pin, ref: "main", consented: "c".repeat(64) } },
-  } as const;
-  writeFileSync(join(from, "extensions.json"), formatInstalled(installed));
-  store(from, "1.0.0", [{ id: "search", type: "acme.jira/search" }]);
-  const folder = exported(from, join(from, "shared"));
-  const read = (path: string) => readFileSync(join(folder, ...path.split("/")), "utf8");
-  const files = ["cedarloom-export.json", "cedarloom.lock.json", "workflows/workflow-w.json"];
-  const flows = publish("flows", Object.fromEntries(files.map((path) => [path, read(path)])));
-  const verified = ok(await planImport(to, { git: flows, ref: "main" }, fetchLocal));
-  const lock = JSON.parse(read("cedarloom.lock.json"));
-  lock.extensions["acme.jira"].digest = "f".repeat(64);
-  const tampered = publish("tampered", {
-    ...Object.fromEntries(files.map((path) => [path, read(path)])),
-    "cedarloom.lock.json": JSON.stringify(lock),
-  });
-  const mismatch = await planImport(to, { git: tampered, ref: "main" }, fetchLocal);
-  expect([
-    verified.review.extensions,
-    refusal(mismatch),
-    verified.review.risks.find(({ kind }) => kind === "extension"),
-  ]).toEqual([
-    [
-      {
-        id: "acme.jira",
-        version: "2.1.0",
-        git: jira,
-        commit: tree.commit,
-        digest: tree.digest,
-        status: "verified",
-        installed: false,
-        capabilities: { net: ["https://acme.atlassian.net"] },
-      },
-    ],
-    { code: "extension.digest-mismatch", params: { extension: "acme.jira" } },
-    { workflow: "w", node: "search", kind: "extension", text: "acme.jira/search" },
-  ]);
-}, 30_000);

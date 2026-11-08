@@ -17,7 +17,7 @@ export type InitializeParams = { protocol: string; locale: string; granted?: Gra
 export type InitializeResult = { protocol: string; actions: string[] };
 export const initialize = new RequestType<InitializeParams, InitializeResult, void>("initialize");
 
-/** One run of an action: the node's `with` and the values of its data inputs, and the run it belongs to. */
+/** One run of an action: its caller's configuration, the values of its data inputs, and the run it belongs to. */
 export type RunParams = { action: string; config: unknown; inputs: Record<string, unknown>; run: string };
 /** The values of the action's data outputs. */
 export type RunResult = { outputs: Record<string, unknown> };

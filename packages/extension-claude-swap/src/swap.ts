@@ -273,8 +273,6 @@ const VERB_MS = 55_000;
 /**
  * The install action: nothing to do while claude-swap is here; otherwise the command it runs, which it runs only once
  * the user names its program with `--allow` (an approval line; nothing installs unnamed).
- * shortcut: the approval rides in the action's config, which only a CLI verb sets today; a workflow node's `with` could
- * set it too, so a host-owned grant (as `initialize` carries `granted`) must carry it before workflows run actions.
  */
 export const install = async (
   { exec, config }: Pick<ActionContext, "exec" | "config">,

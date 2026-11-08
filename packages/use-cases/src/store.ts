@@ -4,14 +4,10 @@ import {
   type DraftSaved,
   EXPORT_SCHEMA_VERSION,
   ExportIndex,
-  type ExtensionLock,
   type Finding,
   findingInfo,
   formatExport,
-  formatLock,
   formatWorkflow,
-  isExtensionType,
-  LOCK_SCHEMA_VERSION,
   PLAN_SCHEMA_VERSION,
   type Plan,
   type Result,
@@ -25,7 +21,6 @@ import {
 import { errorCode, hashFile, validateWorkflow } from "@cedarloom/engine";
 import type { Store } from "@cedarloom/git";
 import { basePathOf, listDrafts, readDraft, saveDraft } from "./drafts.ts";
-import { installedExtensions } from "./extensions.ts";
 import { parseDocument, storeOf } from "./use-cases.ts";
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
@@ -141,30 +136,13 @@ export const openVersion = (state: string, id: string, commit?: string): Result<
   return saved;
 };
 
-// The extensions a workflow's nodes use: the id before an extension action's `/`.
-export const extensionsOf = (workflow: WorkflowDefinition): string[] =>
-  workflow.nodes.flatMap(({ type }) => (isExtensionType(type) ? [type.slice(0, type.indexOf("/"))] : []));
+type Stored = { files: [string, string][]; ids: string[] };
 
-/** The lock of `ids`, each pinned as it is installed here; an extension not installed cannot be pinned. */
-const lockOf = (state: string, ids: Set<string>): Result<ExtensionLock> => {
-  const installed = installedExtensions(state);
-  if (!installed.ok) return installed;
-  const extensions: ExtensionLock["extensions"] = {};
-  for (const id of [...ids].toSorted((a, b) => a.localeCompare(b))) {
-    const pin = installed.value.find((entry) => entry.id === id);
-    if (pin === undefined) return refuse({ code: "extension.unknown", params: { extension: id } });
-    extensions[id] = { version: pin.version, source: pin.source, digest: pin.digest };
-  }
-  return { ok: true, value: { schemaVersion: LOCK_SCHEMA_VERSION, kind: "cedarloom.lock", extensions } };
-};
-
-type Stored = { files: [string, string][]; ids: string[]; used: Set<string> };
-
-/** The stored files of `ids` by their paths in the export layout, their ids as stored, and the extensions they use. */
+/** The stored files of `ids` by their paths in the export layout, and their ids as stored. */
 const storedFiles = (state: string, ids: string[]): Result<Stored> => {
   const store = storeOf(state);
   const head = store.head();
-  const stored: Stored = { files: [], ids: [], used: new Set() };
+  const stored: Stored = { files: [], ids: [] };
   for (const id of ids) {
     const blob = head === null ? null : store.blob(head, fileOf(id));
     if (blob === null) return refuse({ code: "store.not-found", params: { id, commit: null } });
@@ -172,7 +150,6 @@ const storedFiles = (state: string, ids: string[]): Result<Stored> => {
     if (!read.ok) return read;
     stored.files.push([fileOf(id), read.value.text]);
     stored.ids.push(read.value.workflow.metadata.id);
-    for (const extension of extensionsOf(read.value.workflow)) stored.used.add(extension);
   }
   return { ok: true, value: stored };
 };
@@ -197,20 +174,17 @@ const writeOf = (folder: string, [path, content]: [string, string]): Result<Plan
   }
 };
 
-/** A planned export: the plan, and the extensions its lock pins. */
-export type ExportPlan = { plan: Plan; extensions: string[] };
-
 /**
  * Plans writing stored workflows into `folder` in the export layout (P4 a: the user commits and pushes it with their
- * own Git): the index, each workflow's stored file byte for byte, and the lock of the extensions they use, pinned as
- * installed here. Files already there are replaced under the plan's checks; others stay.
+ * own Git): the index and each workflow's stored file byte for byte. Files already there are replaced under the plan's
+ * checks; others stay.
  */
 export const planExport = (
   state: string,
   ids: string[],
   folder: string,
   about: Pick<ExportIndex, "name" | "license">,
-): Result<ExportPlan> => {
+): Result<Plan> => {
   const indexOf = (workflows: string[]) =>
     readDocument(ExportIndex, EXPORT_SCHEMA_VERSION, {
       schemaVersion: EXPORT_SCHEMA_VERSION,
@@ -224,19 +198,12 @@ export const planExport = (
   if (!stored.ok) return stored;
   const index = indexOf(stored.value.ids);
   if (!index.ok) return index;
-  const lock = lockOf(state, stored.value.used);
-  if (!lock.ok) return lock;
-  const files: [string, string][] = [
-    ["cedarloom-export.json", formatExport(index.value)],
-    ["cedarloom.lock.json", formatLock(lock.value)],
-    ...stored.value.files,
-  ];
+  const files: [string, string][] = [["cedarloom-export.json", formatExport(index.value)], ...stored.value.files];
   const operations: Plan["operations"] = [];
   for (const file of files) {
     const write = writeOf(folder, file);
     if (!write.ok) return write;
     operations.push(write.value);
   }
-  const extensions = Object.keys(lock.value.extensions);
-  return { ok: true, value: { plan: { schemaVersion: PLAN_SCHEMA_VERSION, operations }, extensions } };
+  return { ok: true, value: { schemaVersion: PLAN_SCHEMA_VERSION, operations } };
 };

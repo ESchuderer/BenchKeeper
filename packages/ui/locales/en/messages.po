@@ -706,3 +706,7 @@ msgstr "Run {runId} stopped before its end; its earlier changes stay, and Runs o
 #. js-lingui-explicit-id
 msgid "import.programNowhere"
 msgstr "Names the program {id} for no platform"
+
+#. js-lingui-explicit-id
+msgid "problem.storeMoved"
+msgstr "The workflow store changed since the review; nothing moved. Review the import again."

@@ -19,6 +19,7 @@ type Shown = Extract<
   | "plan.not-approved"
   | "plan.file-changed"
   | "store.busy"
+  | "store.moved"
   | "run.failed"
   | "profile.source-waiting"
   | "profile.part-unknown"
@@ -85,6 +86,7 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "plan.not-approved": () => t("problem.notApproved"),
   "plan.file-changed": (p) => t("problem.fileChanged", { path: escaped(p.path) }),
   "store.busy": () => t("problem.storeBusy"),
+  "store.moved": () => t("problem.storeMoved"),
   "run.failed": (p) => t("problem.runFailed", p),
   "profile.source-waiting": (p) =>
     t("problem.sourceWaiting", { source: p.source, commit: p.commit.slice(0, 12), offered: when(p.offered) }),

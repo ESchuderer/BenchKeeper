@@ -342,6 +342,7 @@
       ", 3 days after this machine first saw it."
     ],
     "problem.storeBusy": ["Another CedarLoom process is applying changes; try again when it ends."],
+    "problem.storeMoved": ["The workflow store changed since the review; nothing moved. Review the import again."],
     "problem.strayEntry": [
       "The ",
       ["section"],

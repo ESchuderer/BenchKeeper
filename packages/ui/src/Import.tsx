@@ -210,7 +210,7 @@ const ApplyOffer = ({ preview, busy, onApply }: { preview: Preview; busy: boolea
 };
 type Apply = (importId: string, approve: string) => void;
 // Refusals after which the plan shown no longer applies, so only a new review can offer one.
-const STALE = new Set(["import.not-found", "plan.not-approved", "plan.file-changed"]);
+const STALE = new Set(["import.not-found", "plan.not-approved", "plan.file-changed", "store.moved"]);
 
 /**
  * An import from a Git source: its review first, then, only on the user's word, the plan applied with the hash of the

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Capabilities, Commit, ExtensionId, FolderDigest, GitRef, GitUrl, PortablePath } from "./extension.ts";
 import { AbsolutePath } from "./plan.ts";
 import { contracts } from "./registry.ts";
-import { semver, WorkflowId } from "./workflow.ts";
+import { License, semver, WorkflowId } from "./workflow.ts";
 
 const NodeIds = z.array(z.string());
 
@@ -27,7 +27,7 @@ export const ImportReview = z
         status: z.enum(["new", "same", "update", "conflict"]),
         version: semver,
         stored: semver.nullable().describe("The stored version; null when there is none"),
-        license: z.string().nullable().describe("Its own license, else the export's; null: none stated"),
+        license: License.nullable().describe("Its own license, else the export's; null: none stated"),
         changes: z
           .strictObject({ added: NodeIds, removed: NodeIds, changed: NodeIds })
           .describe("Node ids against the stored version"),

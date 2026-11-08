@@ -81,11 +81,18 @@
             "description": "The stored version; null when there is none"
           },
           "license": {
-            "description": "Its own license, else the export's; null: none stated",
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9.+():-]+(?: [A-Za-z0-9.+():-]+)*$",
+                "description": "SPDX license expression"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its own license, else the export's; null: none stated"
           },
           "changes": {
             "type": "object",

@@ -153,6 +153,7 @@ export interface MessageValues {
   "problem.severity": { severity: string };
   "problem.sourceWaiting": { source: string | number; commit: string | number; offered: string | number };
   "problem.storeBusy": Record<never, never>;
+  "problem.storeMoved": Record<never, never>;
   "problem.strayEntry": { section: string | number; node: string | number };
   "problem.tooLarge": { path: string; found: string | number; unit: string; limit: string | number };
   "problem.triggerCount": { count: string | number };

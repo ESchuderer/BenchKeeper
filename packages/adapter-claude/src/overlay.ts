@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { GuardHook } from "@cedarloom/agent-contracts";
 import { sameFolder } from "@cedarloom/contracts";
 import { z } from "zod";
 
@@ -13,6 +14,8 @@ export interface OverlayInput {
   readonly env: Readonly<Record<string, string>>;
   /** Plugin folders the session loads; its file tools may read them, never change them. */
   readonly pluginDirs: readonly string[];
+  /** The hook every shell command passes first; its files are closed to the session's writes. */
+  readonly guardHook: GuardHook;
   /** Other folders a report run's worker may not write: docs/agents/cedarloom-rationale.md#read-only-workers */
   readonly readOnly?: readonly string[];
 }
@@ -60,11 +63,43 @@ const Checked = z.looseObject({
   env: z.record(z.string(), z.string()),
 });
 
+// The worker profile's keys that every launch sets alike.
+const FIXED = {
+  // A102: a window lasts hours, not minutes.
+  maxEffortLevel: "xhigh",
+  workflowSizeGuideline: "small",
+  autoMemoryEnabled: false,
+  autoContinueAtUsageLimit: false,
+  disableAgentView: true,
+  feedbackDrafts: "off",
+  forceLoginMethod: "claudeai",
+  disableClaudeAiConnectors: true,
+  syncClaudeAiPlugins: false,
+  syncClaudeAiSkills: false,
+  crossSessionInbound: "refuse",
+  isolatePeerMachines: true,
+  allowedHttpHookUrls: [],
+  httpHookAllowedEnvVars: [],
+};
+
+// A failed guard refuses its call; a lower settings file's disableAllHooks does not apply (code.claude.com/docs/en/hooks).
+const guardHooks = ({ command, args }: GuardHook) => ({
+  PreToolUse: [
+    {
+      matcher: "Bash|Monitor|PowerShell|Agent",
+      hooks: [{ type: "command", command, args, timeout: 10, onFailure: "block" }],
+    },
+  ],
+});
+
 // The worker profile passed with --settings, checked first: docs/agents/cedarloom-rationale.md#settings-overlay
 export const overlay = (input: OverlayInput) => {
-  const { home, cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs, readOnly } = input;
+  const { home, cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs, readOnly, guardHook } = input;
   // Deny rules outrank ask and allow (https://code.claude.com/docs/en/permissions), for file tools and shell alike.
-  const closedToWrites = readOnly === undefined ? [join(cwd, ".github", "workflows")] : [cwd, ...readOnly];
+  const closedToWrites = [
+    ...(readOnly === undefined ? [join(cwd, ".github", "workflows")] : [cwd, ...readOnly]),
+    ...guardHook.files,
+  ];
   const closed = [...denyRead.filter((path) => !sameFolder(path, home)), ...OWN_STATE.map((name) => join(home, name))];
   const settings = {
     permissions: {
@@ -78,6 +113,8 @@ export const overlay = (input: OverlayInput) => {
           .flatMap((path) => ["Read", "Edit"].flatMap((tool) => [`${tool}(${path})`, `${tool}(${path}/**)`])),
         "Read(**/.env*)",
         SETTINGS_SENTINEL,
+        // MCP tools, which --tools leaves on; a worker has no MCP server of its own.
+        "mcp__*",
         ...closedToWrites.map((path) => `Edit(${rulePath(path)}/**)`),
         ...(readOnly === undefined ? [] : [PUSH]),
         // The plugins join the working folders, which lets their skills read their own files, but not change them.
@@ -97,21 +134,9 @@ export const overlay = (input: OverlayInput) => {
       filesystem: { denyRead, denyWrite: [...closedToWrites, ...pluginDirs], allowRead: TOOLCHAINS },
       network: { allowedDomains, strictAllowlist: true },
     },
-    // A102: a window lasts hours, not minutes.
-    maxEffortLevel: "xhigh",
-    workflowSizeGuideline: "small",
-    autoMemoryEnabled: false,
-    autoContinueAtUsageLimit: false,
-    disableAgentView: true,
-    feedbackDrafts: "off",
-    forceLoginMethod: "claudeai",
-    disableClaudeAiConnectors: true,
-    syncClaudeAiPlugins: false,
-    syncClaudeAiSkills: false,
-    crossSessionInbound: "refuse",
-    isolatePeerMachines: true,
-    allowedHttpHookUrls: [],
-    httpHookAllowedEnvVars: [],
+    hooks: guardHooks(guardHook),
+    disableAllHooks: false,
+    ...FIXED,
     // Repeated here: settings outrank the process environment.
     env,
   };

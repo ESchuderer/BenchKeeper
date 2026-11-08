@@ -3,13 +3,22 @@ import { mkdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Selection } from "@cedarloom/accounts";
 import type { AgentEvent, AgentRuntime, AgentSession, Launch } from "@cedarloom/agent-contracts";
-import type { Account, AccountRegistry, Agent, LaunchRecord, Result, RunLabels } from "@cedarloom/contracts";
+import type {
+  Account,
+  AccountRegistry,
+  Agent,
+  GuardPolicy,
+  LaunchRecord,
+  Result,
+  RunLabels,
+} from "@cedarloom/contracts";
 import { fetchTree } from "@cedarloom/git";
 import type { Lease, LeaseLock, RunStore } from "@cedarloom/ledger";
 import {
   deniedPaths,
   GITHUB_DOMAINS,
   ghProbe,
+  guardHookOf,
   managedProblems,
   managedSettingsDir,
   readResult,
@@ -33,6 +42,7 @@ export type Decided = Pick<
   | "allowedDomains"
   | "verifiedVersions"
   | "pluginDirs"
+  | "guardHook"
 > & { readonly runId: string; readonly account: Account };
 
 export interface WorkerRequest<L extends Launch> extends AccountRequest {
@@ -40,6 +50,8 @@ export interface WorkerRequest<L extends Launch> extends AccountRequest {
   readonly prompt: string;
   /** The fine-grained token of the worker's access profile; null when it has none. */
   readonly ghToken: string | null;
+  /** What the worker's guard hook holds its shell commands to: its repositories, the hub, the memory repository. */
+  readonly guard: GuardPolicy;
   readonly runtime: AgentRuntime<L>;
   /** The adapter's launch options: the decided values with the phase's model and settings and the working folder. */
   readonly launch: (decided: Decided) => L;
@@ -68,8 +80,8 @@ export interface LaunchHost {
   readonly fetchTree?: FetchTree;
 }
 
-// Claude Code's managed settings files that loosen the worker sandbox, or cannot be read, refuse every launch of it: a
-// managed key outranks --settings.
+// Claude Code's managed settings files that loosen the worker sandbox or switch its guard hook off, or cannot be read,
+// refuse every launch of it: a managed key outranks --settings.
 const managedRefusal = (host: LaunchHost, agent: Agent): Result<null> => {
   const dir = host.managedDir === undefined ? managedSettingsDir(host.platform) : host.managedDir;
   const [problem] = agent === "claude" && dir !== null ? managedProblems(dir) : [];
@@ -175,6 +187,7 @@ const decide = async <L extends Launch>(
     denyRead: deniedPaths(registry, home, parent["XDG_CONFIG_HOME"]),
     allowedDomains: GITHUB_DOMAINS,
     pluginDirs: plugin === null ? [] : [plugin],
+    guardHook: guardHookOf(request.guard),
   };
   return {
     ok: true,

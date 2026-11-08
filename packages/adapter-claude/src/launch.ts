@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
 import type { Effort, Launch } from "@cedarloom/agent-contracts";
-import { overlay } from "./overlay.ts";
+import { overlay, SETTINGS_SENTINEL } from "./overlay.ts";
 
 // Claude Code permission modes a session may run in; `bypassPermissions` is left out, because CedarLoom never bypasses.
 const PERMISSION_MODES = ["manual", "acceptEdits", "plan", "dontAsk", "auto"] as const;
@@ -73,6 +73,27 @@ const refuse = (launch: ClaudeLaunch): void => {
 // The worker profile's variables (https://code.claude.com/docs/en/env-vars): auto memory off (A8), the A102 caps, no
 // agent view, feedback, error reports or title requests, MCP servers without the worker's variables, and bounded Stop-hook
 // loops.
+const WORKER_TOOLS = [
+  "Read",
+  "Write",
+  "Edit",
+  "Glob",
+  "Grep",
+  "Bash",
+  "Agent",
+  "Skill",
+  "ToolSearch",
+  "TodoWrite",
+  "TaskCreate",
+  "TaskGet",
+  "TaskList",
+  "TaskUpdate",
+  "TaskStop",
+  "SubagentHandback",
+  "ExitPlanMode",
+  SETTINGS_SENTINEL,
+];
+
 const WORKER_VARIABLES = {
   CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
   CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS: "4",
@@ -87,6 +108,8 @@ const WORKER_VARIABLES = {
   CLAUDE_CODE_MCP_ALLOWLIST_ENV: "1",
   MCP_TOOL_TIMEOUT: "600000",
   CLAUDE_CODE_STOP_HOOK_BLOCK_CAP: "8",
+  // The guard reads no PowerShell; on Windows the worker's shell is Git Bash (code.claude.com/docs/en/hooks#powershell).
+  CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
 } as const;
 
 // The phase's effort and subagent model; the settings repeat them with the worker variables.
@@ -125,6 +148,10 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    // The built-in tools a worker gets; every other, any a later version adds too, stays off. NotebookEdit is on the
+    // list so that only the settings' deny removes it, which proves they applied (code.claude.com/docs/en/cli-reference).
+    "--tools",
+    WORKER_TOOLS.join(","),
     // Workers read no settings file, so no enabledPlugins reaches them: their plugins come this way, start and resume
     // alike (https://code.claude.com/docs/en/cli-reference).
     ...launch.pluginDirs.flatMap((dir) => ["--plugin-dir", dir]),
@@ -140,8 +167,7 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
 // Dropped from the launch's environment, without regard to case, because Windows names ignore it: the names the adapter
 // sets, CLAUDE_CODE_SIMPLE, which is equivalent to --bare (https://code.claude.com/docs/en/env-vars), and the login
 // variables, which outrank the account's own login (https://code.claude.com/docs/en/authentication#authentication-precedence).
-// CLAUDE_CODE_USE_POWERSHELL_TOOL is kept: it turns a tool on or off and selects no login.
-const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_(?!POWERSHELL_TOOL$))/i;
+const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_)/i;
 // CedarLoom sends no telemetry (owner decision, 2026-11-07), so no variable of the launch's environment turns Claude
 // Code's telemetry on or routes it (https://code.claude.com/docs/en/monitoring-usage).
 const TELEMETRY =

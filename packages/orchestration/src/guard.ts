@@ -765,7 +765,7 @@ const isUrl = (text: string): boolean =>
   /^[a-z][\w+.-]*:\/\//i.test(text) || /^(?:[^\s/@:]+@)?[^\s/@:.]+(?:\.[^\s/@:.]+)+:/.test(text);
 
 /** The GitHub repository a remote URL names, as owner/name; null for any other host or form. */
-const githubRepo = (url: string): string | null => {
+export const githubRepo = (url: string): string | null => {
   const scp = /^(?:[^\s/@:]+@)?(?:www\.)?github\.com:/i.exec(url);
   let path: string;
   if (scp === null) {

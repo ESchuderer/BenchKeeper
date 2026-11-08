@@ -1,9 +1,9 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
-import { guardCommand, type Remotes } from "@cedarloom/orchestration";
+import { guardCommand, guardHookOf, type Remotes, workerPolicy } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 import { z } from "zod";
 
@@ -58,13 +58,40 @@ test("the hook refuses what it cannot read: input that is no JSON, a call withou
   );
 }, 30_000);
 
-test("the hook reads a Monitor command as a Bash one, refuses PowerShell, and lets other tools and a WebSocket monitor through", () => {
+test("the hook reads a Monitor command as a Bash one, refuses PowerShell and a remote agent, and lets other tools and a WebSocket monitor through", () => {
   expect([
     hook(call("Monitor", { command: "sudo rm -rf /tmp/x" })),
     hook(call("PowerShell", { command: "Get-ChildItem" }, "C:\\work")),
     hook(call("Monitor", { ws: { url: "wss://example.com" } })),
     hook(call("Read", { file_path: "/x" })),
-  ]).toEqual(["refused", "refused", "runs", "runs"]);
+    hook(call("Agent", { prompt: "x", isolation: "remote" })),
+    hook(call("Agent", { prompt: "x", isolation: "worktree" })),
+  ]).toEqual(["refused", "refused", "runs", "runs", "refused", "runs"]);
+}, 30_000);
+
+test("a worker's policy holds its project's GitHub repositories and the hub, and its hook runs from the package", () => {
+  const project = mkdtempSync(join(tmpdir(), "guard-"));
+  try {
+    execFileSync("git", ["init", "-q", project]);
+    for (const [name, url] of [
+      ["origin", "git@github.com:acme/app.git"],
+      ["upstream", "https://github.com/other/x"],
+    ]) {
+      execFileSync("git", ["-C", project, "remote", "add", name ?? "", url ?? ""]);
+    }
+    const policy = workerPolicy(project, "acme/tracker");
+    expect(policy).toEqual({
+      schemaVersion: 1,
+      repositories: ["acme/app", "acme/tracker"],
+      hub: "acme/tracker",
+      memory: null,
+    });
+    const { command, args } = guardHookOf(policy);
+    const run = (text: string) => spawnSync(command, args, { input: bash(text, project), encoding: "utf8" }).status;
+    expect([run("git status"), run("git push -f origin main")]).toEqual([0, 2]);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
 }, 30_000);
 
 test.skipIf(process.platform === "win32")(

@@ -31,6 +31,7 @@ const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {})
   allow: ["Bash(pnpm test *)"],
   verifiedVersions: ["2.1.316", "2.1.309"],
   pluginDirs: [],
+  guardHook: { command: process.execPath, args: ["-e", ""], files: [] },
   ...change,
 });
 
@@ -79,7 +80,6 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     CLAUDE_CODE_SIMPLE: "1",
     claude_config_dir: "/elsewhere",
     KEEP: "yes",
-    CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
   };
   vi.stubEnv("CEDARLOOM_PARENT_ONLY", "1");
   const all = await events(runtime.start(launch(env, { pluginDirs: [join(fixtures, "plugins", "workflow")] })));
@@ -94,6 +94,8 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    "--tools",
+    "Read,Write,Edit,Glob,Grep,Bash,Agent,Skill,ToolSearch,TodoWrite,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop,SubagentHandback,ExitPlanMode,NotebookEdit",
     "--plugin-dir",
     join(fixtures, "plugins", "workflow"),
     "--add-dir",
@@ -103,7 +105,6 @@ test("runs claude -p with stream-json under the account's config folder, in the 
   expect([fake.args.includes("--bare"), fake.prompt]).toEqual([false, "Do the task."]);
   expect(fake.env).toMatchObject({
     KEEP: "yes",
-    CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
     CLAUDE_CONFIG_DIR: fixtures,
     CLAUDE_CODE_EFFORT_LEVEL: "high",
     CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5-5",
@@ -311,6 +312,28 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   }
 });
 
+test("every shell command passes the guard hook first, which no settings file below turns off and the session cannot change", async () => {
+  const guardHook = {
+    command: "/opt/node/bin/node",
+    args: ["/opt/cedarloom/hook.js", "{}"],
+    files: ["/opt/cedarloom"],
+  };
+  const { args } = started(await events(runtime.start(launch({}, { guardHook }))));
+  expect(JSON.parse(args[args.indexOf("--settings") + 1] ?? "")).toMatchObject({
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Bash|Monitor|PowerShell|Agent",
+          hooks: [{ command: "/opt/node/bin/node", args: ["/opt/cedarloom/hook.js", "{}"], onFailure: "block" }],
+        },
+      ],
+    },
+    disableAllHooks: false,
+    permissions: { deny: expect.arrayContaining(["Edit(//opt/cedarloom/**)", "mcp__*"]) },
+    sandbox: { filesystem: { denyWrite: expect.arrayContaining(["/opt/cedarloom"]) } },
+  });
+});
+
 test("commands write in no plugin folder; a read-only launch writes in neither its working folder nor the shared .git", async () => {
   const plugin = join(fixtures, "plugins", "workflow");
   const Settings = z.object({
@@ -480,6 +503,10 @@ test("reads the version of the CLI that a launch's environment runs", async () =
   // Neither a version of another form nor one that is long or holds a terminal escape is taken.
   for (const FAKE_VERSION of ["unknown", `2.1.316-${"x".repeat(40)}`, "2.1.316\u001b[31m"]) {
     await expect(runtime.version({ FAKE_VERSION })).rejects.toThrow("unrecognized claude --version output");
+  }
+  // onFailure, which the guard hook's refusal on a crash needs, came in 2.1.295.
+  for (const FAKE_VERSION of ["2.1.294 (Claude Code)", "1.9.999"]) {
+    await expect(runtime.version({ FAKE_VERSION })).rejects.toThrow("older than 2.1.295");
   }
 });
 

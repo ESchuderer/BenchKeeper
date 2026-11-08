@@ -1,32 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
 import { guardCommand, type Remotes } from "./guard.ts";
-import { programPath } from "./program.ts";
-
-// The fetch and push URLs of a folder's remotes as git reads them, its insteadOf rewrites applied; null when git cannot
-// read them. git comes from an absolute folder of PATH: the hook runs outside the sandbox, and a relative entry would
-// let the session's own files stand in for it.
-const gitRemotes: Remotes = (folder) => {
-  const git = programPath("git", process.env);
-  if (git === undefined) return null;
-  try {
-    const listed = execFileSync(git, ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
-      encoding: "utf8",
-      timeout: 5000,
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-    });
-    const remotes = new Map<string, string[]>();
-    for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {
-      remotes.set(name, [...new Set([...(remotes.get(name) ?? []), url])]);
-    }
-    return remotes;
-  } catch {
-    return null;
-  }
-};
+import { gitRemotes } from "./session-guard.ts";
 
 // A folder's remotes, read once per hook run.
 const once = (remotes: Remotes): Remotes => {
@@ -50,11 +26,11 @@ const readPolicy = (json: string): GuardPolicy | null => {
 };
 
 // The parts of a PreToolUse input the guard reads; null for input that is no JSON.
-const readCall = (input: string): { tool: unknown; command: unknown; cwd: unknown } | null => {
+const readCall = (input: string): { tool: unknown; command: unknown; cwd: unknown; isolation: unknown } | null => {
   try {
     const call: unknown = JSON.parse(input);
-    const command = field(field(call, "tool_input"), "command");
-    return { tool: field(call, "tool_name"), command, cwd: field(call, "cwd") };
+    const [command, isolation] = ["command", "isolation"].map((key) => field(field(call, "tool_input"), key));
+    return { tool: field(call, "tool_name"), command, cwd: field(call, "cwd"), isolation };
   } catch {
     return null;
   }
@@ -70,9 +46,11 @@ const located = (command: unknown, cwd: unknown): { command: string; cwd: string
 const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: string } | string | null => {
   if (call === null || typeof call.tool !== "string") return UNREADABLE;
   const { tool, command, cwd } = call;
+  // A remote subagent runs in the cloud, where no hook of this session reads its commands.
+  if (tool === "Agent") return call.isolation === "remote" ? "a remote agent runs where the guard reads nothing" : null;
   // A Monitor call without a command watches a WebSocket and runs nothing.
   if (!SHELL_TOOLS.has(tool) || (tool === "Monitor" && command === undefined)) return null;
-  // On Windows the launch requires Git Bash, so the Bash tool runs every command.
+  // A worker's shell is Bash; PowerShell, which the guard does not read, refuses.
   return tool === "PowerShell"
     ? "the guard reads no PowerShell; run the command with the Bash tool"
     : located(command, cwd);

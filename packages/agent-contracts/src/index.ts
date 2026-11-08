@@ -9,6 +9,14 @@ export type Capability = "start" | "observe" | "cancel" | "resume" | "handover" 
 /** Reasoning effort of a session; workers stop at `xhigh`, because higher effort spends the usage windows fastest. */
 export type Effort = RunLabels["effort"];
 
+/** The hook every shell command of a session passes first: a program run without a shell, and the files it runs from. */
+export interface GuardHook {
+  readonly command: string;
+  readonly args: readonly string[];
+  /** Folders the session may not change: the hook's own code and what it reads its policy with. */
+  readonly files: readonly string[];
+}
+
 /** What every adapter needs to start a session; an adapter's launch options add its own settings. */
 export interface Launch {
   /** The account's config folder, which selects its login: an absolute path to an existing folder. */
@@ -40,6 +48,8 @@ export interface Launch {
   readonly verifiedVersions: readonly string[];
   /** Plugin folders the session loads, on every start and resume; none when empty. */
   readonly pluginDirs: readonly string[];
+  /** The guard hook every shell command of the session passes first; a crash or timeout of it refuses the command. */
+  readonly guardHook: GuardHook;
 }
 
 /** What a session's init line says of its plugins: the ones loaded, every skill offered, and each plugin's error. */

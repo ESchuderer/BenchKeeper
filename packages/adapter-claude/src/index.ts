@@ -148,6 +148,17 @@ const run = (
   };
 };
 
+// onFailure, with which a crashed or timed-out guard hook refuses its call, came in 2.1.295 (code.claude.com/docs/en/hooks).
+const GUARD_VERSION = "2.1.295";
+
+// Whether a version is below `floor` by its release numbers; a pre-release of the floor counts as the floor.
+const releaseParts = (text: string): number[] => text.split(/[.+-]/).slice(0, 3).map(Number);
+const older = (version: string, floor: string): boolean => {
+  const [have, need] = [releaseParts(version), releaseParts(floor)];
+  const at = have.findIndex((part, i) => part !== need[i]);
+  return at >= 0 && (have[at] ?? 0) < (need[at] ?? 0);
+};
+
 // Version ran, sentinel gone (settings applied), a window with a share and a reset (else nothing ages it out), result succeeded.
 const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   const events: AgentEvent[] = [];
@@ -252,6 +263,9 @@ export const claudeRuntime = (command: Command, killAfterMs = KILL_AFTER_MS): Ag
       // The output's first word, such as 2.1.316 in "2.1.316 (Claude Code)", in the form the init line reports too.
       const version = AgentVersion.safeParse(stdout.trim().split(/\s/, 1)[0]);
       if (!version.success) throw new Error("unrecognized claude --version output");
+      if (older(version.data, GUARD_VERSION)) {
+        throw new Error(`Claude Code ${version.data} is older than ${GUARD_VERSION}, which the guard hook needs`);
+      }
       return version.data;
     },
     checkContract: async (launch) => {

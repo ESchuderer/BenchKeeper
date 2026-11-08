@@ -34,31 +34,8 @@ export const Finding = z
     finding("run.not-found", { runId: z.string() }),
     finding("run.interrupted", { runId: z.string(), undoes: z.string().nullable() }),
     finding("run.failed", { runId: z.string(), undoes: z.string().nullable() }),
-    finding("run.input-unknown", { input: z.string() }),
-    finding("run.input-missing", { input: z.string() }),
-    finding("run.input-invalid", { input: z.string(), type: z.enum(["string", "number", "boolean", "json"]) }),
-    /** A stored event of a graph run that its schema refuses: the run is not replayed from a log it cannot trust. */
-    finding("run.event-invalid", { runId: z.string(), seq: z.int(), issues }),
-    /** Another runner's process `pid` holds the graph run's lease until it ends, or took the run over. */
-    finding("run.lease-held", { runId: z.string(), pid: z.int() }),
-    finding("run.finished", { runId: z.string(), status: z.string() }),
-    /** A decision for a node of a graph run that waits for none: no approval, no gate. */
-    finding("run.not-waiting", { runId: z.string(), node: z.string() }),
-    /** A report run writes nothing (A28): the ledger records no apply run under it, whatever the executor does. */
-    finding("run.report-only-apply", { runId: z.string(), applyRun: z.string() }),
     /** A node type this CedarLoom does not run yet (in 0.1.0: trigger.schedule, workflow.run); nothing of the run starts. */
     finding("run.node-unsupported", { node: z.string(), type: z.string() }),
-    /** No POSIX sh for the run's commands (on Windows, Git for Windows' sh.exe). */
-    finding("run.shell-missing", {}),
-    /**
-     * A report run's node that needs an OS sandbox where none runs: a command or precheck where the sandbox does not run
-     * sh (native Windows, a container that refuses bubblewrap), and on native Windows an agent (Q7); nothing starts.
-     */
-    finding("run.sandbox-unavailable", { node: z.string(), reason: z.string() }),
-    /** A resume or cancel named another project folder than the run's own; its commands run only there. */
-    finding("run.project-mismatch", { runId: z.string(), project: z.string(), given: z.string() }),
-    /** The project folder of a run, or of a resume, is not there: its commands would fail, so nothing starts. */
-    finding("run.project-missing", { project: z.string() }),
     finding("undo.file-edited", { runId: z.string(), path: z.string() }),
     finding("undo.backup-missing", { runId: z.string(), path: z.string() }),
     finding("undo.backup-changed", { runId: z.string(), path: z.string() }),
@@ -95,34 +72,8 @@ export const Finding = z
     finding("workflow.extension-missing", { node: z.string(), type: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
-    /** Workers run, and logins happen, only in the account's own home, so nothing is written into another tool's. */
-    finding("accounts.home-not-own", { account: z.string(), home: z.string() }),
-    /** The own home, or the homes folder above it, is a link: what is written there would land in another folder. */
-    finding("accounts.home-linked", { account: z.string(), path: z.string() }),
-    /** The own home does not exist yet: only the login makes it, so nothing runs on the account logged out. */
-    finding("accounts.home-missing", { account: z.string(), home: z.string() }),
-    /** The own home or the homes folder could not be made or closed to the owner (error: the file system's). */
-    finding("accounts.home-unusable", { account: z.string(), path: z.string(), error: z.string() }),
     /** A project's level is set for a folder that exists, by its real path. */
     finding("automation.unknown-folder", { path: z.string() }),
-    /** The agent CLI could not tell its version or run its contract check, so no worker of it starts. */
-    finding("launch.agent-unavailable", { agent: z.string(), error: z.string() }),
-    /** The CLI version's contract check shows no proof that it applied the worker settings: no worker starts unsandboxed. */
-    finding("launch.settings-unproven", { agent: z.string(), version: z.string() }),
-    /** Every lease of the account is taken: the most workers it runs at once. */
-    finding("launch.account-full", { account: z.string(), max: z.int() }),
-    /** gh found a token without GH_TOKEN (error null), or the check could not tell: either way the launch is refused. */
-    finding("launch.gh-login", { error: z.string().nullable() }),
-    /** A managed settings file loosens the worker sandbox: a managed key outranks the worker's settings. */
-    finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
-    /** The agent's own login check shows no login in the account's home, so its CLI version is not probed (reason: why). */
-    finding("launch.not-logged-in", { account: z.string(), reason: z.string() }),
-    /** The latest run's init line: no workflow plugin went with it, as the pinned marketplace commit has none (info). */
-    finding("doctor.plugin-none", { plugin: z.string(), commit: z.string() }),
-    /** The latest run's init line: a plugin it passed did not load with its skills (errors: the plugins' load errors). */
-    finding("doctor.plugin-not-loaded", { plugin: z.string(), errors: z.string() }),
-    /** A managed settings file the launcher cannot read or parse, so it cannot clear it. */
-    finding("launch.managed-settings-unreadable", { path: z.string(), error: z.string() }),
     /**
      * Git could not start, fetch, list, read or add a worktree; `error` is the end of its message. Never the URL: it may
      * hold a token.
@@ -347,19 +298,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "run.not-found": { severity: "error", effort: "manual" },
   "run.interrupted": { severity: "warning", effort: "command" },
   "run.failed": { severity: "warning", effort: "command" },
-  "run.input-unknown": { severity: "error", effort: "command" },
-  "run.input-missing": { severity: "error", effort: "command" },
-  "run.input-invalid": { severity: "error", effort: "command" },
-  "run.event-invalid": { severity: "error", effort: "manual" },
-  "run.lease-held": { severity: "error", effort: "manual" },
-  "run.finished": { severity: "error", effort: "manual" },
-  "run.not-waiting": { severity: "error", effort: "manual" },
-  "run.report-only-apply": { severity: "error", effort: "manual" },
   "run.node-unsupported": { severity: "error", effort: "manual" },
-  "run.shell-missing": { severity: "error", effort: "manual" },
-  "run.sandbox-unavailable": { severity: "error", effort: "manual" },
-  "run.project-mismatch": { severity: "error", effort: "manual" },
-  "run.project-missing": { severity: "error", effort: "manual" },
   "undo.file-edited": { severity: "warning", effort: "manual" },
   "undo.backup-missing": { severity: "error", effort: "manual" },
   "undo.backup-changed": { severity: "error", effort: "manual" },
@@ -391,20 +330,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.extension-missing": { severity: "error", effort: "manual" },
   "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
-  "accounts.home-not-own": { severity: "error", effort: "manual" },
-  "accounts.home-linked": { severity: "error", effort: "manual" },
-  "accounts.home-missing": { severity: "error", effort: "manual" },
-  "accounts.home-unusable": { severity: "error", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
-  "launch.agent-unavailable": { severity: "error", effort: "manual" },
-  "launch.settings-unproven": { severity: "error", effort: "manual" },
-  "launch.account-full": { severity: "warning", effort: "manual" },
-  "launch.gh-login": { severity: "error", effort: "manual" },
-  "launch.sandbox-overridden": { severity: "error", effort: "manual" },
-  "launch.managed-settings-unreadable": { severity: "error", effort: "manual" },
-  "launch.not-logged-in": { severity: "error", effort: "manual" },
-  "doctor.plugin-none": { severity: "info", effort: "manual" },
-  "doctor.plugin-not-loaded": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },
   // Its severity is the extension's: see severityOf.

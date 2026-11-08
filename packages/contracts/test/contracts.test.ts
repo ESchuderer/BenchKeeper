@@ -1,20 +1,14 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  ACCOUNTS_SCHEMA_VERSION,
-  AccountRegistry,
   canonicalJson,
-  formatRegistry,
   type Json,
   formatWorkflow,
   isCron,
-  modelWindow,
   NODE_CONFIGS,
   PLAN_SCHEMA_VERSION,
   Plan,
-  Quota,
   readDocument,
-  sameFolder,
   type Result,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
@@ -68,45 +62,6 @@ const promised: Record<string, string[]> = {
 
 const issuePaths = (read: Result<unknown>): string[] =>
   !read.ok && read.finding.code === "document.invalid" ? read.finding.params.issues.map((issue) => issue.path) : [];
-
-// Each invalid registry breaks in one place, the one its name promises; a credential is an unknown key.
-const promisedAccounts: Record<string, string[]> = {
-  "invalid-alias-of-other-home.json": ["accounts.1.aliases.1"],
-  "invalid-alias-with-trailing-separator.json": ["accounts.1.aliases.0"],
-  "invalid-confirmed-codex-pool.json": ["pools.codex.main.confirmedAt"],
-  "invalid-duplicate-home.json": ["accounts.1.home"],
-  "invalid-duplicate-name.json": ["accounts.1.name"],
-  "invalid-inherited-pool.json": ["accounts.0.pool"],
-  "invalid-pool-of-other-agent.json": ["accounts.0.pool"],
-  "invalid-proto-pool.json": ["pools.claude.__proto__"],
-  "invalid-relative-home.json": ["accounts.0.home"],
-  "invalid-token.json": ["accounts.0.token"],
-};
-
-test("a model's own weekly window is named by its family; other window names are refused", () => {
-  const models = ["claude-opus-5-5", "claude-sonnet-5-5", "gpt-5"].map((model) => modelWindow(model));
-  expect(models).toEqual(["sevenDay:opus", "sevenDay:sonnet", null]);
-  const names = ["fiveHour", "sevenDay:opus", "sevenDay:Opus", "weekly"].map((name) => Quota.safeParse(name).success);
-  expect(names).toEqual([true, true, false, false]);
-});
-
-test("registry folders are the same without trailing separators, a root stays a root, and others differ", () => {
-  expect(sameFolder("/a/b/", "/a/b")).toBe(true);
-  expect(sameFolder("C:\\x\\", "C:\\x")).toBe(true);
-  expect(sameFolder("/", "/")).toBe(true);
-  expect(sameFolder("/a/b", "/a/c")).toBe(false);
-});
-
-describe("golden corpus of account registries: valid files are also in their written form", async () => {
-  for (const [version, name, text] of await corpus("AccountRegistry")) {
-    test(`${version}/${name}`, () => {
-      const read = readDocument(AccountRegistry, ACCOUNTS_SCHEMA_VERSION, JSON.parse(text));
-      expect(read.ok ? undefined : read.finding.code).toBe(expectedCode(version, name, ACCOUNTS_SCHEMA_VERSION));
-      expect(issuePaths(read)).toEqual(promisedAccounts[name] ?? []);
-      expect(read.ok ? formatRegistry(read.value) : text).toBe(text);
-    });
-  }
-});
 
 describe("golden corpus of workflows: valid files are also in their canonical form", async () => {
   for (const [version, name, text] of await corpus("WorkflowDefinition")) {

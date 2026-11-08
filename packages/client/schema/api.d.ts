@@ -990,94 +990,10 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "run.input-unknown";
-            params: {
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.input-missing";
-            params: {
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.input-invalid";
-            params: {
-                input: string;
-                /** @enum {string} */
-                type: "string" | "number" | "boolean" | "json";
-            };
-        } | {
-            /** @constant */
-            code: "run.event-invalid";
-            params: {
-                runId: string;
-                seq: number;
-                issues: {
-                    path: string;
-                    code: string;
-                }[];
-            };
-        } | {
-            /** @constant */
-            code: "run.lease-held";
-            params: {
-                runId: string;
-                pid: number;
-            };
-        } | {
-            /** @constant */
-            code: "run.finished";
-            params: {
-                runId: string;
-                status: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.not-waiting";
-            params: {
-                runId: string;
-                node: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.report-only-apply";
-            params: {
-                runId: string;
-                applyRun: string;
-            };
-        } | {
-            /** @constant */
             code: "run.node-unsupported";
             params: {
                 node: string;
                 type: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.shell-missing";
-            params: Record<string, never>;
-        } | {
-            /** @constant */
-            code: "run.sandbox-unavailable";
-            params: {
-                node: string;
-                reason: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.project-mismatch";
-            params: {
-                runId: string;
-                project: string;
-                given: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.project-missing";
-            params: {
-                project: string;
             };
         } | {
             /** @constant */
@@ -1309,100 +1225,9 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.home-not-own";
-            params: {
-                account: string;
-                home: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-linked";
-            params: {
-                account: string;
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-missing";
-            params: {
-                account: string;
-                home: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-unusable";
-            params: {
-                account: string;
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.agent-unavailable";
-            params: {
-                agent: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.settings-unproven";
-            params: {
-                agent: string;
-                version: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.account-full";
-            params: {
-                account: string;
-                max: number;
-            };
-        } | {
-            /** @constant */
-            code: "launch.gh-login";
-            params: {
-                error: string | null;
-            };
-        } | {
-            /** @constant */
-            code: "launch.sandbox-overridden";
-            params: {
-                path: string;
-                key: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.not-logged-in";
-            params: {
-                account: string;
-                reason: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.plugin-none";
-            params: {
-                plugin: string;
-                commit: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.plugin-not-loaded";
-            params: {
-                plugin: string;
-                errors: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.managed-settings-unreadable";
-            params: {
-                path: string;
-                error: string;
             };
         } | {
             /** @constant */
@@ -2252,94 +2077,10 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "run.input-unknown";
-            params: {
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.input-missing";
-            params: {
-                input: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.input-invalid";
-            params: {
-                input: string;
-                /** @enum {string} */
-                type: "string" | "number" | "boolean" | "json";
-            };
-        } | {
-            /** @constant */
-            code: "run.event-invalid";
-            params: {
-                runId: string;
-                seq: number;
-                issues: {
-                    path: string;
-                    code: string;
-                }[];
-            };
-        } | {
-            /** @constant */
-            code: "run.lease-held";
-            params: {
-                runId: string;
-                pid: number;
-            };
-        } | {
-            /** @constant */
-            code: "run.finished";
-            params: {
-                runId: string;
-                status: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.not-waiting";
-            params: {
-                runId: string;
-                node: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.report-only-apply";
-            params: {
-                runId: string;
-                applyRun: string;
-            };
-        } | {
-            /** @constant */
             code: "run.node-unsupported";
             params: {
                 node: string;
                 type: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.shell-missing";
-            params: Record<string, never>;
-        } | {
-            /** @constant */
-            code: "run.sandbox-unavailable";
-            params: {
-                node: string;
-                reason: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.project-mismatch";
-            params: {
-                runId: string;
-                project: string;
-                given: string;
-            };
-        } | {
-            /** @constant */
-            code: "run.project-missing";
-            params: {
-                project: string;
             };
         } | {
             /** @constant */
@@ -2571,100 +2312,9 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "accounts.home-not-own";
-            params: {
-                account: string;
-                home: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-linked";
-            params: {
-                account: string;
-                path: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-missing";
-            params: {
-                account: string;
-                home: string;
-            };
-        } | {
-            /** @constant */
-            code: "accounts.home-unusable";
-            params: {
-                account: string;
-                path: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.agent-unavailable";
-            params: {
-                agent: string;
-                error: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.settings-unproven";
-            params: {
-                agent: string;
-                version: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.account-full";
-            params: {
-                account: string;
-                max: number;
-            };
-        } | {
-            /** @constant */
-            code: "launch.gh-login";
-            params: {
-                error: string | null;
-            };
-        } | {
-            /** @constant */
-            code: "launch.sandbox-overridden";
-            params: {
-                path: string;
-                key: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.not-logged-in";
-            params: {
-                account: string;
-                reason: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.plugin-none";
-            params: {
-                plugin: string;
-                commit: string;
-            };
-        } | {
-            /** @constant */
-            code: "doctor.plugin-not-loaded";
-            params: {
-                plugin: string;
-                errors: string;
-            };
-        } | {
-            /** @constant */
-            code: "launch.managed-settings-unreadable";
-            params: {
-                path: string;
-                error: string;
             };
         } | {
             /** @constant */

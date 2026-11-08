@@ -59,18 +59,10 @@ export const OutboxEntry = z.strictObject({
 });
 export type OutboxEntry = z.infer<typeof OutboxEntry>;
 
-/** A run linked to a hub issue, kept in the local ledger only: public commits and pull requests never cite it (ARW1-2). */
-export const IssueLink = z.strictObject({
-  runId: z.uuid(),
-  issue: IssueRef,
-  linkedAt: z.iso.datetime({ precision: 3 }),
-});
-export type IssueLink = z.infer<typeof IssueLink>;
-
 /** The work-items settings format (`work-items.json` in CedarLoom's config folder) this CedarLoom writes and reads. */
 export const WORK_ITEMS_SCHEMA_VERSION = 1;
 
-/** This machine's work-item settings: the project repositories whose linked runs post to their hub issues (A36 a). */
+/** This machine's work-item settings: the project repositories that mirror to their hub issues (A36 a). */
 export const WorkItemsConfig = z
   .strictObject({
     schemaVersion: z.literal(WORK_ITEMS_SCHEMA_VERSION),

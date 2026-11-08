@@ -14,7 +14,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { Fetch, LoginStatus } from "@cedarloom/use-cases";
+import type { Fetch, Keyring, LoginStatus } from "@cedarloom/use-cases";
 import { Finding, formatRegistry, formatWorkflow, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
 import { configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
 import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
@@ -29,18 +29,35 @@ interface Logins {
   status: LoginStatus | null;
 }
 
+// The keyring in memory: no test reads or writes the OS credential store.
+const memoryKeyring = (entries: Map<string, string>): Keyring => ({
+  get: async (name) => entries.get(name) ?? null,
+  set: async (name, value) => void entries.set(name, value),
+});
+
 const setup = (
   // When the program is to stop (Ctrl+C), which cancels a graph run: never, unless a test says so. A Git source's fetch.
-  { stopped = new Promise<void>(() => undefined), fetch }: { stopped?: Promise<void>; fetch?: Fetch } = {},
+  // Standard input: a terminal unless a test pipes text in.
+  {
+    stopped = new Promise<void>(() => undefined),
+    fetch,
+    stdin = null,
+  }: {
+    stopped?: Promise<void>;
+    fetch?: Fetch;
+    stdin?: string | null;
+  } = {},
 ): {
   root: string;
   state: string;
   logins: Logins;
+  keyring: Map<string, string>;
   cli: (...argv: string[]) => Promise<{ code: number; out: string; err: string }>;
 } => {
   const root = mkdtempSync(join(tmpdir(), "cedarloom-cli-"));
   const state = join(root, "state");
   const logins: Logins = { started: [], code: 0, status: null };
+  const keyring = new Map<string, string>();
   const cli = async (...argv: string[]): Promise<{ code: number; out: string; err: string }> => {
     let [out, err] = ["", ""];
     const io = {
@@ -63,10 +80,12 @@ const setup = (
       // The app's own extensions: none unless a test puts one there.
       bundled: join(root, "app"),
       ...(fetch === undefined ? {} : { fetch }),
+      stdin: async () => stdin,
+      keyring: memoryKeyring(keyring),
     };
     return { code: await main(argv, io), out, err };
   };
-  return { root, state, logins, cli };
+  return { root, state, logins, keyring, cli };
 };
 
 const planFile = (root: string, value: unknown, name = "plan.json"): string => {
@@ -616,6 +635,8 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
     login: () => ({ code: null }),
     authStatus: async () => ({ kind: "logged-out" }) as const,
     agent: claudeRuntime(["false"]),
+    stdin: async () => null,
+    keyring: memoryKeyring(new Map()),
   };
   const running = main(["--state", state, "--json", "ui"], io);
   // The link comes once the server listens; the first start also loads the server package, which can take over a
@@ -1089,4 +1110,34 @@ test("components switch turns the app's own extension off as one run, which exte
     [{ id: "cedarloom.example", version: "1.0.0", trust: "bundled", state: "off" }],
     EXIT.usage,
   ]);
+});
+
+test("work-items token stores the piped hub-issues token without printing it, and refuses a terminal", async () => {
+  const piped = setup({ stdin: "github_pat_11FAKE_0123\n" });
+  const stored = await piped.cli("work-items", "token");
+  expect([stored.code, piped.keyring.get("hub-issues")]).toEqual([EXIT.ok, "github_pat_11FAKE_0123"]);
+  expect(`${stored.out}${stored.err}`).not.toContain("FAKE");
+  const terminal = setup();
+  const refused = await terminal.cli("--json", "work-items", "token");
+  expect([refused.code, json(refused.out)["findings"], terminal.keyring.size]).toEqual([
+    EXIT.usage,
+    [{ code: "secret.no-input", params: { name: "hub-issues" } }],
+    0,
+  ]);
+});
+
+test("a token typed on the command line instead of piped in is never repeated in a usage error", async () => {
+  const { cli, keyring } = setup();
+  for (const argv of [
+    ["work-items", "token", "github_pat_11FAKE_0123"],
+    ["work-items", "token", "--token=github_pat_11FAKE_0123"],
+    // A token's end without its prefix, as a paste that missed its start.
+    ["work-items", "token", "11FAKE_0123"],
+    ["work-items", "github_pat_11FAKE_0123"],
+    ["--token=github_pat_11FAKE_0123", "work-items", "token"],
+  ]) {
+    const typed = await cli(...argv);
+    expect([typed.code, `${typed.out}${typed.err}`.includes("FAKE")]).toEqual([EXIT.usage, false]);
+  }
+  expect(keyring.size).toBe(0);
 });

@@ -13,6 +13,8 @@ const undoHint = (p: { runId: string; undoes: string | null }): string =>
     ? `Undo it with: cedarloom runs undo ${p.runId} --yes`
     : `Plan the undo of run ${p.undoes} again with: cedarloom runs undo ${p.undoes} --yes`;
 
+const PIPE =
+  "Copy it, then pipe the clipboard in: pbpaste | cedarloom work-items token (macOS; wl-paste on Linux, Get-Clipboard in PowerShell).";
 // An issue's path holds a document's own keys, which may come from elsewhere (an extension's manifest): shown safely.
 const issueList = (issues: { path: string; code: string }[]): string =>
   issues.map((i) => `${shown(i.path, 200) || "(top)"} ${i.code}`).join(", ");
@@ -349,6 +351,16 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "tracker.refused": (p) => `The tracker refused the write with HTTP ${p.status}: ${shown(p.error, 300)}`,
   "tracker.invalid-answer": (p) =>
     `The tracker's answer is not what CedarLoom reads (${shown(p.error, 300)}); the entry failed, and the write may have happened.`,
+  "work-items.no-hub": () => "This machine binds no hub. Name it: cedarloom profiles bind hub <owner/repo> --yes",
+  "work-items.not-hub": (p) =>
+    `${p.repo} is not this machine's hub (${p.hub}); CedarLoom works on hub issues only, so nothing was queued or linked.`,
+  "secret.missing": (p) => `No ${p.name} token is in the OS credential store. ${PIPE}`,
+  "secret.unavailable": (p) =>
+    `The OS credential store did not answer for ${p.name} (${shown(p.error, 300)}). Check that it is unlocked and, on Linux, that a Secret Service such as GNOME Keyring or KWallet runs.`,
+  "secret.not-fine-grained": (p) =>
+    `What was piped in is not a fine-grained GitHub token (github_pat_...), so nothing was stored as ${p.name}.`,
+  "secret.no-input": (p) =>
+    `The ${p.name} token is read from standard input only when it is piped in, as it would show at the terminal. ${PIPE}`,
 };
 
 const text = <C extends FindingCode>(code: C, params: Params[C]): string => messages[code](params);

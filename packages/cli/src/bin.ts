@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { text as readAll } from "node:stream/consumers";
 import { claudeAuthStatus, claudeLogin, claudeRuntime } from "@cedarloom/adapter-claude";
 import { programPath } from "@cedarloom/use-cases";
+import { osKeyring } from "./keyring.ts";
 import { main } from "./main.ts";
 
 // Only a long-running command asks to be stopped, so Ctrl+C ends every other one as usual.
@@ -23,4 +25,6 @@ process.exitCode = await main(process.argv.slice(2), {
   login: claudeLogin(claude),
   authStatus: claudeAuthStatus(claude),
   agent: claudeRuntime(claude),
+  stdin: async () => (process.stdin.isTTY ? null : readAll(process.stdin)),
+  keyring: osKeyring,
 });

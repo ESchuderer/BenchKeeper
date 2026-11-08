@@ -4,4 +4,4 @@ export { type ManagedProblem, managedProblems, managedSettingsDir } from "./mana
 export { missing, programPath, runnable } from "./program.ts";
 export { readResult, resultPrompt } from "./result.ts";
 export { type Denial, guardCommand, type Remotes, type Rule, TYPED_REMOTE } from "./guard.ts";
-export { guardHookOf, workerPolicy } from "./session-guard.ts";
+export { guardHookOf, originRepos, workerPolicy } from "./session-guard.ts";

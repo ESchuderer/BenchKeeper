@@ -153,4 +153,13 @@ export {
   WorkflowDefinition,
   WorkflowId,
 } from "./workflow.ts";
-export { Intent, IssueLink, IssueRef, OutboxEntry, RemoteComment } from "./work-items.ts";
+export {
+  formatWorkItemsConfig,
+  Intent,
+  IssueLink,
+  IssueRef,
+  OutboxEntry,
+  RemoteComment,
+  WORK_ITEMS_SCHEMA_VERSION,
+  WorkItemsConfig,
+} from "./work-items.ts";

@@ -31,6 +31,13 @@ export const gitRemotes: Remotes = (folder, typedUrl) => {
   }
 };
 
+/** The GitHub repositories of a folder's `origin` remote, its fetch and push URLs; none when git cannot read it. */
+export const originRepos = (folder: string): string[] => {
+  // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
+  const urls = gitRemotes(folder)?.get("origin") ?? [];
+  return [...new Set(urls.map(githubRepo).filter((repo) => repo !== null))];
+};
+
 // A binding the policy cannot hold, such as owner/., counts as none.
 const held = (repo: string | undefined): string | null =>
   repo !== undefined && RepoName.safeParse(repo).success ? repo : null;
@@ -44,9 +51,7 @@ export const workerPolicy = (
   bindings: { readonly hub?: string | undefined; readonly memory?: string | undefined },
 ): GuardPolicy => {
   const [hub, memory] = [held(bindings.hub), held(bindings.memory)];
-  // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
-  const urls = gitRemotes(project)?.get("origin") ?? [];
-  const named = [...urls.map(githubRepo), hub, memory].filter((repo) => repo !== null);
+  const named = [...originRepos(project), hub, memory].filter((repo) => repo !== null);
   return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory };
 };
 

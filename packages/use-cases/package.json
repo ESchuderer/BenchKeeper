@@ -35,7 +35,8 @@
     "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
     "@cedarloom/orchestration": "workspace:*",
-    "@cedarloom/profiles": "workspace:*"
+    "@cedarloom/profiles": "workspace:*",
+    "@cedarloom/work-items": "workspace:*"
   },
   "devDependencies": {
     "@cedarloom/adapter-claude": "workspace:*",

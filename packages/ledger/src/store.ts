@@ -440,13 +440,6 @@ export class RunStore extends RunView {
       .run(r.account, r.window, r.usedPercent, r.resetsAt, r.readAt, r.source);
   }
 
-  /** Drops the stored reading of the account's window when that source read it; another source's reading stays. */
-  dropReading({ account, window, source }: Pick<Reading, "account" | "window" | "source">): void {
-    this.db
-      .prepare(`DELETE FROM readings WHERE account = ? AND "window" = ? AND source = ?`)
-      .run(account, window, source);
-  }
-
   /**
    * Keeps usage samples as history, in one transaction with the latest readings they update: a sample with a quota, a
    * share and a reset updates its account's reading. A sample that is no UsageSample throws, and nothing is kept.

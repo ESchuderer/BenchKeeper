@@ -133,6 +133,27 @@ export class WorkItemStore {
     return entry;
   }
 
+  /**
+   * Queues a failed entry again, once the owner fixed what refused it, behind the entries queued while it waited. Its
+   * attempts stay counted, so a comment whose write may have happened is looked up by its marker before it is posted;
+   * a label is read again before its write, as the attempt that failed wrote nothing.
+   */
+  retry(id: string): Result<OutboxEntry> {
+    return transaction(this.#db, () => {
+      const entry = this.entry(id);
+      if (entry === undefined) return refuse({ code: "outbox.not-found", params: { id } });
+      if (entry.status !== "failed") return refuse({ code: "outbox.status", params: { id, status: entry.status } });
+      // The queue's order is the rowid's.
+      this.#db
+        .prepare(
+          `UPDATE outbox SET status = 'pending', unchanged = NULL, finding = NULL, settledAt = NULL,
+           rowid = (SELECT max(rowid) + 1 FROM outbox) WHERE id = ?`,
+        )
+        .run(id);
+      return { ok: true, value: { ...entry, status: "pending", unchanged: null, finding: null, settledAt: null } };
+    });
+  }
+
   /** Links a recorded run (a worker launch or a graph run) to a hub issue, once; the run's links. */
   link(runId: string, issue: IssueRef): Result<IssueLink[]> {
     const link = IssueLink.parse({ runId, issue, linkedAt: now() });

@@ -56,7 +56,10 @@ const onFailure = (step: Step): string => {
 // An agent step in prose: its task, its context, how it reviews, its retries and its checks.
 const agentLine = (head: string, step: Step, stage: StageScript, fresh: boolean): string => {
   const context = step.context === undefined ? "" : `, with ${from(step.context)} as its context`;
-  const reviewer = fresh ? " Do it as a reviewer who meets the work fresh: judge only what the files show." : "";
+  // A fresh context (coordinator, 247 Q3 b): Codex's own sub-agent with no earlier turns, no agent file of ours.
+  const reviewer = fresh
+    ? ' Run it in a fresh sub-agent: call spawn_agent with fork_turns "none" and this task, and use its answer.'
+    : "";
   const checks = (step.checks ?? []).map((id) => {
     const check = stage.steps.find((each) => each.id === id);
     return `\n  Then its check \`${id}\`: run ${run(check?.script)}.${again(check?.retries)} While it still exits non-zero, fix the work with what it printed and check again, three rounds at most, else \`${step.id}\` failed.`;
@@ -90,14 +93,15 @@ const line = (step: Step, stage: StageScript, fresh: boolean): string | null => 
     return `${head} the check of that step, run with it above; it succeeded when its step did.`;
   if (step.kind === "condition")
     return `${head} ${step.value === undefined ? "" : from(step.value)} is true or false; anything else fails it.`;
-  return step.kind === "join" || step.kind === "pass" ? `${head} nothing to do; go on.` : null;
+  if (step.kind === "pass") return `${head} this level passes this gate: it counts as approved; go on.`;
+  return step.kind === "join" ? `${head} nothing to do; go on.` : null;
 };
 
 /** A stage as a skill Codex follows: the steps in order, each with its condition. */
 const stageSkill = (workflow: WorkflowDefinition, stage: Stage, script: StageScript): PackageFile[] => {
   const precheck =
     stage.from === null && precheckOf(workflow).length > 0
-      ? `First run \`sh "<root>/${PRECHECK_SCRIPT}"\` from the project folder; if it exits non-zero, stop: the workflow has nothing to do.\n\n`
+      ? `First run ${run(PRECHECK_SCRIPT)} from the project folder; if it exits non-zero, stop: the workflow has nothing to do.\n\n`
       : "";
   const fresh = (id: string): boolean => workflow.nodes.find((node) => node.id === id)?.with?.["fresh"] === true;
   const steps = ordered(script.steps).flatMap((step) => line(step, script, fresh(step.id)) ?? []);
@@ -110,7 +114,12 @@ const stageSkill = (workflow: WorkflowDefinition, stage: Stage, script: StageScr
       : `${given} This stage needs ${required.join(", ")}: if one is missing, stop and ask for it.`;
   const outputs = Object.entries(script.outputs).map(([name, source]) => `\`${name}\`: ${from(source)}`);
   const report = `At the end, report the steps that succeeded, failed or were skipped${outputs.length === 0 ? "" : `, and the workflow's outputs in full (${outputs.join("; ")})`}.`;
-  const body = `${precheck}Run the stage \`${stage.name}\` of the workflow \`${titleOf(workflow)}\`: the steps below, in this order, each only once the steps it names ended as it says; skip it otherwise. \`<root>\` is this plugin's folder, two levels above the folder of this skill; run every command from the project folder. ${inputs}\n\n${steps.join("\n")}\n\n${report}\n`;
+  // The user starting this stage is the gate's answer, which the steps below wait on.
+  const answer =
+    stage.from === null
+      ? ""
+      : ` Starting this stage is the answer at gate \`${stage.from.node}\`: it was ${stage.from.handle}.`;
+  const body = `${precheck}Run the stage \`${stage.name}\` of the workflow \`${titleOf(workflow)}\`.${answer} Do the steps below, in this order, each only once the steps it names ended as it says; skip it otherwise. \`<root>\` is this plugin's folder, two levels above the folder of this skill; run every command from the project folder. ${inputs}\n\n${steps.join("\n")}\n\n${report}\n`;
   const description = describe(
     `Runs the stage ${stage.name} of the workflow ${titleOf(workflow)} in Codex, up to its next gate.`,
   );

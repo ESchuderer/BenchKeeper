@@ -2,6 +2,8 @@
 export interface Word {
   readonly text: string | null;
   readonly start: string;
+  /** One parameter alone, `$name` or `${name}`, quoted or not: arithmetic reads its value, not a command. */
+  readonly plain?: true;
 }
 
 /** A simple command: its words, assignments first. */
@@ -34,16 +36,23 @@ class Builder {
   bare = "";
   // An expansion outside quotes, whose result the shell splits into words of its own.
   split = false;
+  // Plain parameters, and whether anything else is in the word.
+  parameters = 0;
+  other = false;
   add(text: string, bare = false): void {
     this.text += text;
     if (bare) this.bare += text;
+    this.other ||= text !== "";
   }
   // An expansion: the word's text is unknown from here on.
-  expand(bare = false): void {
+  expand(bare: boolean, plain: boolean): void {
     this.start ??= this.text;
     this.split ||= bare;
+    if (plain) this.parameters += 1;
+    else this.other = true;
   }
   word(): Word {
+    if (this.parameters === 1 && !this.other) return { text: null, start: "", plain: true };
     // A glob or brace list may expand to any word, an option among them.
     if (this.start === null && expands(this.bare)) return { text: null, start: "" };
     if (this.start === null) return { text: this.text, start: this.text };
@@ -178,13 +187,15 @@ class Reader {
     }
     this.#i += op.length;
     while (this.#peek() === " " || this.#peek() === "\t") this.#i += 1;
+    const from = this.#i;
     const target = this.#word();
-    if (op === "<<" || op === "<<-") this.#heredoc(target, op === "<<-");
+    if (op === "<<" || op === "<<-") this.#heredoc(target, op === "<<-", this.#text.slice(from, this.#i));
   }
 
-  #heredoc(target: Builder, strip: boolean): void {
+  // A backslash in a delimiter may quote it or continue its line, which the reader does not tell apart.
+  #heredoc(target: Builder, strip: boolean, written: string): void {
     const delimiter = target.word().text;
-    if (delimiter === null || delimiter === "") this.skipped = true;
+    if (delimiter === null || delimiter === "" || written.includes("\\")) this.skipped = true;
     else this.#heredocs.push({ delimiter, quoted: target.quoted, strip });
   }
 
@@ -205,8 +216,9 @@ class Reader {
       this.#i = end < 0 ? this.#text.length : end + 1;
       const text = doc.strip ? line.replace(/^\t+/, "") : line;
       if (text === doc.delimiter) return lines;
-      // Inside `$(...)` bash may end the body at a line that only starts with the delimiter, such as `EOF)`.
-      if (text.startsWith(doc.delimiter)) this.skipped = true;
+      // Inside `$(...)` bash may end the body at a line that only starts with the delimiter, such as `EOF)`; an
+      // unquoted body joins a line ending in a backslash with the next, the delimiter's too.
+      if (text.startsWith(doc.delimiter) || (!doc.quoted && line.endsWith("\\"))) this.skipped = true;
       lines.push(line);
     }
     this.skipped = true;
@@ -249,9 +261,12 @@ class Reader {
     this.#i = end < 0 ? this.#text.length : end + 1;
   }
 
-  // `$'...'`: a backslash escapes the next character, a quote among them.
+  // `$'...'`: a backslash escapes the next character, a quote among them; a numeric escape spells any character.
   #ansiQuoted(): void {
-    while (!this.done && this.#peek() !== "'") this.#i += this.#peek() === "\\" ? 2 : 1;
+    while (!this.done && this.#peek() !== "'") {
+      if (this.#peek() === "\\" && /[xuUc0-7]/.test(this.#peek(1))) this.#outside();
+      this.#i += this.#peek() === "\\" ? 2 : 1;
+    }
     if (this.done) this.skipped = true;
     this.#i += 1;
   }
@@ -289,9 +304,10 @@ class Reader {
       word.add("$");
       return;
     }
-    word.expand(!inQuotes);
+    const from = this.#i;
     this.#i += opens ? 1 : name.length;
     if (opens) this.#expansion(c);
+    word.expand(!inQuotes, !opens || /^\{#?\w+(?:\[[@*]\])?\}$/.test(this.#text.slice(from, this.#i)));
   }
 
   // A parameter after `$`: a name, a digit or a special one such as `$?`, and zsh's `$=`, `$~`, `$^` and `$+`.
@@ -318,7 +334,7 @@ class Reader {
       if (c === "(") depth += 1;
       else if (c === ")") depth -= 1;
     } while (!this.done && depth > 0);
-    if (this.#peek() !== ")" || /\$\(|`/.test(this.#text.slice(from, this.#i))) this.#outside();
+    if (this.#peek() !== ")" || /\$[('"]|`/.test(this.#text.slice(from, this.#i))) this.#outside();
     this.#i += 1;
   }
 

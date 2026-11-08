@@ -23,6 +23,9 @@ type Exec = Pick<ActionContext, "exec">;
 // Rows claude-swap cannot use until the user logs in again (`relogin_required`) or adds a login (`no_credentials`).
 const HELD = new Set(["relogin_required", "no_credentials"]);
 const held = (row: unknown): boolean => HELD.has(String(at(row, "usageStatus")));
+// The settings of claude-swap's auto mode, the only ones CedarLoom shows or sets: others, such as run.shareHistory,
+// change the sharing session mode relies on (switching plan 14.3).
+const AUTO_SETTINGS = "autoswitch.";
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 const textOr = (value: unknown, otherwise: string | null): string | null =>
@@ -40,7 +43,9 @@ const probeOf = async ({ exec }: Exec): Promise<ProgramVersion> => {
   return found.installed ? { installed: true, version: found.version.replace(/^cswap\s+/, "") } : found;
 };
 
-/** claude-swap's JSON answer to a command: one object of schemaVersion 1; its error envelope or another version throws. */
+// Whether the user named the program with --allow, the approval line of a step that changes the machine.
+const allowed = (config: unknown, program: string): boolean => [at(config, "allow")].flat().includes(program);
+
 // claude-swap's messages can name an account's email; no identity leaves the extension (switching plan 1.5).
 const withoutEmails = (text: string): string =>
   text
@@ -48,6 +53,7 @@ const withoutEmails = (text: string): string =>
     .map((word) => (word.includes("@") ? "<email>" : word))
     .join(" ");
 
+/** claude-swap's JSON answer to a command: one object of schemaVersion 1; its error envelope or another version throws. */
 const cswap = async ({ exec }: Exec, args: string[], timeoutMs = FETCH_MS): Promise<unknown> => {
   const command = `cswap ${args.join(" ")}`;
   const ran = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs });
@@ -162,6 +168,26 @@ export const targets: TargetHandlers = {
       reason: typeof reason === "string" ? reason : "",
     };
   },
+  // claude-swap's auto mode settings (cswap config); `set` goes through `cswap config set`, which checks each value.
+  "target/policy": async ({ set = {} }, context) => {
+    const other = Object.keys(set).find((key) => !key.startsWith(AUTO_SETTINGS));
+    if (other !== undefined) throw new Error(`${other} is not one of claude-swap's ${AUTO_SETTINGS}* settings`);
+    for (const [key, value] of Object.entries(set)) {
+      // After --, a value that starts with - stays a value.
+      const ran = await context.exec({ program: "cswap", args: ["config", "set", "--", key, value], timeoutMs: MS });
+      const why = withoutEmails(ran.stderr.trim().split("\n")[0] ?? "").slice(0, 300);
+      if (ran.code !== 0) throw new Error(`cswap config set ${key} exited with ${ran.code}: ${why}`);
+    }
+    const settings = at(await cswap(context, ["config"]), "settings");
+    const values = (Array.isArray(settings) ? settings : []).flatMap(
+      (setting): [string, string | number | boolean][] => {
+        const [key, value] = [at(setting, "key"), at(setting, "value")];
+        const kept = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+        return typeof key === "string" && key.startsWith(AUTO_SETTINGS) && kept ? [[key, value]] : [];
+      },
+    );
+    return { values: Object.fromEntries(values) };
+  },
 };
 
 /** The session provider `claude`: claude-swap's session mode runs Claude Code as one of its accounts, by number. */
@@ -224,6 +250,8 @@ export const status = async (context: Exec): Promise<Record<string, unknown>> =>
   };
 };
 
+// As a shell would need it, to copy.
+const lineOf = (words: string[]): string => words.map((word) => (/[[>]/.test(word) ? `'${word}'` : word)).join(" ");
 // The claude-swap release an install pins, the one this extension reads (coordinator, 2026-11-07); on macOS with the
 // menu bar, which runs claude-swap's own auto mode as a service (switching plan 14.3).
 const specOf = (platform: string): string => `claude-swap${platform === "darwin" ? "[menubar]" : ""}==${OBSERVED}`;
@@ -252,9 +280,8 @@ export const install = async (
   for (const [program, args] of INSTALLERS) {
     if (!(await programVersion(exec, program, MS)).installed) continue;
     const spec = specOf(platform);
-    // As a shell would need it, to copy.
-    const runs = [program, ...args, spec].map((arg) => (/[[>]/.test(arg) ? `'${arg}'` : arg)).join(" ");
-    if (![at(config, "allow")].flat().includes(program)) {
+    const runs = lineOf([program, ...args, spec]);
+    if (!allowed(config, program)) {
       return { installed: false, runs, approve: `cedarloom claude-swap install --allow ${program}` };
     }
     const ran = await exec({ program, args: [...args, spec], timeoutMs: INSTALL_MS });
@@ -267,3 +294,69 @@ export const install = async (
     "neither uv nor pipx is installed: install uv first (https://docs.astral.sh/uv/getting-started/installation/)",
   );
 };
+
+// claude-swap's own auto mode runs in its macOS menu bar service; CedarLoom writes no service, plist or crontab.
+const elsewhere = (platform: string): string =>
+  platform === "win32"
+    ? "run cswap auto in a terminal; claude-swap has no service on Windows"
+    : "run cswap auto in a terminal, or from cron: */5 * * * * cswap auto --once --json >> ~/.cswap-auto.log";
+const TOGGLE = "turn on Settings, Auto-switch accounts in the menu bar once; CedarLoom never writes that setting";
+const MISSING = "claude-swap is not installed: cedarloom claude-swap install";
+const [UV, UV_ARGS] = INSTALLERS[0] ?? ["uv", []];
+// claude-swap's service starts its menu bar at each login, which needs its menubar extra; without it, it exits and
+// launchd restarts it again and again.
+const NO_MENU_BAR = `claude-swap's menu bar (claude-swap[menubar]) is not confirmed: add it with ${lineOf([UV, ...UV_ARGS, "--force", specOf("darwin")])}, or ${elsewhere("darwin")}`;
+
+// Whether claude-swap has its menu bar, as uv lists a tool's extras ("claude-swap v0.30.0 [extras: menubar]").
+// shortcut: a pipx install or one by hand is never confirmed and gets the hint; read pipx's metadata once checked.
+const menuBarOf = async ({ exec }: Exec): Promise<boolean> => {
+  const ran = await exec({ program: UV, args: ["tool", "list", "--show-extras"], timeoutMs: MS }).catch(() => null);
+  const line = ran?.code === 0 ? ran.stdout.split("\n").find((each) => each.startsWith("claude-swap v")) : undefined;
+  return (line?.split("[extras: ")[1]?.split("]")[0]?.split(", ") ?? []).includes("menubar");
+};
+
+// What `cswap menubar <flag>` says first, such as "Menu bar service: running (pid 4242)"; it has no JSON form.
+const serviceOf = async ({ exec }: Exec, flag: string): Promise<string> => {
+  const ran = await exec({ program: "cswap", args: ["menubar", flag], timeoutMs: FETCH_MS });
+  if (ran.code !== 0) throw new Error(`cswap menubar ${flag} exited with ${ran.code}`);
+  return ran.stdout.trim().split("\n")[0] ?? "";
+};
+
+/** Whether claude-swap's menu bar service runs, which hosts its auto mode on macOS; elsewhere how to run auto mode. */
+export const auto = async (context: Exec, platform: string = process.platform): Promise<Record<string, unknown>> => {
+  if (platform !== "darwin") return { hint: elsewhere(platform) };
+  if (!(await probeOf(context)).installed) return { hint: MISSING };
+  const hint = (await menuBarOf(context)) ? TOGGLE : NO_MENU_BAR;
+  return { service: await serviceOf(context, "--service-status"), hint };
+};
+
+// Installs or removes the menu bar service through claude-swap, only once the user names cswap with --allow. `needs`:
+// what the service starts, which must be there first.
+const serviceChange =
+  (flag: string, verb: string, after: string, needs: string | null) =>
+  async (
+    { exec, config }: Pick<ActionContext, "exec" | "config">,
+    platform: string = process.platform,
+  ): Promise<Record<string, unknown>> => {
+    if (platform !== "darwin") return { hint: elsewhere(platform) };
+    if (!(await probeOf({ exec })).installed) return { hint: MISSING };
+    if (needs !== null && !(await menuBarOf({ exec }))) return { hint: NO_MENU_BAR };
+    const runs = `cswap menubar ${flag}`;
+    const approve = `cedarloom claude-swap ${verb} --allow cswap`;
+    if (!allowed(config, "cswap")) return { runs, approve, ...(needs === null ? {} : { hint: needs }) };
+    return { service: await serviceOf({ exec }, flag), hint: after };
+  };
+/** The menu bar service installed, so claude-swap's auto mode can run without a terminal (switching plan 14.3). */
+export const autoOn = serviceChange(
+  "--install-service",
+  "auto-on",
+  TOGGLE,
+  "the service starts claude-swap's menu bar (claude-swap[menubar], found) at each login",
+);
+/** The menu bar service removed. */
+export const autoOff = serviceChange(
+  "--uninstall-service",
+  "auto-off",
+  "claude-swap's auto mode no longer runs on its own",
+  null,
+);

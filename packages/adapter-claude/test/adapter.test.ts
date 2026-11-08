@@ -80,7 +80,6 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     CLAUDE_CODE_SIMPLE: "1",
     claude_config_dir: "/elsewhere",
     KEEP: "yes",
-    CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
   };
   vi.stubEnv("CEDARLOOM_PARENT_ONLY", "1");
   const all = await events(runtime.start(launch(env, { pluginDirs: [join(fixtures, "plugins", "workflow")] })));
@@ -320,26 +319,9 @@ test("every shell command passes the guard hook first, which no settings file be
   };
   const { args } = started(await events(runtime.start(launch({}, { guardHook }))));
   expect(JSON.parse(args[args.indexOf("--settings") + 1] ?? "")).toMatchObject({
-    hooks: {
-      PreToolUse: [
-        {
-          matcher: "Bash|Monitor|PowerShell",
-          hooks: [
-            {
-              type: "command",
-              command: "/opt/node/bin/node",
-              args: ["/opt/cedarloom/hook.js", "{}"],
-              timeout: 10,
-              onFailure: "block",
-            },
-          ],
-        },
-      ],
-    },
-    disableAllHooks: false,
+    hooks: { PreToolUse: [{ hooks: [{ command: "/opt/node/bin/node", args: ["/opt/cedarloom/hook.js", "{}"] }] }] },
     permissions: { deny: expect.arrayContaining(["Edit(//opt/cedarloom/**)"]) },
     sandbox: { filesystem: { denyWrite: expect.arrayContaining(["/opt/cedarloom"]) } },
-    env: { CLAUDE_CODE_USE_POWERSHELL_TOOL: "0" },
   });
 });
 

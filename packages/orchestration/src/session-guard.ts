@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GUARD_SCHEMA_VERSION, type GuardPolicy } from "@cedarloom/contracts";
+import { GUARD_SCHEMA_VERSION, type GuardPolicy, RepoName } from "@cedarloom/contracts";
 import { githubRepo, type Remotes } from "./guard.ts";
 import { programPath } from "./program.ts";
 
@@ -34,7 +34,9 @@ export const gitRemotes: Remotes = (folder) => {
  * A worker's guard policy: the GitHub repositories of its project's remotes and the hub, the hub from this machine's
  * binding; no memory repository yet. A project without GitHub remotes leaves the worker the hub alone.
  */
-export const workerPolicy = (project: string, hub: string | null): GuardPolicy => {
+export const workerPolicy = (project: string, binding: string | null): GuardPolicy => {
+  // A binding the policy cannot hold, such as owner/., counts as none: issue commands refuse.
+  const hub = RepoName.safeParse(binding).success ? binding : null;
   const urls = [...(gitRemotes(project)?.values() ?? [])].flat();
   const named = [...urls.map(githubRepo), hub].filter((repo) => repo !== null);
   return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory: null };

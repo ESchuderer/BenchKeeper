@@ -31,8 +31,7 @@ const SWITCHES = [
   ["network.allowAllUnixSockets", true], // #sandbox-network-allowallunixsockets
   ["filesystem.disabled", true], // #sandbox-filesystem-disabled: unrestricted read and write of the host
 ] as const;
-// Top-level keys that switch the workers' guard hook or their deny rules off (#disableallhooks,
-// #allowmanagedhooksonly, #allowmanagedpermissionrulesonly).
+// Top-level keys that switch the workers' guard hook or deny rules off (#disableallhooks and the like).
 const HOOK_SWITCHES = ["disableAllHooks", "allowManagedHooksOnly", "allowManagedPermissionRulesOnly"] as const;
 // Each Boolean by its full key, and the value that loosens it.
 const SWITCH_VALUES = new Map<string, boolean>([
@@ -109,6 +108,10 @@ const managedFiles = (dir: string): (Settings | ManagedProblem | null)[] => {
   return [join(dir, "managed-settings.json"), ...ordered].map(readManaged);
 };
 
+// strictPluginOnlyCustomization with hooks stops settings hooks (#strictpluginonlycustomization-hooks).
+const pluginHooksOnly = (value: unknown): boolean =>
+  loosens(value, true) || (Array.isArray(value) && value.includes("hooks"));
+
 const sandboxOf = (settings: Json): Json => (isObject(settings["sandbox"]) ? settings["sandbox"] : {});
 
 // The Booleans and ports a file sets, by their full key.
@@ -132,6 +135,7 @@ const listed = ({ path, settings }: Settings): ManagedProblem[] => {
     ...LISTS.filter((key) => entries(key).length > 0).map((key) => `sandbox.${key}`),
     ...(entries(DOMAINS).some((host) => !GITHUB.has(String(host).toLowerCase())) ? [`sandbox.${DOMAINS}`] : []),
     ...(Object.hasOwn(settings, "policyHelper") ? ["policyHelper"] : []),
+    ...(pluginHooksOnly(settings["strictPluginOnlyCustomization"]) ? ["strictPluginOnlyCustomization"] : []),
   ];
   return keys.map((key) => ({ kind: "loosens", path, key }));
 };

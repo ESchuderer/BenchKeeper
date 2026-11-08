@@ -239,8 +239,13 @@ test("each documented sandbox escape is found, with the file that sets it", () =
 
 test("managed keys that switch the guard hook or the deny rules off are found; false leaves them on", () => {
   const off = { disableAllHooks: true, allowManagedHooksOnly: "true", allowManagedPermissionRulesOnly: true };
-  expect(loosened(off).toSorted()).toEqual(
-    ["disableAllHooks", "allowManagedHooksOnly", "allowManagedPermissionRulesOnly"].toSorted(),
+  expect(loosened({ ...off, strictPluginOnlyCustomization: ["hooks"] }).toSorted()).toEqual(
+    [
+      "disableAllHooks",
+      "allowManagedHooksOnly",
+      "allowManagedPermissionRulesOnly",
+      "strictPluginOnlyCustomization",
+    ].toSorted(),
   );
   expect(loosened({ disableAllHooks: false, allowManagedHooksOnly: false })).toEqual([]);
 });

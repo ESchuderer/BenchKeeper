@@ -142,8 +142,7 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
 // Dropped from the launch's environment, without regard to case, because Windows names ignore it: the names the adapter
 // sets, CLAUDE_CODE_SIMPLE, which is equivalent to --bare (https://code.claude.com/docs/en/env-vars), and the login
 // variables, which outrank the account's own login (https://code.claude.com/docs/en/authentication#authentication-precedence).
-// CLAUDE_CODE_USE_POWERSHELL_TOOL is kept: it turns a tool on or off and selects no login.
-const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_(?!POWERSHELL_TOOL$))/i;
+const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_)/i;
 // CedarLoom sends no telemetry (owner decision, 2026-11-07), so no variable of the launch's environment turns Claude
 // Code's telemetry on or routes it (https://code.claude.com/docs/en/monitoring-usage).
 const TELEMETRY =

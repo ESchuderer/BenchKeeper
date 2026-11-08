@@ -48,7 +48,7 @@ const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: s
   const { tool, command, cwd } = call;
   // A Monitor call without a command watches a WebSocket and runs nothing.
   if (!SHELL_TOOLS.has(tool) || (tool === "Monitor" && command === undefined)) return null;
-  // On Windows the launch requires Git Bash, so the Bash tool runs every command.
+  // A worker's shell is Bash; PowerShell, which the guard does not read, refuses.
   return tool === "PowerShell"
     ? "the guard reads no PowerShell; run the command with the Bash tool"
     : located(command, cwd);

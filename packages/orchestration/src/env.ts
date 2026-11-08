@@ -5,17 +5,8 @@ import type { AccountRegistry } from "@cedarloom/contracts";
 // USER on macOS: Claude Code finds its keychain login only with it (2.1.316: logged out under env -i with HOME and PATH).
 const INHERITED = ["PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TZ"];
 // Windows' system, profile and temp folders: a process without SystemRoot can fail to load system components
-// (https://docs.python.org/3/library/subprocess.html#popen-constructor); and Git Bash, the worker's only shell there.
-const WINDOWS = [
-  "SYSTEMROOT",
-  "WINDIR",
-  "USERPROFILE",
-  "APPDATA",
-  "LOCALAPPDATA",
-  "TEMP",
-  "TMP",
-  "CLAUDE_CODE_GIT_BASH_PATH",
-];
+// (https://docs.python.org/3/library/subprocess.html#popen-constructor).
+const WINDOWS = ["SYSTEMROOT", "WINDIR", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP"];
 
 export interface WorkerEnvInput {
   readonly parent: Readonly<Record<string, string | undefined>>;

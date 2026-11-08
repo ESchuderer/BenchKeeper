@@ -104,8 +104,10 @@ const FIXED = {
   httpHookAllowedEnvVars: [],
 };
 
-// Every shell command passes the guard first; a crash, a timeout or invalid output refuses it, and a disableAllHooks in
-// a settings file below these settings does not apply (https://code.claude.com/docs/en/hooks).
+// Tools that start work outside this session (https://code.claude.com/docs/en/tools-reference).
+const REACH_PAST_GUARD = ["RemoteTrigger", "SendMessage", "ListAgents"];
+
+// A failed guard refuses its call; a lower settings file's disableAllHooks does not apply (code.claude.com/docs/en/hooks).
 const guardHooks = ({ command, args }: GuardHook) => ({
   PreToolUse: [
     {
@@ -142,6 +144,8 @@ export const overlay = (input: OverlayInput) => {
           .flatMap((path) => ["Read", "Edit"].flatMap((tool) => [`${tool}(${path})`, `${tool}(${path}/**)`])),
         "Read(**/.env*)",
         SETTINGS_SENTINEL,
+        // Cloud tasks and the owner's other sessions run commands no hook of this session reads.
+        ...REACH_PAST_GUARD,
         ...closedToWrites.map((path) => `Edit(${rulePath(path)}/**)`),
         ...(readOnly === undefined ? [] : [PUSH]),
         // The plugins join the working folders, which lets their skills read their own files, but not change them.

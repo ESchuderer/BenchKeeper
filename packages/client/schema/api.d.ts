@@ -1983,6 +1983,20 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "managed.guard-off";
+            params: {
+                path: string;
+                key: string;
+            };
+        } | {
+            /** @constant */
+            code: "managed.unreadable";
+            params: {
+                path: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
             code: "work-items.no-hub";
             params: Record<string, never>;
         } | {
@@ -3242,6 +3256,20 @@ export interface components {
             /** @constant */
             code: "tracker.invalid-answer";
             params: {
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "managed.guard-off";
+            params: {
+                path: string;
+                key: string;
+            };
+        } | {
+            /** @constant */
+            code: "managed.unreadable";
+            params: {
+                path: string;
                 error: string;
             };
         } | {

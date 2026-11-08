@@ -89,8 +89,8 @@ const config = <T extends z.ZodType>(id: string, schema: T): T => {
 
 /**
  * The configuration (`with`) of each node type of workflow schema version 1. A node without `with` is checked as `{}`.
- * Values never reach a command as text: a command gets the workflow's inputs as environment variables only, which `sh`
- * expands after it has parsed the line.
+ * Values never reach a command: a command step runs its own script, and the workflow's inputs and other steps' outputs
+ * reach agent steps and conditions only.
  */
 export const NODE_CONFIGS = {
   "trigger.manual": config("TriggerManualConfig", z.strictObject({ precheck: precheck.optional() })),

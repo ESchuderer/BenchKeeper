@@ -37,8 +37,8 @@ export const ImportReview = z
       z.strictObject({
         workflow: WorkflowId,
         node: z.string(),
-        kind: z.enum(["schedule", "precheck", "command", "agent", "workflow"]),
-        text: z.string().describe("The command, task, schedule or workflow in full"),
+        kind: z.enum(["schedule", "precheck", "command", "agent", "approval", "workflow"]),
+        text: z.string().describe("The command, task, schedule, approval message or workflow in full"),
       }),
     ),
   })

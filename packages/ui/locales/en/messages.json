@@ -91,6 +91,7 @@
           "precheck": ["Precheck"],
           "command": ["Command"],
           "agent": ["Agent task"],
+          "approval": ["Approval message"],
           "workflow": ["Calls the workflow"],
           "other": [["kind"]]
         }

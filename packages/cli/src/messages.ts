@@ -129,6 +129,14 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.check-source": (p) =>
     `Check ${p.node} starts from ${p.from}, but a check runs right after the done of the agent step it holds back.`,
   "workflow.check-output": (p) => `Check ${p.node} leads on from its ${p.handle}; a check leads on from done only.`,
+  "package.two-stages": (p) =>
+    `Node ${p.node} is reached from two stages, but each stage runs on its own, between the gates the automation level keeps.`,
+  "package.cross-stage": (p) =>
+    `Edge ${p.edge} passes a value from one stage to the next, but a stage keeps no value once a gate ends it.`,
+  "package.name-taken": (p) =>
+    `Node ${p.node} takes the name ${p.name}, which another node or stage of the package takes too; give an agent step another skill, or rename the node.`,
+  "package.reserved-name": (p) =>
+    `The package would be named ${p.name}, which Claude Code keeps for Anthropic's own plugins; give the workflow another id.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,

@@ -1243,6 +1243,31 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.two-stages";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.cross-stage";
+            params: {
+                edge: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.name-taken";
+            params: {
+                name: string;
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.reserved-name";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -1759,7 +1784,7 @@ export interface components {
                 workflow: string;
                 node: string;
                 /** @enum {string} */
-                kind: "schedule" | "precheck" | "command" | "agent" | "workflow";
+                kind: "schedule" | "precheck" | "command" | "agent" | "approval" | "workflow";
                 text: string;
             }[];
         };
@@ -2301,6 +2326,31 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.two-stages";
+            params: {
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.cross-stage";
+            params: {
+                edge: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.name-taken";
+            params: {
+                name: string;
+                node: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.reserved-name";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -2817,7 +2867,7 @@ export interface components {
                 workflow: string;
                 node: string;
                 /** @enum {string} */
-                kind: "schedule" | "precheck" | "command" | "agent" | "workflow";
+                kind: "schedule" | "precheck" | "command" | "agent" | "approval" | "workflow";
                 text: string;
             }[];
         };

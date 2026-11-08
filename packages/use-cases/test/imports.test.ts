@@ -29,7 +29,7 @@ const stored = (state: string): string => {
 };
 
 // Each store commit and import runs git several times, which is slow on Windows: as git's own tests, 30 s.
-test("an export imports as new byte for byte with every command and task in its review, then as the same", async () => {
+test("an export imports as new byte for byte with every command, task and message in its review, then as the same", async () => {
   const [from, to] = [machine(), machine()];
   store(from, "1.0.0");
   const folder = exported(from, join(from, "shared"));
@@ -54,6 +54,7 @@ test("an export imports as new byte for byte with every command and task in its 
       },
     ],
     [
+      ["approval", "Accept the review?"],
       ["command", "pnpm lint"],
       ["agent", "Review the changes and list findings."],
       ["command", "pnpm test"],

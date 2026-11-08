@@ -3,6 +3,7 @@
   "packages/cli": "0.0.0",
   "packages/client": "0.0.0",
   "packages/contracts": "0.0.0",
+  "packages/emitter": "0.0.0",
   "packages/engine": "0.0.0",
   "packages/extension-claude-swap": "0.0.0",
   "packages/extension-host": "0.0.0",

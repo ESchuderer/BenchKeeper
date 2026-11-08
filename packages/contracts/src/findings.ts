@@ -75,6 +75,11 @@ export const Finding = z
     /** A check holds back the agent step before it, so only an agent step's `done` starts it. */
     finding("workflow.check-source", { node: z.string(), from: z.string() }),
     finding("workflow.check-output", { node: z.string(), handle: z.string() }),
+    /** Why a workflow builds into no package at its automation level: a stage ends at each gate the level keeps. */
+    finding("package.two-stages", { node: z.string() }),
+    finding("package.cross-stage", { edge: z.string() }),
+    finding("package.name-taken", { name: z.string(), node: z.string() }),
+    finding("package.reserved-name", { name: z.string() }),
     /** A project's level is set for a folder that exists, by its real path. */
     finding("automation.unknown-folder", { path: z.string() }),
     /**
@@ -333,6 +338,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.duplicate-skill": { severity: "error", effort: "manual" },
   "workflow.check-source": { severity: "error", effort: "manual" },
   "workflow.check-output": { severity: "error", effort: "manual" },
+  "package.two-stages": { severity: "error", effort: "manual" },
+  "package.cross-stage": { severity: "error", effort: "manual" },
+  "package.name-taken": { severity: "error", effort: "manual" },
+  "package.reserved-name": { severity: "error", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },

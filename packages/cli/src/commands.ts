@@ -1,7 +1,6 @@
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import {
-  type AutomationLevel,
   type ExtensionManifest,
   type Finding,
   type PackRef,
@@ -14,7 +13,6 @@ import {
 } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
-import { graphRunShow } from "./graphs.ts";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
@@ -80,44 +78,14 @@ export const plansApply = (ctx: Context, path: string, approval: Approval): numb
 
 export const runsList = (ctx: Context): number => {
   const runs = useCases.listRuns(ctx.state);
-  const graphRuns = runs.ok ? useCases.listGraphRuns(ctx.state) : { ok: false as const, finding: runs.finding };
-  if (!graphRuns.ok) return fail(ctx, "runs", [graphRuns.finding], EXIT.refused);
-  const applied = runs.ok ? runs.value : [];
-  // Apply runs and graph runs, newest first.
-  const rows = [...applied, ...graphRuns.value.map((run) => ({ ...run, kind: "graph" }))].toSorted((a, b) =>
-    b.startedAt.localeCompare(a.startedAt),
-  );
-  const lines = rows.map((run) => `${run.id}  ${run.kind.padEnd(5)}  ${run.status.padEnd(11)}  ${run.startedAt}`);
-  emit(
-    ctx,
-    "runs",
-    { runs: applied, graphRuns: graphRuns.value },
-    lines.length > 0 ? lines.join("\n") : "No runs yet.",
-  );
-  return EXIT.ok;
-};
-
-// A worker run with the totals its session reported, else a graph run.
-const launchShow = (ctx: Context, runId: string): number => {
-  const shown = useCases.showLaunch(ctx.state, runId);
-  if (!shown.ok) return graphRunShow(ctx, runId);
-  const { account, verdict, startedAt, totals: t } = shown.value;
-  const spent =
-    t === null
-      ? "  no token or cost totals reported"
-      : `  ${t.inputTokens} input, ${t.outputTokens} output, ${t.cacheReadTokens} cache read and ${t.cacheCreationTokens} cache written tokens, about $${t.costUsd.toFixed(2)}`;
-  emit(
-    ctx,
-    "run",
-    { launch: shown.value },
-    `Run ${runId}: worker on ${account}, ${verdict ?? "running"}, ${startedAt}\n${spent}`,
-  );
+  if (!runs.ok) return fail(ctx, "runs", [runs.finding], EXIT.refused);
+  const lines = runs.value.map((run) => `${run.id}  ${run.kind.padEnd(5)}  ${run.status.padEnd(11)}  ${run.startedAt}`);
+  emit(ctx, "runs", { runs: runs.value }, lines.length > 0 ? lines.join("\n") : "No runs yet.");
   return EXIT.ok;
 };
 
 export const runsShow = (ctx: Context, runId: string): number => {
   const shown = useCases.showRun(ctx.state, runId);
-  if (!shown.ok && shown.finding.code === "run.not-found") return launchShow(ctx, runId);
   if (!shown.ok) return readFailed(ctx, shown.finding);
   const { run, steps } = shown.value;
   const lines = steps.map((step) => `  ${step.state.padEnd(8)} ${step.path}`);
@@ -177,17 +145,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
 // A finding before any plan, in the command's result format: an unreadable file exits 66, a wrong document 65, rules 1.
 export const refused = (
   ctx: Context,
-  format:
-    | "draft"
-    | "extensions"
-    | "intent"
-    | "levels"
-    | "links"
-    | "mode"
-    | "outbox"
-    | "plan"
-    | "profile-diff"
-    | "versions",
+  format: "draft" | "extensions" | "intent" | "levels" | "links" | "outbox" | "plan" | "profile-diff" | "versions",
   finding: Finding,
 ): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;
@@ -356,24 +314,13 @@ export const componentsSwitch = (ctx: Context, id: string, state: "auto" | "off"
   return change(ctx, planned.value, { note, data: { component: id, state }, findings: [] }, yes);
 };
 
-// What the latest switch of running work does, by modeScope (running when unset; owner decision, 2026-11-06).
-const switchLine = ({ switched, settings }: useCases.Mode): string | null => {
-  if (switched?.level == null) return null;
-  return settings?.modeScope === "until-off"
-    ? `${switched.level} for all work since ${switched.at}, until cedarloom mode off`
-    : `${switched.level} for the runs that were running at ${switched.at}; later runs start at their project's level`;
-};
-
 const showLevels = (ctx: Context): number => {
-  const current = useCases.mode(ctx.state, ctx.config);
-  if (!current.ok) return refused(ctx, "levels", current.finding);
-  const { settings, switched } = current.value;
-  const fallback = settings?.default ?? "supervised";
-  const projects = settings?.projects ?? {};
+  const settings = useCases.automationSettings(ctx.config);
+  if (!settings.ok) return refused(ctx, "levels", settings.finding);
+  const fallback = settings.value?.default ?? "supervised";
+  const projects = settings.value?.projects ?? {};
   const own = Object.entries(projects).map(([folder, level]) => `${level.padEnd(10)}  ${folder}`);
-  const line = switchLine(current.value);
-  const lines = [`${fallback.padEnd(10)}  (default)`, ...own, ...(line === null ? [] : [`Switched: ${line}.`])];
-  emit(ctx, "levels", { default: fallback, projects, switched }, lines.join("\n"));
+  emit(ctx, "levels", { default: fallback, projects }, [`${fallback.padEnd(10)}  (default)`, ...own].join("\n"));
   return EXIT.ok;
 };
 
@@ -384,55 +331,6 @@ const configChange = (ctx: Context, plan: Result<Plan>, yes?: true): number =>
 /** Shows the default level and each project's own (`next` null), or plans the change `next`; --yes applies it. */
 export const levelCommand = (ctx: Context, next: useCases.LevelChange | null, { yes }: { yes?: true }): number =>
   next === null ? showLevels(ctx) : configChange(ctx, useCases.planLevel(ctx.config, next), yes);
-
-// The JSON of `cedarloom mode`: the latest switch's level and time, the default, and how long a switch lasts.
-const modeData = ({ switched, settings }: useCases.Mode) => ({
-  running: switched?.level ?? null,
-  at: switched?.at ?? null,
-  default: settings?.default ?? "supervised",
-  modeScope: settings?.modeScope ?? "running",
-});
-
-const showMode = (ctx: Context): number => {
-  const current = useCases.mode(ctx.state, ctx.config);
-  if (!current.ok) return refused(ctx, "mode", current.finding);
-  const data = modeData(current.value);
-  const line = switchLine(current.value);
-  const human =
-    line === null
-      ? `Running work follows each project's level; the default is ${data.default}.`
-      : `Running at ${line}.`;
-  emit(ctx, "mode", data, human);
-  return EXIT.ok;
-};
-
-/** Shows the level of running work, or with a level (off: back to each project's) and --yes switches it. */
-export const modeCommand = (
-  ctx: Context,
-  level: AutomationLevel | "off" | undefined,
-  { yes }: { yes?: true },
-): number => {
-  if (level === undefined) return showMode(ctx);
-  const settings = useCases.automationSettings(ctx.config);
-  if (!settings.ok) return refused(ctx, "mode", settings.finding);
-  const next = level === "off" ? null : level;
-  const scope =
-    settings.value?.modeScope === "until-off" ? "all work, until cedarloom mode off" : "the runs running now";
-  const what = next === null ? "Running work goes back to each project's level" : `${next} for ${scope}`;
-  if (yes !== true) {
-    emit(
-      ctx,
-      "mode",
-      { level: next },
-      `${what}, at each run's next gate.\nNothing changed. Run the command again with --yes.`,
-    );
-    return EXIT.ok;
-  }
-  const switched = useCases.switchMode(ctx.state, next);
-  if (!switched.ok) return fail(ctx, "mode", [switched.finding], EXIT.refused);
-  emit(ctx, "mode", switched.value, `${what}, at each run's next gate; the switch is in the ledger.`);
-  return EXIT.ok;
-};
 
 /** Shows storing a workflow's draft as a new version, or with --yes stores it as one run; runs undo takes it back. */
 export const workflowsSave = (ctx: Context, id: string, { onTop, yes }: { onTop?: true; yes?: true }): number => {

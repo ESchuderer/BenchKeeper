@@ -10,7 +10,6 @@ import {
   extensionsRemove,
   extensionsUpdate,
   levelCommand,
-  modeCommand,
   plansApply,
   plansShow,
   profilesApply,
@@ -27,7 +26,6 @@ import {
   workflowsSave,
 } from "./commands.ts";
 import { contributedGroups } from "./contributed.ts";
-import { runsCancel, runsDecide, runsResume, workflowsRun } from "./graphs.ts";
 import { importCommand } from "./imports.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
@@ -54,16 +52,6 @@ const plansGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--yes", "apply the plan as computed now")
     .option("--approve <hash>", "apply only the plan with this hash, as the preview showed it")
     .action((file, options) => done(plansApply(ctx(), file, options)));
-};
-
-const PROJECT = "the project folder the run's commands run in (default: the current folder)";
-const STORED = "the run's project folder, which must be the one it recorded";
-
-// One `--input name=value`; repeated, they collect.
-const input = (pair: string, inputs: Record<string, string>): Record<string, string> => {
-  const at = pair.indexOf("=");
-  if (at < 1) throw new InvalidArgumentError("give an input as name=value");
-  return { ...inputs, [pair.slice(0, at)]: pair.slice(at + 1) };
 };
 
 // A bundled pack's profile as `pack/path`, split at the first slash.
@@ -116,21 +104,6 @@ const storeCommands = (workflows: Command, ctx: Ctx, done: Done): void => {
 const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const workflows = program.command("workflows").description("workflow files and the workflow store");
   storeCommands(workflows, ctx, done);
-  workflows
-    .command("run")
-    .description("run a workflow file in this process to its end; Ctrl+C cancels it")
-    .argument("<file>")
-    .option("--input <name=value>", "a value for one of the workflow's inputs; repeat for more", input, {})
-    .option("--project <folder>", PROJECT)
-    .option("--report", "only report: the run writes nothing but its record, and its agents change no file")
-    .action(async (file, options) =>
-      done(
-        await workflowsRun(ctx(), file, options.input, {
-          project: resolve(options.project ?? "."),
-          report: options.report === true,
-        }),
-      ),
-    );
 };
 
 const importGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -166,36 +139,9 @@ const runsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .action(() => done(runsList(ctx())));
   runs
     .command("show")
-    .description("show a run and its steps, or a graph run and its attempts")
+    .description("show a run and its steps")
     .argument("<run>")
     .action((run) => done(runsShow(ctx(), run)));
-  runs
-    .command("resume")
-    .description("show what resuming a graph run does; with --yes, take it over and run it to its end (Ctrl+C cancels)")
-    .argument("<run>")
-    .option("--project <folder>", STORED)
-    .option("--yes", "resume as planned now")
-    .action(async (run, options) => done(await runsResume(ctx(), run, options)));
-  runs
-    .command("cancel")
-    .description("show what cancelling a graph run does; with --yes, its runner stops it, or this process ends it")
-    .argument("<run>")
-    .option("--project <folder>", STORED)
-    .option("--yes", "cancel as planned now")
-    .action(async (run, options) => done(await runsCancel(ctx(), run, options)));
-  for (const [verb, approved] of [
-    ["approve", true],
-    ["reject", false],
-  ] as const) {
-    runs
-      .command(verb)
-      .description(`show what a graph run's node waits for; with --yes, ${verb} it and run the run on`)
-      .argument("<run>")
-      .argument("<node>")
-      .option("--project <folder>", STORED)
-      .option("--yes", `${verb} now`)
-      .action(async (runId, node, options) => done(await runsDecide(ctx(), { runId, node, approved }, options)));
-  }
   runs
     .command("undo")
     .description("show the undo plan of a run; with --yes, apply it as a run of its own")
@@ -247,22 +193,6 @@ const componentsGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .addArgument(new Argument("<state>", "auto or off").choices(["auto", "off"] as const))
     .option("--yes", "switch it as computed now")
     .action((id, state, options) => done(componentsSwitch(ctx(), id, state, options)));
-};
-
-const modeGroup = (program: Command, ctx: Ctx, done: Done): void => {
-  program
-    .command("mode")
-    .description("show the automation level of running work; with a level and --yes, switch it at each run's next gate")
-    .addArgument(
-      new Argument("[level]", "supervised, checkpoint, auto, or off for each project's level").choices([
-        "supervised",
-        "checkpoint",
-        "auto",
-        "off",
-      ] as const),
-    )
-    .option("--yes", "switch now")
-    .action((level, options) => done(modeCommand(ctx(), level, options)));
 };
 
 const LEVELS = ["supervised", "checkpoint", "auto"] as const;
@@ -365,7 +295,6 @@ const GROUPS = [
   importGroup,
   extensionsGroup,
   componentsGroup,
-  modeGroup,
   levelGroup,
   profilesGroup,
   workItemsGroup,

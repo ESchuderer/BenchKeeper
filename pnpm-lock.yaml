@@ -102,9 +102,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@cedarloom/adapter-claude':
-        specifier: workspace:*
-        version: link:../adapter-claude
       '@cedarloom/adapter-github':
         specifier: workspace:*
         version: link:../adapter-github

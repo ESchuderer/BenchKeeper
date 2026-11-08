@@ -5,8 +5,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CSRF_HEADER, WorkflowDefinition } from "@cedarloom/contracts";
-import { openGraphStore } from "@cedarloom/ledger";
+import { CSRF_HEADER } from "@cedarloom/contracts";
 import { startServer } from "@cedarloom/server";
 import { applyPlan, saveDraft } from "@cedarloom/use-cases";
 import { z } from "zod";
@@ -23,19 +22,6 @@ if (!run.ok || run.value.runId === null) throw new Error("the seed run did not a
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const workflow: unknown = JSON.parse(readFileSync(join(corpus, "valid-minimal.json"), "utf8"));
 if (!saveDraft(state, "minimal", workflow, null).ok) throw new Error("the seed draft was not saved");
-// One graph run of that workflow, whose id every {graphRunId} parameter gets.
-const graphs = openGraphStore(state);
-if (!graphs.ok) throw new Error("the graph store did not open");
-const graphRun = graphs.value.create({
-  definition: WorkflowDefinition.parse(workflow),
-  inputs: {},
-  trigger: "manual",
-  mode: "act",
-  parentRun: null,
-  parentNode: null,
-  project: root,
-});
-graphRun.release();
 // An import's store commit carries a Git identity: the run's own, which git reads beside the user's configuration.
 mkdirSync(join(root, "git"));
 writeFileSync(join(root, "git", "config"), "[user]\n\tname = Schemathesis\n\temail = schemathesis@example.org\n");
@@ -65,11 +51,7 @@ const imported = await fetch(`${origin}/api/imports`, {
 });
 const { id: importId } = z.object({ id: z.uuid() }).parse(await imported.json());
 const config = join(root, "schemathesis.toml");
-const ids = [
-  `"path.runId" = "${run.value.runId}"`,
-  `"path.graphRunId" = "${graphRun.runId}"`,
-  `"path.importId" = "${importId}"`,
-];
+const ids = [`"path.runId" = "${run.value.runId}"`, `"path.importId" = "${importId}"`];
 writeFileSync(config, `[parameters]\n${ids.join("\n")}\n"path.id" = "minimal"\n`);
 const document = join(import.meta.dirname, "..", "openapi.json");
 const session = ["-H", `cookie: ${cookie}`, "-H", `${CSRF_HEADER}: ${csrf}`];

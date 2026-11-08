@@ -7,7 +7,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../adapter-claude" },
     { "path": "../adapter-github" },
     { "path": "../contracts" },
     { "path": "../use-cases" },

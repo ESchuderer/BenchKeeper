@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { text as readAll } from "node:stream/consumers";
-import { claudeRuntime } from "@cedarloom/adapter-claude";
-import { programPath } from "@cedarloom/use-cases";
 import { osKeyring } from "./keyring.ts";
 import { main } from "./main.ts";
 
@@ -13,16 +9,11 @@ const untilStopped = (): Promise<void> =>
     for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => resolve());
   });
 
-// By its file where its installer puts it, never its bare name: https://code.claude.com/docs/en/troubleshoot-install
-const native = join(homedir(), ".local", "bin", process.platform === "win32" ? "claude.exe" : "claude");
-const claude = [programPath("claude", process.env) ?? native] as const;
-
 process.exitCode = await main(process.argv.slice(2), {
   out: (text) => process.stdout.write(text),
   err: (text) => process.stderr.write(text),
   env: process.env,
   untilStopped,
-  agent: claudeRuntime(claude),
   stdin: async () => (process.stdin.isTTY ? null : readAll(process.stdin)),
   keyring: osKeyring,
 });

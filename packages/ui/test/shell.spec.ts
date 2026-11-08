@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Started } from "@cedarloom/server";
-import { applyPlan, runWorkflow } from "@cedarloom/use-cases";
+import { applyPlan } from "@cedarloom/use-cases";
 import { type BrowserContext, expect, type Page, type Route, test } from "@playwright/test";
 import { accessible as check, openPage, serve } from "./browser.ts";
 
@@ -177,23 +177,6 @@ const appliedElsewhere = async (name: string): Promise<void> => {
 
 test("a run another process applies appears without a reload", async () => {
   await appliedElsewhere("other.md");
-  expect(errors).toEqual([]);
-});
-
-test("a workflow run another process makes appears in its own table with its status, without a reload", async () => {
-  await expect(page.getByRole("table", { name: "Runs, newest first", exact: true })).toBeVisible();
-  const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
-  // Its trigger only: no shell needed.
-  const ran = await runWorkflow(
-    stateDir,
-    join(corpus, "valid-minimal.json"),
-    {},
-    { project: join(stateDir, ".."), shell: null },
-  );
-  expect(ran.ok).toBe(true);
-  const table = page.getByRole("table", { name: "Workflow runs, newest first" });
-  await expect(table.getByRole("cell", { name: "minimal", exact: true })).toBeVisible();
-  await accessible();
   expect(errors).toEqual([]);
 });
 

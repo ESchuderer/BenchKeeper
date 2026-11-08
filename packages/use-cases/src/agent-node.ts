@@ -102,6 +102,8 @@ const requestOf = (
   if (pool === null) return "no-single-pool";
   const level = levelAtGate(run.state, options.config, { project: run.project, startedAt: new Date().toISOString() });
   if (!level.ok) return level.finding.code;
+  const bindings = bindingsOf(options.config);
+  if (!bindings.ok) return bindings.finding.code;
   const phase = PHASES.find((each) => each === attempt.config["phase"]) ?? "implement";
   const task = attempt.config["task"];
   const cwd = readOnly === undefined ? folderOf(run) : run.project;
@@ -113,7 +115,7 @@ const requestOf = (
     model: options.model?.(phase),
     ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
-    guard: workerPolicy(run.project, bindingsOf(options.config)),
+    guard: workerPolicy(run.project, bindings.value),
     runtime: options.runtime,
     labels: { phase, review: phase === "review", level: level.value, tier: null },
     // The version check's probe comes before the worktree is made: it runs in the worker's own temporary folder.
@@ -121,11 +123,13 @@ const requestOf = (
   };
 };
 
-// This machine's hub and memory bindings; none when the selection cannot be read, which leaves issue commands refused.
-const bindingsOf = (config: string): { hub?: string; memory?: string } => {
+// This machine's hub and memory bindings; an unreadable selection refuses, as without the memory binding the guard
+// would let a push reach the memory repository's main.
+const bindingsOf = (config: string): Result<{ hub?: string; memory?: string }> => {
   const read = readSelection(config);
-  const { hub, memory } = read.ok ? (read.value.selection?.bindings ?? {}) : {};
-  return { ...(hub === undefined ? {} : { hub }), ...(memory === undefined ? {} : { memory }) };
+  if (!read.ok) return read;
+  const { hub, memory } = read.value.selection?.bindings ?? {};
+  return { ok: true, value: { ...(hub === undefined ? {} : { hub }), ...(memory === undefined ? {} : { memory }) } };
 };
 
 type Lease = () => ReturnType<typeof leaseWorker<Launch>>;

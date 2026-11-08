@@ -25,9 +25,11 @@ const reviewText = ({ source, units, risks }: ImportReview): string => {
     "Workflows",
     ...units.map(unitLine),
     "What they do",
-    ...risks.map(
-      ({ workflow, node, kind, text }) => `  ${workflow} ${node}  ${kind}: ${shown(text, Number.POSITIVE_INFINITY)}`,
-    ),
+    // Line by line: a line break shown as a space would show a comment where sh runs the next line.
+    ...risks.map(({ workflow, node, kind, text }) => {
+      const [first, ...more] = text.split("\n").map((line) => shown(line, Number.POSITIVE_INFINITY));
+      return [`  ${workflow} ${node}  ${kind}: ${first}`, ...more.map((line) => `      ${line}`)].join("\n");
+    }),
     `Licenses: ${licenses.join(", ")}`,
   ].join("\n");
 };

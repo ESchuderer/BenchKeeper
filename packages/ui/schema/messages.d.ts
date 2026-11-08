@@ -98,6 +98,8 @@ export interface MessageValues {
   "problem.approvalNeeded": { part: string | number; plugin: string | number };
   "problem.bindingMissing": { part: string | number; binding: string | number };
   "problem.bindingWaiting": { part: string | number; binding: string | number };
+  "problem.checkOutput": { node: string | number; handle: string | number };
+  "problem.checkSource": { node: string | number; from: string | number };
   "problem.cycle": { nodes: string | number };
   "problem.danglingEdge": { edge: string | number; ref: string | number };
   "problem.documentInvalid": { issues: string | number };
@@ -109,6 +111,7 @@ export interface MessageValues {
   "problem.driftRemovable": { subject: string | number; remove: string | number };
   "problem.duplicateEdge": { edge: string | number; of: string | number };
   "problem.duplicateId": { kind: string | number; id: string | number };
+  "problem.duplicateSkill": { node: string | number; of: string | number; name: string | number };
   "problem.exclusiveSources": { handle: string | number; node: string | number; from: string | number };
   "problem.extra": { item: string | number };
   "problem.fileChanged": { path: string | number };
@@ -132,6 +135,7 @@ export interface MessageValues {
   "problem.runFailed": { runId: string | number };
   "problem.scheduleInput": { input: string | number };
   "problem.severity": { severity: string };
+  "problem.skillName": { node: string | number; name: string | number };
   "problem.sourceWaiting": { source: string | number; commit: string | number; offered: string | number };
   "problem.storeBusy": Record<never, never>;
   "problem.storeMoved": Record<never, never>;

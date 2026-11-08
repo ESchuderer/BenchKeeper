@@ -6,8 +6,9 @@ import { HandleType } from "./workflow.ts";
 const finding = <const C extends string, const P extends z.ZodRawShape>(code: C, params: P) =>
   z.strictObject({ code: z.literal(code), params: z.strictObject(params) });
 
-// Where a document breaks its schema: the path and zod's issue code of each problem, no prose.
-const issues = z.array(z.strictObject({ path: z.string(), code: z.string() }));
+// Where a document breaks its schema: the path and zod's issue code of each problem, no prose, and the character a text
+// may not hold as U+XXXX, which nobody sees (hub 198).
+const issues = z.array(z.strictObject({ path: z.string(), code: z.string(), char: z.string().optional() }));
 
 /** A result of a check: a code and typed parameters; the text for people comes from the message catalog. */
 export const Finding = z
@@ -68,6 +69,12 @@ export const Finding = z
     finding("workflow.report-only-write", { node: z.string() }),
     finding("workflow.unreachable", { node: z.string() }),
     finding("workflow.stray-entry", { section: z.enum(["execution", "layout"]), node: z.string() }),
+    /** An agent step's skill folder: `name` is its `skill`, else its id in lower case. */
+    finding("workflow.skill-name", { node: z.string(), name: z.string() }),
+    finding("workflow.duplicate-skill", { node: z.string(), name: z.string(), of: z.string() }),
+    /** A check holds back the agent step before it, so only an agent step's `done` starts it. */
+    finding("workflow.check-source", { node: z.string(), from: z.string() }),
+    finding("workflow.check-output", { node: z.string(), handle: z.string() }),
     /** A project's level is set for a folder that exists, by its real path. */
     finding("automation.unknown-folder", { path: z.string() }),
     /**
@@ -322,6 +329,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "workflow.report-only-write": { severity: "error", effort: "manual" },
   "workflow.unreachable": { severity: "warning", effort: "manual" },
   "workflow.stray-entry": { severity: "warning", effort: "manual" },
+  "workflow.skill-name": { severity: "error", effort: "manual" },
+  "workflow.duplicate-skill": { severity: "error", effort: "manual" },
+  "workflow.check-source": { severity: "error", effort: "manual" },
+  "workflow.check-output": { severity: "error", effort: "manual" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },

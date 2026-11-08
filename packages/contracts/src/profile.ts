@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
 import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
-import { GitSource, PACK_ID, PackId, skillFolder, skillName } from "./pack.ts";
+import { GitSource, PACK_ID, PackId, skillFolder } from "./pack.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
+import { skillName } from "./skill-name.ts";
 import { shown } from "./escape.ts";
 import { LinedText, PlainText } from "./text.ts";
 import type { Json } from "./json.ts";

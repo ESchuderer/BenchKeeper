@@ -50,7 +50,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Unsafe text
 
-`text.ts` (`UNSAFE`). Characters a manifest text or its translation may not hold: control characters, with which a text could move a terminal's cursor or rewrite a line, and the bidirectional controls that reorder what a reader sees (Trojan Source, CVE-2021-42574): U+061C, U+200E and U+200F, U+202A to U+202E, U+2066 to U+2069.
+`escape.ts` (`UNSAFE`, `TAGS`), `text.ts`. Characters no shown text may hold, which every review escapes: control characters, with which a text could move a terminal's cursor or rewrite a line; the bidirectional controls that reorder what a reader sees (Trojan Source, CVE-2021-42574): U+061C, U+200E and U+200F, U+202A to U+202E, U+2066 to U+2069; and the characters that show as nothing (owner, 2026-11-08): U+00AD, U+180E, U+200B, U+2060 to U+2064, U+FEFF, U+FFF9 to U+FFFB, U+2028 and U+2029, and the tags U+E0000 to U+E007F, which can carry text to a model that no reader sees. Workflow text refuses them, naming the first by its code point. Tab and line feed stay in commands, prechecks, agent tasks and approval messages; the zero width non-joiner and joiner (U+200C, U+200D) stay in tasks and messages, where Persian or Devanagari prose needs them, and no command or path holds them. The ranges are written as `\uXXXX` so a JSON Schema pattern means the same with or without the u flag; the tags lie beyond 16 bits, so only the code checks them.
 
 ### Settings
 

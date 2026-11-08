@@ -244,7 +244,7 @@ test("node configuration: five-field numeric cron, IANA time zones, paths inside
   expect(outside.map(path)).toEqual(outside.map(() => false));
 });
 
-test("a command, task, precheck or approval message holds tabs and line breaks, but no other control or bidi character", () => {
+test("a command, task, precheck or approval message holds tabs and line breaks, no other control, bidi or invisible character", () => {
   const fields: [keyof typeof NODE_CONFIGS, string, object][] = [
     ["command.run", "command", {}],
     ["agent.run", "task", {}],
@@ -255,17 +255,45 @@ test("a command, task, precheck or approval message holds tabs and line breaks, 
   const ok = (text: string): boolean[] =>
     fields.map(([type, key, rest]) => NODE_CONFIGS[type].safeParse({ ...rest, [key]: text }).success);
   expect(ok("echo a\tb\nls")).toEqual([true, true, true, true, true]);
-  // A reviewed workflow must not show one line and hold another: overrides, isolates, a carriage return, a NUL.
-  for (const text of ["echo \u202e", "echo \u2066x\u2069", "echo a\rb", "echo a\u0000b"]) {
+  // A reviewed workflow must not show one line and hold another: overrides, isolates, a carriage return, a NUL, and
+  // what shows as nothing (owner, 2026-11-08): soft hyphen, zero width space, word joiner, BOM, annotation, separators, tags.
+  const invisible = [
+    "\u00ad",
+    "\u180e",
+    "\u200b",
+    "\u2060",
+    "\u2064",
+    "\ufeff",
+    "\ufff9",
+    "\u2028",
+    "\u2029",
+    "\u{e0041}",
+  ];
+  for (const text of [
+    "echo \u202e",
+    "echo \u2066x\u2069",
+    "echo a\rb",
+    "echo a\u0000b",
+    ...invisible.map((c) => `echo a${c}b`),
+  ]) {
     expect([text, ok(text)]).toEqual([text, [false, false, false, false, false]]);
   }
+  // Joiners shape prose in Persian or Devanagari; no command needs them.
+  expect(ok("می\u200cخواهم \u200d")).toEqual([false, true, false, false, true]);
 });
 
-test("the path pattern in the JSON Schema documents means the same without the u flag", async () => {
+test("the path and command patterns in the JSON Schema documents mean the same without the u flag", async () => {
   const document = JSON.parse(
     await readFile(join(import.meta.dirname, "..", "schema", "CommandRunConfig.schema.json"), "utf8"),
   );
-  const pattern = new RegExp(String(document.properties.cwd.pattern));
-  expect(["src/package.json", "Cc/p{x}.md"].map((value) => pattern.test(value))).toEqual([true, true]);
-  expect(["../a", "a/\n/../../x", "/etc/hosts"].map((value) => pattern.test(value))).toEqual([false, false, false]);
+  const pattern = (key: string): RegExp => new RegExp(String(document.properties[key].pattern));
+  const [cwd, command] = [pattern("cwd"), pattern("command")];
+  expect(["src/package.json", "Cc/p{x}.md"].map((value) => cwd.test(value))).toEqual([true, true]);
+  expect(["../a", "a/\n/../../x", "/etc/hosts"].map((value) => cwd.test(value))).toEqual([false, false, false]);
+  expect(["pnpm build", "echo a\tb\nls", "echo \u202e", "echo \u200d"].map((value) => command.test(value))).toEqual([
+    true,
+    true,
+    false,
+    false,
+  ]);
 });

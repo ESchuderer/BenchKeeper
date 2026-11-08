@@ -894,6 +894,7 @@ export interface components {
                 issues: {
                     path: string;
                     code: string;
+                    char?: string;
                 }[];
                 path?: string;
             };
@@ -1093,6 +1094,7 @@ export interface components {
                 issues: {
                     path: string;
                     code: string;
+                    char?: string;
                 }[];
             };
         } | {
@@ -1209,6 +1211,35 @@ export interface components {
                 /** @enum {string} */
                 section: "execution" | "layout";
                 node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.skill-name";
+            params: {
+                node: string;
+                name: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.duplicate-skill";
+            params: {
+                node: string;
+                name: string;
+                of: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.check-source";
+            params: {
+                node: string;
+                from: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.check-output";
+            params: {
+                node: string;
+                handle: string;
             };
         } | {
             /** @constant */
@@ -1921,6 +1952,7 @@ export interface components {
                 issues: {
                     path: string;
                     code: string;
+                    char?: string;
                 }[];
                 path?: string;
             };
@@ -2120,6 +2152,7 @@ export interface components {
                 issues: {
                     path: string;
                     code: string;
+                    char?: string;
                 }[];
             };
         } | {
@@ -2236,6 +2269,35 @@ export interface components {
                 /** @enum {string} */
                 section: "execution" | "layout";
                 node: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.skill-name";
+            params: {
+                node: string;
+                name: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.duplicate-skill";
+            params: {
+                node: string;
+                name: string;
+                of: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.check-source";
+            params: {
+                node: string;
+                from: string;
+            };
+        } | {
+            /** @constant */
+            code: "workflow.check-output";
+            params: {
+                node: string;
+                handle: string;
             };
         } | {
             /** @constant */

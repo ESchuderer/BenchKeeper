@@ -37,6 +37,7 @@ export {
 } from "./plan.ts";
 export { CATALOG_LIMITS, type Catalog, readCatalog, translate } from "./catalog.ts";
 export { isPlainText, shown } from "./escape.ts";
+export { skillName } from "./skill-name.ts";
 export { PlainText } from "./text.ts";
 export { CSRF_HEADER } from "./http.ts";
 export {

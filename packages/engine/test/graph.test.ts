@@ -367,9 +367,10 @@ test("every node type has a configuration schema, and a node's `with` is checked
       "a:command.run:{}",
       'b:command.run:{"command":"pnpm test","cwd":"../up"}',
       'c:agent.run:{"task":"Plan it.","skill":"plan-it","model":"opus","effort":"xhigh","tools":["Read","mcp__docs__search"]}',
-      'd:agent.run:{"task":"Review.","skill":"Review_it","fresh":true,"tools":["Bash"]}',
+      'd:agent.run:{"task":"Review.","skill":"Review_it","fresh":true,"tools":[]}',
+      'e:command.run:{"command":"echo \u202eexe.txt"}',
     ],
-    ["start.start>a.run", "start.start>b.run", "start.start>c.run", "start.start>d.run"],
+    ["start.start>a.run", "start.start>b.run", "start.start>c.run", "start.start>d.run", "start.start>e.run"],
   );
   expect(validateWorkflow(graph)).toEqual([
     { code: "workflow.invalid-config", params: { node: "a", issues: [{ path: "command", code: "invalid_type" }] } },
@@ -384,17 +385,51 @@ test("every node type has a configuration schema, and a node's `with` is checked
         ],
       },
     },
-    // A skill folder's name follows the Agent Skills rules; a fresh reviewer is read-only, so it takes no tools.
+    // A skill folder's name follows the Agent Skills rules; an agent with no tool does not start.
     {
       code: "workflow.invalid-config",
       params: {
         node: "d",
         issues: [
           { path: "skill", code: "invalid_format" },
-          { path: "tools", code: "custom" },
+          { path: "tools", code: "too_small" },
         ],
       },
     },
+    // What nobody sees is named.
+    {
+      code: "workflow.invalid-config",
+      params: { node: "e", issues: [{ path: "command", code: "custom", char: "U+202E" }] },
+    },
+  ]);
+});
+
+test("each agent step writes a skill folder of its own name; a check runs right after an agent step and leads on from done", () => {
+  const graph = workflow(
+    [
+      start,
+      "Review_It:agent.run",
+      "review:agent.run",
+      "Review:agent.run",
+      'x:agent.run:{"task":"X.","skill":"review"}',
+    ].concat([
+      'c:command.run:{"command":"true","role":"check"}',
+      'd:command.run:{"command":"true","role":"check"}',
+      "k:command.run",
+    ]),
+    ["start.start>Review_It.run", "start.start>review.run", "start.start>Review.run", "start.start>x.run"].concat([
+      "review.done>c.run",
+      "c.failed>k.run",
+      "start.start>d.run",
+    ]),
+  );
+  expect(validateWorkflow(graph)).toEqual([
+    // Without a skill, the id in lower case names the folder; review_it is no Agent Skills name.
+    { code: "workflow.skill-name", params: { node: "Review_It", name: "review_it" } },
+    { code: "workflow.duplicate-skill", params: { node: "Review", name: "review", of: "review" } },
+    { code: "workflow.duplicate-skill", params: { node: "x", name: "review", of: "review" } },
+    { code: "workflow.check-output", params: { node: "c", handle: "failed" } },
+    { code: "workflow.check-source", params: { node: "d", from: "start" } },
   ]);
 });
 

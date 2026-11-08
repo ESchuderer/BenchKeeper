@@ -18,20 +18,23 @@ let state = "";
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const FILES = ["cedarloom-export.json", "workflows/workflow-w.json"];
 
-// The corpus's build-and-review stored on the machine of `at` as `id`.
-const store = (at: string, id: string): void => {
+// A command whose second line a review showing line breaks as spaces would show as part of a comment.
+const TWO_LINES = { id: "two", type: "command.run", with: { command: "echo ok #\necho second" } };
+
+// The corpus's build-and-review stored on the machine of `at` as `id`, with `more` nodes.
+const store = (at: string, id: string, more: object[] = []): void => {
   const base = JSON.parse(readFileSync(join(corpus, "valid-build-and-review.json"), "utf8"));
-  const workflow = { ...base, metadata: { ...base.metadata, id, version: "1.0.0" } };
+  const workflow = { ...base, metadata: { ...base.metadata, id, version: "1.0.0" }, nodes: [...base.nodes, ...more] };
   const saved = saveDraft(at, id, workflow, null);
   const save = saved.ok ? planSave(at, id, { onTop: false }) : saved;
   if (!save.ok) throw new Error(`${id} was not saved`);
   applyPlan(at, save.value.plan, { yes: true });
 };
 
-// Another machine's export of the corpus's build-and-review as w, served as one commit of any Git source.
+// Another machine's export of the corpus's build-and-review as w, with TWO_LINES, served as one commit of any Git source.
 const exported = (root: string): Fetch => {
   const from = join(root, "from");
-  store(from, "w");
+  store(from, "w", [TWO_LINES]);
   const folder = join(from, "shared");
   const exporting = planExport(from, ["w"], folder, { name: "Team flows" });
   if (!exporting.ok) throw new Error("w was not exported");
@@ -61,7 +64,7 @@ test.afterAll(async () => {
   }
 });
 
-test("an import shows every command and agent task before anything is stored, is offered again only after a new review once the store moved, imports on the user's word, and then offers nothing; the view passes axe", async () => {
+test("an import shows every command and agent task, line by line, before anything is stored, is offered again only after a new review once the store moved, imports on the user's word, and then offers nothing; the view passes axe", async () => {
   await page.goto(server.url);
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Import" }).click();
   const main = page.getByRole("main");
@@ -74,6 +77,9 @@ test("an import shows every command and agent task before anything is stored, is
   for (const line of ["pnpm lint", "pnpm test", "Review the changes and list findings."]) {
     await expect(main.getByRole("listitem").filter({ hasText: line })).toHaveCount(1);
   }
+  expect(await main.getByRole("listitem").filter({ hasText: "echo second" }).innerText()).toContain(
+    "echo ok #\necho second",
+  );
   await accessible(page);
   // The store moves on before Import: the plan shown no longer applies, so the review leaves with its Import.
   store(state, "elsewhere");

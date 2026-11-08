@@ -202,7 +202,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     return `${p.part} adds or changes the plugin ${p.plugin} from ${from}${updates}; its hooks, MCP servers and commands would run in every session. It waits for your approval by name: cedarloom profiles apply${where} --allow ${p.part}`;
   },
   "profile.options-guarded": (p) =>
-    `${p.part} writes its options to ${p.path}, inside a Claude Code home, an account's folder or CedarLoom's config or state, where a plugin's options never go.`,
+    `${p.part} writes its options to ${p.path}, inside a Claude Code home or CedarLoom's config or state, where a plugin's options never go.`,
   "profile.pack-unpinned": (p) =>
     `${p.source} follows a branch or tag, but ${p.path} may run; pin the source by commit and digest.`,
   "profile.source-digest": (p) =>

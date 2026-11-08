@@ -1,4 +1,4 @@
 import { defineExtension } from "@cedarloom/extension-sdk";
-import { doctor, install, sessions, status, targets } from "./swap.ts";
+import { auto, autoOff, autoOn, doctor, install, sessions, status, targets } from "./swap.ts";
 
-defineExtension({ status, install }, { doctor, targets, sessions });
+defineExtension({ status, install, auto, "auto-on": autoOn, "auto-off": autoOff }, { doctor, targets, sessions });

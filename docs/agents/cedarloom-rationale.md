@@ -95,7 +95,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 `store.ts`.
 - **`secure_delete` only around blanking.** It zeroes what an update leaves behind, such as a blanked plan's content, which SQLite otherwise keeps on freed pages (https://www.sqlite.org/pragma.html#pragma_secure_delete). On every write it kept another process's appends out longer, so it is on only there.
-- **The log is emptied as the store closes.** The checkpoint moves the log into the database and empties it, so the pages from before a blanking leave the log too; a checkpoint at each finish kept another process's appends out. It waits for nothing: while another connection reads the store, such as a graph run's, it stops short without an error, and the log keeps those pages until that connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+- **The log is emptied as the store closes.** The checkpoint moves the log into the database and empties it, so the pages from before a blanking leave the log too; a checkpoint at each finish kept another process's appends out. It waits for nothing: while another connection reads the store, it stops short without an error, and the log keeps those pages until that connection closes (https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
 - **The 1 s busy wait (`SETTLE_MS`).** A writer's last close cleans up the WAL, and the next open recovers it. Without the wait, reads and opens beside another process's runs fail with "database is locked". It matches the store lock's own wait: 250 ms was too short on a loaded CI runner, where runs in a tight loop kept a reader out longer. The lock file's probe does not wait.
 
 ## Engine

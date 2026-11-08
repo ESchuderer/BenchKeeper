@@ -3,48 +3,21 @@ import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync } from "node:fs"
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
-  AccountSwitch,
   canonicalJson,
-  ContractCheckRecord,
-  LaunchPlugins,
-  LaunchRecord,
   type Finding,
   PLAN_SCHEMA_VERSION,
-  ModeSwitch,
-  UsageSample,
   Plan,
-  Reading,
   type Result,
   Run,
-  RunTotals,
   readDocument,
   Step,
 } from "@cedarloom/contracts";
 import { filesystemType, isNetworkFilesystem } from "./filesystem.ts";
 import { planHash, sha256 } from "./hash.ts";
-import {
-  ACCOUNT_TABLES,
-  CHECK_TABLES,
-  GRAPH_TABLES,
-  LAUNCH_TABLES,
-  MODE_TABLES,
-  OUTBOX_TABLES,
-  TABLES,
-  USAGE_TABLES,
-} from "./rows.ts";
+import { OUTBOX_TABLES, TABLES } from "./rows.ts";
 
-const FinishedLaunch = LaunchRecord.pick({ runId: true, finishedAt: true, verdict: true });
 // The 0.1.0 schema, created at once in an empty store. Nothing from before 0.1.0 is carried over.
-const BASELINE = [
-  TABLES,
-  ACCOUNT_TABLES,
-  CHECK_TABLES,
-  LAUNCH_TABLES,
-  MODE_TABLES,
-  USAGE_TABLES,
-  GRAPH_TABLES,
-  OUTBOX_TABLES,
-];
+const BASELINE = [TABLES, OUTBOX_TABLES];
 // Its number follows every schema before 0.1.0 (1 to 18), so a store from before it is never read as this one.
 const SCHEMA = 19;
 
@@ -74,21 +47,6 @@ const emptyLog = (db: DatabaseSync): void => {
     db.exec(`PRAGMA busy_timeout = ${SETTLE_MS}`);
   }
 };
-
-const LAUNCH_COLUMNS =
-  "runId, task, agent, account, version, pid, startedAt, finishedAt, verdict, labels, plugins, totals";
-
-// A launch row with its JSON columns read.
-const launchOf = (row: Record<string, unknown>): LaunchRecord =>
-  LaunchRecord.parse({
-    ...row,
-    labels: column(row["labels"]),
-    plugins: column(row["plugins"]),
-    totals: column(row["totals"]),
-  });
-
-/** A launch as its lease takes it, with the settings it runs with. */
-export type Lease = Omit<LaunchRecord, "finishedAt" | "verdict" | "plugins" | "totals">;
 
 /** A launch's hold on its lease: the launcher keeps it while the worker runs, and the OS releases it on any exit. */
 export interface LeaseLock {
@@ -155,20 +113,6 @@ export const newLease = (dir: string, name: string): LeaseLock => {
 /** Whether a process holds the lease lock `name` in the store `dir`. */
 export const leaseHeld = (dir: string, name: string): boolean => lockHeld(leaseLockPath(dir, name));
 
-/** `leaseHeld` for a read: a shared lock is tried and given back, and no file is made or removed. */
-export const leaseSeen = (dir: string, name: string): boolean => {
-  const path = leaseLockPath(dir, name);
-  if (!existsSync(path)) return false;
-  const probe = new DatabaseSync(path, { readOnly: true });
-  try {
-    probe.exec("PRAGMA busy_timeout = 0; BEGIN; SELECT count(*) FROM sqlite_master");
-    return false;
-  } catch {
-    return true;
-  } finally {
-    probe.close();
-  }
-};
 const RUN_COLUMNS = "id, kind, undoes, planHash, status, epoch, startedAt, finishedAt";
 const STEP_COLUMNS = `"index", path, before, after, state, mode`;
 
@@ -294,41 +238,6 @@ export class RunView {
       });
   }
 
-  /** The latest switch of the level for running work, made at `since` or later when given; null when there is none. */
-  modeSwitch(since: string | null = null): ModeSwitch | null {
-    const row = this.db
-      .prepare("SELECT at, level FROM mode_switches WHERE at >= ? ORDER BY rowid DESC LIMIT 1")
-      .get(since ?? "");
-    return row === undefined ? null : ModeSwitch.parse(row);
-  }
-
-  /** One launch by its run id; undefined for none. */
-  launch(runId: string): LaunchRecord | undefined {
-    const row = this.db.prepare(`SELECT ${LAUNCH_COLUMNS} FROM launches WHERE runId = ?`).get(runId);
-    return row === undefined ? undefined : launchOf(row);
-  }
-
-  /** The plugins of the latest launch whose init line named them; null when none has. */
-  latestPlugins(): LaunchPlugins | null {
-    const row = this.db
-      .prepare("SELECT plugins FROM launches WHERE plugins IS NOT NULL ORDER BY startedAt DESC, rowid DESC LIMIT 1")
-      .get();
-    return row === undefined ? null : LaunchPlugins.parse(JSON.parse(String(row["plugins"])));
-  }
-
-  /** The latest readings; a row the contract refuses, written before a bound or by hand, is left out. */
-  readings(): Reading[] {
-    return this.db
-      .prepare(
-        `SELECT account, "window", usedPercent, resetsAt, readAt, source FROM readings ORDER BY account, "window"`,
-      )
-      .all()
-      .flatMap((row) => {
-        const reading = Reading.safeParse(row);
-        return reading.success ? [reading.data] : [];
-      });
-  }
-
   close(): void {
     this.db.close();
   }
@@ -425,215 +334,6 @@ export class RunStore extends RunView {
     });
   }
 
-  /**
-   * Keeps the latest reading per account and window, whichever source read it: a reading older than the stored one is
-   * dropped. A reading that is no Reading throws here, so one bad row cannot break every later choice.
-   */
-  recordReading(input: Reading): void {
-    const r = Reading.parse(input);
-    this.db
-      .prepare(
-        `INSERT INTO readings VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (account, "window") DO UPDATE SET
-         usedPercent = excluded.usedPercent, resetsAt = excluded.resetsAt, readAt = excluded.readAt, source = excluded.source
-         WHERE excluded.readAt >= readings.readAt`,
-      )
-      .run(r.account, r.window, r.usedPercent, r.resetsAt, r.readAt, r.source);
-  }
-
-  /**
-   * Keeps usage samples as history, in one transaction with the latest readings they update: a sample with a quota, a
-   * share and a reset updates its account's reading. A sample that is no UsageSample throws, and nothing is kept.
-   */
-  recordSamples(input: readonly UsageSample[]): void {
-    const samples = input.map((sample) => UsageSample.parse(sample));
-    transaction(this.db, () => {
-      const insert = this.db.prepare("INSERT INTO usage_samples VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-      for (const s of samples) {
-        insert.run(
-          s.account,
-          s.agent,
-          s.agentVersion,
-          s.window,
-          s.quota,
-          s.usedPercent,
-          s.resetsAt,
-          s.readAt,
-          s.runId,
-          s.raw,
-        );
-        const { quota: window, usedPercent, resetsAt } = s;
-        if (window !== null && usedPercent !== null && resetsAt !== null) {
-          this.recordReading({ account: s.account, window, usedPercent, resetsAt, readAt: s.readAt, source: "worker" });
-        }
-      }
-    });
-  }
-
-  /** The usage samples, oldest first: of one account, and read at `since` or later, when given. */
-  usageSamples({ account, since }: { account?: string; since?: string } = {}): UsageSample[] {
-    return (
-      this.db
-        .prepare(
-          `SELECT account, agent, agentVersion, "window", quota, usedPercent, resetsAt, readAt, runId, raw FROM usage_samples
-         WHERE account = coalesce(?, account) AND readAt >= coalesce(?, '') ORDER BY readAt, rowid`,
-        )
-        // Compared as a time: the stored times carry milliseconds, and a since without them would sort after its second.
-        .all(account ?? null, since === undefined ? null : new Date(since).toISOString())
-        .map((row) => UsageSample.parse(row))
-    );
-  }
-
-  /** Records a switch of the automation level for running work; it takes effect at each run's next gate. */
-  recordModeSwitch(input: ModeSwitch): void {
-    const change = ModeSwitch.parse(input);
-    this.db.prepare("INSERT INTO mode_switches VALUES (?, ?)").run(change.at, change.level);
-  }
-
-  /** Records a launch-time account choice, dated when its readings were judged; one that is no AccountSwitch throws. */
-  recordSwitch(input: AccountSwitch): void {
-    const choice = AccountSwitch.parse(input);
-    this.db
-      .prepare("INSERT INTO switches VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(
-        choice.at,
-        choice.task,
-        choice.from,
-        choice.to,
-        choice.reason,
-        choice.trigger,
-        JSON.stringify(choice.readings),
-        JSON.stringify(choice.candidates),
-      );
-  }
-
-  /** Records the contract check of an agent CLI version, replacing an earlier check of that version. */
-  recordContractCheck(input: ContractCheckRecord): void {
-    const check = ContractCheckRecord.parse(input);
-    this.db
-      .prepare("INSERT OR REPLACE INTO contract_checks VALUES (?, ?, ?, ?)")
-      .run(check.agent, check.version, JSON.stringify(check.missing), check.at);
-  }
-
-  /** The contract checks of an agent's CLI versions, oldest first. */
-  contractChecks(agent: ContractCheckRecord["agent"]): ContractCheckRecord[] {
-    return this.db
-      .prepare(
-        `SELECT json_object('agent', agent, 'version', version, 'missing', json(missing), 'at', at) AS row
-         FROM contract_checks WHERE agent = ? ORDER BY at, version`,
-      )
-      .all(agent)
-      .map((row) => ContractCheckRecord.parse(JSON.parse(String(row["row"]))));
-  }
-
-  // Ends leases whose launcher let go of the lock without a finish as interrupted, and counts the others per account.
-  #countLive(): Map<string, number> {
-    const counts = new Map<string, number>();
-    const end = this.db.prepare("UPDATE launches SET finishedAt = ?, verdict = 'interrupted' WHERE runId = ?");
-    for (const row of this.db.prepare("SELECT runId, account FROM launches WHERE finishedAt IS NULL").all()) {
-      const [runId, account] = [String(row["runId"]), String(row["account"])];
-      if (leaseHeld(this.dir, runId)) counts.set(account, (counts.get(account) ?? 0) + 1);
-      else end.run(now(), runId);
-    }
-    return counts;
-  }
-
-  /** The running leases per account; a lease whose launcher let go of it without a finish is ended first. */
-  liveLeases(): Map<string, number> {
-    return transaction(this.db, () => this.#countLive());
-  }
-
-  /**
-   * Takes one of the account's `max` leases for a launch, in one transaction; null when all are taken. The launcher holds
-   * the returned lock until it has finished the launch: a lease whose lock nobody holds counts as interrupted.
-   */
-  leaseAccount(input: Lease, max: number): LeaseLock | null {
-    const launch = LaunchRecord.parse({
-      ...input,
-      finishedAt: null,
-      verdict: null,
-      plugins: null,
-      totals: null,
-    });
-    const lock = newLease(this.dir, launch.runId);
-    let taken: boolean;
-    try {
-      taken = transaction(this.db, () => {
-        if ((this.#countLive().get(launch.account) ?? 0) >= max) return false;
-        this.db
-          .prepare(
-            `INSERT INTO launches (runId, task, agent, account, version, pid, startedAt, labels)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            launch.runId,
-            launch.task,
-            launch.agent,
-            launch.account,
-            launch.version,
-            launch.pid,
-            launch.startedAt,
-            canonicalJson(launch.labels),
-          );
-        return true;
-      });
-    } catch (error) {
-      // A row that cannot be written, such as a run id that has one, lets go of the lock before the error goes up.
-      lock.release();
-      throw error;
-    }
-    if (taken) return lock;
-    lock.release();
-    return null;
-  }
-
-  /** Ends a launch's lease with its verdict. */
-  finishLaunch(runId: string, verdict: NonNullable<LaunchRecord["verdict"]>, at: string = now()): void {
-    // Checked on write, so a malformed time never makes every later read of the launches fail.
-    const end = FinishedLaunch.parse({ runId, finishedAt: at, verdict });
-    this.db
-      .prepare("UPDATE launches SET finishedAt = ?, verdict = ? WHERE runId = ? AND finishedAt IS NULL")
-      .run(end.finishedAt, end.verdict, end.runId);
-  }
-
-  /** Keeps the plugins the run's init line named; ones that are no LaunchPlugins throw. */
-  recordPlugins(runId: string, input: LaunchPlugins): void {
-    const plugins = LaunchPlugins.parse(input);
-    this.db.prepare("UPDATE launches SET plugins = ? WHERE runId = ?").run(canonicalJson(plugins), runId);
-  }
-
-  /** The launches, oldest first. */
-  launches(): LaunchRecord[] {
-    return this.db.prepare(`SELECT ${LAUNCH_COLUMNS} FROM launches ORDER BY startedAt, rowid`).all().map(launchOf);
-  }
-
-  /** Keeps the totals the session's result reported; ones that are no RunTotals throw. */
-  recordTotals(runId: string, input: RunTotals): void {
-    const totals = RunTotals.parse(input);
-    this.db.prepare("UPDATE launches SET totals = ? WHERE runId = ?").run(canonicalJson(totals), runId);
-  }
-
-  /** When the task last changed account or started a worker: its latest switch row or launch; null when neither. */
-  lastSwitchOrLaunch(task: string): string | null {
-    const row = this.db
-      .prepare(
-        `SELECT max(at) AS at FROM (SELECT max(at) AS at FROM switches WHERE task = ?
-         UNION ALL SELECT max(startedAt) FROM launches WHERE task = ?)`,
-      )
-      .get(task, task);
-    return typeof row?.["at"] === "string" ? row["at"] : null;
-  }
-
-  /** The account choices in the order they were made. */
-  switches(): AccountSwitch[] {
-    return this.db
-      .prepare(
-        `SELECT json_object('at', at, 'task', task, 'from', fromAccount, 'to', toAccount, 'reason', reason,
-         'trigger', trigger, 'readings', json(readings), 'candidates', json(candidates)) AS row FROM switches ORDER BY rowid`,
-      )
-      .all()
-      .map((row) => AccountSwitch.parse(JSON.parse(String(row["row"]))));
-  }
-
   override close(): void {
     try {
       emptyLog(this.db);
@@ -718,7 +418,7 @@ export const openRunView = (dir: string): Result<RunView | null> => {
 };
 
 /** The store in `dir` opened for reading only; null when no run was ever recorded, refused at another schema. */
-export const openReadOnly = (dir: string): Result<DatabaseSync | null> => {
+const openReadOnly = (dir: string): Result<DatabaseSync | null> => {
   if (!existsSync(join(dir, "runs.sqlite"))) return { ok: true, value: null };
   const db = new DatabaseSync(join(dir, "runs.sqlite"), { readOnly: true, timeout: SETTLE_MS });
   const found = versionOf(db);

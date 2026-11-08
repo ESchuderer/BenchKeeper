@@ -25,5 +25,9 @@
   "scripts": {
     "typecheck": "tsc -b test",
     "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@cedarloom/contracts": "workspace:*",
+    "@cedarloom/engine": "workspace:*"
   }
 }

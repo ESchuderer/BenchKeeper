@@ -196,7 +196,8 @@ const textOf = (node: Node, key: string): string | undefined => {
   const value: unknown = Reflect.get(Object(node.with), key);
   return typeof value === "string" ? value : undefined;
 };
-// Each line a node runs, by its type: every command and task in full (a workflow is code in effect).
+// Each line a node runs or tells an agent, by its type: every command, task and message in full (a workflow is code in
+// effect; a gate's message reaches the model that reports the stage).
 const LINES: Record<string, (node: Node) => [Risk["kind"], string | undefined][]> = {
   "trigger.schedule": (node) => [
     [
@@ -208,15 +209,23 @@ const LINES: Record<string, (node: Node) => [Risk["kind"], string | undefined][]
   "trigger.manual": (node) => [["precheck", textOf(node, "precheck")]],
   "command.run": (node) => [["command", textOf(node, "command")]],
   "agent.run": (node) => [["agent", textOf(node, "task")]],
+  "human.approval": (node) => [["approval", textOf(node, "message")]],
   "workflow.run": (node) => [["workflow", textOf(node, "workflow")]],
 };
-const risksOf = (workflow: WorkflowDefinition): Risk[] =>
-  workflow.nodes.flatMap((node) => {
+const risksOf = (workflow: WorkflowDefinition): Risk[] => [
+  // An input's default reaches an agent's prompt when the run gives none: `node` names the input.
+  ...Object.entries(workflow.inputs ?? {}).flatMap(([name, input]): Risk[] =>
+    input.default === undefined
+      ? []
+      : [{ workflow: workflow.metadata.id, node: name, kind: "input", text: JSON.stringify(input.default) }],
+  ),
+  ...workflow.nodes.flatMap((node) => {
     const lines = LINES[node.type]?.(node) ?? [];
     return lines.flatMap(([kind, line]) =>
       line === undefined ? [] : [{ workflow: workflow.metadata.id, node: node.id, kind, text: line }],
     );
-  });
+  }),
+];
 
 // Byte for byte, with each hash as imported, which tells a later import an update from a local edit; null for none chosen.
 const planOf = (stored: Stored, chosen: Workflow[]): Result<Plan | null> => {

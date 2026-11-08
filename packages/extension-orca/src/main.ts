@@ -1,4 +1,4 @@
 import { defineExtension } from "@cedarloom/extension-sdk";
-import { doctor, follow, status, workers } from "./orca.ts";
+import { doctor, status, workers } from "./orca.ts";
 
-defineExtension({ status, follow }, { doctor, workers });
+defineExtension({ status }, { doctor, workers });

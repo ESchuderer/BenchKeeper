@@ -2,13 +2,15 @@
 
 Builds a CedarLoom workflow, at the automation level chosen at install, into one plugin folder: Claude Code runs it stage by stage through workflow scripts, and Codex follows it through one skill per stage. Nothing here runs a workflow; the agent tools do.
 
-| Path                                                  | For         | What it is                                                                                                              |
-| ----------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `steps/<step>/`                                       | both        | One Agent Skills folder per step: an agent step's task, a command step's `scripts/run.sh`; user-only in both tools      |
-| `claude/<stage>/SKILL.md`, `workflows/run-<stage>.js` | Claude Code | The skill only the user runs, and the workflow script that runs the stage's steps (the stage runner in `src/runner.ts`) |
-| `agents/<step>.md`                                    | Claude Code | A subagent for a fresh step or one that names its tools                                                                 |
-| `codex/<stage>/SKILL.md`                              | Codex       | The stage's steps in prose, in order                                                                                    |
-| `scripts/precheck.sh`                                 | both        | The workflow's precheck, which the start skills run                                                                     |
+| Path                                                                  | For               | What it is                                                                                                              |
+| --------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`             | each tool its own | The manifest: the step skills and that tool's stage skills                                                              |
+| `steps/<step>/`                                                       | both              | One Agent Skills folder per step: an agent step's task, a command step's `scripts/run.sh`; user-only in both tools      |
+| `claude/<stage>/SKILL.md`, `workflows/run-<stage>.js`                 | Claude Code       | The skill only the user runs, and the workflow script that runs the stage's steps (the stage runner in `src/runner.ts`) |
+| `agents/<step>.md`                                                    | Claude Code       | A subagent for a fresh step or one that names its tools                                                                 |
+| `codex/<stage>/SKILL.md`                                              | Codex             | The stage's steps in prose, in order                                                                                    |
+| `steps/<step>/agents/openai.yaml`, `codex/<stage>/agents/openai.yaml` | Codex             | The policy file that keeps a skill off the model's list: only the user starts it                                        |
+| `scripts/precheck.sh`                                                 | both              | The workflow's precheck, which the start skills run                                                                     |
 
 ## Where Codex loses a guarantee
 

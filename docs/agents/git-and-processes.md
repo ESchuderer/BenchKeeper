@@ -5,7 +5,7 @@ Read this before changing code that runs git or another program. Each item names
 ## Child processes
 
 - **No shell.** Pass an argv to `spawn` or `execFile`, never a command string: through a shell, a branch name or a path becomes a command ([security model](../security.md#commands-and-argv)).
-- **Windows console windows.** Every spawn that opens a console sets `windowsHide: true` (`run` in `packages/git/src/git.ts` and in `packages/adapter-claude/src/index.ts`). The adapter's watcher runs detached without a console, and `claude auth login` uses the user's terminal on purpose.
+- **Windows console windows.** Every spawn that opens a console sets `windowsHide: true` (`run` in `packages/git/src/git.ts` and in `packages/adapter-claude/src/index.ts`). The adapter's watcher runs detached without a console.
 - **Program lookup.** Spawn a program by its file, never by its bare name: Windows looks for a bare name in the child's working folder, often a project, before PATH. `programPath` in `packages/orchestration/src/program.ts` finds it in the absolute folders of PATH only.
 - **Stopping a process tree.** Windows has no POSIX signals: `kill()` ends the program at once and leaves its children running. `stop` in `packages/adapter-claude/src/index.ts` ends the tree with `taskkill /T /F` from System32, and only while the child has not exited, since Windows may give its process ID to another process.
 - **A child that ignores SIGTERM** keeps its caller waiting: a timeout kills with `SIGKILL` (`ghProbe` in `packages/orchestration/src/gh.ts`).

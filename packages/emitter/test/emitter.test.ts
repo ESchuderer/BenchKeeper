@@ -1,10 +1,9 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
 import { buildPackage, type PackageFile } from "@cedarloom/emitter";
 import { expect, test } from "vitest";
+import { type Call, runScript } from "./script.ts";
 
 const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
 const read = (name: string): WorkflowDefinition =>
@@ -38,33 +37,6 @@ const built = (definition: WorkflowDefinition, level: AutomationLevel): PackageF
   return result.value;
 };
 const fileOf = (files: PackageFile[], path: string): string => files.find((file) => file.path === path)?.content ?? "";
-
-type Call = { prompt: string; options: Record<string, unknown> | undefined };
-
-const parallel = (thunks: (() => Promise<unknown>)[]): Promise<unknown[]> =>
-  Promise.all(thunks.map((thunk) => thunk()));
-
-// Runs a stage script as the workflow runtime does: its body in an async function, with agent, parallel and the args
-// a stage skill passes, the plugin's folder and the inputs.
-const runScript = async (
-  script: string,
-  answer: (call: Call) => unknown,
-  inputs: object = {},
-): Promise<[unknown, Call[]]> => {
-  const args = JSON.stringify({ root: "/plugin", inputs });
-  const file = join(mkdtempSync(join(tmpdir(), "cedarloom-emitter-")), "stage.mjs");
-  writeFileSync(
-    file,
-    `export default async (agent, parallel, args) => {\n${script.replace("export const meta", "const meta")}\n};\n`,
-  );
-  const stage: { default: (...given: unknown[]) => Promise<unknown> } = await import(pathToFileURL(file).href);
-  const calls: Call[] = [];
-  const agent = async (prompt: string, options?: Record<string, unknown>): Promise<unknown> => {
-    calls.push({ prompt, options });
-    return answer({ prompt, options });
-  };
-  return [await stage.default(agent, parallel, args), calls];
-};
 
 const passing = { exitCode: 0, output: "ok" };
 
@@ -227,46 +199,6 @@ test("a failing check sends its agent step back, and the level decides where a s
   ]);
   const [through] = await runScript(fileOf(auto, "workflows/run-start.js"), answer, { topic: "parser" });
   expect(through).toEqual(report(["start", "impl", "c", "g", "ship", "post"]));
-});
-
-// Step a's command fails; every other command passes and every agent answers.
-const failingA = ({ options }: Call): unknown => {
-  if (options?.["label"] === "a") return { exitCode: 1, output: "no" };
-  return options?.["schema"] === undefined ? "ok" : passing;
-};
-
-test("a condition picks a branch from an input, and under fail_fast a failure nothing takes ends the stage", async () => {
-  const nodes: Node[] = [
-    start,
-    ["c", "condition"],
-    ["x", "command.run", { command: "true" }],
-    ["y", "command.run", { command: "true" }],
-    ["a", "command.run", { command: "false" }],
-    ["p", "agent.run", { task: "P." }],
-    ["q", "agent.run", { task: "Q." }],
-  ];
-  const edges = ["start.start>c.run", "@flag>c.value", "c.true>x.run", "c.false>y.run", "start.start>a.run"].concat([
-    "start.start>p.run",
-    "p.done>q.run",
-  ]);
-  const inputs = { flag: { type: "boolean", default: false } };
-  const stage = (policy: string) =>
-    fileOf(
-      built(workflow(nodes, edges, { inputs, execution: { failurePolicy: policy } }), "auto"),
-      "workflows/run-start.js",
-    );
-  // a fails beside p; the next wave starts nothing more.
-  const [fast] = await runScript(stage("fail_fast"), failingA, { flag: true });
-  expect(fast).toEqual(report(["start", "c", "p"], ["a"], ["x", "y", "q"]));
-  const [independent] = await runScript(stage("continue_independent"), failingA, { flag: true });
-  expect(independent).toEqual(report(["start", "c", "p", "x", "q"], ["a"], ["y"]));
-  // A value that is no boolean takes no branch, and an agent the runtime gives up on fails its step.
-  const thrown = ({ options }: Call): unknown => {
-    if (options?.["label"] === "p") throw new Error("agent stalled on all 6 attempts");
-    return failingA({ prompt: "", options });
-  };
-  const [undecided] = await runScript(stage("continue_independent"), thrown, { flag: "yes" });
-  expect(undecided).toEqual(report(["start"], ["c", "a", "p"], ["x", "y", "q"]));
 });
 
 test("a workflow the level's gates cannot split, whose names clash or that Claude Code keeps builds no package", () => {

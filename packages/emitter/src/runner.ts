@@ -217,7 +217,7 @@ const runStage = async (stage: StageScript, rt: Runtime): Promise<Report> => {
 };
 
 /** The functions a stage script carries, in the order it declares them. */
-export const RUNNER = [
+const RUNNER = [
   argsOf,
   valueOf,
   runCommand,
@@ -230,3 +230,10 @@ export const RUNNER = [
   settle,
   runStage,
 ];
+
+/** A stage's workflow script: the meta block, the stage as data, the runner's functions, and the call that runs it. */
+export const stageScript = (meta: { name: string; description: string }, stage: StageScript): string => {
+  const functions = RUNNER.map((fn) => `const ${fn.name} = ${fn.toString()};`).join("\n\n");
+  const data = `const STAGE = ${JSON.stringify(stage, null, 2)};`;
+  return `export const meta = ${JSON.stringify(meta, null, 2)};\n\n${data}\n\n${functions}\n\nreturn await runStage(STAGE, { agent, parallel, args });\n`;
+};

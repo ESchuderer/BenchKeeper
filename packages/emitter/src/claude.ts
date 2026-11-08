@@ -1,5 +1,5 @@
 import type { AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
-import { RUNNER } from "./runner.ts";
+import { stageScript } from "./runner.ts";
 import { inputsOf, type Next, type Stage, scriptOf, skillOf } from "./stages.ts";
 import { describe, frontmatter, type PackageFile, titleOf } from "./files.ts";
 
@@ -59,16 +59,14 @@ const agentFile = (workflow: WorkflowDefinition, node: Node): PackageFile[] => {
   ];
 };
 
-/** The script of a stage: the meta block, the stage as data, then the runner's functions. */
+/** The workflow script of a stage. */
 const workflowFile = (
   workflow: WorkflowDefinition,
   stage: Stage,
   context: Parameters<typeof scriptOf>[2],
 ): PackageFile => {
   const meta = { name: workflowOf(stage), description: `${titleOf(workflow)}: the stage ${stage.name}` };
-  const functions = RUNNER.map((fn) => `const ${fn.name} = ${fn.toString()};`).join("\n\n");
-  const content = `export const meta = ${JSON.stringify(meta, null, 2)};\n\nconst STAGE = ${JSON.stringify(scriptOf(workflow, stage, context), null, 2)};\n\n${functions}\n\nreturn await runStage(STAGE, { agent, parallel, args });\n`;
-  return { path: `workflows/${workflowOf(stage)}.js`, content };
+  return { path: `workflows/${workflowOf(stage)}.js`, content: stageScript(meta, scriptOf(workflow, stage, context)) };
 };
 
 /** Claude Code's part of the package: its manifest, a skill and a workflow script per stage, and the step subagents. */

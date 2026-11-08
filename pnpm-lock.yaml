@@ -105,6 +105,9 @@ importers:
       '@cedarloom/adapter-claude':
         specifier: workspace:*
         version: link:../adapter-claude
+      '@cedarloom/adapter-github':
+        specifier: workspace:*
+        version: link:../adapter-github
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -410,6 +413,9 @@ importers:
       '@cedarloom/profiles':
         specifier: workspace:*
         version: link:../profiles
+      '@cedarloom/work-items':
+        specifier: workspace:*
+        version: link:../work-items
     devDependencies:
       '@cedarloom/adapter-claude':
         specifier: workspace:*

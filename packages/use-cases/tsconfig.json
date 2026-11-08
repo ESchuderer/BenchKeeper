@@ -15,6 +15,7 @@
     { "path": "../extension-host" },
     { "path": "../git" },
     { "path": "../orchestration" },
-    { "path": "../profiles" }
+    { "path": "../profiles" },
+    { "path": "../work-items" }
   ]
 }

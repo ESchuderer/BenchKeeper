@@ -184,7 +184,19 @@ export const doctor = async (ctx: Context): Promise<number> => {
 // A finding before any plan, in the command's result format: an unreadable file exits 66, a wrong document 65, rules 1.
 export const refused = (
   ctx: Context,
-  format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "profile-diff" | "versions",
+  format:
+    | "accounts"
+    | "draft"
+    | "extensions"
+    | "intent"
+    | "levels"
+    | "links"
+    | "login"
+    | "mode"
+    | "outbox"
+    | "plan"
+    | "profile-diff"
+    | "versions",
   finding: Finding,
 ): number => {
   const code = finding.code === "document.unreadable" ? EXIT.noInput : EXIT.data;

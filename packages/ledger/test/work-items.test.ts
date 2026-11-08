@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Intent, IssueRef } from "@cedarloom/contracts";
-import { openGraphStore, openWorkItemStore, type WorkItemStore } from "@cedarloom/ledger";
+import type { Intent, IssueRef, RunLabels, WorkflowDefinition } from "@cedarloom/contracts";
+import { openGraphStore, openRunStore, openWorkItemStore, type WorkItemStore } from "@cedarloom/ledger";
 import { afterEach, expect, test } from "vitest";
 
 const issue: IssueRef = { repo: "acme/tracker", number: 7 };
@@ -69,4 +69,59 @@ test("a run is linked to a hub issue once, and only a run the ledger recorded", 
   const first = store.link(run.runId, issue);
   expect(store.link(run.runId, issue)).toEqual(first);
   expect(store.links(run.runId)).toEqual([{ runId: run.runId, issue, linkedAt: expect.any(String) }]);
+});
+
+// A workflow and a worker's labels for runs that only end.
+const definition: WorkflowDefinition = {
+  schemaVersion: 1,
+  kind: "cedarloom.workflow",
+  metadata: { id: "fix", name: "Fix", version: "1.0.0" },
+  nodes: [{ id: "start", type: "trigger.manual" }],
+  edges: [],
+};
+const labels: RunLabels = {
+  phase: "implement",
+  model: "claude-opus-5-5",
+  subagentModel: "claude-opus-5-5",
+  effort: "high",
+  permissionMode: "dontAsk",
+  review: false,
+  level: "checkpoint",
+  tier: null,
+};
+
+test("a linked run that has ended is listed with its project: a graph run by its status, a worker by its verdict", () => {
+  const dir = fresh();
+  const graphs = openGraphStore(dir);
+  if (!graphs.ok) throw new Error(graphs.finding.code);
+  open.push(graphs.value);
+  const base = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
+  const run = graphs.value.create({ ...base, definition, project: "/work/app" });
+  graphs.value.append(run.runId, 1, { type: "finished", status: "failed", outputs: {} });
+  run.release();
+  const runs = openRunStore(dir);
+  if (!runs.ok) throw new Error(runs.finding.code);
+  const worker = {
+    task: `${run.runId}:agent#1`,
+    agent: "claude",
+    account: "work",
+    version: "2.1.316",
+    labels,
+  } as const;
+  const [ended, running] = ["0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e61", "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e62"];
+  for (const runId of [ended, running]) {
+    runs.value.leaseAccount({ ...worker, runId, pid: 101, startedAt: "2026-11-08T08:00:00.000Z" }, 2);
+  }
+  runs.value.finishLaunch(ended, "pass");
+  runs.value.close();
+  const store = workItems(dir);
+  for (const runId of [run.runId, ended, running]) store.link(runId, issue);
+  const listed = store.endedLinks();
+  expect(listed).toHaveLength(2);
+  expect(listed).toEqual(
+    expect.arrayContaining([
+      { runId: run.runId, issue, project: "/work/app", ended: "failed" },
+      { runId: ended, issue, project: "/work/app", ended: "pass" },
+    ]),
+  );
 });

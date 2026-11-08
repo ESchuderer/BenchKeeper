@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@cedarloom/adapter-claude": "workspace:*",
+    "@cedarloom/adapter-github": "workspace:*",
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/server": "workspace:*",
     "@cedarloom/ui": "workspace:*",

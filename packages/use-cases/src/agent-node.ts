@@ -17,7 +17,7 @@ import {
   resultFileOf,
   type WorkerRequest,
 } from "./launch.ts";
-import { readSelection } from "./profiles.ts";
+import { hubBinding } from "./profiles.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
 const PHASES = ["plan", "implement", "review"] as const;
@@ -113,18 +113,12 @@ const requestOf = (
     model: options.model?.(phase),
     ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
-    guard: workerPolicy(run.project, hubOf(options.config)),
+    guard: workerPolicy(run.project, hubBinding(options.config)),
     runtime: options.runtime,
     labels: { phase, review: phase === "review", level: level.value, tier: null },
     // The version check's probe comes before the worktree is made: it runs in the worker's own temporary folder.
     launch: (decided) => options.launch(decided, phase, existsSync(cwd) ? cwd : decided.tmpDir, readOnly),
   };
-};
-
-// This machine's hub binding; none when the selection names none or cannot be read, which leaves issue commands refused.
-const hubOf = (config: string): string | null => {
-  const read = readSelection(config);
-  return read.ok ? (read.value.selection?.bindings?.hub ?? null) : null;
 };
 
 type Lease = () => ReturnType<typeof leaseWorker<Launch>>;

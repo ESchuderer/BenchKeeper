@@ -4873,6 +4873,55 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "work-items.no-hub"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "work-items.not-hub"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "hub": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo",
+            "hub"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "secret.missing"
         },
         "params": {

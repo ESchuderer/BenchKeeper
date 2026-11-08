@@ -30,6 +30,13 @@ export const gitRemotes: Remotes = (folder) => {
   }
 };
 
+/** The GitHub repositories of a folder's `origin` remote, its fetch and push URLs; none when git cannot read it. */
+export const originRepos = (folder: string): string[] => {
+  // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
+  const urls = gitRemotes(folder)?.get("origin") ?? [];
+  return [...new Set(urls.map(githubRepo).filter((repo) => repo !== null))];
+};
+
 /**
  * A worker's guard policy: the GitHub repositories of its project's origin and the hub, the hub from this machine's
  * binding; no memory repository yet. A project without GitHub remotes leaves the worker the hub alone.
@@ -37,9 +44,7 @@ export const gitRemotes: Remotes = (folder) => {
 export const workerPolicy = (project: string, binding: string | null): GuardPolicy => {
   // A binding the policy cannot hold, such as owner/., counts as none: issue commands refuse.
   const hub = RepoName.safeParse(binding).success ? binding : null;
-  // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
-  const urls = gitRemotes(project)?.get("origin") ?? [];
-  const named = [...urls.map(githubRepo), hub].filter((repo) => repo !== null);
+  const named = [...originRepos(project), ...(hub === null ? [] : [hub])];
   return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory: null };
 };
 

@@ -69,7 +69,7 @@ test("the hook reads a Monitor command as a Bash one, refuses PowerShell and a r
   ]).toEqual(["refused", "refused", "runs", "runs", "refused", "runs"]);
 }, 30_000);
 
-test("a worker's policy holds its project's GitHub repositories and the hub, and its hook runs from the package", () => {
+test("a worker's policy holds its project's GitHub repositories, the hub and the memory repository, whose main no push reaches, and its hook runs from the package", () => {
   const project = mkdtempSync(join(tmpdir(), "guard-"));
   try {
     execFileSync("git", ["init", "-q", project]);
@@ -79,16 +79,22 @@ test("a worker's policy holds its project's GitHub repositories and the hub, and
     ]) {
       execFileSync("git", ["-C", project, "remote", "add", name ?? "", url ?? ""]);
     }
-    const policy = workerPolicy(project, "acme/tracker");
+    const policy = workerPolicy(project, { hub: "acme/tracker", memory: "acme/memory" });
     expect(policy).toEqual({
       schemaVersion: 1,
-      repositories: ["acme/app", "acme/tracker"],
+      repositories: ["acme/app", "acme/tracker", "acme/memory"],
       hub: "acme/tracker",
-      memory: null,
+      memory: "acme/memory",
     });
     const { command, args } = guardHookOf(policy);
     const run = (text: string) => spawnSync(command, args, { input: bash(text, project), encoding: "utf8" }).status;
-    expect([run("git status"), run("git push -f origin main")]).toEqual([0, 2]);
+    const memory = "https://github.com/acme/memory.git";
+    expect([
+      run("git status"),
+      run("git push -f origin main"),
+      run(`git push ${memory} HEAD:refs/heads/memory/worker-20261108`),
+      run(`git push ${memory} HEAD:main`),
+    ]).toEqual([0, 2, 0, 2]);
   } finally {
     rmSync(project, { recursive: true, force: true });
   }

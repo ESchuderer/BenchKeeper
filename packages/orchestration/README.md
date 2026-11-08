@@ -12,7 +12,7 @@ It also refuses when it cannot read the call at all: input that is no JSON, a mi
 
 ### In a worker session
 
-The launch gives every worker the hook through `--settings`: a `PreToolUse` hook on `Bash|Monitor|PowerShell|Agent` in exec form (this Node.js, the hook's file, the policy's JSON), `timeout` 10 and `onFailure: "block"`. The policy holds the GitHub repositories of the project's `origin` remote (pending owner decision: not a fork's upstream) and the hub this machine binds. What keeps the worker from switching the hook off:
+The launch gives every worker the hook through `--settings`: a `PreToolUse` hook on `Bash|Monitor|PowerShell|Agent` in exec form (this Node.js, the hook's file, the policy's JSON), `timeout` 10 and `onFailure: "block"`. The policy holds the GitHub repositories of the project's `origin` remote (pending owner decision: not a fork's upstream), the hub this machine binds, and the memory repository it binds (`cedarloom profiles bind memory <owner/repo>`), whose pushes reach its `memory/` branches only. What keeps the worker from switching the hook off:
 
 | Way round                                                                                                                                       | What stops it                                                                                                                                                                                                                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -57,7 +57,7 @@ Not covered: MDM profiles, the Windows registry and server-managed settings, whi
 | `git rebase -x`, `git submodule foreach`, `git bisect run`, `git difftool --extcmd`, `git grep -O`, `--upload-pack`  | the command itself                                 |
 | an alias or another git command the guard does not know, `git $sub`, a word it cannot read where an option may stand | the command's own name and literal options         |
 | a remote, URL or folder it cannot tell (`--git-dir`, `env -C`), a repository outside the session's                   | the session's repositories by their remote name    |
-| a push that may update `main` of the memory repository                                                               | a `memory/<name>` branch                           |
+| a push that may update `main` of the memory repository, also `memory/<name>` without a destination                   | `HEAD:memory/<name>`                               |
 | `GIT_*` variables but `GIT_PAGER` and `GIT_TERMINAL_PROMPT`, `EDITOR`, `VISUAL`, `CDPATH`                            | options on the command line                        |
 
 ### Known limits

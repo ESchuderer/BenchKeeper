@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RepoName } from "./guard.ts";
 import { type Result, readDocument } from "./documents.ts";
 import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
 import { GitSource, PACK_ID, PackId, skillFolder, skillName } from "./pack.ts";
@@ -382,6 +383,9 @@ export const ProfileSelection = z
     bindings: z
       .strictObject({
         hub: GitHubRepo.optional().describe("The hub repository, `{{hub}}` in the profile's texts"),
+        memory: RepoName.optional().describe(
+          "The agent memory repository, which workers push to on memory/ branches only",
+        ),
         gates: z
           .string()
           .regex(new RegExp(`^${REPO}@[0-9a-f]{40}$`))

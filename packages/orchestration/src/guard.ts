@@ -812,12 +812,11 @@ const urlsOf = (word: Word | undefined, context: Context): string[] | null => {
 const sameRepo = (a: string | null, b: string | null): boolean =>
   a !== null && b !== null && a.toLowerCase() === b.toLowerCase();
 
-// A push to the memory repository goes to proposal branches only: each refspec literal, its destination under memory/.
+// A push to the memory repository goes to proposal branches only: each refspec literal, its destination named under
+// memory/, as remote.<name>.push sends a refspec without one wherever it maps it (git 2.54: memory/x to main).
 const proposals = (refspecs: readonly Word[]): boolean =>
   refspecs.length > 0 &&
-  refspecs.every(
-    ({ text }) => text !== null && /^(?:refs\/heads\/)?memory\/[^:]+$/.test(text.slice(text.lastIndexOf(":") + 1)),
-  );
+  refspecs.every(({ text }) => text !== null && /^[^:]*:(?:refs\/heads\/)?memory\/[^:]+$/.test(text));
 
 const checkUrl = (sub: string, url: string, refspecs: readonly Word[], policy: GuardPolicy): Denial | null => {
   const repo = githubRepo(url);
@@ -836,7 +835,7 @@ const memoryPush = (url: string, repo: string | null, refspecs: readonly Word[],
       : unreadable(`git push reaches ${url}, which the guard cannot compare with the memory repository`);
   }
   return sameRepo(repo, memory) && !proposals(refspecs)
-    ? deny("memory-main", "git push may update main of the memory repository; push a memory/<name> branch")
+    ? deny("memory-main", "git push may update main of the memory repository; push HEAD:memory/<name>")
     : null;
 };
 

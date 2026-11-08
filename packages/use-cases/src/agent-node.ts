@@ -113,7 +113,7 @@ const requestOf = (
     model: options.model?.(phase),
     ...(resume === null ? { prompt: typeof task === "string" ? task : "" } : { prompt: RESUMED, resume }),
     ghToken: null,
-    guard: workerPolicy(run.project, hubOf(options.config)),
+    guard: workerPolicy(run.project, bindingsOf(options.config)),
     runtime: options.runtime,
     labels: { phase, review: phase === "review", level: level.value, tier: null },
     // The version check's probe comes before the worktree is made: it runs in the worker's own temporary folder.
@@ -121,10 +121,11 @@ const requestOf = (
   };
 };
 
-// This machine's hub binding; none when the selection names none or cannot be read, which leaves issue commands refused.
-const hubOf = (config: string): string | null => {
+// This machine's hub and memory bindings; none when the selection cannot be read, which leaves issue commands refused.
+const bindingsOf = (config: string): { hub?: string; memory?: string } => {
   const read = readSelection(config);
-  return read.ok ? (read.value.selection?.bindings?.hub ?? null) : null;
+  const { hub, memory } = read.ok ? (read.value.selection?.bindings ?? {}) : {};
+  return { ...(hub === undefined ? {} : { hub }), ...(memory === undefined ? {} : { memory }) };
 };
 
 type Lease = () => ReturnType<typeof leaseWorker<Launch>>;

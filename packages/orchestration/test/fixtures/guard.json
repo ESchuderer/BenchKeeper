@@ -407,7 +407,12 @@
       ["a push without a refspec", "git push", "memory-main"],
       ["a push of every branch", "git push --all origin", "memory-main"],
       ["a push of a branch in a variable", "git push origin \"$BRANCH\"", "unreadable"],
-      ["a proposal branch", "git push -u origin memory/worker-20261107", null],
+      [
+        "a proposal branch without its destination, which push configuration may map",
+        "git push -u origin memory/worker-20261107",
+        "memory-main"
+      ],
+      ["a proposal branch", "git push -u origin HEAD:memory/worker-20261107", null],
       ["a proposal branch by its full ref", "git push origin HEAD:refs/heads/memory/notes-fix", null],
       [
         "gh api :owner and :repo in the memory repository",

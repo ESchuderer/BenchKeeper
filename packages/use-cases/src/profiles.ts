@@ -370,6 +370,7 @@ export const profileDoctor = async (
 export type Choice =
   | { readonly part: string; readonly on: boolean | null }
   | { readonly hub: string }
+  | { readonly memory: string }
   | { readonly gates: string }
   | { readonly file: string };
 

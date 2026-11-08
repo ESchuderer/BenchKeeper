@@ -30,17 +30,23 @@ export const gitRemotes: Remotes = (folder) => {
   }
 };
 
+// A binding the policy cannot hold, such as owner/., counts as none.
+const held = (repo: string | undefined): string | null =>
+  repo !== undefined && RepoName.safeParse(repo).success ? repo : null;
+
 /**
- * A worker's guard policy: the GitHub repositories of its project's origin and the hub, the hub from this machine's
- * binding; no memory repository yet. A project without GitHub remotes leaves the worker the hub alone.
+ * A worker's guard policy: the GitHub repositories of its project's origin, the hub and the memory repository, both from
+ * this machine's bindings. A push to the memory repository reaches its `memory/` branches only (A14).
  */
-export const workerPolicy = (project: string, binding: string | null): GuardPolicy => {
-  // A binding the policy cannot hold, such as owner/., counts as none: issue commands refuse.
-  const hub = RepoName.safeParse(binding).success ? binding : null;
+export const workerPolicy = (
+  project: string,
+  bindings: { readonly hub?: string | undefined; readonly memory?: string | undefined },
+): GuardPolicy => {
+  const [hub, memory] = [held(bindings.hub), held(bindings.memory)];
   // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
   const urls = gitRemotes(project)?.get("origin") ?? [];
-  const named = [...urls.map(githubRepo), hub].filter((repo) => repo !== null);
-  return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory: null };
+  const named = [...urls.map(githubRepo), hub, memory].filter((repo) => repo !== null);
+  return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory };
 };
 
 // The root folder of a CedarLoom package, from the file its entry resolves to (src/ or dist/).

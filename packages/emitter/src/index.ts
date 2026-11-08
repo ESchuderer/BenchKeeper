@@ -7,8 +7,11 @@ import { nameOf, skillOf, stagesOf } from "./stages.ts";
 export type { PackageFile } from "./files.ts";
 
 // Plugin names Claude Code keeps for Anthropic's own (https://code.claude.com/docs/en/plugins/manifest-reference#name).
-const RESERVED =
-  /^(?:claude|anthropics?|cc-plugin)(?:-|$)|(?:^|-)official-(?:claude|anthropic)|(?:claude|anthropic)-official/;
+const RESERVED = [
+  /^(?:claude|anthropics?|cc-plugin)(?:-|$)/,
+  /(?:^|-)official-(?:claude|anthropic)/,
+  /(?:claude|anthropic)-official/,
+];
 
 /**
  * Builds a workflow at an automation level into the files of one plugin folder, sorted by path, or says why it builds
@@ -18,7 +21,8 @@ export const buildPackage = (workflow: WorkflowDefinition, level: AutomationLeve
   const error = validateWorkflow(workflow).find((finding) => severityOf(finding) === "error");
   if (error !== undefined) return { ok: false, finding: error };
   const plugin = nameOf(workflow.metadata.id);
-  if (RESERVED.test(plugin)) return { ok: false, finding: { code: "package.reserved-name", params: { name: plugin } } };
+  if (RESERVED.some((pattern) => pattern.test(plugin)))
+    return { ok: false, finding: { code: "package.reserved-name", params: { name: plugin } } };
   const stages = stagesOf(workflow, level);
   if (!stages.ok) return stages;
   const steps = stages.value

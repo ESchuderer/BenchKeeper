@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GUARD_SCHEMA_VERSION, type GuardPolicy, RepoName } from "@cedarloom/contracts";
-import { githubRepo, type Remotes } from "./guard.ts";
+import { githubRepo, type Remotes, TYPED_REMOTE } from "./guard.ts";
 import { programPath } from "./program.ts";
 
 /**
@@ -10,11 +11,14 @@ import { programPath } from "./program.ts";
  * git comes from an absolute folder of PATH: the hook runs outside the sandbox, where a relative entry would let the
  * session's own files stand in for it.
  */
-export const gitRemotes: Remotes = (folder) => {
+export const gitRemotes: Remotes = (folder, typedUrl) => {
   const git = programPath("git", process.env);
   if (git === undefined) return null;
+  // A name of its own per call, so that no remote the checkout configures (a pushurl) stands in for the typed URL.
+  const own = `cedarloom-${randomUUID()}`;
+  const typed = typedUrl === undefined ? [] : ["-c", `remote.${own}.url=${typedUrl}`];
   try {
-    const listed = execFileSync(git, ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
+    const listed = execFileSync(git, ["-c", "core.fsmonitor=false", ...typed, "-C", folder, "remote", "-v"], {
       encoding: "utf8",
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],
@@ -24,7 +28,7 @@ export const gitRemotes: Remotes = (folder) => {
     for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {
       remotes.set(name, [...new Set([...(remotes.get(name) ?? []), url])]);
     }
-    return remotes;
+    return typedUrl === undefined ? remotes : new Map([[TYPED_REMOTE, remotes.get(own) ?? []]]);
   } catch {
     return null;
   }
@@ -37,15 +41,21 @@ export const originRepos = (folder: string): string[] => {
   return [...new Set(urls.map(githubRepo).filter((repo) => repo !== null))];
 };
 
+// A binding the policy cannot hold, such as owner/., counts as none.
+const held = (repo: string | undefined): string | null =>
+  repo !== undefined && RepoName.safeParse(repo).success ? repo : null;
+
 /**
- * A worker's guard policy: the GitHub repositories of its project's origin and the hub, the hub from this machine's
- * binding; no memory repository yet. A project without GitHub remotes leaves the worker the hub alone.
+ * A worker's guard policy: the GitHub repositories of its project's origin, the hub and the memory repository, both from
+ * this machine's bindings. A push to the memory repository reaches its `memory/` branches only (A14).
  */
-export const workerPolicy = (project: string, binding: string | null): GuardPolicy => {
-  // A binding the policy cannot hold, such as owner/., counts as none: issue commands refuse.
-  const hub = RepoName.safeParse(binding).success ? binding : null;
-  const named = [...originRepos(project), ...(hub === null ? [] : [hub])];
-  return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory: null };
+export const workerPolicy = (
+  project: string,
+  bindings: { readonly hub?: string | undefined; readonly memory?: string | undefined },
+): GuardPolicy => {
+  const [hub, memory] = [held(bindings.hub), held(bindings.memory)];
+  const named = [...originRepos(project), hub, memory].filter((repo) => repo !== null);
+  return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory };
 };
 
 // The root folder of a CedarLoom package, from the file its entry resolves to (src/ or dist/).

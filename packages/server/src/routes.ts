@@ -56,7 +56,7 @@ export const sessionRoutes: FastifyPluginAsyncZod<{ session: Session }> = async 
   );
 };
 
-// shortcut: synchronous use cases let an undo or a busy store (up to 1 s) hold the event loop; move them to a worker.
+// shortcut: an undo or a busy store (up to 1 s) holds the event loop; move use cases to a worker when undos get long or tabs wait.
 
 /** The runs, one run with its steps, and the doctor's findings; reads never write. */
 export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {

@@ -54,7 +54,7 @@ const header = (error: unknown, name: string): string | null => {
   return typeof value === "string" ? value : null;
 };
 
-// Waits (the entry stays queued) on no answer, a server error, a rate limit or a 401; anything else refuses the entry.
+// Waits (the entry stays queued) on no answer, a server error, a rate limit or a 401, which no entry can fix; else it refuses.
 const failure = (error: unknown): Finding => {
   if (error instanceof z.ZodError) {
     const issues = error.issues.map(({ path, code }) => `${path.join(".")} ${code}`);

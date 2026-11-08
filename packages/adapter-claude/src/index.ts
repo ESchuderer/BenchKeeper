@@ -148,7 +148,7 @@ const run = (
   };
 };
 
-// The version ran, the sentinel is gone (settings applied), a usage window has share and reset, the result succeeded.
+// Version ran, sentinel gone (settings applied), a window with a share and a reset (else nothing ages it out), result succeeded.
 const contractCheck = async (session: AgentSession): Promise<ContractCheck> => {
   const events: AgentEvent[] = [];
   for await (const event of session.events) events.push(event);

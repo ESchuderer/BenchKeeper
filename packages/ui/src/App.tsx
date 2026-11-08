@@ -223,7 +223,7 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   }, []);
   useEffect(() => {
     const stop = new AbortController();
-    // A check shows what failed, then the stream reopens after 1 s, doubled per failure up to 30 s; an event resets it.
+    // Reopens after 1 s, doubled per failed check up to 30 s, so an unreadable store is not read and logged every second.
     let failures = 0;
     const onEvent = (event: RunEvent): void => {
       failures = 0;

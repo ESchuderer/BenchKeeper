@@ -17,7 +17,7 @@ const readRuns = (state: string): Result<RunsEvent> => {
     : graphRuns;
 };
 
-// shortcut: a change sends all runs (527 KB at 2,000), a tick reads every graph run (115 ms at 2,000); page it by then.
+// shortcut: a change sends all runs (527 KB at 2,000), a tick reads every graph run (115 ms per tab at 2,000); page it then.
 const changes = (state: string): (() => Message | undefined) => {
   let last = "";
   return () => {

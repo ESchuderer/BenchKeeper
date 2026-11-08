@@ -40,7 +40,7 @@ type Schemas = components["schemas"];
 /** An event of the stream: the runs as they stand, or the findings that say why they cannot be read. */
 export type RunEvent = ({ event: "runs" } & Schemas["RunsEvent"]) | ({ event: "refusal" } & Schemas["Refusal"]);
 
-// The server checks each event against its contract (server events.ts); lines end at LF only, as in SSE.
+// Trusted as openapi-fetch answers are: the server checks each event against its contract; lines end at LF only, as in SSE.
 const parse = (block: string): RunEvent | undefined => {
   const lines = block.split("\n");
   const field = (name: string): string | undefined =>

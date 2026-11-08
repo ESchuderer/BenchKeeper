@@ -25,7 +25,7 @@ const evergreen: MantineColorsTuple = [
 ];
 const theme = createTheme({ primaryColor: "evergreen", primaryShade: 7, colors: { evergreen } });
 
-// The URL token works once: its CSRF token stays in sessionStorage, and the token leaves the address bar and history.
+// The CSRF token stays in sessionStorage, so a reload keeps the session; the once-only URL token leaves address bar and history first.
 const connect = async (): Promise<Session | null> => {
   const token = new URLSearchParams(location.hash.slice(1)).get("t");
   history.replaceState(null, "", "/");

@@ -60,7 +60,6 @@ export { HUB_ISSUES, type Keyring, readSecret, type SecretRef, storeHubToken } f
 export {
   hubOf,
   outboxEntries,
-  planMirroring,
   previewEntryUndo,
   previewIntent,
   queueIntent,

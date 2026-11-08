@@ -106,11 +106,8 @@ export {
   WorkflowId,
 } from "./workflow.ts";
 export {
-  formatWorkItemsConfig,
   Intent,
   IssueRef,
   OutboxEntry,
   RemoteComment,
-  WORK_ITEMS_SCHEMA_VERSION,
-  WorkItemsConfig,
 } from "./work-items.ts";

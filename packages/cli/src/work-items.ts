@@ -1,8 +1,8 @@
 import { githubTracker } from "@cedarloom/adapter-github";
-import { type Intent, IssueRef, type OutboxEntry, RepoName, type Result, shown } from "@cedarloom/contracts";
+import { type Intent, IssueRef, type OutboxEntry, type Result, shown } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { Argument, type Command, InvalidArgumentError } from "@commander-js/extra-typings";
-import { change, refused } from "./commands.ts";
+import { refused } from "./commands.ts";
 import { describe } from "./messages.ts";
 import { type Context, EXIT, emit, fail } from "./output.ts";
 
@@ -13,11 +13,6 @@ const issueRef = (value: string): IssueRef => {
   const parsed = IssueRef.safeParse({ repo, number: Number(number) });
   if (!parsed.success) throw new InvalidArgumentError("give the issue as owner/repo#number");
   return parsed.data;
-};
-
-const repoName = (value: string): string => {
-  if (!RepoName.safeParse(value).success) throw new InvalidArgumentError("give the repository as owner/repo");
-  return value;
 };
 
 const what = (intent: Intent): string => {
@@ -110,14 +105,6 @@ const retry = async (ctx: Context, id: string): Promise<number> => {
   return EXIT.ok;
 };
 
-const mirror = (ctx: Context, repo: string, on: boolean, yes?: true): number => {
-  const plan = useCases.planMirroring(ctx.config, repo, on);
-  if (!plan.ok) return refused(ctx, "plan", plan.finding);
-  // shortcut: nothing posts while no run links to a hub issue; the setting waits for runs that report again.
-  const note = on ? `\n  Nothing posts for ${repo} yet: no run links to a hub issue.` : `\n  ${repo} posts nothing.`;
-  return change(ctx, plan.value, { note, data: { repository: repo, mirroring: on }, findings: [] }, yes);
-};
-
 const writes = (group: Command, ctx: () => Context, done: Done): void => {
   const issue = new Argument("<issue>", "the hub issue as owner/repo#number").argParser(issueRef);
   group
@@ -176,12 +163,5 @@ export const workItemsGroup = (program: Command, ctx: () => Context, done: Done)
     .description("queue a failed entry again, once its cause is fixed")
     .argument("<id>", "the outbox entry")
     .action(async (id) => done(await retry(ctx(), id)));
-  group
-    .command("mirror")
-    .description("switch mirroring of a project repository on or off; with --yes, save it as one run")
-    .addArgument(new Argument("<repository>", "the project repository as owner/repo").argParser(repoName))
-    .addArgument(new Argument("<state>").choices(["on", "off"] as const))
-    .option("--yes", "save it as computed now")
-    .action((repo, state, { yes }) => done(mirror(ctx(), repo, state === "on", yes)));
   writes(group, ctx, done);
 };

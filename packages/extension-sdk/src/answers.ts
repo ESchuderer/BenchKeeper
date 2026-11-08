@@ -35,5 +35,20 @@ export const programVersion = async (
   return { installed: true, version: answer.stdout.trim() };
 };
 
+/**
+ * Whether a version ("1.4.251", "v0.30.0 ...") is an older release than `than`, part by part; undefined when it does
+ * not read as three numbers.
+ */
+export const olderRelease = (version: string, than: string): boolean | undefined => {
+  const [release, other] = [version, than].map((each) => /^v?(\d+)\.(\d+)\.(\d+)/.exec(each)?.slice(1).map(Number));
+  if (release === undefined || other === undefined) return undefined;
+  const step = release.findIndex((part, index) => part !== other[index]);
+  return step !== -1 && (release[step] ?? 0) < (other[step] ?? 0);
+};
+
+/** Whether the user named the program with --allow, the approval line of an action that changes the machine. */
+export const allowed = (config: unknown, program: string): boolean =>
+  [valueAt(config, "allow")].flat().includes(program);
+
 /** A word as a POSIX shell takes it unchanged: in single quotes, each single quote closed, escaped and opened again. */
 export const shellWord = (word: string): string => `'${word.replaceAll("'", `'\\''`)}'`;

@@ -1,7 +1,9 @@
 import {
   type ActionContext,
+  allowed,
   type DoctorFinding,
   jsonAnswer,
+  olderRelease,
   type ProgramVersion,
   programVersion,
   type SessionHandlers,
@@ -30,21 +32,12 @@ const AUTO_SETTINGS = "autoswitch.";
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 const textOr = (value: unknown, otherwise: string | null): string | null =>
   typeof value === "string" ? value : otherwise;
-const releaseOf = (version: string): number[] | undefined => /^(\d+)\.(\d+)\.(\d+)/.exec(version)?.slice(1).map(Number);
-// Whether a release is older than another, part by part.
-const older = (release: number[], than: number[]): boolean => {
-  const step = release.findIndex((part, index) => part !== than[index]);
-  return step !== -1 && (release[step] ?? 0) < (than[step] ?? 0);
-};
 
 /** Its version from `cswap --version` ("cswap 0.30.0"), or why it is not installed here. */
 const probeOf = async ({ exec }: Exec): Promise<ProgramVersion> => {
   const found = await programVersion(exec, "cswap", MS);
   return found.installed ? { installed: true, version: found.version.replace(/^cswap\s+/, "") } : found;
 };
-
-// Whether the user named the program with --allow, the approval line of a step that changes the machine.
-const allowed = (config: unknown, program: string): boolean => [at(config, "allow")].flat().includes(program);
 
 // claude-swap's messages can name an account's email; no identity leaves the extension (switching plan 1.5).
 const withoutEmails = (text: string): string =>
@@ -126,9 +119,9 @@ const rowsOf = async (context: Exec): Promise<unknown[]> => {
 
 // Why a version is not one this extension reads; none when it is.
 const versionProblem = (version: string): string | undefined => {
-  const release = releaseOf(version);
-  if (release === undefined) return `claude-swap's version ${version} does not read`;
-  return older(release, releaseOf(OBSERVED) ?? []) ? `claude-swap ${version} is older than ${OBSERVED}` : undefined;
+  const older = olderRelease(version, OBSERVED);
+  if (older === undefined) return `claude-swap's version ${version} does not read`;
+  return older ? `claude-swap ${version} is older than ${OBSERVED}` : undefined;
 };
 
 /** Whether the claude-swap found is a version whose JSON this extension reads, and why not. */

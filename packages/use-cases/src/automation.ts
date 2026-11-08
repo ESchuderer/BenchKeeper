@@ -32,10 +32,7 @@ export const automationSettings = (config: string): Result<AutomationSettings | 
   return read.ok ? { ok: true, value: read.value?.settings ?? null } : read;
 };
 
-/**
- * A project's folder by its real path, symbolic links followed and in its on-disk case, so one folder has one entry
- * (realpathSync.native: https://nodejs.org/api/fs.html#fsrealpathsyncnativepath-options); null when no folder is there.
- */
+// On-disk case, so one folder has one entry: https://nodejs.org/api/fs.html#fsrealpathsyncnativepath-options
 const projectFolder = (folder: string): string | null => {
   try {
     const real = realpathSync.native(folder);
@@ -50,8 +47,7 @@ export type LevelChange =
   | { readonly project: null; readonly level: AutomationLevel }
   | { readonly project: string; readonly level: AutomationLevel | null };
 
-// The entry a change touches: null for the default, else the folder's real path. A folder that is gone can still be
-// given the default again, by the path it was set under.
+// The entry a change touches: null for the default, else the real path; a folder now gone keeps the path it was set by.
 const entryOf = (change: LevelChange): Result<string | null> => {
   if (change.project === null) return { ok: true, value: null };
   const real = projectFolder(change.project);
@@ -102,8 +98,7 @@ export const mode = (state: string, config: string): Result<Mode> => {
   }));
 };
 
-// The settings with every project key at its folder's real path, so a key written by hand through a link still matches;
-// keys that name one folder keep the stricter level.
+// Project keys at their folders' real paths, so a key written through a link matches; duplicates keep the stricter.
 const canonicalSettings = (settings: AutomationSettings | null): AutomationSettings | null => {
   if (settings === null) return null;
   const projects = new Map<string, AutomationLevel>();
@@ -130,15 +125,13 @@ export interface GateRun {
 export const levelAtGate = (state: string, config: string, run: GateRun): Result<AutomationLevel> => {
   const settings = automationSettings(config);
   if (!settings.ok) return settings;
-  // Compared as a time: the ledger's switch times carry milliseconds, and a start written without them would sort as
-  // text after every switch in the same second.
+  // Compared as times: a start without milliseconds would sort as text after every switch in its second.
   const since = settings.value?.modeScope === "until-off" ? null : new Date(run.startedAt).toISOString();
   const own = levelAt(canonicalSettings(settings.value), projectFolder(run.project) ?? run.project, null);
   return withView(state, (view) => {
     const switched = view?.modeSwitch(since) ?? null;
     if (switched?.level == null) return { ok: true, value: own };
-    // A switch made in the very millisecond the run started may have come before or after its start: the stricter
-    // level applies.
+    // A switch in the run's starting millisecond may come before or after the start: the stricter level applies.
     return { ok: true, value: switched.at === since ? stricterLevel(switched.level, own) : switched.level };
   });
 };

@@ -11,8 +11,7 @@ const id = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/);
 export const WorkflowId = id;
 // Names of handles and of the workflow's inputs and outputs.
 export const HandleName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
-// A SemVer version's pattern without anchors, for formats that embed one: semver.org's, without build metadata
-// (https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string).
+// For formats that embed a version: https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
 const NUMBER = String.raw`(?:0|[1-9]\d*)`;
 const PRE_RELEASE = String.raw`(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)`;
 export const SEMVER = String.raw`${NUMBER}\.${NUMBER}\.${NUMBER}(?:-${PRE_RELEASE}(?:\.${PRE_RELEASE})*)?`;
@@ -44,8 +43,7 @@ export const semverAbove = (a: string, b: string): boolean => {
 };
 
 const description = z.string().max(2000).optional();
-// SPDX license expression (`MIT`, `MIT OR Apache-2.0`, `DocumentRef-x:LicenseRef-y`): its characters, words one space
-// apart; readers show it, never parse it.
+// An SPDX license expression's characters, words one space apart; readers show it, never parse it.
 export const License = z
   .string()
   .max(200)

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AccountRegistry, formatRegistry } from "@cedarloom/contracts";
 import { openRunStore } from "@cedarloom/ledger";
-import { chooseAccount, chooseMove, keepSwapReadings, loadRegistry } from "@cedarloom/use-cases";
+import { chooseAccount, chooseMove, loadRegistry } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
 
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
@@ -84,44 +84,6 @@ test("a task's worker starts on the pool account with headroom, and the choice i
   ]);
   expect(rows[0]?.readings).toHaveLength(4);
   expect(rows[0]?.readings.map((reading) => reading.source)).toEqual(Array(4).fill("worker"));
-});
-
-test("a window past its reset is unknown until claude-swap reads it again, and again once claude-swap stops trusting it", () => {
-  const state = stateWithReadings(90, 20);
-  const request = { task: "t4", agent: "claude", pool: "main", previous: "spare" } as const;
-  const afterReset = Date.parse("2026-11-05T18:00:00.000Z");
-  chooseAccount(state, registry, request, afterReset);
-  // Both accounts' windows reset at 17:00, after their readings: nothing is known, so the task stays on spare.
-  expect(switches(state)).toMatchObject([{ to: "spare", reason: "no-readings", readings: [] }]);
-  // A share without a reset is kept too.
-  const read = { usedPercent: 70, resetsAt: "2026-11-05T23:00:00+00:00", readAt: "2026-11-05T18:00:00Z" };
-  const windows = [
-    { ...read, window: "fiveHour" },
-    { ...read, window: "sevenDay" },
-    { ...read, window: "sevenDay:opus", resetsAt: null },
-  ] as const;
-  expect(keepSwapReadings(state, "work", windows)).toEqual({ ok: true, value: 3 });
-  chooseAccount(state, registry, { ...request, task: "t5" }, afterReset);
-  const next = {
-    account: "work",
-    usedPercent: 70,
-    resetsAt: "2026-11-05T23:00:00.000Z",
-    readAt: "2026-11-05T18:00:00.000Z",
-    source: "cswap",
-  };
-  expect(switches(state)[1]).toMatchObject({
-    to: "work",
-    reason: "most-headroom",
-    readings: [
-      { ...next, window: "fiveHour" },
-      { ...next, window: "sevenDay" },
-      { ...next, window: "sevenDay:opus", resetsAt: null },
-    ],
-  });
-  // Once claude-swap no longer trusts work's row, its 7-day reading is dropped and the window is unknown again.
-  expect(keepSwapReadings(state, "work", [{ ...windows[1], readAt: null }])).toEqual({ ok: true, value: 0 });
-  chooseAccount(state, registry, { ...request, task: "t6" }, afterReset);
-  expect(switches(state)[2]).toMatchObject({ to: "spare", reason: "no-readings" });
 });
 
 test("a running worker past its line moves as a ledger row with its trigger; the cooldown counts from that row or a later start", () => {

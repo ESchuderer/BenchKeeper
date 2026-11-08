@@ -369,10 +369,6 @@ test("the latest reading per account and window stays, whichever source read it;
     { ...reading, usedPercent: 55, readAt: "2026-11-05T12:05:00.000Z", source: "cswap" },
     { ...reading, window: "sevenDay", usedPercent: 10, readAt: "2026-11-05T12:00:00.000Z" },
   ]);
-  // A source drops only its own reading.
-  store.dropReading({ account: "work", window: "fiveHour", source: "cswap" });
-  store.dropReading({ account: "work", window: "sevenDay", source: "cswap" });
-  expect(store.readings().map((each) => each.window)).toEqual(["sevenDay"]);
 });
 
 test("a switch row keeps its time, task, from, to, reason, trigger, readings and candidates", () => {

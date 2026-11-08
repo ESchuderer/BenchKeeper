@@ -79,7 +79,8 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "git.failed": (p) => t("problem.gitFailed", p),
   "git.refused-source": (p) => t("problem.refusedSource", p),
   // A fetched tree's paths are the source's own: escaped, as the CLI shows them.
-  "git.too-large": (p) => t("problem.tooLarge", { ...p, path: p.path === null ? "none" : escaped(p.path) }),
+  "git.too-large": (p) =>
+    t("problem.tooLarge", { ...p, named: p.path === null ? "no" : "yes", path: escaped(p.path ?? "") }),
   "git.unsafe-entry": (p) => t("problem.unsafeEntry", { ...p, path: escaped(p.path) }),
   "extension.digest-mismatch": (p) => t("problem.digestMismatch", p),
   "import.not-found": () => t("problem.importNotFound"),

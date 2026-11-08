@@ -102,7 +102,7 @@
     "import.pin": [
       "from ",
       ["git"],
-      ["path", "select", { "none": [], "other": [", folder ", ["path"], ","] }],
+      ["folder", "select", { "yes": [", folder ", ["path"], ","], "other": [] }],
       " at ",
       ["commit"],
       ":"
@@ -351,7 +351,7 @@
       ", which the workflow does not have."
     ],
     "problem.tooLarge": [
-      ["path", "select", { "none": ["The tree"], "other": [["path"]] }],
+      ["named", "select", { "yes": [["path"]], "other": ["The tree"] }],
       " has ",
       ["found"],
       " ",

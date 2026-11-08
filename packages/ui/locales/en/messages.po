@@ -605,7 +605,7 @@ msgstr "They need no extension."
 
 #. js-lingui-explicit-id
 msgid "import.pin"
-msgstr "from {git}{path, select, none {} other {, folder {path},}} at {commit}:"
+msgstr "from {git}{folder, select, yes {, folder {path},} other {}} at {commit}:"
 
 #. js-lingui-explicit-id
 msgid "import.pinStatus"
@@ -673,7 +673,7 @@ msgstr "The {field, select, url {URL} ref {branch or tag} other {folder}} is ref
 
 #. js-lingui-explicit-id
 msgid "problem.tooLarge"
-msgstr "{path, select, none {The tree} other {{path}}} has {found} {unit, select, files {files} other {bytes}}, more than the {limit} a fetched tree may have; nothing of it is used."
+msgstr "{named, select, yes {{path}} other {The tree}} has {found} {unit, select, files {files} other {bytes}}, more than the {limit} a fetched tree may have; nothing of it is used."
 
 #. js-lingui-explicit-id
 msgid "problem.unsafeEntry"

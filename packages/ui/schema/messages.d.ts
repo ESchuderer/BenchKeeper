@@ -82,7 +82,7 @@ export interface MessageValues {
   "import.nodes": { added: string | number; changed: string | number; removed: string | number };
   "import.notInstalled": Record<never, never>;
   "import.nothing": Record<never, never>;
-  "import.pin": { git: string | number; path: string; commit: string | number };
+  "import.pin": { git: string | number; folder: string; path: string | number; commit: string | number };
   "import.pinStatus": { status: string };
   "import.plan": { count: number };
   "import.planWrite": Record<never, never>;
@@ -155,7 +155,7 @@ export interface MessageValues {
   "problem.storeBusy": Record<never, never>;
   "problem.storeMoved": Record<never, never>;
   "problem.strayEntry": { section: string | number; node: string | number };
-  "problem.tooLarge": { path: string; found: string | number; unit: string; limit: string | number };
+  "problem.tooLarge": { named: string; path: string | number; found: string | number; unit: string; limit: string | number };
   "problem.triggerCount": { count: string | number };
   "problem.uncheckedHandles": { edge: string | number; from: string | number; to: string | number };
   "problem.unknownHandle": { edge: string | number; handle: string | number };

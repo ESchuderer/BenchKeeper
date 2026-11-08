@@ -65,7 +65,8 @@ const Risks = ({ risks }: { risks: Review["risks"] }) =>
             <List.Item key={`${risk.node} ${risk.kind} ${risk.text}`}>
               {t("import.riskKind", { kind: risk.kind, node: risk.node })}{" "}
               <Text span ff="monospace" inherit>
-                {shown(risk.text, 100_000)}
+                {/* No cut: the contract bounds the text, and its escapes can make it longer than it is. */}
+                {shown(risk.text, Number.POSITIVE_INFINITY)}
               </Text>
             </List.Item>
           ))}
@@ -114,7 +115,12 @@ const ExtensionShown = ({ extension }: { extension: Extension }) => {
       <Text span ff="monospace" inherit>
         {extension.id} {extension.version}
       </Text>{" "}
-      {t("import.pin", { git: extension.git, path: extension.path ?? "none", commit: short(extension.commit) })}{" "}
+      {t("import.pin", {
+        git: extension.git,
+        folder: extension.path === undefined ? "no" : "yes",
+        path: extension.path ?? "",
+        commit: short(extension.commit),
+      })}{" "}
       {t("import.pinStatus", { status: extension.status })}{" "}
       {extension.installed ? t("import.installed") : t("import.notInstalled")}
       {lines.length > 0 && (

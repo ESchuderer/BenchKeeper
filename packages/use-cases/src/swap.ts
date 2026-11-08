@@ -1,14 +1,23 @@
 import { type Finding, Quota, type Result } from "@cedarloom/contracts";
 import type { RunningExtension } from "@cedarloom/extension-host";
 import { keepSwapReadings, loadRegistry } from "./accounts.ts";
-import { bundledExtensions, type Paths, startBundled } from "./bundled.ts";
+import { bundledExtensions, type Paths, runBundled, startBundled } from "./bundled.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
 
 const ID = "cedarloom.claude-swap";
+const ORCA = "cedarloom.orca";
 const INTERACTIVE = { target: "interactive" };
 // The host checked each window against Quota; this tells the type so.
 const isQuota = <W extends { window: string }>(each: W): each is W & { window: Quota } =>
   Quota.safeParse(each.window).success;
+
+// Whether the app ships its extension `id` and it is switched on.
+const switchedOn = (paths: Paths, id: string): Result<boolean> => {
+  const bundled = bundledExtensions(paths.app, paths.config);
+  return bundled.ok
+    ? { ok: true, value: bundled.value.some((each) => each.id === id && each.state !== "off") }
+    : bundled;
+};
 
 // The claude-swap extension started and probed for `use`, then stopped; null while it is off or claude-swap is not one
 // it reads (the doctor says why).
@@ -16,9 +25,8 @@ const withSwap = async <T>(
   paths: Paths,
   use: (running: RunningExtension) => Promise<Result<T>>,
 ): Promise<Result<T | null>> => {
-  const bundled = bundledExtensions(paths.app, paths.config);
-  if (!bundled.ok) return bundled;
-  if (!bundled.value.some(({ id, state }) => id === ID && state !== "off")) return { ok: true, value: null };
+  const on = switchedOn(paths, ID);
+  if (!on.ok || !on.value) return on.ok ? { ok: true, value: null } : on;
   const started = await startBundled(paths, ID);
   if (!started.ok) return started;
   try {
@@ -87,20 +95,35 @@ const askSwap = async <T>(paths: Paths, use: (running: RunningExtension) => Prom
 };
 
 /**
+ * When `run`, what the Orca extension's follow answers: Orca's managed Claude account follows the default home's,
+ * selected with orca allowed (owner, Q4); otherwise only how Orca's panes pick their account (`mode`), from its status,
+ * which needs none of follow's wait for a fresh login. Null while that extension is off.
+ */
+const orcaFollows = async (paths: Paths, run: boolean): Promise<Result<Record<string, unknown>> | null> => {
+  const on = switchedOn(paths, ORCA);
+  if (on.ok && !on.value) return null;
+  if (!on.ok) return on;
+  if (run) return runBundled(paths, ORCA, "follow", ["orca"]);
+  const status = await runBundled(paths, ORCA, "status");
+  return status.ok ? { ok: true, value: { mode: status.value["claudeAccounts"] } } : status;
+};
+
+/**
  * Switches claude-swap's interactive account (the default home's) to the CedarLoom account `name`, by its claude-swap
- * alias; without `run`, only which claude-swap account that is (switched: null). An account a CedarLoom worker runs on
- * is refused, as claude-swap's auto mode never moves onto an account with a live session (switching plan 14.2).
+ * alias, and Orca's managed Claude account follows, under the same approval; without `run`, only which claude-swap
+ * account that is (switched: null) and how Orca's panes pick theirs. An account a CedarLoom worker runs on is refused,
+ * as claude-swap's auto mode never moves onto an account with a live session (switching plan 14.2).
  */
 export const switchInteractive = async (
   paths: Paths,
   name: string,
   run: boolean,
-): Promise<Result<{ number: number; switched: boolean | null }>> => {
+): Promise<Result<{ number: number; switched: boolean | null; orca: Result<Record<string, unknown>> | null }>> => {
   const names = claudeNames(paths);
   if (!names.ok) return names;
   if (!names.value.has(name)) return refuse({ code: "accounts.unknown-account", params: { account: name } });
   type Switched = { number: number; switched: boolean | null };
-  return askSwap(paths, async (running): Promise<Result<Switched>> => {
+  const switched = await askSwap(paths, async (running): Promise<Result<Switched>> => {
     const listed = await running.target("target/accounts", INTERACTIVE);
     if (!listed.ok) return listed;
     const target = listed.value.accounts.find(({ alias }) => alias === name);
@@ -116,6 +139,9 @@ export const switchInteractive = async (
     const selected = await running.target("target/select", { ...INTERACTIVE, number });
     return selected.ok ? { ok: true, value: { number, switched: selected.value.switched } } : selected;
   });
+  if (!switched.ok) return switched;
+  // After claude-swap's switch, so Orca reads the default home's new login.
+  return { ok: true, value: { ...switched.value, orca: await orcaFollows(paths, run) } };
 };
 
 /**

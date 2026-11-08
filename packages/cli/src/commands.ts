@@ -19,6 +19,7 @@ import {
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
 import { graphRunShow } from "./graphs.ts";
+import { describe } from "./messages.ts";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
@@ -299,14 +300,38 @@ export const accountsStatus = async (ctx: Context): Promise<number> => {
 export const accountsSwitch = async (ctx: Context, name: string, { yes }: { yes?: true }): Promise<number> => {
   const switched = await useCases.switchInteractive(pathsOf(ctx), name, yes === true);
   if (!switched.ok) return refused(ctx, "accounts", switched.finding);
-  const { number, switched: done } = switched.value;
+  const { number, switched: done, orca } = switched.value;
   const outcome = done ? "now use" : "already use";
+  // An account interactive sessions already use answers switched: false also without --yes.
+  const preview = yes !== true;
+  const orcaLine = orcaFollowed(orca, preview);
   const human =
     done === null
-      ? `Switches interactive sessions to ${name}: cswap switch ${number}\nNothing changed. Run the command again with --yes.`
-      : `Interactive sessions ${outcome} ${name} (claude-swap account ${number}).`;
-  emit(ctx, "accounts-switch", { account: name, number, switched: done }, human);
-  return EXIT.ok;
+      ? `Switches interactive sessions to ${name}: cswap switch ${number}${orcaLine}\nNothing changed. Run the command again with --yes.`
+      : `Interactive sessions ${outcome} ${name} (claude-swap account ${number}).${orcaLine}`;
+  const followed = orca?.ok === false ? { finding: orca.finding } : orca && { outputs: orca.value };
+  emit(ctx, "accounts-switch", { account: name, number, switched: done, orca: followed }, human);
+  // The approval covered both: an Orca on a saved account that did not follow fails the command, though claude-swap's
+  // switch stays.
+  return !preview && orcaStayed(orca) ? EXIT.refused : EXIT.ok;
+};
+
+// Whether Orca's Claude panes use a saved account, as its extension names the mode.
+const managed = ({ mode }: Record<string, unknown>): boolean => typeof mode === "string" && mode !== "system";
+// Whether Orca's follow failed, or Orca on a saved account did not follow.
+const orcaStayed = (orca: Result<Record<string, unknown>> | null): boolean =>
+  orca !== null && (!orca.ok || (managed(orca.value) && orca.value["followed"] !== true));
+
+// What Orca's managed Claude account did, or does with --yes; nothing while its panes use the System default or Orca
+// does not run.
+const orcaFollowed = (orca: Result<Record<string, unknown>> | null, preview: boolean): string => {
+  if (orca === null) return "";
+  if (!orca.ok) return `\nOrca's Claude account did not follow: ${describe(orca.finding)}`;
+  if (!managed(orca.value)) return "";
+  const { followed, hint } = orca.value;
+  if (preview) return "\nOrca uses managed accounts: with --yes, cedarloom orca follow runs too.";
+  if (followed === true) return "\nOrca's new Claude panes use it too.";
+  return `\nOrca's Claude account did not follow: ${String(hint)}`;
 };
 
 /** Shows claude-swap's settings; with a setting and its value and --yes, sets it through claude-swap. */

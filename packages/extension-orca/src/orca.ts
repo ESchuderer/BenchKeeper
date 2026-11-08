@@ -95,6 +95,10 @@ const skillFindings = async (context: Exec): Promise<DoctorFinding[]> => {
 const SELECTS = "1.4.252";
 // Orca's account calls; a cold `orca account list` refreshes usage that is out of date (about 2 s here).
 const ACCOUNT_MS = 5000;
+// Orca keeps the default home's login it read for 5 s without looking at the file again (maxAgeMs of
+// readClaudeFolderLogin in its account selection, 1.4.252), so a switch made just before shows only after that.
+const LOGIN_CACHE_MS = 5000;
+const pause = async (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
 
 /**
  * Orca's Claude accounts: the saved one new panes on this host launch with (none: the System default, the default
@@ -218,24 +222,36 @@ export const status = async (context: Exec): Promise<Record<string, unknown>> =>
  * signed in as the default home is selected for new panes, once the user names orca with --allow, and only while
  * claude-swap is installed. On the System default, panes follow already.
  */
-export const follow = async ({
-  exec,
-  config,
-}: Pick<ActionContext, "exec" | "config">): Promise<Record<string, unknown>> => {
+export const follow = async (
+  { exec, config }: Pick<ActionContext, "exec" | "config">,
+  wait: (ms: number) => Promise<void> = pause,
+): Promise<Record<string, unknown>> => {
   const found = await probe({ exec });
   if (!found.installed || !found.running) return { followed: false, hint: "Orca is not running" };
+  if ((await claudeAccountsOf({ exec })).selected === null) return { mode: "system", followed: true };
+  // On a saved account, the default home's login is read anew once a login Orca read before the switch has expired.
+  await wait(LOGIN_CACHE_MS + 500);
   const accounts = await claudeAccountsOf({ exec });
   const mode = modeOf(accounts);
   if (accounts.selected === null || accounts.selected === accounts.home) return { mode, followed: true };
   if (!(await swapInstalled({ exec }))) return { mode, followed: false, hint: ORCAS_OWN };
   const hint = unfollowable(accounts, found.version);
   if (hint !== undefined || accounts.home === null) return { mode, followed: false, hint };
-  const args = ["account", "select", "--agent", "claude", "--account", accounts.home];
+  return selectHome({ exec, config }, accounts.home, mode);
+};
+
+// The default home's saved account selected for new Claude panes, once orca is allowed; checked in Orca's answer.
+const selectHome = async (
+  { exec, config }: Pick<ActionContext, "exec" | "config">,
+  home: string,
+  mode: string,
+): Promise<Record<string, unknown>> => {
+  const args = ["account", "select", "--agent", "claude", "--account", home];
   if (!allowed(config, "orca"))
     return { mode, followed: false, runs: `orca ${args.join(" ")}`, approve: "cedarloom orca follow --allow orca" };
-  if (selectedOf(await orca({ exec }, args, ACCOUNT_MS)) !== accounts.home)
+  if (selectedOf(await orca({ exec }, args, ACCOUNT_MS)) !== home)
     throw new Error(`orca ${args.join(" ")} left another account selected`);
-  return { mode: modeOf({ ...accounts, selected: accounts.home }), followed: true };
+  return { mode: "managed-home", followed: true };
 };
 
 // A start's eight Orca calls, two waits and, after a failure, two closes stay below the host's 130 s (worst case 120 s).

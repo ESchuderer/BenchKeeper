@@ -8,6 +8,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -1021,15 +1022,22 @@ test("workflows save stores a draft as a version, history lists it, export write
   ]);
 });
 
+// The fixture extension as the app's `id`, contributing `contributes`.
+const ship = (root: string, id: string, contributes: Record<string, unknown>): string => {
+  const folder = join(root, "app", id);
+  mkdirSync(folder, { recursive: true });
+  const manifest = { ...MANIFEST, id, platforms: undefined, capabilities: undefined, contributes };
+  writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify(manifest));
+  copyFileSync(
+    join(import.meta.dirname, "..", "..", "use-cases", "test", "fixtures", "doctor", "main.mjs"),
+    join(folder, "main.mjs"),
+  );
+  return folder;
+};
+
 test("a verb the app's own extension contributes runs its action and prints its outputs, and is refused while off", async () => {
   const { root, cli } = setup();
-  const folder = join(root, "app", "cedarloom.example");
-  mkdirSync(folder, { recursive: true });
-  const contributes = { actions: { status: { title: "Status" } }, commands: ["status"] };
-  const manifest = { ...MANIFEST, id: "cedarloom.example", platforms: undefined, capabilities: undefined, contributes };
-  writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify(manifest));
-  const fixture = join(import.meta.dirname, "..", "..", "use-cases", "test", "fixtures", "doctor", "main.mjs");
-  copyFileSync(fixture, join(folder, "main.mjs"));
+  ship(root, "cedarloom.example", { actions: { status: { title: "Status" } }, commands: ["status"] });
   const ran = await cli("example", "status");
   const asJson = json((await cli("example", "status", "--json")).out);
   await cli("components", "switch", "cedarloom.example", "off", "--yes");
@@ -1047,6 +1055,22 @@ test("a verb the app's own extension contributes runs its action and prints its 
     EXIT.refused,
     [{ code: "extension.refused", params: { extension: "cedarloom.example", reason: "off" } }],
   ]);
+});
+
+test("accounts switch --yes exits refused when Orca on a saved account does not follow, though claude-swap switched", async () => {
+  const { root, cli } = setup();
+  ship(root, "cedarloom.claude-swap", {
+    actions: { status: { title: "Status" } },
+    switchTargets: { interactive: { agent: "claude" } },
+  });
+  const orca = ship(root, "cedarloom.orca", { actions: { status: { title: "Status" }, follow: { title: "Follow" } } });
+  await cli("accounts", "add", "elsewhere", "--yes");
+  // Orca stays on its saved account: say, an Orca older than 1.4.252.
+  writeFileSync(join(orca, "follow.json"), JSON.stringify({ mode: "managed-other", followed: false, hint: "older" }));
+  const stayed = await cli("accounts", "switch", "elsewhere", "--target", "interactive", "--yes");
+  unlinkSync(join(orca, "follow.json"));
+  const followed = await cli("accounts", "switch", "elsewhere", "--target", "interactive", "--yes");
+  expect([stayed.code, followed.code]).toEqual([EXIT.refused, EXIT.ok]);
 });
 
 test("components switch turns the app's own extension off as one run, which extensions list shows", async () => {

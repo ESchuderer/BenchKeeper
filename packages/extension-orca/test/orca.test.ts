@@ -142,10 +142,13 @@ test("while Orca runs, the doctor says how its Claude panes pick their account, 
   ]);
 });
 
-// Orca with its account list, answering a select as its CLI does from 1.4.252 (the account state accounts.selectClaude
-// returns, stablyai/orca#38944); every call kept.
-const accountsOrca = (version: string, accounts: string, { selected = HOME, swap = true } = {}) => {
+// No wait for Orca's login cache: each list answers what the test gives.
+const now = async (): Promise<void> => undefined;
+// Orca with its account lists, the last one repeated, answering a select with the account state accounts.selectClaude
+// returns (stablyai/orca#38944); every call kept.
+const accountsOrca = (version: string, lists: string | string[], { selected = HOME, swap = true } = {}) => {
   const ran: string[][] = [];
+  const pending = [lists].flat();
   const state = JSON.stringify({
     id: "local-select",
     ok: true,
@@ -157,7 +160,7 @@ const accountsOrca = (version: string, accounts: string, { selected = HOME, swap
     const answers: Record<string, string> = {
       "--version": version,
       status: recorded("status-running.json"),
-      account: args[1] === "select" ? state : accounts,
+      account: args[1] === "select" ? state : ((pending.length > 1 ? pending.shift() : pending[0]) ?? ""),
     };
     return { code: 0, stdout: answers[args[0] ?? ""] ?? "", stderr: "" };
   };
@@ -172,12 +175,12 @@ test("follow selects the saved account signed in as the default home for new Cla
     accountsOrca("1.4.252", selecting(OTHER)),
   ];
   const shown = accountsOrca("1.4.252", selecting(OTHER));
-  const { runs, approve } = await follow({ exec: shown.exec, config: {} });
+  const { runs, approve } = await follow({ exec: shown.exec, config: {} }, now);
   expect([
-    await follow({ exec: system.exec, config: allow }),
-    await follow({ exec: home.exec, config: allow }),
+    await follow({ exec: system.exec, config: allow }, now),
+    await follow({ exec: home.exec, config: allow }, now),
     { runs, approve },
-    await follow({ exec: other.exec, config: allow }),
+    await follow({ exec: other.exec, config: allow }, now),
     [system, home, shown].map(({ selects }) => selects().length),
     other.selects(),
   ]).toEqual([
@@ -203,11 +206,11 @@ test("follow selects nothing before Orca 1.4.252, without a host account signed 
   const stuck = accountsOrca("1.4.252", selecting(OTHER), { selected: OTHER });
   const stopped = orca(recorded("version.txt"), recorded("status-not-running.json"));
   expect([
-    Object.keys(await follow({ exec: older.exec, config: allow })).toSorted(),
-    Object.keys(await follow({ exec: unknown.exec, config: allow })).toSorted(),
-    Object.keys(await follow({ exec: wsl.exec, config: allow })).toSorted(),
-    Object.keys(await follow({ exec: alone.exec, config: allow })).toSorted(),
-    (await follow({ exec: stopped, config: allow }))["followed"],
+    Object.keys(await follow({ exec: older.exec, config: allow }, now)).toSorted(),
+    Object.keys(await follow({ exec: unknown.exec, config: allow }, now)).toSorted(),
+    Object.keys(await follow({ exec: wsl.exec, config: allow }, now)).toSorted(),
+    Object.keys(await follow({ exec: alone.exec, config: allow }, now)).toSorted(),
+    (await follow({ exec: stopped, config: allow }, now))["followed"],
     [older, unknown, wsl, alone].map(({ selects }) => selects().length),
   ]).toEqual([
     ["followed", "hint", "mode"],
@@ -217,5 +220,22 @@ test("follow selects nothing before Orca 1.4.252, without a host account signed 
     false,
     [0, 0, 0, 0],
   ]);
-  await expect(follow({ exec: stuck.exec, config: allow })).rejects.toThrow(HOME);
+  await expect(follow({ exec: stuck.exec, config: allow }, now)).rejects.toThrow(HOME);
+});
+
+// The recorded list after claude-swap switched the default home to the other account's login.
+const SWITCHED = selecting(HOME)
+  .replace('"Home@example.com"', '"other@example.com"')
+  .replace(
+    '"systemDefaultOrganizationUuid": "00000000-0000-4000-9000-000000000001"',
+    '"systemDefaultOrganizationUuid": "00000000-0000-4000-9000-000000000002"',
+  );
+
+test("on a saved account, follow decides on a list read once Orca's cached login has expired, so a switch just made counts", async () => {
+  // The first list still shows the login before the switch, the next one the new login.
+  const stale = accountsOrca("1.4.252", [selecting(HOME), SWITCHED], { selected: OTHER });
+  expect([await follow({ exec: stale.exec, config: { allow: ["orca"] } }, now), stale.selects()]).toEqual([
+    { mode: "managed-home", followed: true },
+    [["account", "select", "--agent", "claude", "--account", OTHER, "--json"]],
+  ]);
 });

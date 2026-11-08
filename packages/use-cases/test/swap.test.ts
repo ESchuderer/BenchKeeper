@@ -47,7 +47,7 @@ const machine = () => {
     actions: { status: { title: "Status" } },
     switchTargets: { interactive: { agent: "claude" } },
   });
-  ship(paths.app, ORCA, { actions: { follow: { title: "Follow" } } });
+  ship(paths.app, ORCA, { actions: { status: { title: "Status" }, follow: { title: "Follow" } } });
   for (const name of ["work", "home", "elsewhere"]) {
     const added = ok(planAdd(paths.config, paths.state, { name, agent: "claude", pool: null }));
     ok(applyPlan(paths.state, added.plan, { yes: true }));
@@ -105,9 +105,10 @@ const leased = (state: string, account: string) => {
 const code = (result: { ok: boolean }) =>
   result.ok ? Reflect.get(result, "value") : Reflect.get(result, "finding").code;
 
-// Orca's managed Claude account as the switch left it.
+// Orca's managed Claude account as the switch left it, or in the preview only its mode.
 const MANAGED = { mode: "managed-other" };
 const orca = (followed: boolean) => ({ ok: true, value: { ...MANAGED, followed } });
+const PREVIEWED = { ok: true, value: MANAGED };
 
 test("interactive sessions switch to an account by its claude-swap alias, never onto one CedarLoom workers run on, and Orca's managed account follows under the same approval; the policy is claude-swap's auto mode's", async () => {
   const paths = machine();
@@ -129,7 +130,7 @@ test("interactive sessions switch to an account by its claude-swap alias, never 
   expect([...before, ...busy, code(await swapPolicy(paths))]).toEqual([
     "accounts.unknown-account",
     "accounts.swap-unlinked",
-    { number: 2, switched: null, orca: orca(false) },
+    { number: 2, switched: null, orca: PREVIEWED },
     { number: 2, switched: true, orca: orca(true) },
     { "autoswitch.threshold": "85" },
     "accounts.swap-setting",

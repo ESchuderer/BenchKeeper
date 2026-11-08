@@ -95,13 +95,17 @@ const askSwap = async <T>(paths: Paths, use: (running: RunningExtension) => Prom
 };
 
 /**
- * What the Orca extension's follow answers: Orca's managed Claude account follows the default home's, selected with
- * orca allowed when `run` (owner, Q4); null while that extension is off.
+ * When `run`, what the Orca extension's follow answers: Orca's managed Claude account follows the default home's,
+ * selected with orca allowed (owner, Q4); otherwise only how Orca's panes pick their account (`mode`), from its status,
+ * which needs none of follow's wait for a fresh login. Null while that extension is off.
  */
 const orcaFollows = async (paths: Paths, run: boolean): Promise<Result<Record<string, unknown>> | null> => {
   const on = switchedOn(paths, ORCA);
   if (on.ok && !on.value) return null;
-  return on.ok ? runBundled(paths, ORCA, "follow", run ? ["orca"] : []) : on;
+  if (!on.ok) return on;
+  if (run) return runBundled(paths, ORCA, "follow", ["orca"]);
+  const status = await runBundled(paths, ORCA, "status");
+  return status.ok ? { ok: true, value: { mode: status.value["claudeAccounts"] } } : status;
 };
 
 /**

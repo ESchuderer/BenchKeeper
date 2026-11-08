@@ -116,3 +116,4 @@ export {
   sendOutbox,
   undoEntry,
 } from "./work-items.ts";
+export { managedPolicyDoctor } from "./managed-policy.ts";

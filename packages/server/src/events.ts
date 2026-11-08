@@ -17,13 +17,7 @@ const readRuns = (state: string): Result<RunsEvent> => {
     : graphRuns;
 };
 
-/**
- * A reader of the run store that returns the event to send when the runs, or the findings that say why they cannot be
- * read, differ from what it returned last time; otherwise nothing.
- * shortcut: every change sends the whole run list (527 KB at 2,000 runs), and every tick reads each graph run in full
- * for its summary (about 11 ms per tick per tab at 200 graph runs, 115 ms at 2,000); page it, or read and send only the
- * changed runs, when stores grow that large.
- */
+// shortcut: a change sends all runs (527 KB at 2,000), a tick reads every graph run (115 ms per tab at 2,000); page it then.
 const changes = (state: string): (() => Message | undefined) => {
   let last = "";
   return () => {
@@ -36,11 +30,7 @@ const changes = (state: string): (() => Message | undefined) => {
   };
 };
 
-/**
- * GET /api/events: one stream per tab. The run store is read every `every` ms, and an event goes out when the runs
- * changed (the first right away), so a run another process starts or ends shows up live. A store that cannot be read
- * at connect is a 500; one that fails later ends this stream and goes to the log, and the server keeps running.
- */
+// Read every `every` ms, so a run another process starts shows live; unreadable at connect is a 500, later it ends the stream.
 export const eventRoutes: FastifyPluginAsyncZod<Options> = async (app, { state, every, log }) => {
   app.get(
     "/api/events",

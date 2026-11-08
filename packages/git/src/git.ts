@@ -28,9 +28,7 @@ const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
 export const flags = (settings: string[][]): string[] => settings.flatMap(([key, value]) => ["-c", `${key}=${value}`]);
 
-// BenchKeeper's hardened clone (app/src/origin.mjs): no hooks and no fsmonitor, only the given transports, every
-// object checked, no bundles a server offers, and a stalled transfer ends. `-c` wins over every configuration file.
-// No maintenance or gc runs after the fetch. `--git-dir` names the repository, as safe.bareRepository=explicit asks.
+// Hardened as the app's clone (app/src/origin.mjs): docs/agents/git-and-processes.md#git
 const config = (protocols: readonly string[]): string[] => [
   ...flags([
     ["core.hooksPath", devNull],
@@ -44,12 +42,11 @@ const config = (protocols: readonly string[]): string[] => [
     ["http.lowSpeedLimit", "1000"],
     ["http.lowSpeedTime", "60"],
   ]),
+  // As safe.bareRepository=explicit asks.
   "--git-dir=.",
 ];
 
-// The names of hooks the user's configuration defines (`hook.<name>.event`, git 2.54), which run whatever
-// core.hooksPath says, already when `init` writes HEAD: `config -z` gives `<key>\n<value>\0` items, and a name may
-// hold dots and spaces.
+// Hooks the user's configuration defines (`hook.<name>.event`, git 2.54) run despite core.hooksPath; names hold dots.
 export const hookNames = ({ stdout }: { stdout: Buffer }): string[] => [
   ...new Set(
     stdout
@@ -71,8 +68,7 @@ export const hooksOff = (names: readonly string[]): NodeJS.ProcessEnv =>
     ]),
   ]);
 
-// The caller's environment without GIT_* variables, which would point git at another repository (GIT_DIR, set when
-// CedarLoom runs inside a hook) or add configuration; then no prompts, and ssh fails instead of asking.
+// No GIT_* variables and no prompts: docs/agents/git-and-processes.md#git
 export const environment = (protocols: readonly string[]): NodeJS.ProcessEnv => ({
   ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))),
   GIT_ALLOW_PROTOCOL: protocols.join(":"),
@@ -94,10 +90,7 @@ type RunOptions = {
   over?: () => boolean;
 };
 
-/**
- * Runs git; `failure` says why it was stopped or could not start. stderr keeps its last 2000 characters. A stopped
- * git returns when it exits: its own children (ssh, git-remote-https) may hold its pipes open longer.
- */
+// stderr keeps its last 2,000 characters; a stopped git returns on exit, while its children may hold the pipes longer.
 const run = (args: string[], options: RunOptions): Promise<Ran> =>
   new Promise((resolve) => {
     const file = programPath(options.program, options.env);
@@ -145,9 +138,7 @@ const run = (args: string[], options: RunOptions): Promise<Ran> =>
 const succeeded = (ran: Ran): boolean => ran.code === 0 && ran.failure === undefined;
 const why = (ran: Ran): string => ran.failure ?? (ran.stderr || `exit code ${ran.code}`);
 
-// The contracts' Git URL rule for https and ssh: no password, no user over https, no backslash, no control character,
-// raw or percent-encoded (a carriage return reaches a credential helper as a new line), no query, no leading "-". A
-// transport the caller adds (the tests' file and ext) is git's own allowlist's to refuse, and needs printable text.
+// The contracts' Git URL rule, also percent-encoded: docs/agents/cedarloom-rationale.md#git-urls
 const urlAllowed = (url: string, protocols: readonly string[]): boolean =>
   GitUrl.safeParse(url).success ||
   (/^[!-~]+$/.test(url) &&
@@ -193,8 +184,7 @@ const entryFinding = (entry: Entry, limits: Limits): Finding | undefined => {
   };
 };
 
-// The first path that a file system ignoring case (macOS, Windows) would join with an earlier one: the same path, a
-// file where an earlier path has a folder, or a folder where an earlier path is a file.
+// The first path a case-ignoring file system (macOS, Windows) joins with an earlier one: same path, file or folder.
 const caseClash = (list: Entry[]): string | undefined => {
   const files = new Set<string>();
   const folders = new Set<string>();
@@ -249,8 +239,7 @@ const tree = (commit: string, files: TreeFile[]): Tree => ({
 
 type Git = (args: string[], options?: Partial<Pick<RunOptions, "input" | "maxBytes" | "over">>) => Promise<Ran>;
 
-// The bytes of the files below `dir`; a file git renamed meanwhile counts 0. It runs in a timer, where a throw would end
-// CedarLoom, so a folder git removes while it is read counts 0 too.
+// It runs in a timer, where a throw would end CedarLoom, so a file renamed or a folder removed meanwhile counts 0.
 const bytesIn = (dir: string): number => {
   try {
     return readdirSync(dir, { recursive: true, withFileTypes: true })

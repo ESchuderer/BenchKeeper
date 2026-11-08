@@ -23,10 +23,7 @@ const same = (given: unknown, expected: string | null): boolean => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
-/**
- * Every value of the cookie `name` in a raw Cookie header. A script on another 127.0.0.1 port can set a cookie of the
- * same name on a longer path, which browsers send first; a parser that keeps the first value would lock the page out.
- */
+// Every value: another 127.0.0.1 port can set a same-named cookie on a longer path, which browsers send first.
 const cookieValues = (header: string | undefined, name: string): string[] =>
   (header ?? "")
     .split(";")
@@ -68,8 +65,7 @@ export class Session {
 
 type Refusal = [status: number, error: string] | null;
 
-// Only the literal 127.0.0.1 Host of this port (421 otherwise, which stops DNS rebinding), no foreign Origin, no
-// cross-site fetch: another port on this machine is same-site, and no more welcome.
+// This port's literal 127.0.0.1 Host (421 stops DNS rebinding), its Origin, same-origin: other ports are same-site too.
 const foreign = (req: FastifyRequest, self: string): Refusal => {
   const { host, origin } = req.headers;
   const site = req.headers["sec-fetch-site"];

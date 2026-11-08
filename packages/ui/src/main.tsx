@@ -10,8 +10,7 @@ import { t } from "./i18n.ts";
 
 const KEY = "cedarloom.csrf";
 
-// shortcut: the brand's evergreen (#2e5e4e) as shade 7 of a hand-made palette; replace it with the theme generated from
-// the family design tokens once they are published. Shade 7 keeps text on white and white on it above 4.5:1.
+// shortcut: the brand's evergreen (#2e5e4e) as shade 7 of a hand-made palette (4.5:1 on white); use the family tokens once out.
 const evergreen: MantineColorsTuple = [
   "#eef5f2",
   "#dde9e4",
@@ -26,10 +25,7 @@ const evergreen: MantineColorsTuple = [
 ];
 const theme = createTheme({ primaryColor: "evergreen", primaryShade: 7, colors: { evergreen } });
 
-/**
- * The URL token works once: the CSRF token it buys stays in this tab's sessionStorage, so a reload keeps the session,
- * and the token leaves the address bar and the history before anything else runs.
- */
+// The CSRF token stays in sessionStorage, so a reload keeps the session; the once-only URL token leaves address bar and history first.
 const connect = async (): Promise<Session | null> => {
   const token = new URLSearchParams(location.hash.slice(1)).get("t");
   history.replaceState(null, "", "/");
@@ -46,8 +42,7 @@ const connect = async (): Promise<Session | null> => {
   };
 };
 
-// A chunk the server no longer has (CedarLoom was updated while this tab stayed open) cannot load, which would end the
-// page: load it anew, as Vite advises. The session survives a reload, and an open workflow comes back from its draft.
+// A chunk gone after an update cannot load: reload, as Vite advises; the session and the open draft survive it.
 window.addEventListener("vite:preloadError", () => location.reload());
 
 const root = createRoot(document.getElementById("root") ?? document.body);

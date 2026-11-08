@@ -181,8 +181,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
   return findings.some((finding) => severityOf(finding) === "error") ? EXIT.refused : EXIT.ok;
 };
 
-// A finding before any plan, in the format of the command's result: an unreadable file exits 66, a file that is not the
-// expected document 65, a rule 1.
+// A finding before any plan, in the command's result format: an unreadable file exits 66, a wrong document 65, rules 1.
 export const refused = (
   ctx: Context,
   format: "accounts" | "draft" | "extensions" | "levels" | "login" | "mode" | "plan" | "profile-diff" | "versions",
@@ -192,10 +191,7 @@ export const refused = (
   return fail(ctx, format, [finding], finding.code.startsWith("document.") ? code : EXIT.refused);
 };
 
-/**
- * Shows a planned change with `note` below it and its findings, or with --yes applies it as one run; `data` joins the
- * plan's JSON, and the findings join the plan's and the run's, so every output form carries them.
- */
+// Shows a plan with `note`, or with --yes applies it as one run; every output form carries the findings.
 export const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
   const preview = useCases.previewPlan(plan);
   if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings, data }, { yes });
@@ -422,8 +418,7 @@ export const mayDo = (capabilities: useCases.Capabilities): string[] => [
   ...Object.keys(capabilities.programs ?? {}).map((id) => `runs the program ${id} on this machine`),
 ];
 
-// What an install's approval consents to: the extension, where its code comes from, how far it is trusted, and what
-// it may do. The publisher is the id's first part, which nothing verifies (P5 a).
+// What an install's approval consents to; the publisher is the id's first part, which nothing verifies (P5 a).
 const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): string => {
   const publisher = manifest.id.slice(0, manifest.id.indexOf("."));
   const folder = source.path === undefined ? "" : `, folder ${source.path}`;
@@ -440,8 +435,7 @@ const consent = (manifest: ExtensionManifest, { source, ref, digest }: Pin): str
 
 type Consent = { id: string; plan: Plan; note: string; data: object; added: useCases.Capabilities };
 
-// Shows an extension's plan, or applies it as approved. One that enables capabilities takes --approve only, so the
-// consent binds what the preview showed; --yes alone is refused.
+// Capabilities take --approve only, so the consent binds what the preview showed; --yes alone is refused.
 const consented = (ctx: Context, { id, plan, note, data, added }: Consent, approval: Approval): number => {
   const preview = useCases.previewPlan(plan);
   const shown = `${showPlan(preview)}${note}`;
@@ -457,11 +451,7 @@ const consented = (ctx: Context, { id, plan, note, data, added }: Consent, appro
   return EXIT.ok;
 };
 
-/**
- * Shows the install of the extension at a Git source with what its approval consents to, or installs it as one run:
- * with --approve when it asks for capabilities, else also with --yes. Its files are fetched and staged first, which
- * changes nothing that is in use. An add never waits for the 3 days an update does.
- */
+// Fetched and staged first, which changes nothing in use; capabilities take --approve; an add never waits 3 days.
 export const extensionsAdd = async (
   ctx: Context,
   url: string,
@@ -493,8 +483,7 @@ const changes = ({ manifest, pin, from, added, removed }: Planned): string => {
 // An update that is current or still waits: nothing to plan yet.
 type Waiting = Extract<useCases.UpdatePlan, { kind: "waiting" }>;
 
-// A ref that moves within every wait never offers an update: an extension that changes this often is better followed
-// at a tag.
+// A ref that moves within every wait never offers an update: follow such an extension at a tag.
 const waitingLine = (id: string, { commit, seen, offered, moved }: Waiting): string => {
   const line = `${id}: commit ${commit} was first seen here at ${seen}; the update is offered from ${offered}, 3 days later.`;
   const again =
@@ -508,10 +497,7 @@ const notYet = (ctx: Context, id: string, value: Exclude<useCases.UpdatePlan, Pl
   return EXIT.ok;
 };
 
-/**
- * Updates an installed extension to the commit at its ref, once this machine has seen it for 3 days: shows the plan
- * with what changes, or applies it. An update that asks for more than the user approved takes --approve only.
- */
+// An update waits until this machine has seen its commit 3 days; one asking for more than approved takes --approve.
 export const extensionsUpdate = async (ctx: Context, id: string, approval: Approval): Promise<number> => {
   const planned = await useCases.planUpdate(ctx.state, id, ctx.io.fetch);
   if (!planned.ok) return refused(ctx, "plan", planned.finding);
@@ -564,8 +550,7 @@ export const componentsSwitch = (ctx: Context, id: string, state: "auto" | "off"
   return change(ctx, planned.value, { note, data: { component: id, state }, findings: [] }, yes);
 };
 
-// What the latest switch of running work does, by the settings' modeScope (running when unset; owner decision,
-// 2026-11-06).
+// What the latest switch of running work does, by modeScope (running when unset; owner decision, 2026-11-06).
 const switchLine = ({ switched, settings }: useCases.Mode): string | null => {
   if (switched?.level == null) return null;
   return settings?.modeScope === "until-off"
@@ -672,10 +657,7 @@ export const workflowsOpen = (ctx: Context, id: string, { at }: { at?: string })
 
 type ExportOptions = { name?: string; license?: string; yes?: true };
 
-/**
- * Shows writing stored workflows into an export folder, with the lock of the extensions they use, or with --yes writes
- * them as one run; the user commits and pushes the folder with their own Git (P4 a).
- */
+// Writes stored workflows with their extensions' lock to a folder; the user commits and pushes it with Git (P4 a).
 export const workflowsExport = (ctx: Context, ids: string[], folder: string, options: ExportOptions): number => {
   const { name = basename(folder), license, yes } = options;
   const about = license === undefined ? { name } : { name, license };

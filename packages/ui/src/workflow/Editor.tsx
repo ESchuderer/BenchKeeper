@@ -115,9 +115,7 @@ type Layout = { elk: ELK; failed: Promise<never> };
 
 let engine: Promise<Layout> | undefined;
 
-// ELK loads on the first auto layout and runs in a Web Worker, unmodified from its package, so the page stays responsive.
-// elk-api listens to the worker's messages only, so the worker's `error` (a script that cannot load, a crash) is turned
-// into `failed` here, raced against each layout.
+// ELK runs in a Web Worker, loaded on first use; elk-api hears only messages, so the worker's `error` is raced here.
 const start = async (): Promise<Layout> => {
   const [api, worker] = await Promise.all([import("elkjs/lib/elk-api.js"), import("elkjs/lib/elk-worker.min.js?url")]);
   const { promise: failed, reject } = Promise.withResolvers<never>();
@@ -152,8 +150,7 @@ type Notes = { onProblem: (text: string) => void; onStatus: (text: string) => vo
 const Arrange = ({ edit, sizes, onProblem, onStatus }: { edit: Edit; sizes: Sizes } & Notes): ReactNode => {
   const [busy, setBusy] = useState(false);
   const [connecting, dialog] = useDisclosure(false);
-  // The document as it stands when the layout answers: one changed meanwhile (New, Import, an edit) drops the layout.
-  // Set in the commit, so a render React discards never counts as the document.
+  // Set in the commit, so a render React discards never counts; a document changed meanwhile drops the layout.
   const latest = useRef(edit.history.present);
   useLayoutEffect(() => {
     latest.current = edit.history.present;
@@ -421,10 +418,7 @@ const Problems = ({ workflow }: { workflow: WorkflowDefinition }): ReactNode => 
 
 type Status = { text: string; count: number; at?: History };
 
-/**
- * The status line's sentence. It is keyed by its count, so the same sentence again is a new node that a screen reader
- * reads again; it belongs to the document it first showed with, so the next change of the document ends it.
- */
+// Keyed by its count, so a repeated sentence is read again; the next change of its document ends it.
 const useStatus = (history: History): [Status, (text: string) => void] => {
   const [status, setStatus] = useState<Status>({ text: "", count: 0 });
   useEffect(() => {
@@ -436,10 +430,6 @@ const useStatus = (history: History): [Status, (text: string) => void] => {
   return [status, (text) => setStatus((last) => ({ text, count: last.count + 1 }))];
 };
 
-/**
- * The visual workflow editor: a document (new, imported from a file, exported in the canonical file form) with undo and
- * redo and a draft in the state folder, the graph on a React Flow canvas, and the validator's findings below it.
- */
 const Editor = ({ api }: { api: Api }): ReactNode => {
   const edit = useDocument();
   // A refusal shows until the document changes: it is kept with the history it was raised on.

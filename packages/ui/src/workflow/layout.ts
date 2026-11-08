@@ -30,11 +30,7 @@ const ports = (node: string, type: string): ElkPort[] => {
   ];
 };
 
-/**
- * The workflow as an ELK graph: each node with its size and a port per handle (inputs west, outputs east, in the
- * card's order), and each edge between two existing handles. The workflow's own inputs and outputs are not laid
- * out: they sit at the canvas edges.
- */
+// A port per handle (inputs west, outputs east, in card order); the workflow's own inputs and outputs sit at the edges.
 export const elkGraph = (workflow: WorkflowDefinition, sizes: Readonly<Record<string, Size>>): ElkNode => {
   const children = uniqueNodes(workflow).map((node) => ({
     id: node.id,
@@ -64,10 +60,7 @@ export const elkGraph = (workflow: WorkflowDefinition, sizes: Readonly<Record<st
   };
 };
 
-/**
- * New positions for every node, left to right along the edges, from ELK's layered layout. In the browser `elk` runs
- * in a Web Worker; the result is one move of the document, so one undo step.
- */
+// ELK's layered layout, left to right, in a Web Worker in the browser; the result is one move, so one undo step.
 export const autoLayout = async (
   elk: Engine,
   workflow: WorkflowDefinition,

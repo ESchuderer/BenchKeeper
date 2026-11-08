@@ -18,10 +18,7 @@ const HandleSelect = (props: SelectProps): ReactNode => (
   <Select searchable comboboxProps={{ withinPortal: false }} {...props} />
 );
 
-/**
- * The keyboard path to a connection: pick an output, then one of the inputs that may take it, and connect. Mantine's
- * modal keeps focus inside and returns it to the button that opened it.
- */
+// The keyboard path to a connection; Mantine's modal keeps the focus inside and returns it to the opener.
 export const ConnectDialog = ({ workflow, opened, onClose, change, onDone }: Props): ReactNode => {
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);

@@ -8,9 +8,7 @@ const notHub = (id: string, repo: string): Finding => ({ code: "outbox.not-hub",
 // The idempotency marker of a comment: an HTML comment, which GitHub keeps in the body and does not show.
 const marker = (id: string): string => `<!-- cedarloom-outbox:${id} -->`;
 
-// Does a claimed entry's intent. A comment that an earlier attempt may have posted (its answer lost, its sender ended)
-// is looked up by its marker first; a label intent reads the label before its first write, so its undo knows whether
-// it changed anything.
+// A comment maybe posted before is looked up by its marker first; a label is read before the first write, for its undo.
 const perform = async (
   store: WorkItemStore,
   tracker: Tracker,

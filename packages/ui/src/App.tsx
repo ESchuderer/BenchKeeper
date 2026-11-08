@@ -223,10 +223,7 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   }, []);
   useEffect(() => {
     const stop = new AbortController();
-    // When the stream ends or is refused, one request checks the API and shows what it answers wrong. The stream then
-    // opens again, so a failed read, a store error or a server that comes back recovers on its own; only a lost
-    // session stays lost. The wait is 1 s, doubled for each failed check in a row up to 30 s, so a store that stays
-    // unreadable is not read, and logged, every second; an event resets it.
+    // Reopens after 1 s, doubled per failed check up to 30 s, so an unreadable store is not read and logged every second.
     let failures = 0;
     const onEvent = (event: RunEvent): void => {
       failures = 0;
@@ -291,11 +288,7 @@ const Levels = ({ parts, onSwitch }: { parts: Part[]; onSwitch: OnSwitch }) =>
     </Fieldset>
   ));
 
-/**
- * The selected profile's parts per level, each switch a run that changes this machine's selection, and this machine's
- * plan with its lines; the plan's sentence is a live region, so what a switch changed is announced. A switch made while
- * the last one is still applied or read is ignored rather than disabled, which would drop the keyboard focus.
- */
+// A switch made while the last one applies is ignored, not disabled, which would drop the focus; the plan is live.
 const Profile = ({ api }: { api: Api }): ReactNode => {
   const [view, setView] = useState<ProfileView | null>(null);
   const [problem, setProblem] = useState("");
@@ -400,10 +393,7 @@ const Footer = (): ReactNode => (
   </AppShell.Footer>
 );
 
-/**
- * The shell: the views in the navigation, the chosen one in the main region. Below the sm breakpoint the navigation sits
- * behind a menu button; whichever of the two is out of sight is inert, so neither focus nor a screen reader lands there.
- */
+// Below sm the navigation sits behind a menu button; whichever of the two is out of sight is inert.
 export const App = ({ session }: { session: Session }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
   const [opened, { toggle, close }] = useDisclosure();

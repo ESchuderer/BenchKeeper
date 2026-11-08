@@ -495,6 +495,10 @@ test("reads the version of the CLI that a launch's environment runs", async () =
   for (const FAKE_VERSION of ["unknown", `2.1.316-${"x".repeat(40)}`, "2.1.316\u001b[31m"]) {
     await expect(runtime.version({ FAKE_VERSION })).rejects.toThrow("unrecognized claude --version output");
   }
+  // onFailure, which the guard hook's refusal on a crash needs, came in 2.1.295.
+  for (const FAKE_VERSION of ["2.1.294 (Claude Code)", "1.9.999"]) {
+    await expect(runtime.version({ FAKE_VERSION })).rejects.toThrow("older than 2.1.295");
+  }
 });
 
 test("an init line proves the settings applied only with its core tools listed and the sentinel left out", async () => {

@@ -58,13 +58,15 @@ test("the hook refuses what it cannot read: input that is no JSON, a call withou
   );
 }, 30_000);
 
-test("the hook reads a Monitor command as a Bash one, refuses PowerShell, and lets other tools and a WebSocket monitor through", () => {
+test("the hook reads a Monitor command as a Bash one, refuses PowerShell and a remote agent, and lets other tools and a WebSocket monitor through", () => {
   expect([
     hook(call("Monitor", { command: "sudo rm -rf /tmp/x" })),
     hook(call("PowerShell", { command: "Get-ChildItem" }, "C:\\work")),
     hook(call("Monitor", { ws: { url: "wss://example.com" } })),
     hook(call("Read", { file_path: "/x" })),
-  ]).toEqual(["refused", "refused", "runs", "runs"]);
+    hook(call("Agent", { prompt: "x", isolation: "remote" })),
+    hook(call("Agent", { prompt: "x", isolation: "worktree" })),
+  ]).toEqual(["refused", "refused", "runs", "runs", "refused", "runs"]);
 }, 30_000);
 
 test("a worker's policy holds its project's GitHub repositories and the hub, and its hook runs from the package", () => {

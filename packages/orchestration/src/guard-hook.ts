@@ -26,11 +26,11 @@ const readPolicy = (json: string): GuardPolicy | null => {
 };
 
 // The parts of a PreToolUse input the guard reads; null for input that is no JSON.
-const readCall = (input: string): { tool: unknown; command: unknown; cwd: unknown } | null => {
+const readCall = (input: string): { tool: unknown; command: unknown; cwd: unknown; isolation: unknown } | null => {
   try {
     const call: unknown = JSON.parse(input);
-    const command = field(field(call, "tool_input"), "command");
-    return { tool: field(call, "tool_name"), command, cwd: field(call, "cwd") };
+    const [command, isolation] = ["command", "isolation"].map((key) => field(field(call, "tool_input"), key));
+    return { tool: field(call, "tool_name"), command, cwd: field(call, "cwd"), isolation };
   } catch {
     return null;
   }
@@ -46,6 +46,8 @@ const located = (command: unknown, cwd: unknown): { command: string; cwd: string
 const commandOf = (call: ReturnType<typeof readCall>): { command: string; cwd: string } | string | null => {
   if (call === null || typeof call.tool !== "string") return UNREADABLE;
   const { tool, command, cwd } = call;
+  // A remote subagent runs in the cloud, where no hook of this session reads its commands.
+  if (tool === "Agent") return call.isolation === "remote" ? "a remote agent runs where the guard reads nothing" : null;
   // A Monitor call without a command watches a WebSocket and runs nothing.
   if (!SHELL_TOOLS.has(tool) || (tool === "Monitor" && command === undefined)) return null;
   // A worker's shell is Bash; PowerShell, which the guard does not read, refuses.

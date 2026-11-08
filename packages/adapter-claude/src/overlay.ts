@@ -89,7 +89,7 @@ const REACH_PAST_GUARD = ["RemoteTrigger", "SendMessage", "ListAgents"];
 const guardHooks = ({ command, args }: GuardHook) => ({
   PreToolUse: [
     {
-      matcher: "Bash|Monitor|PowerShell",
+      matcher: "Bash|Monitor|PowerShell|Agent",
       hooks: [{ type: "command", command, args, timeout: 10, onFailure: "block" }],
     },
   ],

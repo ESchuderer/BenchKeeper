@@ -3,8 +3,7 @@ import type { NodeAttempt } from "@cedarloom/contracts";
 import { stopTree } from "@cedarloom/extension-host";
 import { cleanEnv } from "@cedarloom/orchestration";
 
-// When the process `pid` started, in milliseconds, to the second (`ps` gives no zone, so local time); NaN when there
-// is no such process. By its path: a `ps` found on PATH could be any program.
+// When `pid` started, to the second (`ps` gives local time); NaN when there is none. `ps` by its path, not from PATH.
 const startOf = (pid: number): number => {
   const env = { ...cleanEnv(process.env, process.platform), LC_ALL: "C" };
   try {
@@ -16,18 +15,10 @@ const startOf = (pid: number): number => {
   }
 };
 
-// How long before its record an attempt's process may have started: a process that started earlier is another one,
-// such as one in the hour a clock goes back (`ps` gives local time) or in another pid namespace.
+// A process older than its record by over a minute is another one (a clock going back, another pid namespace).
 const SPAWN_MS = 60_000;
 
-/**
- * Stops what a runner that died left running: the process of each attempt still marked running, with its tree, when
- * it started in the minute before the attempt's start was recorded. A later process that reuses the pid started after
- * that, and is left alone; `ps` tells the start to the second, so one that ended and was reused within the second of the
- * record would be taken for it. A command whose shell has ended, while a child of it runs on, is not found this way. On
- * Windows a runner's shell ends with the runner (Node's job object kills it on close), so there is nothing to stop; the
- * shell's own children may outlive it (hub issue 103).
- */
+// Stops what a dead runner's attempts left running: docs/agents/git-and-processes.md#child-processes
 export const stopOrphans = (attempts: readonly NodeAttempt[]): void => {
   /* v8 ignore next -- Windows only */
   if (process.platform === "win32") return;

@@ -9,6 +9,7 @@ Read this before changing code that runs git or another program. Each item names
 - **Program lookup.** Spawn a program by its file, never by its bare name: Windows looks for a bare name in the child's working folder, often a project, before PATH. `programPath` in `packages/orchestration/src/program.ts` finds it in the absolute folders of PATH only.
 - **Stopping a process tree.** Windows has no POSIX signals: `kill()` ends the program at once and leaves its children running. `stop` in `packages/adapter-claude/src/index.ts` ends the tree with `taskkill /T /F` from System32, and only while the child has not exited, since Windows may give its process ID to another process.
 - **A child that ignores SIGTERM** keeps its caller waiting: a timeout kills with `SIGKILL` (`ghProbe` in `packages/orchestration/src/gh.ts`).
+- **Orphaned processes.** A runner that died leaves its attempts' processes running, and their pids may go to other processes. `stopOrphans` in `packages/use-cases/src/orphans.ts` stops a process and its tree only when it started in the minute before the attempt's start was recorded; a later process that reuses the pid started after that. Limits: `ps` tells the start to the second, so a process that ended and whose pid was reused within the second of the record would be taken for it; a command whose shell has ended, while a child of it runs on, is not found; on Windows a runner's shell ends with the runner (Node's job object kills it on close), so there is nothing to stop, though the shell's own children may outlive it (hub issue 103).
 - **Environment.** Pass the child only the variables it needs. Windows names ignore case (`PATH` is `Path` there); elsewhere `path` is another variable (`cleanEnv` in `packages/orchestration/src/env.ts`).
 
 ## Git
@@ -19,6 +20,8 @@ Read this before changing code that runs git or another program. Each item names
 
 ## Files
 
+- **Case and device names.** macOS and Windows file systems join names that differ only in case, and Windows opens a device for a name such as `con` or `nul`. Drafts are one lower-case file per workflow id behind a prefix (`pathOf` in `packages/use-cases/src/drafts.ts`).
+- **Links and FIFOs.** An open follows a symbolic link and waits on a FIFO. Reads that must do neither open with `O_NOFOLLOW` and `O_NONBLOCK` (`READ` in `packages/use-cases/src/drafts.ts`, `readResult` in `packages/orchestration/src/result.ts`). Windows has neither flag, and making a link there takes admin rights or developer mode.
 - **Flushing a folder** fails on Windows, which cannot open one; NTFS journals the rename instead (`flushFolder` in `packages/engine/src/files.ts`).
 
 CedarLoom's Windows-only branches run only in the Windows leg of its test job (`.github/workflows/cedarloom.yml`). The legacy app runs on Windows only in the `app-windows-smoke` job (start, plan, apply).

@@ -39,8 +39,7 @@ export const isCron = (text: string): boolean => {
   );
 };
 
-// An IANA name (legacy ones such as EST5EDT and GMT0 too), not a UTC offset, in its exact case: a name Intl only
-// matches case-insensitively is refused.
+// An IANA name in its exact case (legacy ones such as EST5EDT too), not an offset; a case-insensitive match is refused.
 const isTimeZone = (name: string): boolean => {
   if (!/^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/.test(name)) return false;
   try {
@@ -51,10 +50,7 @@ const isTimeZone = (name: string): boolean => {
   }
 };
 
-/**
- * A command line for POSIX `sh` on every platform: Git for Windows' `sh.exe` on native Windows, where the node is
- * refused when there is none. `cmd.exe` would expand `%NAME%` before parsing the line.
- */
+// A line for POSIX sh on every platform (Git for Windows' sh.exe, refused without one); cmd.exe would expand %NAME%.
 const Command = z.string().min(1).max(10_000);
 
 // Resolved against the project folder, the path never steps above it.
@@ -68,11 +64,7 @@ const inside = (path: string): boolean => {
   return true;
 };
 
-/**
- * A path inside the project: relative, `/` between its parts, no `..` part (also behind a line break), no control
- * character; normalized against the project folder it stays inside. The executor still resolves links (a folder that
- * links outside), which no pattern can see.
- */
+// A relative project path, `/` between parts, no `..` or control character; the executor still checks links outside.
 export const ProjectPath = z
   .string()
   .min(1)

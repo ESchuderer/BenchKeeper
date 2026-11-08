@@ -758,7 +758,7 @@ const pushTargets = (rest: readonly Word[]): Word[] => {
 const isLocal = (text: string): boolean => /^(?:\.{1,2}|~)?$|^(?:\.{1,2}|~)?\/|^file:\/\//.test(text);
 
 const isUrl = (text: string): boolean =>
-  /^[a-z][\w+.-]*:\/\//i.test(text) || /^(?:[^\s/@:]+@)?[^\s/@:]+\.[^\s/@:]+:/.test(text);
+  /^[a-z][\w+.-]*:\/\//i.test(text) || /^(?:[^\s/@:]+@)?[^\s/@:.]+(?:\.[^\s/@:.]+)+:/.test(text);
 
 /** The GitHub repository a remote URL names, as owner/name; null for any other host or form. */
 const githubRepo = (url: string): string | null => {
@@ -774,7 +774,11 @@ const githubRepo = (url: string): string | null => {
     if (!/^(?:www\.)?github\.com$/i.test(parsed.hostname)) return null;
     path = parsed.pathname;
   } else path = url.slice(scp[0].length);
-  const name = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  const name = path
+    .split("/")
+    .filter(Boolean)
+    .join("/")
+    .replace(/\.git$/i, "");
   return RepoName.safeParse(name).success ? name : null;
 };
 

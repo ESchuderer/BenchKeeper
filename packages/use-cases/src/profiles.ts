@@ -74,8 +74,7 @@ export interface Machine {
   readonly user: string;
 }
 
-// The folders no plugin options file may reach: every Claude Code home, the default one included, an account's
-// folders, and CedarLoom's own config and state, which hold the worker homes.
+// No plugin options file may reach a Claude Code home, an account's folders, or CedarLoom's config and state.
 const guardedFolders = (config: string, state: string, { home, user }: Machine): Result<string[]> => {
   const registry = loadRegistry(config);
   if (!registry.ok) return registry;
@@ -92,16 +91,14 @@ const targetOf = (config: string, state: string, { home, user }: Machine) => {
   return { ok: true as const, value: { target: { home, user, guarded: guarded.value }, written: written.value } };
 };
 
-// Whether Orca is here: its bundled extension not switched off, and its program found as host/exec finds it. An app
-// folder or components map that does not read finds none, as it adds no CLI verbs; the extensions commands name it.
+// Orca is here when its extension is on and host/exec finds its program; unreadable components count as not here.
 const orcaHere = (app: string | undefined, config: string): boolean => {
   const bundled = app === undefined ? undefined : bundledExtensions(app, config);
   const orca = bundled?.ok === true ? bundled.value.find(({ id }) => id === "cedarloom.orca") : undefined;
   return orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca");
 };
 
-// The probes: whether Orca is here, asked once and only by a part that needs it, and whether the project has a dev
-// container.
+// The probes, each asked once and only by a part that needs it: Orca, and whether the project has a dev container.
 const probeOf = (app: string | undefined, config: string, project: string | undefined) => {
   const container = project !== undefined && hasContainer(project);
   let orca: boolean | undefined;
@@ -121,10 +118,7 @@ const selectedProfile = (config: string, app: string | undefined, project: strin
 const writtenIn = (state: string, home: string): Result<ReadonlyMap<string, string | null>> =>
   withView(state, (view) => ({ ok: true, value: view?.written(join(home, sep)) ?? new Map<string, string | null>() }));
 
-// Fetches the Git sources the level needs: the profile's packs and the level's skills' own sources, then each pack's
-// skill entry's source once that pack's folder is here; then keeps the record of the followed ones, and of the other
-// level's, so neither level's wait starts over.
-// A check only reads: it keeps the record as it is.
+// Fetches the level's packs and skill sources and keeps both levels' records, so no wait restarts; a check only reads.
 const fetchAll = async (
   state: string,
   resolved: Resolved,
@@ -274,8 +268,7 @@ const writtenAt = (state: string, level: string, project: boolean): Result<Reado
   return stored.ok && project ? projectWritten(level, stored.value) : stored;
 };
 
-// A drift line about an operation the next apply would run: a write where the file lacks the profile's text, or over
-// CedarLoom's own last text (outdated), or a delete of a file whose part is off.
+// A drift line for the next apply's operation: a write over a changed or outdated file, or a delete of a part now off.
 const driftOf = (operation: Operation, written: ReadonlyMap<string, string | null>): Finding[] => {
   if (!("path" in operation)) return [];
   const own = operation.before !== null && written.get(operation.path) === operation.before;

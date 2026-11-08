@@ -32,9 +32,9 @@ test("an intent is queued only under an approval of its own hash, and once per k
     ok: false,
     finding: { code: "outbox.not-approved", params: { key: "mirror:1", hash: ADD_HASH, approvedHash: OTHER_HASH } },
   });
-  const first = store.enqueue("mirror:1", add, { by: "mirroring", hash: ADD_HASH });
-  expect(first).toMatchObject({ ok: true, value: { key: "mirror:1", status: "pending", approvedBy: "mirroring" } });
-  expect(store.enqueue("mirror:1", add, { by: "mirroring", hash: ADD_HASH })).toEqual(first);
+  const first = store.enqueue("mirror:1", add, { by: "owner", hash: ADD_HASH });
+  expect(first).toMatchObject({ ok: true, value: { key: "mirror:1", status: "pending", approvedBy: "owner" } });
+  expect(store.enqueue("mirror:1", add, { by: "owner", hash: ADD_HASH })).toEqual(first);
   const other: Intent = { ...add, label: "ready-for-human" };
   expect(store.enqueue("mirror:1", other, { by: "owner", hash: OTHER_HASH })).toEqual({
     ok: false,

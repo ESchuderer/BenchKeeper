@@ -35,17 +35,17 @@ export const RemoteComment = z.strictObject({ id: z.int().positive(), url: z.url
 export type RemoteComment = z.infer<typeof RemoteComment>;
 
 /**
- * An outbox entry: its intent, the idempotency key it was queued under (one entry per key), who approved it (the owner;
- * `mirroring` only on entries an earlier build queued for a repository's opt-in, A36 a) and how far it got. `sending`
- * without a live sender was interrupted and is due again. `unchanged`: the issue already was as a label intent asks,
- * read before its first write, so its undo has nothing to do. `remote`: the comment a comment intent made.
+ * An outbox entry: its intent, the idempotency key it was queued under (one entry per key), who approved it (the owner)
+ * and how far it got. `sending` without a live sender was interrupted and is due again. `unchanged`: the issue already
+ * was as a label intent asks, read before its first write, so its undo has nothing to do. `remote`: the comment a
+ * comment intent made.
  */
 export const OutboxEntry = z.strictObject({
   id: z.uuid(),
   key: z.string().min(1).max(200),
   intent: Intent,
   intentHash: Sha256,
-  approvedBy: z.enum(["owner", "mirroring"]),
+  approvedBy: z.literal("owner"),
   status: z.enum(["pending", "sending", "sent", "failed"]),
   attempts: z.int().min(0),
   unchanged: z.boolean().nullable(),

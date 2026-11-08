@@ -1,5 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { userInfo } from "node:os";
+import { join, win32 } from "node:path";
 import { GITHUB_DOMAINS } from "./env.ts";
 
 /**
@@ -72,14 +74,20 @@ interface Settings {
 
 const codeOf = (error: unknown): string => String(Reflect.get(Object(error), "code"));
 
+type Read = Settings | ManagedProblem | null;
+
 // null for no file; one unreadable or not a JSON object (a BOM too) cannot be cleared, so it counts against the launch.
-const readManaged = (path: string): Settings | ManagedProblem | null => {
+const readManaged = (path: string): Read => {
   let text: string;
   try {
     text = readFileSync(path, "utf8");
   } catch (error) {
     return codeOf(error) === "ENOENT" ? null : { kind: "unreadable", path, error: codeOf(error) };
   }
+  return parsed(path, text);
+};
+
+const parsed = (path: string, text: string): Settings | ManagedProblem => {
   try {
     // An empty file holds no settings, as Claude Code reads it.
     const settings: unknown = text.trim() === "" ? {} : JSON.parse(text);
@@ -90,7 +98,7 @@ const readManaged = (path: string): Settings | ManagedProblem | null => {
 };
 
 // In Claude Code's merge order, hidden files left out: docs/agents/cedarloom-rationale.md#managed-settings
-const managedFiles = (dir: string): (Settings | ManagedProblem | null)[] => {
+const managedFiles = (dir: string): Read[] => {
   const dropIns = join(dir, "managed-settings.d");
   let names: string[] = [];
   try {
@@ -134,20 +142,11 @@ const listed = ({ path, settings }: Settings): ManagedProblem[] => {
   return keys.map((key) => ({ kind: "loosens", path, key }));
 };
 
-/**
- * The managed settings files that loosen the worker sandbox or switch its guard hook off, whatever the worker's own
- * settings say: a managed key outranks --settings. For a Boolean or a port, the last file that sets it wins, as Claude
- * Code merges them; every list entry counts. A file that cannot be read or parsed counts too.
- * shortcut: reads the files only. MDM profiles, the Windows HKLM registry and server-managed settings rank above them,
- * the Windows HKCU registry applies when no admin source does, and wslInheritsWindowsSettings can make WSL read the
- * Windows chain instead; all stay unchecked until a live sandbox
- * probe joins the contract check. Left out on purpose, as common policies set them for ordinary reasons:
- * filesystem.allowWrite, enableWeakerNestedSandbox, enableWeakerNetworkIsolation and network.allowLocalBinding.
- */
-export const managedProblems = (dir: string): ManagedProblem[] => {
+// One source's documents in Claude Code's merge order: the last that sets a Boolean or port wins, every list entry counts.
+const problemsOf = (reads: readonly Read[]): ManagedProblem[] => {
   const last = new Map<string, { path: string; value: unknown }>();
   const problems: ManagedProblem[] = [];
-  for (const read of managedFiles(dir)) {
+  for (const read of reads) {
     if (read === null || "kind" in read) {
       if (read !== null) problems.push(read);
       continue;
@@ -162,4 +161,112 @@ export const managedProblems = (dir: string): ManagedProblem[] => {
     if (loosened) problems.push({ kind: "loosens", path, key });
   }
   return problems;
+};
+
+/**
+ * The managed settings files that loosen the worker sandbox or switch its guard hook off, whatever the worker's own
+ * settings say: a managed key outranks --settings. Left out on purpose, as common policies set them for ordinary
+ * reasons: filesystem.allowWrite, enableWeakerNestedSandbox, enableWeakerNetworkIsolation and network.allowLocalBinding.
+ */
+export const managedProblems = (dir: string): ManagedProblem[] => problemsOf(managedFiles(dir));
+
+/** Where a machine holds Claude Code's managed policy: file folders, macOS managed preferences, and a reg.exe to ask. */
+export interface ManagedPlaces {
+  readonly files: readonly string[];
+  readonly preferences: string | null;
+  readonly reg: string | null;
+}
+
+// WSL reaches the Windows policy through these when wslInheritsWindowsSettings is on (Claude Code 2.1.316's own paths).
+const WSL_REG = "/mnt/c/Windows/System32/reg.exe";
+const WSL_FILES = "/mnt/c/Program Files/ClaudeCode";
+
+/**
+ * The places Claude Code reads a managed policy from on `platform`
+ * (https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy); under WSL also the Windows
+ * ones, as wslInheritsWindowsSettings can turn them on.
+ */
+export const managedPlaces = (
+  platform: NodeJS.Platform,
+  env: Readonly<Record<string, string | undefined>>,
+): ManagedPlaces => {
+  const files = managedSettingsDir(platform);
+  const wsl = platform === "linux" && existsSync(WSL_REG);
+  let reg = wsl ? WSL_REG : null;
+  if (platform === "win32") reg = win32.join(env["SystemRoot"] ?? "C:\\Windows", "System32", "reg.exe");
+  return {
+    files: [...(files === null ? [] : [files]), ...(wsl ? [WSL_FILES] : [])],
+    preferences: platform === "darwin" ? "/Library/Managed Preferences" : null,
+    reg,
+  };
+};
+
+/** A program's run: its exit status (null when it did not start or was killed) and what it printed. */
+export type Run = (file: string, args: readonly string[]) => { status: number | null; stdout: string; stderr: string };
+
+const run: Run = (file, args) => {
+  const ran = spawnSync(file, args, { encoding: "utf8", timeout: 5000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
+  return { status: ran.status, stdout: ran.stdout ?? "", stderr: ran.stderr ?? "" };
+};
+
+const DOMAIN = "com.anthropic.claudecode";
+
+// Through the plutil Claude Code uses; a plist it cannot convert (a date or data value) cannot be cleared.
+const readPlist = (path: string, runs: Run): Read => {
+  try {
+    statSync(path);
+  } catch (error) {
+    const code = codeOf(error);
+    return code === "ENOENT" || code === "ENOTDIR" ? null : { kind: "unreadable", path, error: code };
+  }
+  const converted = runs("/usr/bin/plutil", ["-convert", "json", "-o", "-", "--", path]);
+  return converted.status === 0 ? parsed(path, converted.stdout) : { kind: "unreadable", path, error: "plutil" };
+};
+
+// None when reg finds no key or value (Claude Code's own test of its message), or cannot run, as Claude Code cannot then.
+const readRegistry = (reg: string, key: string, runs: Run): Read => {
+  const path = `${key}\\Settings`;
+  const queried = runs(reg, ["query", key, "/v", "Settings"]);
+  if (queried.status === null) return null;
+  if (queried.status !== 0) {
+    const absent = /unable to find the specified registry key or value/i.test(queried.stdout + queried.stderr);
+    return absent ? null : { kind: "unreadable", path, error: "reg" };
+  }
+  const value = /^[ \t]+Settings[ \t]+REG_(?:EXPAND_)?SZ[ \t]+(.*)$/m.exec(queried.stdout)?.[1];
+  return value === undefined ? { kind: "unreadable", path, error: "not a string" } : parsed(path, value);
+};
+
+/**
+ * Every place of the machine's managed policy that loosens the worker sandbox or switches its guard hook off: the
+ * configuration profile's plists (per user, then the device's), the HKLM and HKCU Settings values, and the files. Each
+ * source counts on its own, though Claude Code applies only the highest-ranked one that holds a policy key, so a
+ * loosening value outranked by a stricter source still refuses (docs/agents/cedarloom-rationale.md#managed-settings).
+ */
+export const policyProblems = (places: ManagedPlaces, runs: Run = run): ManagedProblem[] => {
+  const { preferences, reg } = places;
+  const plists = preferences === null ? [] : [...userPlist(preferences), join(preferences, `${DOMAIN}.plist`)];
+  const keys = ["HKLM", "HKCU"].map((hive) => `${hive}\\SOFTWARE\\Policies\\ClaudeCode`);
+  return [
+    ...plists.flatMap((path) => problemsOf([readPlist(path, runs)])),
+    ...(reg === null ? [] : keys.flatMap((key) => problemsOf([readRegistry(reg, key, runs)]))),
+    ...places.files.flatMap((dir) => managedProblems(dir)),
+  ];
+};
+
+// The per-user profile, which Claude Code skips when the user has no name (a UID without a passwd entry).
+const userPlist = (preferences: string): string[] => {
+  try {
+    return [join(preferences, userInfo().username, `${DOMAIN}.plist`)];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * What the server-managed settings cached in a Claude Code home loosen; a cache that is no JSON object counts as none,
+ * as Claude Code treats it as absent. The startup fetch may bring a newer policy that no launch can read before.
+ */
+export const cachedPolicyProblems = (home: string): ManagedProblem[] => {
+  const read = readManaged(join(home, "remote-settings.json"));
+  return read === null || "kind" in read ? [] : problemsOf([read]);
 };

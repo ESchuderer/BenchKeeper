@@ -1,6 +1,15 @@
 export { cleanEnv, deniedPaths, GITHUB_DOMAINS, NETWORK_SETTINGS, type WorkerEnvInput, workerEnv } from "./env.ts";
 export { ghProbe } from "./gh.ts";
-export { type ManagedProblem, managedProblems, managedSettingsDir } from "./managed.ts";
+export {
+  cachedPolicyProblems,
+  type ManagedPlaces,
+  type ManagedProblem,
+  managedPlaces,
+  managedProblems,
+  managedSettingsDir,
+  policyProblems,
+  type Run,
+} from "./managed.ts";
 export { missing, programPath, runnable } from "./program.ts";
 export { readResult, resultPrompt } from "./result.ts";
 export { type Denial, guardCommand, type Remotes, type Rule, TYPED_REMOTE } from "./guard.ts";

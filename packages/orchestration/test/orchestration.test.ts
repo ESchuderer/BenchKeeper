@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { delimiter, join, relative } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
 import {
@@ -8,6 +8,8 @@ import {
   ghProbe,
   managedProblems,
   managedSettingsDir,
+  policyProblems,
+  type Run,
   programPath,
   readResult,
   resultPrompt,
@@ -304,5 +306,42 @@ test("drop-in files merge after managed-settings.json in name order, the later v
   const broken = managed({ [drop("40-broken.json")]: "{" });
   expect(managedProblems(broken)).toEqual([
     { kind: "unreadable", path: join(broken, drop("40-broken.json")), error: "not JSON" },
+  ]);
+});
+
+// reg.exe's answers, as Windows prints them: a key with its Settings value, and one that is absent.
+const REG_FOUND = (json: string) =>
+  `\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\ClaudeCode\r\n    Settings    REG_SZ    ${json}\r\n\r\n`;
+const REG_ABSENT = "ERROR: The system was unable to find the specified registry key or value.\r\n";
+
+test("a configuration profile's plist and a policy registry value are read like the files, each source on its own", () => {
+  const preferences = mkdtempSync(join(tmpdir(), "cedarloom-preferences-"));
+  const files = managed({ [MAIN]: { disableAllHooks: false } });
+  mkdirSync(join(preferences, userInfo().username));
+  const device = join(preferences, "com.anthropic.claudecode.plist");
+  const user = join(preferences, userInfo().username, "com.anthropic.claudecode.plist");
+  for (const path of [device, user]) writeFileSync(path, "plist");
+  // plutil's JSON per plist; reg's answer per hive.
+  const answers: Record<string, ReturnType<Run>> = {
+    [device]: { status: 0, stdout: JSON.stringify({ disableAllHooks: true }), stderr: "" },
+    [user]: { status: 1, stdout: "", stderr: "invalid object in plist for destination format" },
+    "HKLM\\SOFTWARE\\Policies\\ClaudeCode": {
+      status: 0,
+      stdout: REG_FOUND('{"sandbox":{"enabled":false}}'),
+      stderr: "",
+    },
+    "HKCU\\SOFTWARE\\Policies\\ClaudeCode": { status: 1, stdout: "", stderr: REG_ABSENT },
+  };
+  const run: Run = (_, args) =>
+    answers[args.at(-1) === "Settings" ? (args[1] ?? "") : (args.at(-1) ?? "")] ?? {
+      status: null,
+      stdout: "",
+      stderr: "",
+    };
+  expect(policyProblems({ files: [files], preferences, reg: "reg.exe" }, run)).toEqual([
+    { kind: "unreadable", path: user, error: "plutil" },
+    // Though the files keep hooks on, the device's profile switches them off.
+    { kind: "loosens", path: device, key: "disableAllHooks" },
+    { kind: "loosens", path: "HKLM\\SOFTWARE\\Policies\\ClaudeCode\\Settings", key: "sandbox.enabled" },
   ]);
 });

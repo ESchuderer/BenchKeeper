@@ -3,9 +3,10 @@ import type { Tracker } from "@cedarloom/work-items";
 
 /**
  * What the next write does wrong: `refuse` and `outage` answer without writing; `lose-answer` writes and then answers as
- * an outage; `crash` writes and then throws, as a sender that ends before it settles.
+ * an outage; `garble` writes and then answers with nothing the adapter can read; `crash` writes and then throws, as a
+ * sender that ends before it settles.
  */
-export type Fault = "refuse" | "outage" | "lose-answer" | "crash";
+export type Fault = "refuse" | "outage" | "lose-answer" | "garble" | "crash";
 
 type Issue = { labels: Set<string>; comments: Map<number, string> };
 
@@ -76,6 +77,7 @@ export class FakeTracker implements Tracker {
     if (fault === "outage") return OUTAGE;
     const value = write(this.issue(ref));
     if (fault === "lose-answer") return OUTAGE;
+    if (fault === "garble") return { ok: false, finding: { code: "tracker.invalid-answer", params: { error: "id" } } };
     if (fault === "crash") throw new Error("the sender ended");
     return { ok: true, value };
   }

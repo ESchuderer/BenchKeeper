@@ -59,6 +59,45 @@ test("a refused write fails for good, while an outage keeps its entry and the on
   expect(bodies(tracker).map((body) => body.split("\n")[0])).toEqual(["Two.", "Three.", "Four."]);
 });
 
+test("a retried comment is sent behind the entries queued while it waited, and posted once though its write went through", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  const one = queue(store, "one", { kind: "comment", issue, body: "One." });
+  tracker.fault = "garble";
+  expect(await drain(store, tracker)).toMatchObject([
+    { id: one, status: "failed", finding: { code: "tracker.invalid-answer" } },
+  ]);
+  const two = queue(store, "two", { kind: "comment", issue, body: "Two." });
+  tracker.fault = "outage";
+  await drain(store, tracker);
+  expect(store.retry(one)).toMatchObject({ ok: true, value: { id: one, status: "pending", finding: null } });
+  expect(await drain(store, tracker)).toMatchObject([
+    { id: two, status: "sent" },
+    { id: one, status: "sent", remote: { id: 1001 } },
+  ]);
+  expect(bodies(tracker)).toEqual([
+    `One.\n\n<!-- cedarloom-outbox:${one} -->`,
+    `Two.\n\n<!-- cedarloom-outbox:${two} -->`,
+  ]);
+  expect(store.retry(one)).toEqual({
+    ok: false,
+    finding: { code: "outbox.status", params: { id: one, status: "sent" } },
+  });
+});
+
+test("a retried label is read again, so its undo leaves the label someone added while it waited", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  const id = queue(store, "add", { kind: "label", issue, label: "agent:review" });
+  tracker.fault = "refuse";
+  await drain(store, tracker);
+  tracker.issue(issue).labels.add("agent:review");
+  store.retry(id);
+  expect(await drain(store, tracker)).toMatchObject([{ id, status: "sent" }]);
+  expect(compensate(store, id, "")).toEqual({
+    ok: false,
+    finding: { code: "outbox.not-undoable", params: { id, reason: "unchanged" } },
+  });
+});
+
 test("an entry a live sender holds is left to it with the ones after it, and due again once that sender ends", async () => {
   const [store, tracker] = [fresh(), new FakeTracker([issue])];
   const one = queue(store, "one", { kind: "comment", issue, body: "One." });

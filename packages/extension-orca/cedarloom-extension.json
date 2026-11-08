@@ -4,7 +4,7 @@
   "id": "cedarloom.orca",
   "version": "0.0.0",
   "name": "Orca",
-  "description": "Whether Orca, the multi-agent IDE, is installed and running, supervised Orca workers on a given launch line, and Orca's managed Claude account following the default home's.",
+  "description": "Whether Orca, the multi-agent IDE, is installed and running, and supervised Orca workers on a given launch line.",
   "license": "MIT",
   "api": "1.0",
   "runtime": { "kind": "node", "entry": "main.mjs" },
@@ -13,8 +13,7 @@
       "orca": {
         "darwin": ["orca", "~/.local/bin/orca"],
         "linux": ["orca-ide", "~/.local/bin/orca-ide", "~/.config/orca/linux-orca-cli-shim/orca"]
-      },
-      "cswap": { "darwin": ["cswap", "~/.local/bin/cswap"], "linux": ["cswap", "~/.local/bin/cswap"] }
+      }
     }
   },
   "contributes": {
@@ -24,29 +23,12 @@
         "outputs": {
           "installed": { "type": "boolean" },
           "version": { "type": "string", "description": "Absent when Orca is not installed" },
-          "running": { "type": "boolean", "description": "Its app runs and its runtime answers" },
-          "claudeAccounts": {
-            "type": "string",
-            "description": "How its Claude panes pick their account: system, managed-home or managed-other; absent while it is not running or its list does not read"
-          }
-        }
-      },
-      "follow": {
-        "title": "Orca's Claude account follows the default home's",
-        "outputs": {
-          "mode": {
-            "type": "string",
-            "description": "How Orca's Claude panes pick their account: system, managed-home or managed-other"
-          },
-          "followed": { "type": "boolean", "description": "New Claude panes use the default home's account" },
-          "runs": { "type": "string", "description": "The command it runs once allowed" },
-          "approve": { "type": "string", "description": "The command line that allows it" },
-          "hint": { "type": "string", "description": "Why it cannot follow, and what does" }
+          "running": { "type": "boolean", "description": "Its app runs and its runtime answers" }
         }
       }
     },
     "doctor": { "orca": { "title": "Orca" } },
     "workerRunners": { "claude": { "agent": "claude" } },
-    "commands": ["status", "follow"]
+    "commands": ["status"]
   }
 }

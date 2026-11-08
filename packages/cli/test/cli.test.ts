@@ -17,17 +17,8 @@ const memoryKeyring = (entries: Map<string, string>): Keyring => ({
 });
 
 const setup = (
-  // When the program is to stop (Ctrl+C), which cancels a graph run: never, unless a test says so. A Git source's fetch.
-  // Standard input: a terminal unless a test pipes text in.
-  {
-    stopped = new Promise<void>(() => undefined),
-    fetch,
-    stdin = null,
-  }: {
-    stopped?: Promise<void>;
-    fetch?: Fetch;
-    stdin?: string | null;
-  } = {},
+  // A Git source's fetch. Standard input: a terminal unless a test pipes text in.
+  { fetch, stdin = null }: { fetch?: Fetch; stdin?: string | null } = {},
 ): {
   root: string;
   state: string;
@@ -43,7 +34,7 @@ const setup = (
       out: (t: string) => (out += t),
       err: (t: string) => (err += t),
       env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
-      untilStopped: () => stopped,
+      untilStopped: () => new Promise<void>(() => undefined),
       // The app's own extensions: none unless a test puts one there.
       bundled: join(root, "app"),
       ...(fetch === undefined ? {} : { fetch }),

@@ -91,7 +91,7 @@ test("a killed process releases the store, and its running run is marked interru
 test("a finished run's file content is in no file of the store once it closes, while another connection stays", () => {
   const dir = fresh();
   const store = opened(dir);
-  // A connection that keeps the log from leaving with the store, as a graph run's does.
+  // A connection that keeps the log from leaving with the store, as another process's does.
   const other = new DatabaseSync(join(dir, "runs.sqlite"));
   other.prepare("SELECT count(*) FROM runs").get();
   // About 3 KB, a size that stayed on a freed page without secure_delete.

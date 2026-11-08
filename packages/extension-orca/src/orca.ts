@@ -20,9 +20,9 @@ type Probe = { installed: false; reason: string } | { installed: true; version: 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 // Orca's JSON answer to a command, its `result`; an answer that is not `ok` throws with Orca's message.
-const orca = async ({ exec }: Exec, args: string[], timeoutMs: number): Promise<unknown> => {
+const orca = async ({ exec }: Exec, args: string[]): Promise<unknown> => {
   const command = `orca ${args.slice(0, 2).join(" ")}`;
-  const ran = await exec({ program: "orca", args: [...args, "--json"], timeoutMs });
+  const ran = await exec({ program: "orca", args: [...args, "--json"], timeoutMs: MS });
   const answer = jsonAnswer(command, ran);
   if (at(answer, "ok") !== true) throw new Error(`${command}: ${String(at(answer, "error", "message"))}`);
   if (ran.code !== 0) throw new Error(`${command} exited with ${ran.code}`);
@@ -38,7 +38,7 @@ const probe = async ({ exec }: Exec): Promise<Probe> => {
   const version = await programVersion(exec, "orca", MS);
   if (!version.installed) return version;
   // It answers also when no app runs.
-  const answer = await orca({ exec }, ["status"], MS);
+  const answer = await orca({ exec }, ["status"]);
   const running = at(answer, "app", "running") === true && at(answer, "runtime", "reachable") === true;
   return { installed: true, version: version.version, running };
 };
@@ -48,7 +48,7 @@ const SKILLS = ["orca-cli", "orchestration"];
 
 // Which of them Claude Code lacks, by the list of Orca's running app (its CLI asks the app).
 const missingSkills = async (context: Exec): Promise<string[]> => {
-  const skills: unknown = at(await orca(context, ["skills", "installed"], MS), "skills");
+  const skills: unknown = at(await orca(context, ["skills", "installed"]), "skills");
   if (!Array.isArray(skills)) throw new Error("orca skills installed --json lists no skills");
   const forClaude = skills.filter((skill) => [at(skill, "providers")].flat().includes("claude"));
   return SKILLS.filter((name) => !forClaude.some((skill) => at(skill, "name") === name));

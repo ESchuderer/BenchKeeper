@@ -1640,62 +1640,6 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "workflow.report-only-extension"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "node": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "node"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
-                "const": "workflow.extension-missing"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "node": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "node",
-                  "type"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
                 "const": "workflow.unreachable"
               },
               "params": {
@@ -4102,8 +4046,7 @@
                     "command",
                     "agent",
                     "write",
-                    "workflow",
-                    "extension"
+                    "workflow"
                   ]
                 },
                 "text": {
@@ -6546,62 +6489,6 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "workflow.report-only-extension"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "node": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "node"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
-                "const": "workflow.extension-missing"
-              },
-              "params": {
-                "type": "object",
-                "properties": {
-                  "node": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "node",
-                  "type"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "code",
-              "params"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
                 "const": "workflow.unreachable"
               },
               "params": {
@@ -9008,8 +8895,7 @@
                     "command",
                     "agent",
                     "write",
-                    "workflow",
-                    "extension"
+                    "workflow"
                   ]
                 },
                 "text": {

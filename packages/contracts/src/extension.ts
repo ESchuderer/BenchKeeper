@@ -30,7 +30,7 @@ export const sized = <T extends z.ZodType<Record<string, unknown>>>(record: T, m
     }, `${min} to ${max} entries`)
     .meta(min > 0 ? { minProperties: min, maxProperties: max } : { maxProperties: max });
 
-/** An extension's id: `publisher.name` in lower case, the form of a VS Code extension id. Its actions are node types `<id>/<action>`. */
+/** An extension's id: `publisher.name` in lower case, the form of a VS Code extension id. */
 // Publishers no extension takes: docs/agents/cedarloom-rationale.md#publishers
 const RESERVED = [...new Set(Object.keys(NODE_CONFIGS).map((type) => type.split(".")[0]))];
 export const ExtensionId = z
@@ -38,17 +38,9 @@ export const ExtensionId = z
   .regex(new RegExp(`^(?!(?:${RESERVED.join("|")})\\.)[a-z][a-z0-9-]{0,63}\\.[a-z][a-z0-9-]{0,63}$`))
   .register(fileFormats, { id: "ExtensionId" });
 
-// An action's name in its extension, lower case, so a node type `<extension id>/<action>` matches the workflow's pattern.
+// An action's name in its extension, lower case: also its CLI verb.
 const ActionId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 
-/**
- * Whether a node type names an extension action, `<extension id>/<action>` by the manifest's own rules, so a manifest and a
- * node type never disagree; any other type is built in or unknown.
- */
-export const isExtensionType = (type: string): boolean => {
-  const [extension = "", action = "", ...rest] = type.split("/");
-  return rest.length === 0 && ExtensionId.safeParse(extension).success && ActionId.safeParse(action).success;
-};
 const CredentialId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 const LanguageTag = z.string().regex(/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/);
 

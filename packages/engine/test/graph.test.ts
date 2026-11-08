@@ -1,22 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  ExtensionId,
-  type Finding,
-  HandleType,
-  isExtensionType,
-  NODE_CONFIGS,
-  WorkflowDefinition,
-} from "@cedarloom/contracts";
+import { HandleType, NODE_CONFIGS, WorkflowDefinition } from "@cedarloom/contracts";
 import { validateWorkflow } from "@cedarloom/engine";
-import {
-  type ActionCatalog,
-  compatibility,
-  endType,
-  type ExtensionAction,
-  NODE_TYPES,
-  nodeType,
-} from "@cedarloom/engine/graph";
+import { compatibility, endType, NODE_TYPES } from "@cedarloom/engine/graph";
 import * as fc from "fast-check";
 import { expect, test } from "vitest";
 
@@ -425,98 +411,4 @@ test("only control edges from the trigger make a node run: a node that data alon
   const inputs = { flag: { type: "boolean", default: true } };
   const graph = workflow([start, "c:condition", "x:command.run"], ["@flag>c.value", "c.true>x.run"], { inputs });
   expect(codes(graph)).toEqual(["workflow.unreachable", "workflow.unreachable"]);
-});
-
-// A catalog of one installed action: a JSON field in, a number out, and a `with` that needs a `query` text.
-const search: ExtensionAction = {
-  inputs: { project: { type: "string", required: true }, filter: { type: "json" } },
-  outputs: { count: { type: "number" } },
-  check: (config) =>
-    typeof config === "object" && config !== null && typeof Reflect.get(config, "query") === "string"
-      ? []
-      : [{ path: "query", code: "invalid_type" }],
-};
-const actions: ActionCatalog = new Map([["acme.jira/search", search]]);
-const found = (definition: WorkflowDefinition): Finding[] => validateWorkflow(definition, actions);
-
-test("an extension action node gets the catalog's data handles, `run` in and `done` or `failed` out, and its check of `with`", () => {
-  const query = '{"query":"project = X"}';
-  const nodes = [start, `s:acme.jira/search:${query}`, "c:command.run", "n:condition"];
-  const ok = ["start.start>s.run", "@p>s.project", "s.done>c.run", "s.count>n.value", "s.failed>n.run"];
-  const inputs = { inputs: { p: { type: "string", required: true } } };
-  expect(found(workflow(nodes, ok, inputs))).toEqual([
-    { code: "workflow.incompatible-handles", params: { edge: "e4", from: "number", to: "boolean" } },
-  ]);
-  // Without its required input, with a `with` the action refuses, and from a handle it does not have.
-  const bad = workflow([start, "s:acme.jira/search:{}"], ["start.start>s.run", "s.nope>s.filter"]);
-  expect(found(bad)).toEqual([
-    { code: "workflow.invalid-config", params: { node: "s", issues: [{ path: "query", code: "invalid_type" }] } },
-    { code: "workflow.unknown-handle", params: { edge: "e2", end: "from", handle: "s.nope" } },
-    { code: "workflow.missing-source", params: { node: "s", handle: "project" } },
-  ]);
-  // The control handles stay control handles, even if an action names data handles so (its manifest may not).
-  const named = { inputs: { run: { type: "string" as const } }, outputs: { done: { type: "number" as const } } };
-  const shadow = nodeType("acme.jira/search", new Map([["acme.jira/search", { ...search, ...named }]]));
-  expect([shadow?.inputs, shadow?.outputs]).toEqual([
-    { run: { type: "control" } },
-    { done: { type: "control", exclusive: true }, failed: { type: "control", exclusive: true } },
-  ]);
-});
-
-test("an extension action that is not installed is a finding of its own, and its edges and reach get none", () => {
-  const nodes = [start, "x:acme.other/act", "c:command.run"];
-  expect(found(workflow(nodes, ["start.start>x.run", "x.done>c.run", "x.out>c.run"]))).toEqual([
-    { code: "workflow.extension-missing", params: { node: "x", type: "acme.other/act" } },
-  ]);
-  // Only `publisher.name/action` is an extension type; a catalog never stands in for a built-in or another name.
-  const named = new Map([...actions, ["command.run", search], ["acme/search", search]]);
-  expect(validateWorkflow(workflow([start, "y:acme/search"], ["start.start>y.run"]), named)).toEqual([
-    { code: "workflow.unknown-node-type", params: { node: "y", type: "acme/search" } },
-  ]);
-  expect(nodeType("command.run", named)).toBe(NODE_TYPES["command.run"]);
-  // A publisher named like a built-in namespace would make `trigger.acme/go` a trigger.
-  const long = `${"a".repeat(65)}.jira/search`;
-  const names = [
-    "acme.jira/search",
-    "Acme.jira/search",
-    "acme.jira",
-    "trigger.acme/go",
-    "file.x/write",
-    "join.x/y",
-    "acme.jira/search/more",
-    long,
-  ];
-  expect(names.map(isExtensionType)).toEqual([true, false, false, false, false, false, false, false]);
-  // The same rule as a manifest's id: what a manifest may name, a node type may run.
-  expect(names.map((name) => ExtensionId.safeParse(name.split("/")[0]).success)).toEqual([
-    true,
-    false,
-    true,
-    false,
-    false,
-    false,
-    true,
-    false,
-  ]);
-  const trigger = new Map([["trigger.acme/go", search]]);
-  expect(validateWorkflow(workflow([start, "t:trigger.acme/go"], ["start.start>t.run"]), trigger)).toEqual([
-    { code: "workflow.trigger-count", params: { count: 2 } },
-    { code: "workflow.unknown-node-type", params: { node: "t", type: "trigger.acme/go" } },
-  ]);
-});
-
-test("A28: under a schedule an extension action is refused, installed or not", () => {
-  const nodes = ["start:trigger.schedule", 's:acme.jira/search:{"query":"x"}', "x:acme.other/act"];
-  expect(
-    found(
-      workflow(nodes, ["start.start>s.run", "start.start>x.run", "@p>s.project"], {
-        inputs: { p: { type: "string", default: "X" } },
-      }),
-    ),
-  ).toEqual([
-    { code: "run.node-unsupported", params: { node: "start", type: "trigger.schedule" } },
-    { code: "workflow.extension-missing", params: { node: "x", type: "acme.other/act" } },
-    { code: "workflow.report-only-extension", params: { node: "s" } },
-    { code: "workflow.report-only-extension", params: { node: "x" } },
-  ]);
 });

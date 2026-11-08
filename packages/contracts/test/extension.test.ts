@@ -9,7 +9,6 @@ import {
   formatInstalled,
   INSTALLED_SCHEMA_VERSION,
   InstalledExtensions,
-  isExtensionType,
   PACK_SCHEMA_VERSION,
   PackManifest,
   ProfileSelection,
@@ -130,7 +129,7 @@ const manifestChanges: Change[] = [
   ["no action", ["contributes", "actions"], {}, true],
   ["an id in upper case", ["id"], "Acme.jira", true],
   ["an id without publisher", ["id"], "jira", true],
-  // The engine reserves the built-in namespaces for its own node types.
+  // An id never reads like a built-in node type's namespace.
   ["an id in a built-in namespace", ["id"], "trigger.acme", true],
   ["an id in the join namespace", ["id"], "join.x", true],
   ["a protocol version with a patch", ["api"], "1.0.0", true],
@@ -307,16 +306,4 @@ test("a workflow names its own license; an SPDX expression is words of its chara
   const taken = ["MIT", "MIT OR Apache-2.0", "(MIT AND BSD-3-Clause)", "DocumentRef-spdx:LicenseRef-x"];
   const refused = ["", " ", "MIT  OR Apache-2.0", " MIT", "MIT\n", "MIT/X11"];
   expect([taken.filter((license) => !licensed(license)), refused.filter(licensed)]).toEqual([[], []]);
-});
-
-test("a node type names an extension action by the manifest's own rules: an extension id, a slash, an action name", () => {
-  const types = [
-    "acme.jira/search",
-    "acme.jira",
-    "trigger.acme/go",
-    "acme.jira/Search",
-    "acme.jira/search/x",
-    "/search",
-  ];
-  expect(types.map(isExtensionType)).toEqual([true, false, false, false, false, false]);
 });

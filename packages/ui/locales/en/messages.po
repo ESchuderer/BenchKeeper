@@ -264,14 +264,6 @@ msgid "problem.reportOnlyWrite"
 msgstr "Node {node} may write files, but a schedule starts this workflow, and a scheduled run only reports."
 
 #. js-lingui-explicit-id
-msgid "problem.reportOnlyExtension"
-msgstr "Node {node} runs an extension action, which may write files or change other systems, but a schedule starts this workflow, and a scheduled run only reports."
-
-#. js-lingui-explicit-id
-msgid "problem.extensionMissing"
-msgstr "Node {node} runs {type}, an extension action that is not installed, so the workflow cannot run until its extension is."
-
-#. js-lingui-explicit-id
 msgid "problem.unreachable"
 msgstr "Nothing leads to node {node} from the trigger, so it never runs."
 
@@ -581,7 +573,7 @@ msgstr "They run no command or agent and write no file."
 
 #. js-lingui-explicit-id
 msgid "import.riskKind"
-msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} write {Writes} workflow {Calls the workflow} other {Extension action}} ({node}):"
+msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} write {Writes} workflow {Calls the workflow} other {{kind}}} ({node}):"
 
 #. js-lingui-explicit-id
 msgid "import.licenseCount"

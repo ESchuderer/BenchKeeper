@@ -120,18 +120,14 @@ test("a stored version opens as the draft, based on that version, and never over
   ]);
 });
 
-test("a validation error refuses a save, and a missing extension alone does not", () => {
+test("a validation error refuses a save", () => {
   const dir = state();
   const twin = sample("findings-duplicate-edge.json");
   ok(saveDraft(dir, "w", { ...twin, metadata: { ...twin.metadata, id: "w" } }, null));
-  const refused = refusal(planSave(dir, "w"));
-  const minimal = sample("valid-minimal.json");
-  const nodes = [...minimal.nodes, { id: "jira", type: "acme.jira/search-issues" }];
-  ok(saveDraft(dir, "w", { ...minimal, metadata: { ...minimal.metadata, id: "w" }, nodes }, null));
-  expect([refused, refusal(planSave(dir, "w"))]).toEqual([
-    { code: "workflow.duplicate-edge", params: { edge: "twin", of: "first" } },
-    "planned",
-  ]);
+  expect(refusal(planSave(dir, "w"))).toEqual({
+    code: "workflow.duplicate-edge",
+    params: { edge: "twin", of: "first" },
+  });
 });
 
 test("a branch git cannot move, its ref locked by another process, is git's failure, not a moved branch", () => {

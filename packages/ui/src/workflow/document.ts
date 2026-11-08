@@ -112,7 +112,7 @@ const finite = ({ x, y }: Position): boolean => Number.isFinite(x) && Number.isF
 const addNode = (workflow: WorkflowDefinition, type: string, position: Position): WorkflowDefinition => {
   if (workflow.nodes.length >= MAX_WORKFLOW_NODES || own(NODE_TYPES, type) === undefined || !finite(position))
     return workflow;
-  const id = freeId(workflow, `${type.replaceAll(/[./]/g, "-")}-`);
+  const id = freeId(workflow, `${type.replaceAll(".", "-")}-`);
   return withPositions({ ...workflow, nodes: [...workflow.nodes, { id, type }] }, { [id]: position });
 };
 

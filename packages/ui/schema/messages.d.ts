@@ -110,7 +110,6 @@ export interface MessageValues {
   "problem.duplicateEdge": { edge: string | number; of: string | number };
   "problem.duplicateId": { kind: string | number; id: string | number };
   "problem.exclusiveSources": { handle: string | number; node: string | number; from: string | number };
-  "problem.extensionMissing": { node: string | number; type: string | number };
   "problem.extra": { item: string | number };
   "problem.fileChanged": { path: string | number };
   "problem.gitFailed": { step: string | number; error: string | number };
@@ -129,7 +128,6 @@ export interface MessageValues {
   "problem.partRequires": { part: string | number; requires: string | number };
   "problem.partUnknown": { by: string | number; part: string | number };
   "problem.refusedSource": { field: string };
-  "problem.reportOnlyExtension": { node: string | number };
   "problem.reportOnlyWrite": { node: string | number };
   "problem.runFailed": { runId: string | number };
   "problem.scheduleInput": { input: string | number };

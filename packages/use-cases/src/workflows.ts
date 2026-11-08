@@ -121,8 +121,7 @@ const findShell = (): string | null => {
   /* v8 ignore stop */
 };
 
-// The shell waits for a line on stdin before it runs the command: when the runner dies before the attempt's start is
-// committed, stdin closes and nothing runs. The command comes in the environment, apart from the values.
+// The shell waits for a stdin line: a runner that dies before the start is committed closes stdin, and nothing runs.
 const GATE = 'read -r _ || exit 125; eval "$CEDARLOOM_COMMAND"';
 
 // A configuration the validator checked holds its strings; a value of another type comes as its JSON text.
@@ -195,8 +194,7 @@ const command =
   (attempt: Attempt): Prepared =>
     attemptOf(spawnGated(launchOf(shell, project, attempt)), attempt);
 
-// What a report run's command or precheck may do in the OS sandbox: read the project, write only `temp`, and reach no
-// network. A program also reads what it writes to, as macOS's cat looks up its output's path: `temp` and /dev/null.
+// Read the project, write only `temp`, no network; a program also reads its output path, as macOS's cat does.
 const policyOf = (project: string, temp: string[]): SandboxPolicy => ({
   read: [project, ...temp, "/dev/null"],
   write: temp,
@@ -204,16 +202,13 @@ const policyOf = (project: string, temp: string[]): SandboxPolicy => ({
   probe: ["-c", ""],
 });
 
-// What a report run's executors refuse: a command or precheck where the OS sandbox does not run, and a write, which the
-// ledger also refuses to record (as a stored run's that its start did not check). A refused precheck counts as not
-// passed: the run ends skipped.
+// A command or precheck where no OS sandbox runs, and any write, fail; a refused precheck skips the run.
 const refusing = (code: string, reason?: string) => (): Prepared => ({
   pid: null,
   run: () => Promise.resolve({ ok: false, values: { error: code, ...(reason === undefined ? {} : { reason }) } }),
 });
 
-// The launch inside the OS sandbox, or why the sandbox does not run it: the probe's error, as bubblewrap's in a rootless
-// container, or that it runs on no such system.
+// The launch in the OS sandbox, or why it does not run there: the probe's error, or no sandbox on this system.
 const inSandbox = async (sandbox: Sandbox, launch: Launch, policy: SandboxPolicy): Promise<Launch | string> => {
   try {
     return (
@@ -225,16 +220,12 @@ const inSandbox = async (sandbox: Sandbox, launch: Launch, policy: SandboxPolicy
   }
 };
 
-/**
- * A report run's `command.run`, and its precheck, in the OS sandbox: a temporary folder of its own (TMPDIR) is all it may
- * write, and it goes with the attempt. Where the sandbox does not run, the attempt fails and runs nothing.
- */
+// A report run's command and precheck in the OS sandbox: they write only their own TMPDIR, which goes with the attempt.
 const sandboxed =
   (shell: string, project: string, sandbox: Sandbox) =>
   async (attempt: Attempt): Promise<Prepared> => {
     // shortcut: an attempt dropped before it runs leaves its empty folder in the system's temporary folder.
-    // shortcut: srt's wrapper gets the environment on its command line, so the command's inputs show in the process list
-    // to other local users; hand them over in a file once inputs can hold secrets.
+    // shortcut: srt puts the env on its command line (visible to local users); use a file once inputs can hold secrets.
     const temp = realpathSync.native(mkdtempSync(join(tmpdir(), "cedarloom-command-")));
     const gone = (): void => {
       try {
@@ -262,9 +253,7 @@ const sandboxed =
     return { ...prepared, run: () => prepared.run().finally(gone) };
   };
 
-// The file a node names, below the real path of its nearest folder that is there (a write makes the ones missing); null
-// when that folder is outside the project's real path, as through a link (review of #1076). A link counts as there,
-// also a dangling one, whose real path then throws. `project` is a real path.
+// null outside the project's real path, as via a link (review of #1076); a dangling link counts as there. `project` is real.
 const inProject = (project: string, path: string): string | null => {
   const full = join(project, path);
   let folder = dirname(full);
@@ -297,8 +286,6 @@ const fileRead =
     },
   });
 
-// The plan of a `file.write`: the node's content (text as it is, any other value as its JSON) at its path, replacing
-// what is there now.
 const planOf = (project: string, { config, data }: Pick<Attempt, "config" | "data">): Plan | string => {
   let path: string | null;
   try {
@@ -311,10 +298,7 @@ const planOf = (project: string, { config, data }: Pick<Attempt, "config" | "dat
   return { schemaVersion: PLAN_SCHEMA_VERSION, operations: [{ kind: "write", path, before: hashFile(path), content }] };
 };
 
-/**
- * `file.write`: a plan that waits at its gate for the owner's approval of its hash, then an apply run of the run store,
- * which backs it up for undo, recorded on the attempt before it writes anything.
- */
+// `file.write`: a plan waits at its gate for approval of its hash, then an apply run (backed up for undo) writes it.
 const fileWrite =
   (project: string, state: string) =>
   (attempt: Attempt): Prepared => {
@@ -339,10 +323,7 @@ const fileWrite =
     };
   };
 
-/**
- * The recovery of `file.write` attempts a dead runner left (plan section 3): done when the apply run it began has
- * applied, which opening the run store settles, else interrupted (Q4), so a retry plans again and nothing applies twice.
- */
+// A dead runner's `file.write` (plan section 3) ends done if its apply run applied, else interrupted (Q4), so nothing applies twice.
 const writeRecover =
   (state: string): Recovery =>
   ({ applyRun }) => {
@@ -361,8 +342,7 @@ const unready = (workflow: WorkflowDefinition, shell: string | null, agents: boo
   return commands && shell === null ? { code: "run.shell-missing", params: {} } : null;
 };
 
-// What a new report run (A28) cannot have: a node that may write; on native Windows, which has no OS sandbox, an agent
-// (Q7); and a command or a precheck where the sandbox does not run sh, as on Windows or in a rootless container.
+// A new report run (A28) refuses writing nodes, agents on native Windows (Q7), and commands where the sandbox lacks sh.
 const reportRefusal = async (
   workflow: WorkflowDefinition,
   shell: string,
@@ -391,11 +371,7 @@ type GatedRun = GateRun & {
   readonly firstRun: (node: string) => boolean;
 };
 
-/**
- * Whether `node` of a run is a command, or a trigger with a precheck, that the owner has not approved in the run's
- * workflow version and project yet, as on the version's first run there: it waits at every level, so a pack's or
- * teammate's workflow runs no command unseen.
- */
+// A command or precheck the owner has not approved in this version and project waits at every level (first-run rule).
 const firstRun = (view: Pick<GraphView, "ownerApproved">, run: GraphRun, node: string): boolean =>
   run.definition.nodes.some(
     (each) => each.id === node && (each.type === "command.run" || typeof each.with?.["precheck"] === "string"),
@@ -405,9 +381,7 @@ const firstRun = (view: Pick<GraphView, "ownerApproved">, run: GraphRun, node: s
 const triggerOf = (workflow: WorkflowDefinition): string | undefined =>
   workflow.nodes.find((each) => each.type.startsWith("trigger."))?.id;
 
-// The levels' gates of a run, with the level read at each gate, so a switch takes effect at the next one. A report run
-// reaches none, having no effects; settings that cannot be read wait as Supervised does. Auto approves and records. A
-// first run's command waits at every level, and so does its precheck, which no level holds otherwise.
+// The level is read at each gate; report runs pass, unreadable settings act as Supervised, Auto records its passes.
 const levelGates =
   (config: string, state: string, run: GatedRun, passed: Passed): Gates =>
   (point, node) => {
@@ -453,8 +427,7 @@ const runHeld = async (
     "file.write": run.report ? refusing("run.report-only-apply") : fileWrite(project, state),
     ...(agents === undefined ? {} : { "agent.run": agentRun(run, agents) }),
   };
-  // An agent attempt a dead runner left ends with its result or resumes its session, and a write ends with its apply
-  // run; every other one ends interrupted.
+  // A dead runner's agent attempt finishes or resumes, a write ends with its apply run, any other ends interrupted.
   const recover = {
     "file.write": writeRecover(state),
     ...(agents === undefined ? {} : { "agent.run": agentRecover(run, agents) }),
@@ -485,8 +458,7 @@ const check = (workflow: WorkflowDefinition, inputs: Values, options: RunOptions
   return started.ok ? { ok: true, value: shell ?? "" } : started;
 };
 
-// Text for a number, boolean or json input, as the CLI gives every input, is read as one; text that does not read
-// stays as it is, and the run's input check refuses it.
+// CLI text for a number, boolean or json input is read as that type; text that does not parse is left for the check.
 const typedInputs = (workflow: WorkflowDefinition, inputs: Values): Values => {
   const read = (name: string, value: Json): Json => {
     if (typeof value !== "string" || workflow.inputs?.[name]?.type === "string") return value;
@@ -548,8 +520,7 @@ const realFolder = (path: string): Result<string> => {
   return { ok: false, finding: { code: "run.project-missing", params: { project: absolute(path) } } };
 };
 
-// The folder a stored run's commands run in: the one it recorded, which must still be there, and which a given folder
-// must be (one that is not there by its path as given).
+// A stored run's folder: the one it recorded, still there, and the same as a given one.
 const projectOf = (run: GraphRun, given: string | undefined): Result<string> => {
   const path = given ?? run.project;
   const real = realFolder(path);
@@ -582,8 +553,6 @@ export const resumeRun = (state: string, runId: string, options: RunOptions): Pr
 
 type First = (run: GraphRun, journal: readonly JournalEvent[]) => Result<JournalEvent[]>;
 
-// Takes over a stored run this version runs in its folder, appends what `first` tells it (or refuses with its finding),
-// and runs it on from its journal.
 const takenOver = (state: string, runId: string, options: RunOptions, first: First): Promise<Result<GraphOutcome>> =>
   withGraphs(state, async (store) => {
     const run = store.graphRun(runId);
@@ -653,8 +622,7 @@ export const planGraphRun = (
   return { ok: true, value: { run, project: folder.ok ? folder.value : null, attempts: running } };
 };
 
-// The finding a resume or cancel with --yes would give: an ended run, a resume of a run its runner still holds, a folder
-// that is another one, or for a resume one that is not there (a cancel starts nothing).
+// A missing folder refuses only a resume: a cancel starts nothing.
 const refusalOf = (run: GraphRun, verb: "resume" | "cancel", folder: Result<string>): Finding | null => {
   const { id: runId, status, pid } = run;
   if (!ACTIVE.has(status)) return { code: "run.finished", params: { runId, status } };
@@ -694,8 +662,7 @@ export const cancelRun = (
       lease = store.takeOver(runId);
     }
     if (!lease.ok) return lease;
-    // A cancelled run starts nothing, so it needs no shell, and no agent: an attempt left running ends interrupted, but a
-    // write whose apply run applied ends cancelled, its file written.
+    // A cancel starts nothing: an applied write ends cancelled with its file written, others end interrupted.
     store.append(runId, lease.value.epoch, { type: "cancel" });
     return runOn(store, { run, lease: lease.value }, "", {
       ...options,

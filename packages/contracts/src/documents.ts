@@ -8,10 +8,7 @@ export type Result<T> = { ok: true; value: T } | { ok: false; finding: Finding }
 /** How deep a document's values may nest; deeper values would overflow the stack of a recursive schema check. */
 const MAX_DEPTH = 32;
 
-/**
- * The path of the first value nested deeper than MAX_DEPTH, and the path of every own `__proto__` key, which a zod
- * record drops without an issue while the JSON Schema refuses it; walks without recursion.
- */
+// The first path deeper than MAX_DEPTH and every own `__proto__` key, which a zod record drops silently; no recursion.
 const walk = (value: unknown): { deep: string | undefined; proto: string[] } => {
   const proto: string[] = [];
   const stack: [unknown, string[]][] = [[value, []]];

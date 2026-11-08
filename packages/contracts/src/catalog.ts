@@ -35,10 +35,7 @@ const unquote = (quoted: string): string | { code: string } => {
   return text.length > CATALOG_LIMITS.text ? { code: "too_big" } : text;
 };
 
-/**
- * Keeps a finished entry: a translated message, not the header, not fuzzy, plural or in a context. Its texts are plain
- * text, as the manifest's are: shown as is, with no value formatted into them, so no placeholder needs checking.
- */
+// A finished entry's text: translated, not the header, fuzzy, plural or in a context; plain text with no placeholders.
 const keep = (entry: Entry, messages: Map<string, string>): string | undefined => {
   const { msgid = "", msgstr = "" } = entry;
   if (entry.skip || msgid === "" || msgstr === "") return undefined;
@@ -87,9 +84,7 @@ const comment = (line: string, entry: Entry, field: Field): Step => {
   return { entry: fuzzy ? { ...entry, skip: true } : entry, field, ended: false };
 };
 
-// msgid and msgstr set their field; a context or plural forms mark an entry that names no manifest text. Entries are
-// separated by blank lines, as gettext writes them, so a second msgid or msgstr in one entry, or a msgstr before its
-// msgid, is refused.
+// msgid and msgstr set their field; entries are separated by blank lines, so a repeat or out-of-order field is refused.
 const keyworded = (keyword: string, part: string, entry: Entry): Step => {
   if (keyword === "msgid" || keyword === "msgstr") {
     if (entry[keyword] !== undefined || (keyword === "msgstr" && entry.msgid === undefined)) {
@@ -121,9 +116,7 @@ const continued = (entry: Entry, field: Field, part: string): Step => {
     : { entry: { ...entry, [field]: joined }, field, ended: false };
 };
 
-// The canonical form of a language tag, as the manifest's catalog keys are written: `pt_br` is `pt-BR`, and a POSIX
-// locale such as `de_DE.UTF-8` or `sr_RS@latin` is `de-DE` or `sr-RS` (its encoding and modifier dropped); none for a
-// tag that is no language tag.
+// So a POSIX locale finds its catalog key: `pt_br` is `pt-BR`, `de_DE.UTF-8` is `de-DE`, `sr_RS@latin` is `sr-RS`.
 const canonical = (locale: string): string => {
   const [tag = ""] = locale.split(/[.@]/);
   try {

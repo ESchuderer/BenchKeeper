@@ -33,8 +33,7 @@ const Color = z.string().regex(/^[0-9a-f]{6}$/);
 /** A pack's entry by its path inside the pack; the pack is one this profile names in `packs`. */
 export const PackRef = z.strictObject({ pack: PackId, path: PortablePath });
 export type PackRef = z.infer<typeof PackRef>;
-// A rules text or template: a pack's entry, or inline text for a one-file profile, which holds tabs and line breaks
-// but no other control character and no bidirectional control.
+// A rules text or template: a pack's entry, or inline text with tabs and line breaks but no other control character.
 const Text = z.union([
   PackRef,
   z.strictObject({
@@ -45,8 +44,7 @@ const Text = z.union([
   }),
 ]);
 
-// A Claude Code marketplace the user settings declare (`extraKnownMarketplaces`), at a branch or tag; marketplace
-// sources take no commit (https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
+// A marketplace in the user settings, at a branch or tag: sources take no commit (https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
 const Name = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/);
 const followed = { name: Name, ref: GitRef.optional(), autoUpdate: z.boolean().optional() };
 // A GitHub repository as `owner/repo`.
@@ -69,8 +67,7 @@ const common = {
   when: PartProbe.optional().describe("The probe an auto part needs; gates: this machine names a gate workflow source"),
   requires: distinct(QualifiedPartId).max(20).optional(),
 };
-// Each part type twice: whole, as the composed profile needs it, and as a file states it, where every field but
-// `type` may be left to a parent.
+// Each part type twice: whole, for the composed profile, and as a file states it, every field but `type` optional.
 const part = <T extends string, S extends z.ZodRawShape>(type: T, shape: S) => {
   const whole = z.strictObject({ type: z.literal(type), ...common, ...shape });
   return { whole, layer: whole.partial().required({ type: true }) };
@@ -120,8 +117,7 @@ const files = part("files", {
   onlyIfAbsent: z.boolean().optional(),
 });
 const projectSettings = part("settings", { set: JsonObject, commit: z.boolean() });
-// Claude Code downloads a plugin enabled only in the committed settings for no one, so a project's plugin goes into the
-// local settings (https://code.claude.com/docs/en/plugins/loading#enabled-in-project-settings-but-not-installed).
+// Local settings: one only in the committed ones installs for no one (https://code.claude.com/docs/en/plugins/loading#enabled-in-project-settings-but-not-installed).
 const projectPlugin = part("plugin", {
   ...declared,
   commit: z.literal(false).describe("Written to `.claude/settings.local.json`, never committed"),
@@ -138,8 +134,7 @@ const gates = part("gates", {
     .max(90)
     .describe("Dependabot's cooldown, 1 to 90 days (https://json.schemastore.org/dependabot-2.0.json)"),
 });
-// An OCI reference as the Dev Containers CLI takes one: a registry, a path, and a tag or digest; a Template's by digest
-// only, so the files approved in a preview are the files its apply writes.
+// An OCI reference (registry, path, tag or digest); a Template's by digest only, so the preview's files are applied.
 const OCI = String.raw`[a-z0-9][a-z0-9.-]{0,252}(?::\d{1,5})?(?:/[a-z0-9][a-z0-9._-]{0,127}){1,10}`;
 const DIGEST = "@sha256:[0-9a-f]{64}";
 const OciRef = z.string().regex(new RegExp(String.raw`^${OCI}(?::\w[\w.-]{0,127}|${DIGEST})?$`));
@@ -231,10 +226,7 @@ type FileShape = z.infer<typeof FileShape>;
 
 const LEVELS = ProfileLevel.options;
 
-// Files only their own parts write, at any depth: Claude Code's settings, where a settings part's allowed settings
-// apply, and MCP server lists; a `files` part's text would bring hooks or servers past them. Targets are portable
-// paths, so `./`, `//` and trailing dots cannot spell them another way, and none has a `.git` part.
-// The manual's own files at the project's root are its blocks' alone, so a target never writes them twice in one plan.
+// Files only their own parts write: docs/agents/cedarloom-rationale.md#sealed-files
 const SEALED =
   "not a .claude/settings.json, .claude/settings.local.json, .mcp.json or .cedarloom/profile-files.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
 const MANUAL = ["agents.md", "claude.md", "claude.local.md"];
@@ -249,11 +241,7 @@ export const sealedTarget = (target: string): boolean => {
   return file === ".mcp.json" || (folder === ".claude" && ["settings.json", "settings.local.json"].includes(file));
 };
 
-/**
- * What a project file a profile writes is, for the plan preview (owner, 2026-11-07, hub issue 130): `executable`
- * starts with `#!` or has a script's extension, `configuration` lies in a dot folder, is a dotfile or is JSON, YAML or
- * TOML, which tools read to decide what to run; `text` is anything else.
- */
+// Preview kinds (hub issue 130): executable (`#!`, script extension), configuration (dot path, JSON, YAML, TOML), text.
 const SCRIPT = /\.(?:sh|bash|zsh|fish|ps1|bat|cmd|py|js|mjs|cjs|ts|rb|pl)$/i;
 const CONFIG = /\.(?:json|ya?ml|toml)$/i;
 const dotted = (target: string): boolean => target.split("/").some((segment) => segment.startsWith("."));
@@ -269,8 +257,7 @@ const refsIn = (value: unknown, path: (string | number)[]): [(string | number)[]
     return key === "pack" && typeof item === "string" ? [[at, item]] : refsIn(item, at);
   });
 };
-// Each pack a file names, by where: its parents and its parts' fields, never inside a settings `set` or a plugin's
-// `options`, which are the agent's and the plugin's own JSON.
+// Each pack a file names, in its parents and parts, never inside a settings `set` or a plugin's `options` JSON.
 const packRefs = (file: FileShape): [(string | number)[], string][] => [
   ...refsIn(file.extends ?? [], ["extends"]),
   ...LEVELS.flatMap((name) =>
@@ -315,9 +302,7 @@ export const ProfileFile = FileShape.superRefine((file, ctx) =>
   .register(fileFormats, { id: "CedarLoomProfile" });
 export type ProfileFile = z.infer<typeof ProfileFile>;
 
-// Config folders under `.config/` a plugin's options never write: CedarLoom's own, Claude Code's by its XDG name (a
-// `CLAUDE_CONFIG_DIR` there; any other folder that variable names is refused when the file is written) and the
-// credential stores the worker launcher denies (packages/orchestration/src/env.ts).
+// Config folders under `.config/` no plugin options write: docs/agents/cedarloom-rationale.md#reserved-config
 const RESERVED = ["cedarloom", "claude", "gh", "gcloud", "git"];
 const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
   Object.entries(machine).flatMap(([id, each]): Issue[] => {
@@ -326,8 +311,7 @@ const optionsIssues = (machine: z.infer<typeof whole.machine>): Issue[] =>
     if (each.options.file.startsWith(`.config/${name}/`) && !RESERVED.includes(name)) return [];
     return [[["machine", id, "options", "file"], `inside .config/${name}/, which is no reserved folder`]];
   });
-// A skill installs into a folder of its name, a skill's name for one from Git (https://agentskills.io/specification), and
-// no two skills share one.
+// A skill installs into a folder of its name (https://agentskills.io/specification), so no two skills share one.
 const skillIssues = (machine: z.infer<typeof whole.machine>): Issue[] => {
   const names = new Set<string>();
   return Object.entries(machine).flatMap(([id, each]): Issue[] => {
@@ -436,9 +420,7 @@ export const ProfileFiles = z
   .register(fileFormats, { id: "ProfileFiles" });
 export type ProfileFiles = z.infer<typeof ProfileFiles>;
 
-// Token shapes by their documented prefixes and lengths (GitHub, npm, Anthropic and OpenAI, GitLab, Slack, AWS,
-// Google), private keys in PEM form and URLs with a password; and environment names with a credential word. A profile
-// is shared, so none of them may sit in it.
+// Secrets a shared profile never holds: docs/agents/cedarloom-rationale.md#tokens
 const TOKEN =
   /\b(?:gh[pousr]_[A-Za-z0-9]{36}|github_pat_\w{22,}|npm_[A-Za-z0-9]{36}|sk-[\w-]{20,}|glpat-[\w-]{20,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{35})|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/;
 const CREDENTIAL_NAME = /(?:^|_)(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIALS?)(?:_|$)/i;
@@ -463,12 +445,7 @@ const untokened = (path: string): string => {
   return at === undefined ? path : path.slice(0, Math.max(0, path.lastIndexOf(".", at)));
 };
 
-/**
- * The settings a profile may set (owner, 2026-11-07, hub issue 126): the default profile's keys, the model, deny
- * and ask rules, sandbox keys that only tighten it, and named environment variables of the kinds Claude Code applies
- * at startup (feature toggles, limits and timeouts; https://code.claude.com/docs/en/settings-reference). Anything else,
- * a hook, a status line, a plugin, a login or a base URL among it, is refused. `true` allows any value there.
- */
+// The settings a profile may set, all else refused (hub issue 126): docs/agents/cedarloom-rationale.md#settings
 type Rule = true | ((value: Json | undefined) => boolean) | { [key: string]: Rule };
 const only =
   (allowed: Json): Rule =>

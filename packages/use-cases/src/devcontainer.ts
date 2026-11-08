@@ -14,12 +14,8 @@ type TemplateRequest = {
 /** Applies a Template into an empty folder; why it failed, or null. */
 export type ApplyTemplate = (folder: string, request: TemplateRequest) => Promise<string | null>;
 
-/**
- * `devcontainer templates apply` of the Dev Containers CLI, run by its file without a shell, with the network settings
- * and Docker's registry logins (DOCKER_CONFIG) and nothing else of the environment, stopped after 2 minutes.
- * shortcut: on Windows npm installs the CLI as a .cmd, which runs only through a shell, so a dev container part reports
- * the CLI missing there; due once CedarLoom runs the CLI's own script with Node.
- */
+// The Dev Containers CLI's `templates apply`, by its file, with only network settings and DOCKER_CONFIG, for 2 minutes.
+// shortcut: on Windows npm installs the CLI as a .cmd, which needs a shell, so it is missing; run its script with Node.
 export const devcontainerCli: ApplyTemplate = (folder, { template, args, features }) =>
   new Promise((done) => {
     // A .cmd, as npm installs the CLI there, runs only through a shell, and an install hint would mislead.
@@ -45,11 +41,7 @@ const filesIn = (folder: string): Folder["files"] =>
       return { path: relative(folder, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
     });
 
-/**
- * Applies the Template of each dev container part that is on and approved in a scratch folder of the state and reads
- * what it wrote, unless the project has a dev container already, whose files the part would leave as they are. A part
- * not approved yet waits without a download, and a Template that fails is reported and writes nothing.
- */
+// Applies each approved part's Template in scratch unless the project has a dev container; a failure writes nothing.
 export const templatesOf = async (
   state: string,
   resolved: Resolved,

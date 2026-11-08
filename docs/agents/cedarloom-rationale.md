@@ -134,7 +134,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
   - the server-managed cache, `remote-settings.json` in the Claude Code home (`CLAUDE_CONFIG_DIR`, else `~/.claude`).
 
   Paths and programs are Claude Code's own (strings of its 2.1.316 binary), and the ranking follows https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources.
-- **Each source on its own.** By default Claude Code applies only the highest-ranked source that holds a policy key (`first-wins`), and with `managedSourcesBehavior: "merge"` a higher source's value wins. The check still counts a value in any source, so the doctor warns rather than stays silent on a policy it read wrong. The cost is a warning when a stricter source outranks the loosening one.
+- **Each source on its own.** By default Claude Code applies only the highest-ranked source that holds a policy key (`first-wins`). With `managedSourcesBehavior: "merge"`, a higher source's value wins on most keys, lists union and locks take the strictest value (https://code.claude.com/docs/en/managed-settings#compose-every-managed-source). A policy helper's output replaces every managed source, so the doctor reports one as a policy it cannot read. The check still counts a value in any source, so the doctor warns rather than stays silent on a policy it read wrong. The cost is a warning when a stricter source outranks the loosening one.
 - **The server-managed cache.** The cache is the settings object itself. Claude Code treats a copy it cannot read, or does not trust, as absent, so such a copy counts as none here too. A session's startup fetch can bring a newer policy than the cache holds.
 
 ## Claude Code adapter

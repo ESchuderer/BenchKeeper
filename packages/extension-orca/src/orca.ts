@@ -1,14 +1,9 @@
-import { resolve } from "node:path";
 import {
   type ActionContext,
   type DoctorFinding,
   jsonAnswer,
   programVersion,
-  shellWord,
   valueAt as at,
-  type WorkerHandlers,
-  type WorkerStart,
-  type WorkerStartParams,
 } from "@cedarloom/extension-sdk";
 
 /** The Orca version this extension and its recorded test outputs were checked with; another major is a warning. */
@@ -113,113 +108,4 @@ export const doctor = async (context: Exec, platform: string = process.platform)
 export const status = async (context: Exec): Promise<Record<string, unknown>> => {
   const found = await probe(context);
   return found.installed ? found : { installed: false, running: false };
-};
-
-// A start's eight Orca calls, two waits and, after a failure, two closes stay below the host's 130 s (worst case 120 s).
-const ORCA_MS = 5000;
-const START_MS = 30_000;
-
-/**
- * The worktree by its id, which every later call names, so all reach the folder checked; and whether Orca made it (it
- * is no repository's main checkout) from the repository the host names.
- */
-const worktreeOf = async (context: Exec, selector: string, repository: string) => {
-  const shown = at(await orca(context, ["worktree", "show", `--worktree=${selector}`], ORCA_MS), "worktree");
-  const [id, repoId] = [at(shown, "id"), at(shown, "repoId")];
-  if (typeof id !== "string") throw new Error("orca worktree show named no worktree");
-  const worktree = `id:${id}`;
-  if (at(shown, "isMainWorktree") !== false || typeof repoId !== "string") return { worktree, trusted: false };
-  const path = at(await orca(context, ["repo", "show", `--repo=id:${repoId}`], ORCA_MS), "repo", "path");
-  return { worktree, trusted: typeof path === "string" && resolve(path) === resolve(repository) };
-};
-
-const terminalOf = async (context: Exec, worktree: string, title: string, command?: string): Promise<string> => {
-  // Values as --name=value: Orca's parser reads a value that starts with -- as a flag.
-  const run = command === undefined ? [] : [`--command=${command}`];
-  const created = await orca(
-    context,
-    ["terminal", "create", `--worktree=${worktree}`, `--title=${title}`, ...run],
-    ORCA_MS,
-  );
-  const handle = at(created, "terminal", "handle");
-  if (typeof handle !== "string") throw new Error("orca terminal create named no terminal");
-  return handle;
-};
-
-// The trust prompt as the live test saw it: "No, exit" selected, "Yes, I trust this folder" next, so Down then Enter.
-const promptAsSeen = async (context: Exec, terminal: string): Promise<boolean> => {
-  const tail = at(await orca(context, ["terminal", "read", "--terminal", terminal], ORCA_MS), "terminal", "tail");
-  const lines = Array.isArray(tail) ? tail.map((line) => String(line).trim()) : [];
-  const no = lines.indexOf("\u276f No, exit");
-  return no !== -1 && lines[no + 1] === "Yes, I trust this folder";
-};
-
-// Claude Code's folder-trust prompt is answered only in a worktree Orca made from the host's repository (owner, SM6).
-const settled = async (context: Exec, terminal: string, trusted: boolean): Promise<void> => {
-  const wait = ["terminal", "wait", "--terminal", terminal, "--for", "tui-idle", "--timeout-ms", String(START_MS)];
-  for (const answered of [false, true]) {
-    const waited = at(await orca(context, wait, START_MS + ORCA_MS), "wait");
-    if (at(waited, "satisfied") === true) return;
-    const blocked = at(waited, "blockedReason");
-    if (blocked !== "agent-trust-workspace" || !trusted || answered || !(await promptAsSeen(context, terminal))) {
-      throw new Error(`the agent did not get ready: ${String(blocked ?? at(waited, "status"))}`);
-    }
-    await orca(context, ["terminal", "send", "--terminal", terminal, "--text", "\u001b[B"], ORCA_MS);
-    await orca(context, ["terminal", "send", "--terminal", terminal, "--text", "\r"], ORCA_MS);
-  }
-};
-
-// One close after another, as host/exec runs few programs at once; the terminals that did not close.
-const release = async (context: Exec, handles: string[]): Promise<string[]> => {
-  const open: string[] = [];
-  for (const handle of handles) {
-    const closed = orca(context, ["terminal", "close", "--terminal", handle], ORCA_MS);
-    if (
-      !(await closed.then(
-        () => true,
-        () => false,
-      ))
-    )
-      open.push(handle);
-  }
-  return open;
-};
-
-/** Starts a supervised Orca worker: a terminal in the worktree runs the host's launch line, then gets the spec. */
-export const startWorker = async (
-  context: Exec,
-  { worktree: selector, line, spec, title, repository }: Omit<WorkerStartParams, "runner">,
-  platform: string = process.platform,
-): Promise<WorkerStart> => {
-  if (!CHECKED.has(platform)) throw new Error("Orca workers are not started on this platform yet");
-  const { worktree, trusted } = await worktreeOf(context, selector, repository);
-  // worker-start refuses a caller with no Orca terminal of its own (live test, 2026-11-07): a plain shell sends it.
-  const sender = await terminalOf(context, worktree, `${title} (CedarLoom)`);
-  const handles = [sender];
-  try {
-    const agent = await terminalOf(context, worktree, title, line.map((word) => shellWord(word)).join(" "));
-    handles.unshift(agent);
-    await settled(context, agent, trusted);
-    const start = ["orchestration", "worker-start", "--from", sender, "--terminal", agent, `--worktree=${worktree}`];
-    const started = await orca(context, [...start, `--spec=${spec}`, `--task-title=${title}`], ORCA_MS);
-    const dispatch = at(started, "dispatchId");
-    if (typeof dispatch !== "string") throw new Error("orca worker-start named no dispatch");
-    return { dispatch, handles };
-  } catch (error) {
-    const open = await release(context, handles);
-    if (open.length === 0) throw error;
-    throw new Error(`${messageOf(error)}; terminals left open: ${open.join(", ")}`, { cause: error });
-  }
-};
-
-/** The worker runner `claude`: Orca workers of Claude Code on the host's launch lines. */
-export const workers: WorkerHandlers = {
-  "worker/start": (params, context) => startWorker(context, params),
-  "worker/show": async ({ dispatch }, context) => {
-    const shown = await orca(context, ["orchestration", "worker-show", "--dispatch", dispatch], ORCA_MS);
-    const state = at(shown, "state");
-    if (typeof state !== "string") throw new Error("orca worker-show named no state");
-    return { state, settled: at(shown, "stage") === "settled" };
-  },
-  "worker/release": async ({ handles }, context) => ({ released: (await release(context, handles)).length === 0 }),
 };

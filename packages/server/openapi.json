@@ -3026,8 +3026,7 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor",
-                      "worker"
+                      "doctor"
                     ]
                   },
                   "error": {
@@ -8870,8 +8869,7 @@
                       "start",
                       "initialize",
                       "run",
-                      "doctor",
-                      "worker"
+                      "doctor"
                     ]
                   },
                   "error": {

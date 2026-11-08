@@ -185,17 +185,6 @@ const requests = {
   shutdown: () => null,
 };
 
-// Its worker runner: x-bad-worker answers a dispatch the host cannot hold, x-slow-worker never shows a worker.
-Object.assign(requests, {
-  "worker/start": () =>
-    mode === "x-bad-worker"
-      ? { dispatch: "two words", handles: [] }
-      : { dispatch: "ctx_1", handles: ["term_1", "term_2"] },
-  "worker/show": () =>
-    mode === "x-slow-worker" ? new Promise(() => undefined) : { state: "succeeded", settled: true },
-  "worker/release": ({ handles }) => ({ released: handles.length === 2 }),
-});
-
 // An error whose message is an array nested 200,000 deep: the reader cannot build its answer.
 const DEEP = Symbol("deep");
 const answerDeep = (id) => {

@@ -38,9 +38,9 @@ export class WorkItemStore {
   }
 
   /**
-   * Queues an intent under an idempotency key, approved by the owner or a mirroring opt-in through its hash: refused
-   * when the approval names another intent. A key queued before keeps its entry, which is returned again for the same
-   * intent and refused for another one.
+   * Queues an intent under an idempotency key, approved by the owner through its hash: refused when the approval names
+   * another intent. A key queued before keeps its entry, which is returned again for the same intent and refused for
+   * another one.
    */
   enqueue(key: string, input: Intent, approval: { by: OutboxEntry["approvedBy"]; hash: string }): Result<OutboxEntry> {
     const intent = Intent.parse(input);

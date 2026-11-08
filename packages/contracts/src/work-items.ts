@@ -1,8 +1,5 @@
 import { z } from "zod";
 import { Finding } from "./findings.ts";
-import { RepoName } from "./guard.ts";
-import { sortKeys } from "./json.ts";
-import { fileFormats } from "./registry.ts";
 import { Sha256 } from "./plan.ts";
 import { PlainText } from "./text.ts";
 
@@ -38,17 +35,17 @@ export const RemoteComment = z.strictObject({ id: z.int().positive(), url: z.url
 export type RemoteComment = z.infer<typeof RemoteComment>;
 
 /**
- * An outbox entry: its intent, the idempotency key it was queued under (one entry per key), who approved it (the owner,
- * or a repository's mirroring opt-in, A36 a) and how far it got. `sending` without a live sender was interrupted and is
- * due again. `unchanged`: the issue already was as a label intent asks, read before its first write, so its undo has
- * nothing to do. `remote`: the comment a comment intent made.
+ * An outbox entry: its intent, the idempotency key it was queued under (one entry per key), who approved it (the owner)
+ * and how far it got. `sending` without a live sender was interrupted and is due again. `unchanged`: the issue already
+ * was as a label intent asks, read before its first write, so its undo has nothing to do. `remote`: the comment a
+ * comment intent made.
  */
 export const OutboxEntry = z.strictObject({
   id: z.uuid(),
   key: z.string().min(1).max(200),
   intent: Intent,
   intentHash: Sha256,
-  approvedBy: z.enum(["owner", "mirroring"]),
+  approvedBy: z.literal("owner"),
   status: z.enum(["pending", "sending", "sent", "failed"]),
   attempts: z.int().min(0),
   unchanged: z.boolean().nullable(),
@@ -58,20 +55,3 @@ export const OutboxEntry = z.strictObject({
   settledAt: z.iso.datetime({ precision: 3 }).nullable(),
 });
 export type OutboxEntry = z.infer<typeof OutboxEntry>;
-
-/** The work-items settings format (`work-items.json` in CedarLoom's config folder) this CedarLoom writes and reads. */
-export const WORK_ITEMS_SCHEMA_VERSION = 1;
-
-/** This machine's work-item settings: the project repositories that mirror to their hub issues (A36 a). */
-export const WorkItemsConfig = z
-  .strictObject({
-    schemaVersion: z.literal(WORK_ITEMS_SCHEMA_VERSION),
-    kind: z.literal("cedarloom.work-items"),
-    mirroring: z.array(RepoName).max(500),
-  })
-  .register(fileFormats, { id: "WorkItemsConfig" });
-export type WorkItemsConfig = z.infer<typeof WorkItemsConfig>;
-
-/** The file text of the work-items settings: keys sorted, two spaces, a final line break. */
-export const formatWorkItemsConfig = (config: WorkItemsConfig): string =>
-  `${JSON.stringify(WorkItemsConfig.parse(sortKeys(config)), null, 2)}\n`;

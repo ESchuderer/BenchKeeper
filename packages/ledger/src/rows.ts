@@ -35,7 +35,7 @@ CREATE TABLE outbox (
   intent TEXT NOT NULL,
   intentHash TEXT NOT NULL,
   approvedHash TEXT NOT NULL CHECK (approvedHash = intentHash),
-  approvedBy TEXT NOT NULL CHECK (approvedBy IN ('owner', 'mirroring')),
+  approvedBy TEXT NOT NULL CHECK (approvedBy = 'owner'),
   status TEXT NOT NULL CHECK (status IN ('pending', 'sending', 'sent', 'failed')),
   attempts INTEGER NOT NULL DEFAULT 0,
   unchanged INTEGER CHECK (unchanged IN (0, 1)),

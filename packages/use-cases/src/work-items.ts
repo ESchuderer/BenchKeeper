@@ -1,23 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
-import {
-  type Finding,
-  formatWorkItemsConfig,
-  Intent,
-  type IssueRef,
-  type OutboxEntry,
-  PLAN_SCHEMA_VERSION,
-  type Plan,
-  readDocument,
-  type Result,
-  WORK_ITEMS_SCHEMA_VERSION,
-  WorkItemsConfig,
-} from "@cedarloom/contracts";
+import { type Finding, Intent, type IssueRef, type OutboxEntry, type Result } from "@cedarloom/contracts";
 import type { z } from "zod";
-import { intentHash, openWorkItemStore, sha256, type WorkItemStore } from "@cedarloom/ledger";
+import { intentHash, openWorkItemStore, type WorkItemStore } from "@cedarloom/ledger";
 import { compensate, drain, inverse, type Tracker } from "@cedarloom/work-items";
 import { readSelection } from "./profiles.ts";
-import { readOptionalJson } from "./use-cases.ts";
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 const invalid = (error: z.ZodError): Result<never> =>
@@ -88,35 +74,6 @@ export const previewEntryUndo = (state: string, id: string): Promise<Result<{ in
 /** Queues the compensating intent of a sent entry, as the owner approved its hash. */
 export const undoEntry = (state: string, id: string, approvedHash: string): Promise<Result<OutboxEntry>> =>
   withOutbox(state, (store) => compensate(store, id, approvedHash));
-
-const settingsPath = (config: string): string => join(config, "work-items.json");
-const NONE: WorkItemsConfig = { schemaVersion: WORK_ITEMS_SCHEMA_VERSION, kind: "cedarloom.work-items", mirroring: [] };
-
-const readSettings = (config: string): Result<{ text: string | null; settings: WorkItemsConfig }> => {
-  const file = readOptionalJson(settingsPath(config));
-  if (!file.ok || file.value === null) return file.ok ? { ok: true, value: { text: null, settings: NONE } } : file;
-  const read = readDocument(WorkItemsConfig, WORK_ITEMS_SCHEMA_VERSION, file.value.json);
-  return read.ok ? { ok: true, value: { text: file.value.text, settings: read.value } } : read;
-};
-
-/** The plan that switches mirroring on or off for a project repository (A36 a: off unless switched on). */
-export const planMirroring = (config: string, repo: string, on: boolean): Result<Plan> => {
-  const read = readSettings(config);
-  if (!read.ok) return read;
-  const { text, settings } = read.value;
-  const others = settings.mirroring.filter((each) => each.toLowerCase() !== repo.toLowerCase());
-  const next = WorkItemsConfig.safeParse({ ...settings, mirroring: (on ? [...others, repo] : others).toSorted() });
-  if (!next.success) return invalid(next.error);
-  const content = formatWorkItemsConfig(next.data);
-  // The hash of the text read here, so a change made since is found at apply, not written over.
-  const write = {
-    kind: "write" as const,
-    path: settingsPath(config),
-    before: text === null ? null : sha256(text),
-    content,
-  };
-  return { ok: true, value: { schemaVersion: PLAN_SCHEMA_VERSION, operations: [write] } };
-};
 
 /** Sends the due entries through `tracker`; each entry as its send ended. */
 export const sendOutbox = (state: string, tracker: Tracker): Promise<Result<OutboxEntry[]>> =>

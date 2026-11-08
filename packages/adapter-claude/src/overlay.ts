@@ -85,6 +85,25 @@ const Checked = z.looseObject({
   env: z.record(z.string(), z.string()),
 });
 
+// The worker profile's keys that every launch sets alike.
+const FIXED = {
+  // A102: a window lasts hours, not minutes.
+  maxEffortLevel: "xhigh",
+  workflowSizeGuideline: "small",
+  autoMemoryEnabled: false,
+  autoContinueAtUsageLimit: false,
+  disableAgentView: true,
+  feedbackDrafts: "off",
+  forceLoginMethod: "claudeai",
+  disableClaudeAiConnectors: true,
+  syncClaudeAiPlugins: false,
+  syncClaudeAiSkills: false,
+  crossSessionInbound: "refuse",
+  isolatePeerMachines: true,
+  allowedHttpHookUrls: [],
+  httpHookAllowedEnvVars: [],
+};
+
 // Every shell command passes the guard first; a crash, a timeout or invalid output refuses it, and a disableAllHooks in
 // a settings file below these settings does not apply (https://code.claude.com/docs/en/hooks).
 const guardHooks = ({ command, args }: GuardHook) => ({
@@ -144,21 +163,7 @@ export const overlay = (input: OverlayInput) => {
     },
     hooks: guardHooks(guardHook),
     disableAllHooks: false,
-    // A102: a window lasts hours, not minutes.
-    maxEffortLevel: "xhigh",
-    workflowSizeGuideline: "small",
-    autoMemoryEnabled: false,
-    autoContinueAtUsageLimit: false,
-    disableAgentView: true,
-    feedbackDrafts: "off",
-    forceLoginMethod: "claudeai",
-    disableClaudeAiConnectors: true,
-    syncClaudeAiPlugins: false,
-    syncClaudeAiSkills: false,
-    crossSessionInbound: "refuse",
-    isolatePeerMachines: true,
-    allowedHttpHookUrls: [],
-    httpHookAllowedEnvVars: [],
+    ...FIXED,
     // Repeated here: settings outrank the process environment.
     env,
   };

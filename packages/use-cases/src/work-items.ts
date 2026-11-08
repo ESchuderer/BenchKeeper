@@ -4,7 +4,6 @@ import {
   type Finding,
   formatWorkItemsConfig,
   Intent,
-  type IssueLink,
   type IssueRef,
   type OutboxEntry,
   PLAN_SCHEMA_VERSION,
@@ -16,7 +15,6 @@ import {
 } from "@cedarloom/contracts";
 import type { z } from "zod";
 import { intentHash, openWorkItemStore, sha256, type WorkItemStore } from "@cedarloom/ledger";
-import { originRepos } from "@cedarloom/orchestration";
 import { compensate, drain, inverse, type Tracker } from "@cedarloom/work-items";
 import { readSelection } from "./profiles.ts";
 import { readOptionalJson } from "./use-cases.ts";
@@ -91,13 +89,6 @@ export const previewEntryUndo = (state: string, id: string): Promise<Result<{ in
 export const undoEntry = (state: string, id: string, approvedHash: string): Promise<Result<OutboxEntry>> =>
   withOutbox(state, (store) => compensate(store, id, approvedHash));
 
-/** Links a recorded run to an issue of the hub; the run's links. */
-export const linkRun = (state: string, config: string, runId: string, issue: IssueRef): Promise<Result<IssueLink[]>> =>
-  withOutbox(state, (store) => {
-    const hub = onHub(config, issue);
-    return hub.ok ? store.link(runId, issue) : hub;
-  });
-
 const settingsPath = (config: string): string => join(config, "work-items.json");
 const NONE: WorkItemsConfig = { schemaVersion: WORK_ITEMS_SCHEMA_VERSION, kind: "cedarloom.work-items", mirroring: [] };
 
@@ -106,12 +97,6 @@ const readSettings = (config: string): Result<{ text: string | null; settings: W
   if (!file.ok || file.value === null) return file.ok ? { ok: true, value: { text: null, settings: NONE } } : file;
   const read = readDocument(WorkItemsConfig, WORK_ITEMS_SCHEMA_VERSION, file.value.json);
   return read.ok ? { ok: true, value: { text: file.value.text, settings: read.value } } : read;
-};
-
-// The repositories whose linked runs post to their hub issues.
-const mirrored = (config: string): Result<string[]> => {
-  const read = readSettings(config);
-  return read.ok ? { ok: true, value: read.value.settings.mirroring } : read;
 };
 
 /** The plan that switches mirroring on or off for a project repository (A36 a: off unless switched on). */
@@ -133,29 +118,6 @@ export const planMirroring = (config: string, repo: string, on: boolean): Result
   return { ok: true, value: { schemaVersion: PLAN_SCHEMA_VERSION, operations: [write] } };
 };
 
-// One comment per run and issue, approved by the repository's opt-in; a run outside every mirrored repository gets none.
-const queueMirrors = (store: WorkItemStore, repos: ReadonlySet<string>): void => {
-  const reposOf = new Map<string, string[]>();
-  for (const { runId, issue, project, ended } of store.endedLinks()) {
-    const own = reposOf.get(project) ?? originRepos(project);
-    reposOf.set(project, own);
-    if (!own.some((repo) => repos.has(repo.toLowerCase()))) continue;
-    const intent: Intent = { kind: "comment", issue, body: `CedarLoom run ${runId} ended: ${ended}.` };
-    store.enqueue(`mirror:${runId}:${issue.repo}#${issue.number}`, intent, {
-      by: "mirroring",
-      hash: intentHash(intent),
-    });
-  }
-};
-
-/**
- * Queues the comment of each linked run that ended in a repository with mirroring on, once, then sends the due entries
- * through `tracker`; each entry as its send ended.
- */
-export const sendOutbox = (state: string, config: string, tracker: Tracker): Promise<Result<OutboxEntry[]>> =>
-  withOutbox(state, async (store) => {
-    const repos = mirrored(config);
-    if (!repos.ok) return repos;
-    if (repos.value.length > 0) queueMirrors(store, new Set(repos.value.map((repo) => repo.toLowerCase())));
-    return { ok: true, value: await drain(store, tracker) };
-  });
+/** Sends the due entries through `tracker`; each entry as its send ended. */
+export const sendOutbox = (state: string, tracker: Tracker): Promise<Result<OutboxEntry[]>> =>
+  withOutbox(state, async (store) => ({ ok: true, value: await drain(store, tracker) }));

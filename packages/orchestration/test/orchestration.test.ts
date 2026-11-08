@@ -4,6 +4,7 @@ import { tmpdir, userInfo } from "node:os";
 import { delimiter, join, relative } from "node:path";
 import type { AccountRegistry } from "@cedarloom/contracts";
 import {
+  cleanEnv,
   deniedPaths,
   ghProbe,
   managedProblems,
@@ -33,6 +34,15 @@ const parent = {
   TZ: undefined,
   SystemRoot: "C:\\Windows",
 };
+
+test("a child's environment comes from an allowlist: no token, login variable or other case of a name", () => {
+  expect(cleanEnv(parent, "linux")).toEqual({ PATH: "/usr/bin", HOME: "/home/dev", LANG: "en_US.UTF-8" });
+  // macOS keeps USER for the keychain login.
+  expect(cleanEnv(parent, "darwin")).toEqual({ PATH: "/usr/bin", HOME: "/home/dev", LANG: "en_US.UTF-8", USER: "dev" });
+  // Windows names ignore case: its Path is PATH. Its system and temp folders stay there, and only there.
+  const windows = { Path: "C:\\Windows", SystemRoot: "C:\\Windows", TEMP: "C:\\Temp" };
+  expect(cleanEnv(windows, "win32")).toEqual(windows);
+});
 
 test("a worker's environment comes from an allowlist, with the profile's token and an empty gh folder", () => {
   const input = { parent, platform: "linux", ghToken: "github_pat_profile", ghConfigDir: "/w/gh" } as const;

@@ -104,6 +104,7 @@ test("settings that are no settings, or a folder in their place, are reported", 
   expect(mode(state, invalid)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
   // The store is read only once the settings are.
   expect(levelAtGate(state, join(root, "none"), run("/work/app"))).toMatchObject({ ok: true });
+  expect(automationSettings(invalid)).toMatchObject({ ok: false, finding: { code: "document.invalid" } });
 });
 
 // Plans `change`, checks the plan's one write against the file as it is, and applies it.

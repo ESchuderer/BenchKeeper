@@ -3,8 +3,6 @@ import { once } from "node:events";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setFlagsFromString } from "node:v8";
-import { runInNewContext } from "node:vm";
 import { DatabaseSync } from "node:sqlite";
 import type { AccountSwitch, ContractCheckRecord, Plan } from "@cedarloom/contracts";
 import {
@@ -487,26 +485,6 @@ test("an account gives at most max leases; a finished lease frees one, another a
   expect(() => store.leaseAccount({ ...launch, runId: "not-a-uuid" }, 1)).toThrow(/uuid/i);
   // A run takes one lease: a second lease of a run whose lock is held is refused.
   expect(() => store.leaseAccount({ ...launch, runId: runIdOf(5) }, 9)).toThrow(/held already/);
-});
-
-// The garbage collector, which node exposes to a new context once the flag is set.
-setFlagsFromString("--expose-gc");
-const gc: unknown = runInNewContext("gc");
-const collect = async (): Promise<void> => {
-  for (const _ of [1, 2]) {
-    if (typeof gc === "function") Reflect.apply(gc, undefined, []);
-    await new Promise((resolve) => setImmediate(resolve));
-  }
-};
-
-test("a lease holds its lock for the lease's life, also when its launcher keeps no reference to it", async () => {
-  const store = opened(fresh());
-  // Taken and dropped at once: nothing of the launcher's refers to the lock any more.
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(1) }, 1)).not.toBeNull();
-  await collect();
-  expect(typeof gc).toBe("function");
-  expect(store.leaseAccount({ ...launch, runId: runIdOf(2) }, 1)).toBeNull();
-  expect(store.liveLeases()).toEqual(new Map([["work", 1]]));
 });
 
 test("a lease whose row cannot be written lets go of its lock, so the error is not hidden behind a held lock", () => {

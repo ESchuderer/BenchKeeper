@@ -4,7 +4,14 @@ import { fileFormats } from "./registry.ts";
 
 /**
  * The three automation levels (owner, 2026-11-05). Every level runs an implementer and a fresh reviewer in separate
- * sessions; they differ in where a run waits for the owner. Fresh installs start Supervised.
+ * sessions; they differ in where a run waits for the owner, at three gates (before the implementation, after the
+ * reviewer's verdict, before a merge): Supervised at all three, Checkpoint before a merge only, Auto at none (it merges
+ * when both sides agree). At every level a step waits that touches a release (merging a release pull request is one), a
+ * publish, a deploy, a repository's creation or settings, a secret or anything public, and so does a command of a
+ * workflow version the owner has not approved in the project yet (owner, 2026-11-07). Supervised sends every question
+ * to the owner; Checkpoint and Auto send the owner's questions (taste, scope, money, legal, risk, anything public or
+ * hard to undo) and take a safe default for the others, flagged for review. A project's level wins over the default,
+ * and fresh installs start Supervised.
  */
 export const AutomationLevel = z.enum(["supervised", "checkpoint", "auto"]);
 export type AutomationLevel = z.infer<typeof AutomationLevel>;

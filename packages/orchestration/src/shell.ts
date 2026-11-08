@@ -298,6 +298,8 @@ class Reader {
   // `$` starts an expansion, which makes the word unknown; outside double quotes also `$'...'` and `$"..."`.
   #dollar(word: Builder, inQuotes: boolean): void {
     const c = this.#peek();
+    // bash's old `$[...]` is arithmetic, which the reader does not follow.
+    if (c === "[") this.#outside();
     const name = this.#parameter(c);
     const opens = OPENERS.has(c) && !(inQuotes && (c === "'" || c === '"'));
     if (!opens && name === "") {

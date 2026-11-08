@@ -245,15 +245,17 @@ const forbiddenProgram = (name: string, args: readonly Word[]): Denial | null =>
   return args.some(({ text }) => text === verb) ? deny("forbidden", `${name} ${verb}`) : null;
 };
 
-// [[ ]] reads the operands of -eq and the like as arithmetic, subscripts and all: only a number or a plain $name, whose
-// value the guard does not know, may stand there.
+// [[ ]] reads the operands of -eq and the like as arithmetic, and -v's as a name with a subscript: only a number, a
+// plain $name or a plain name, whose value the guard does not know, may stand there.
 const ARITHMETIC = /^-(?:eq|ne|lt|le|gt|ge)$/;
 const checkTest = (args: readonly Word[]): Denial | null => {
-  const operands = args.filter(
-    (_, i) => ARITHMETIC.test(args[i - 1]?.text ?? "") || ARITHMETIC.test(args[i + 1]?.text ?? ""),
-  );
-  const code = operands.some(({ text, plain }) => plain !== true && !/^-?\d+$/.test(text ?? ""));
-  return code ? unreadable("[[ ]] compares a word as arithmetic, which bash may run") : null;
+  const at = (i: number): string => args[i]?.text ?? "";
+  const arithmetic = ({ text, plain }: Word, i: number): boolean => {
+    if (at(i - 1) === "-v") return !/^[A-Za-z_]\w*$/.test(text ?? "");
+    const compared = ARITHMETIC.test(at(i - 1)) || ARITHMETIC.test(at(i + 1));
+    return compared && plain !== true && !/^-?\d+$/.test(text ?? "");
+  };
+  return args.some(arithmetic) ? unreadable("[[ ]] reads a word as arithmetic, which bash may run") : null;
 };
 
 // The words that name variables: read's words but its options' values, an export's words; printf names none.

@@ -128,6 +128,14 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 - **Invalid values.** A quoted `"true"` or `"false"` counts as that Boolean, as Claude Code reads it; any other invalid value keeps the sandbox strict (https://code.claude.com/docs/en/managed-settings#invalid-values-inside-sandbox).
 - **Proxies.** A proxy port of the policy's own takes over filtering: Claude Code stops applying its domain lists to it (`#sandbox-network-httpproxyport` and `#sandbox-network-socksproxyport` in the settings reference).
 - **What loosens whatever follows.** List entries, hosts beyond GitHub, and a policy helper, whose output replaces the files the preflight reads (https://code.claude.com/docs/en/settings-reference#policyhelper).
+- **Sources.** Besides the files, the preflight reads every place Claude Code 2.1.316 reads a policy from:
+  - the configuration profile's plists, per user (`/Library/Managed Preferences/<user>/com.anthropic.claudecode.plist`) and the device's, converted by `/usr/bin/plutil -convert json`;
+  - the `Settings` value under `HKLM` and `HKCU\SOFTWARE\Policies\ClaudeCode` through `reg.exe`, and under WSL the Windows ones (`/mnt/c/Windows/System32/reg.exe`, `/mnt/c/Program Files/ClaudeCode`);
+  - the server-managed cache, `remote-settings.json` in the worker's home, checked once that home is known.
+
+  Paths and programs are Claude Code's own (strings of its 2.1.316 binary), and the ranking follows https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources.
+- **Each source on its own.** By default Claude Code applies only the highest-ranked source that holds a policy key (`first-wins`), and with `managedSourcesBehavior: "merge"` a higher source's value wins. The preflight still counts a loosening value in any source, so a launch is refused rather than started on a policy it read wrong. The cost is a refusal when a stricter source outranks the loosening one.
+- **The server-managed cache.** The cache is the settings object itself. Claude Code treats a copy it cannot read, or does not trust, as absent, so such a copy counts as none here too. The startup fetch can bring a newer policy that no preflight sees.
 
 ## Claude Code adapter
 

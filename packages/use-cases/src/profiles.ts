@@ -62,12 +62,6 @@ export const readSelection = (
   return read.ok ? { ok: true, value: { selection: read.value, before: sha256(file.value.text) } } : read;
 };
 
-/** This machine's hub binding; none when the selection names none or cannot be read. */
-export const hubBinding = (config: string): string | null => {
-  const read = readSelection(config);
-  return read.ok ? (read.value.selection?.bindings?.hub ?? null) : null;
-};
-
 /** The profile's plan for this machine (null: it matches), and what keeps parts from applying. */
 export interface ProfilePlan {
   readonly plan: Plan | null;
@@ -376,6 +370,7 @@ export const profileDoctor = async (
 export type Choice =
   | { readonly part: string; readonly on: boolean | null }
   | { readonly hub: string }
+  | { readonly memory: string }
   | { readonly gates: string }
   | { readonly file: string };
 

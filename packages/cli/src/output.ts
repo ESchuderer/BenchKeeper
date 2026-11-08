@@ -1,7 +1,7 @@
 import { type Finding, severityOf } from "@cedarloom/contracts";
 import type { PlanPreview } from "@cedarloom/contracts";
 import type { ClaudeLaunch } from "@cedarloom/adapter-claude";
-import type { AgentOptions, Fetch, LoginRun, LoginStatus } from "@cedarloom/use-cases";
+import type { AgentOptions, Fetch, Keyring, LoginRun, LoginStatus } from "@cedarloom/use-cases";
 import { describe } from "./messages.ts";
 
 export interface Io {
@@ -16,6 +16,10 @@ export interface Io {
   authStatus: (env: Readonly<Record<string, string>>) => Promise<LoginStatus>;
   /** How Git sources are fetched: over https and ssh unless a test hands over its own trees. */
   fetch?: Fetch;
+  /** Standard input as text once it ends; null when it is a terminal, where a token typed into it would show. */
+  stdin: () => Promise<string | null>;
+  /** The OS credential store. */
+  keyring: Keyring;
   /** The agent CLI that `agent.run` nodes start. */
   agent: AgentOptions<ClaudeLaunch>["runtime"];
   /** Where the app's own extensions are: the `extensions` folder of the CLI package unless a test names another. */

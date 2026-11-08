@@ -2095,6 +2095,31 @@ export interface components {
             params: {
                 error: string;
             };
+        } | {
+            /** @constant */
+            code: "secret.missing";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
+            code: "secret.unavailable";
+            params: {
+                name: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "secret.not-fine-grained";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
+            code: "secret.no-input";
+            params: {
+                name: string;
+            };
         };
         ImportReviewInput: {
             source: {
@@ -3435,6 +3460,31 @@ export interface components {
             code: "tracker.invalid-answer";
             params: {
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "secret.missing";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
+            code: "secret.unavailable";
+            params: {
+                name: string;
+                error: string;
+            };
+        } | {
+            /** @constant */
+            code: "secret.not-fine-grained";
+            params: {
+                name: string;
+            };
+        } | {
+            /** @constant */
+            code: "secret.no-input";
+            params: {
+                name: string;
             };
         };
         ImportReview: {

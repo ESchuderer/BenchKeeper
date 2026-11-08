@@ -40,6 +40,7 @@ import { importCommand } from "./imports.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
+import { workItemsGroup } from "./work-items.ts";
 
 type Done = (code: number) => void;
 
@@ -445,6 +446,7 @@ const GROUPS = [
   modeGroup,
   levelGroup,
   profilesGroup,
+  workItemsGroup,
 ];
 
 /** Runs one command line (without the program name) and returns the exit code. */

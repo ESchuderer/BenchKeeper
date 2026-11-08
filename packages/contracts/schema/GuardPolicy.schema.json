@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GuardPolicy.schema.json",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "repositories": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,39}\\/(?!\\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hub": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,39}\\/(?!\\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "memory": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,39}\\/(?!\\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "repositories",
+    "hub",
+    "memory"
+  ],
+  "additionalProperties": false
+}

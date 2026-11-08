@@ -2,17 +2,22 @@
   "name": "@cedarloom/orchestration",
   "version": "0.0.0",
   "private": true,
-  "description": "The worker launcher of CedarLoom: the clean allowlisted environment of a worker, the paths and hosts it may not reach, and the checks that refuse a launch.",
+  "description": "The worker launcher of CedarLoom: the clean allowlisted environment of a worker, the paths and hosts it may not reach, the checks that refuse a launch, and the guard hook of its shell commands.",
   "license": "MIT",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./guard-hook": "./src/guard-hook.ts"
   },
   "publishConfig": {
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./guard-hook": {
+        "types": "./dist/guard-hook.d.ts",
+        "default": "./dist/guard-hook.js"
       }
     }
   },
@@ -28,5 +33,8 @@
   },
   "dependencies": {
     "@cedarloom/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "zod": "catalog:"
   }
 }

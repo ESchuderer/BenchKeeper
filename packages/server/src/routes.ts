@@ -115,7 +115,7 @@ export const undoRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, 
   );
 };
 
-// The editor's drafts: list, read, save (the last wins and says whether it replaced another tab's), and delete.
+// A save: the last one wins and says whether it replaced another tab's.
 export const draftRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {
   const DraftPath = z.strictObject({ id: WorkflowId });
   app.get(
@@ -198,7 +198,7 @@ export const graphRunRoutes: FastifyPluginAsyncZod<{ state: string }> = async (a
   );
 };
 
-// The Profile view, read only (Git sources fetched), and a part switched as `profiles select <part> on|off --yes` does.
+// The view writes nothing; a switch is one run with its undo, as `profiles select <part> on|off --yes` makes it.
 export const profileRoutes: FastifyPluginAsyncZod<{
   config: string;
   state: string;

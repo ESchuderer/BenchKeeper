@@ -10,7 +10,7 @@ import { t } from "./i18n.ts";
 
 const KEY = "cedarloom.csrf";
 
-// shortcut: the brand's evergreen as shade 7 of a hand-made palette (4.5:1 on white); use the family tokens once out.
+// shortcut: the brand's evergreen (#2e5e4e) as shade 7 of a hand-made palette (4.5:1 on white); use the family tokens once out.
 const evergreen: MantineColorsTuple = [
   "#eef5f2",
   "#dde9e4",

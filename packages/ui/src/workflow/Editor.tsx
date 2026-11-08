@@ -430,7 +430,6 @@ const useStatus = (history: History): [Status, (text: string) => void] => {
   return [status, (text) => setStatus((last) => ({ text, count: last.count + 1 }))];
 };
 
-// A document with undo, redo and a draft, the graph on a React Flow canvas, and the validator's findings below.
 const Editor = ({ api }: { api: Api }): ReactNode => {
   const edit = useDocument();
   // A refusal shows until the document changes: it is kept with the history it was raised on.

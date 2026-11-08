@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { doctor, install, sessions, status, targets } from "@cedarloom/extension-claude-swap";
+import { auto, autoOff, autoOn, doctor, install, sessions, status, targets } from "@cedarloom/extension-claude-swap";
 import {
   type DoctorFinding,
   type ExecParams,
@@ -15,12 +15,32 @@ import { expect, test } from "vitest";
 const recorded = (name: string): string =>
   readFileSync(join(import.meta.dirname, "fixtures", "cswap-0.30.0", name), "utf8");
 const LIST = recorded("list.json");
+// What claude-swap 0.30.0 prints for its menu bar service (cli.py, _menubar_service); it has no JSON form.
+const MENUBAR: Record<string, string> = {
+  "--service-status": "Menu bar service is not installed.\nInstall it with: cswap menubar --install-service\n",
+  "--install-service":
+    "Menu bar service installed (com.cswap.menubar).\n  plist: /home/me/Library/LaunchAgents/x.plist\n",
+  "--uninstall-service": "Menu bar service removed.\n",
+};
+// uv 0.13.7's tool list (uv tool list --show-extras) with claude-swap and its menu bar, and without.
+const WITH_MENU_BAR = "claude-swap v0.30.0 [extras: menubar]\n- claude-swap\n- cswap\n";
+const BARE = "claude-swap v0.30.0\n- claude-swap\n- cswap\n";
 const cswap =
-  (answers: { list?: string; status?: string; switch?: string } = {}, version = recorded("version.txt")) =>
+  (
+    answers: { list?: string; status?: string; switch?: string; tools?: string } = {},
+    version = recorded("version.txt"),
+  ) =>
   async ({ args = [] }: ExecParams): Promise<ExecResult> => {
-    if (args[0] === "--version") return { code: 0, stdout: version, stderr: "" };
-    if (args[0] === "switch") return { code: 0, stdout: args[1] === "1" ? (answers.switch ?? "") : "", stderr: "" };
-    const stdout = args[0] === "list" ? (answers.list ?? LIST) : (answers.status ?? recorded("status.json"));
+    const [command = "", flag = ""] = args;
+    const outputs: Record<string, () => string> = {
+      "--version": () => version,
+      list: () => answers.list ?? LIST,
+      switch: () => (flag === "1" ? (answers.switch ?? "") : ""),
+      config: () => (flag === "set" ? "" : recorded("config.json")),
+      menubar: () => MENUBAR[flag] ?? "",
+      tool: () => answers.tools ?? WITH_MENU_BAR,
+    };
+    const stdout = outputs[command]?.() ?? answers.status ?? recorded("status.json");
     return { code: 0, stdout, stderr: "" };
   };
 // The host's answer when none of the manifest's candidates is there.
@@ -264,4 +284,53 @@ test("the session line runs claude-swap's session mode on a listed account; one 
     "failed",
     "failed",
   ]);
+});
+
+const keys = (outputs: Record<string, unknown>) => Object.keys(outputs).toSorted();
+
+test("auto mode is claude-swap's menu bar service on macOS, installed only with its menu bar confirmed, and installed or removed only with cswap allowed; elsewhere hints only", async () => {
+  const allowed = { allow: ["cswap"] };
+  const bare = cswap({ tools: BARE });
+  const { runs, approve } = await autoOn({ exec: cswap(), config: {} }, "darwin");
+  expect([
+    (await auto({ exec: cswap() }, "darwin"))["service"],
+    { runs, approve },
+    (await autoOn({ exec: cswap(), config: allowed }, "darwin"))["service"],
+    (await autoOff({ exec: cswap(), config: allowed }, "darwin"))["service"],
+    keys(await autoOn({ exec: bare, config: allowed }, "darwin")),
+    (await autoOff({ exec: bare, config: allowed }, "darwin"))["service"],
+    keys(await auto({ exec: cswap() }, "linux")),
+    keys(await autoOn({ exec: cswap(), config: allowed }, "linux")),
+    keys(await autoOff({ exec: cswap(), config: allowed }, "win32")),
+    keys(await auto({ exec: missing }, "darwin")),
+  ]).toEqual([
+    "Menu bar service is not installed.",
+    { runs: "cswap menubar --install-service", approve: "cedarloom claude-swap auto-on --allow cswap" },
+    "Menu bar service installed (com.cswap.menubar).",
+    "Menu bar service removed.",
+    ["hint"],
+    "Menu bar service removed.",
+    ["hint"],
+    ["hint"],
+    ["hint"],
+    ["hint"],
+  ]);
+});
+
+test("the policy is claude-swap's auto mode settings, set through cswap config set; a setting without a value or outside auto mode is left out, and one outside auto mode is never set", async () => {
+  const ran: string[][] = [];
+  const exec = async (request: ExecParams) => {
+    ran.push(request.args ?? []);
+    return cswap()(request);
+  };
+  const policy = await targets["target/policy"]?.({ ...INTERACTIVE, set: { "autoswitch.threshold": "85" } }, on(exec));
+  const other = targets["target/policy"]?.({ ...INTERACTIVE, set: { "run.shareHistory": "false" } }, on(exec));
+  await expect(other).rejects.toThrow("run.shareHistory");
+  expect([
+    policy?.values["autoswitch.threshold"],
+    policy?.values["autoswitch.strategy"],
+    "autoswitch.weeklyThreshold" in (policy?.values ?? {}),
+    "run.shareHistory" in (policy?.values ?? {}),
+    ran.filter(([command, flag]) => command === "config" && flag === "set"),
+  ]).toEqual([90, "best", false, false, [["config", "set", "--", "autoswitch.threshold", "85"]]]);
 });

@@ -50,7 +50,7 @@ const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
 // Programs that run a command from their words or later, and shells the guard does not read.
-const RUNNERS = new Set(["eval", "trap", "alias", "hash", "watch", "pwsh", "powershell"]);
+const RUNNERS = new Set("eval trap alias hash emulate compgen complete let watch pwsh powershell".split(" "));
 // A subscript holding a command, which bash runs as arithmetic in let, read, printf -v, declare -i and [[ ]].
 const CODE_SUBSCRIPT = /\[[^\]]*(?:\$\(|`)/;
 // zsh's precommand modifiers.
@@ -84,9 +84,7 @@ const WRAPPERS = new Map<string, Options>(
     ionice: "-t --ignore | -c -n -p --class --classdata --pid",
     caffeinate: "-d -i -m -s -u | -t -w",
     env: "-i -0 -v - --ignore-environment --null --debug | -u -C --unset --chdir",
-    xargs:
-      "-0 -r -t -p -x -o --null --no-run-if-empty --verbose --interactive --exit --open-tty | -I -n -L -P -d -E -s " +
-      "-a --max-args --max-procs --delimiter --arg-file --max-lines --max-chars --eof",
+    xargs: "-0 -r -t -p -x --null --no-run-if-empty --verbose | -I -n -L -P -d -E -s -a --max-args --arg-file",
   }).map(([name, spec]) => [name, options(spec)]),
 );
 // Builtins that set a variable named by an argument.
@@ -108,7 +106,7 @@ const programOf = (word: string): string => {
 export const guardCommand = (text: string, folder: string, policy: GuardPolicy, remotes: Remotes): Denial | null => {
   const script = readShell(text);
   if (script.skipped) return unreadable("the command holds a form the guard does not read, such as a subshell");
-  if (script.commands.some(({ words }) => words.some((word) => CODE_SUBSCRIPT.test(word.text ?? "")))) {
+  if (script.commands.some(({ words }) => words.some((word) => CODE_SUBSCRIPT.test(word.text ?? word.start)))) {
     return unreadable("a subscript holds a command, which bash may run");
   }
   const context = { policy, remotes, folders: foldersOf(script, [folder]) };
@@ -216,12 +214,8 @@ const wrapper = (name: string, words: readonly Word[], from: number, read: { spe
 };
 
 // The index of the first word after the options; at an option the guard does not know, that word's, noted as unknown.
-const wrapperOptions = (
-  name: string,
-  words: readonly Word[],
-  from: number,
-  { spec, found }: { spec: Options; found: Found },
-): number => {
+const wrapperOptions = (name: string, words: readonly Word[], from: number, read: { spec: Options; found: Found }) => {
+  const { spec, found } = read;
   let i = from;
   for (let word = words[i] ?? EMPTY; word.start.startsWith("-") && word.text !== "--"; word = words[++i] ?? EMPTY) {
     const parsed = optionsOf(word, words[i + 1], spec);
@@ -253,10 +247,7 @@ const checkPrefix = ({ prefix, cleared, unset, unknown }: Unwrapped): Denial | n
   if (unknown !== null) return unreadable(`${unknown} is an option the guard does not know`);
   if (unset.some((word) => (word?.text ?? null) === null))
     return unreadable("env -u names a variable the guard cannot read");
-  const names = [
-    ...prefix.map((word) => ASSIGNMENT.exec(word.start)?.[1] ?? ""),
-    ...unset.map((word) => word?.text ?? ""),
-  ];
+  const names = [...prefix.map((w) => ASSIGNMENT.exec(w.start)?.[1] ?? ""), ...unset.map((w) => w?.text ?? "")];
   const changed = names.find((name) => PROTECTED.test(name));
   if (changed !== undefined) return deny("environment", `it changes ${changed}`);
   return cleared ? deny("environment", "it clears the environment, the token with it") : null;
@@ -297,6 +288,7 @@ const checkProgram = (name: string, args: readonly Word[], context: Context, mov
 // Programs that reach no repository: setters, runners, shells, find and the forbidden ones.
 const checkLocal = (name: string, args: readonly Word[]): Denial | null => {
   if (SETTERS.has(name)) return checkSetter(name, args);
+  if (name === "[[") return checkTest(args);
   if (RUNNERS.has(name)) return unreadable(`${name} runs a command the guard does not read`);
   if (SHELLS.has(name) || name === "source" || name === ".") return checkShell(name, args);
   if (name === "find" && args.some(({ text }) => FIND_RUNS.test(text ?? ""))) {
@@ -306,14 +298,9 @@ const checkLocal = (name: string, args: readonly Word[]): Denial | null => {
 };
 
 // Programs the project rules forbid, with the argument that makes them so: an apply, or any for a sudo-like.
-const FORBIDDEN = new Map([
-  ["sudo", null],
-  ["doas", null],
-  ["su", null],
-  ["pkexec", null],
-  ["run0", null],
-  ["terraform", "apply"],
-  ["kubectl", "apply"],
+const FORBIDDEN = new Map<string, string | null>([
+  ..."sudo doas su pkexec run0".split(" ").map((name): [string, null] => [name, null]),
+  ...["terraform", "kubectl"].map((name): [string, string] => [name, "apply"]),
   ["helm", "upgrade"],
 ]);
 
@@ -324,18 +311,36 @@ const forbiddenProgram = (name: string, args: readonly Word[]): Denial | null =>
   return args.some(({ text }) => text === verb) ? deny("forbidden", `${name} ${verb}`) : null;
 };
 
-// The words that name variables: printf's -v value, read's words but its options' values, an export's words.
+// [[ ]] reads the operands of -eq and the like as arithmetic, subscripts and all: only a number or a plain $name, whose
+// value the guard does not know, may stand there.
+const ARITHMETIC = /^-(?:eq|ne|lt|le|gt|ge)$/;
+const checkTest = (args: readonly Word[]): Denial | null => {
+  const operands = args.filter(
+    (_, i) => ARITHMETIC.test(args[i - 1]?.text ?? "") || ARITHMETIC.test(args[i + 1]?.text ?? ""),
+  );
+  const code = operands.some(({ text, plain }) => plain !== true && !/^-?\d+$/.test(text ?? ""));
+  return code ? unreadable("[[ ]] compares a word as arithmetic, which bash may run") : null;
+};
+
+// The words that name variables: read's words but its options' values, an export's words; printf names none.
 const variableWords = (name: string, args: readonly Word[]): Word[] => {
-  if (name === "printf") return args.filter((_, i) => args[i - 1]?.text === "-v");
+  if (name === "printf") return [];
   if (name !== "read") return args.filter(({ start }) => !start.startsWith("-"));
   return args.filter(({ start }, i) => !start.startsWith("-") && !/^-\w*[dinNptu]$/.test(args[i - 1]?.start ?? ""));
 };
 
+// printf -v, read into an array or by -v, declare -i (arithmetic), and mapfile's callback (-C), attached or apart.
+const setsAside = (name: string, args: readonly Word[]): boolean => {
+  const flags = args.filter(({ start }) => start.startsWith("-")).map(({ start }) => start);
+  if (name === "printf") return flags.some((option) => option.startsWith("-v"));
+  if (name === "read") return flags.some((option) => /^-[^-]*[aAv]/.test(option));
+  if (EXPORTS.has(name)) return flags.some((option) => /^-[^-]*i/.test(option));
+  return /^(?:mapfile|readarray)$/.test(name) && flags.some((option) => /^-[^-]*C/.test(option));
+};
+
 // A setter refuses on a protected or unknown name, or an array element, whose subscript bash may run; mapfile on -C.
 const checkSetter = (name: string, args: readonly Word[]): Denial | null => {
-  if (/^(?:mapfile|readarray)$/.test(name) && args.some(({ start }) => /^-[^-]*C/.test(start))) {
-    return unreadable(`${name} -C runs a command the guard does not read`);
-  }
+  if (setsAside(name, args)) return unreadable(`${name} sets a variable or runs a command the guard does not follow`);
   const names = variableWords(name, args);
   if (names.some(({ start }) => MENTIONED.test(start)))
     return deny("environment", `${name} names a protected variable`);

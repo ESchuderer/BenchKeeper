@@ -324,6 +324,10 @@ export const Finding = z
     finding("tracker.refused", { status: z.int(), error: z.string() }),
     /** An answer CedarLoom cannot read: the entry fails, as a retry reads the same; the write may have happened. */
     finding("tracker.invalid-answer", { error: z.string() }),
+    /** A managed Claude Code policy switches hooks (the guard's among them) or the sandbox off for every session. */
+    finding("managed.guard-off", { path: z.string(), key: z.string() }),
+    /** A managed Claude Code policy that cannot be read, so the doctor cannot tell what it switches off. */
+    finding("managed.unreadable", { path: z.string(), error: z.string() }),
     /** This machine binds no hub, the only tracker, so no work-item command can name an issue. */
     finding("work-items.no-hub", {}),
     /** An issue outside this machine's hub (A3 b): nothing is queued or linked. */
@@ -497,6 +501,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "tracker.unavailable": { severity: "warning", effort: "command" },
   "tracker.refused": { severity: "error", effort: "manual" },
   "tracker.invalid-answer": { severity: "error", effort: "manual" },
+  "managed.guard-off": { severity: "warning", effort: "manual" },
+  "managed.unreadable": { severity: "warning", effort: "manual" },
   "work-items.no-hub": { severity: "error", effort: "command" },
   "work-items.not-hub": { severity: "error", effort: "manual" },
   "secret.missing": { severity: "error", effort: "command" },

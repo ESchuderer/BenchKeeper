@@ -74,6 +74,18 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}\\/[A-Za-z0-9._-]{1,100}$"
         },
+        "memory": {
+          "description": "The agent memory repository, which workers push to on memory/ branches only",
+          "type": "string",
+          "allOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}\\/[A-Za-z0-9._-]{1,100}$"
+            },
+            {
+              "pattern": "\\/(?!\\.{1,2}$)"
+            }
+          ]
+        },
         "gates": {
           "description": "Where a gates part's callers find the reusable workflows: `owner/repo@<commit>`",
           "type": "string",

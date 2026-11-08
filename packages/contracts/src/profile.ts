@@ -382,6 +382,9 @@ export const ProfileSelection = z
     bindings: z
       .strictObject({
         hub: GitHubRepo.optional().describe("The hub repository, `{{hub}}` in the profile's texts"),
+        memory: GitHubRepo.regex(/\/(?!\.{1,2}$)/)
+          .optional()
+          .describe("The agent memory repository, which workers push to on memory/ branches only"),
         gates: z
           .string()
           .regex(new RegExp(`^${REPO}@[0-9a-f]{40}$`))

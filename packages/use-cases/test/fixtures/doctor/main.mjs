@@ -27,6 +27,9 @@ const answers = {
     });
     return { accounts: [account(1, 40, "work"), account(2, 10, "elsewhere"), account(3, 20)] };
   },
+  // Account 1 is active already; the policy echoes what it set.
+  "target/select": ({ number }) => ({ switched: number !== 1, from: 1, to: number, reason: "asked" }),
+  "target/policy": ({ set = {} }) => ({ values: { "autoswitch.threshold": 90, ...set } }),
   shutdown: () => null,
 };
 process.stdin.on("data", (chunk) => {
@@ -37,6 +40,6 @@ process.stdin.on("data", (chunk) => {
     const message = JSON.parse(input.subarray(end + 4, end + 4 + length).toString());
     input = input.subarray(end + 4 + length);
     if (message.method === "exit") process.exit(0);
-    if (message.id !== undefined) send({ id: message.id, result: answers[message.method]?.() ?? null });
+    if (message.id !== undefined) send({ id: message.id, result: answers[message.method]?.(message.params) ?? null });
   }
 });

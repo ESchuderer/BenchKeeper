@@ -46,11 +46,45 @@
           "runs": { "type": "string", "description": "The command the install runs once allowed" },
           "approve": { "type": "string", "description": "The command line that allows it" }
         }
+      },
+      "auto": {
+        "title": "claude-swap's auto mode",
+        "outputs": {
+          "service": {
+            "type": "string",
+            "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "hint": { "type": "string", "description": "What to do next for claude-swap's auto mode" }
+        }
+      },
+      "auto-on": {
+        "title": "Install claude-swap's menu bar service",
+        "outputs": {
+          "service": {
+            "type": "string",
+            "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "hint": { "type": "string", "description": "What to do next for claude-swap's auto mode" },
+          "runs": { "type": "string", "description": "The command it runs once allowed" },
+          "approve": { "type": "string", "description": "The command line that allows it" }
+        }
+      },
+      "auto-off": {
+        "title": "Remove claude-swap's menu bar service",
+        "outputs": {
+          "service": {
+            "type": "string",
+            "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "runs": { "type": "string", "description": "The command it runs once allowed" },
+          "approve": { "type": "string", "description": "The command line that allows it" },
+          "hint": { "type": "string", "description": "What claude-swap's auto mode does now, or where it runs instead" }
+        }
       }
     },
     "switchTargets": { "interactive": { "agent": "claude" } },
     "sessionProviders": { "claude": { "agent": "claude", "program": "cswap" } },
     "doctor": { "claude-swap": { "title": "claude-swap" } },
-    "commands": ["status", "install"]
+    "commands": ["status", "install", "auto", "auto-on", "auto-off"]
   }
 }

@@ -323,7 +323,7 @@ const fileWrite =
     };
   };
 
-// A dead runner's `file.write` ends done if its apply run applied, else interrupted (Q4), so nothing applies twice.
+// A dead runner's `file.write` (plan section 3) ends done if its apply run applied, else interrupted (Q4), so nothing applies twice.
 const writeRecover =
   (state: string): Recovery =>
   ({ applyRun }) => {

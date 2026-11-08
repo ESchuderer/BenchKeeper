@@ -13,7 +13,8 @@
       "orca": {
         "darwin": ["orca", "~/.local/bin/orca"],
         "linux": ["orca-ide", "~/.local/bin/orca-ide", "~/.config/orca/linux-orca-cli-shim/orca"]
-      }
+      },
+      "cswap": { "darwin": ["cswap", "~/.local/bin/cswap"], "linux": ["cswap", "~/.local/bin/cswap"] }
     }
   },
   "contributes": {

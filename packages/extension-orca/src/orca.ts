@@ -132,6 +132,12 @@ const modeOf = ({ selected, home }: ClaudeAccounts): string => {
 const FOLLOWS =
   "System default in Orca's Settings, AI Provider Accounts, follows claude-swap's auto mode without CedarLoom";
 
+// Whether claude-swap is installed: only with it does Orca's managed account follow the default home's; without it,
+// Orca chooses that account itself and CedarLoom only reports it (owner, hub issue 135).
+const swapInstalled = async ({ exec }: Exec): Promise<boolean> =>
+  (await programVersion(exec, "cswap", MS).catch(() => ({ installed: false }))).installed;
+const ORCAS_OWN = "without claude-swap, Orca chooses its managed Claude account itself; CedarLoom only reports it";
+
 // Why Orca cannot select the default home's saved account for its panes; none when it can.
 const unfollowable = ({ home }: ClaudeAccounts, version: string): string | undefined => {
   if (home === null)
@@ -164,9 +170,12 @@ const accountFindings = async (context: Exec, version: string): Promise<DoctorFi
     const later = `Orca's Claude panes use the saved account signed in as the default home; claude-swap's own later switches reach them only through cedarloom orca follow. ${FOLLOWS}.`;
     return [finding("info", "orca.accounts-managed", later)];
   }
+  const other = "Orca's Claude panes use a saved account other than the default home's";
+  if (!(await swapInstalled(context))) return [finding("info", "orca.accounts-elsewhere", `${other}: ${ORCAS_OWN}.`)];
   const fix = unfollowable(accounts, version) ?? `run cedarloom orca follow, or ${FOLLOWS}`;
-  const other = `Orca's Claude panes use a saved account other than the default home's, so claude-swap's switches do not reach them: ${fix}.`;
-  return [finding("warning", "orca.accounts-elsewhere", other)];
+  return [
+    finding("warning", "orca.accounts-elsewhere", `${other}, so claude-swap's switches do not reach them: ${fix}.`),
+  ];
 };
 
 /**
@@ -206,8 +215,8 @@ export const status = async (context: Exec): Promise<Record<string, unknown>> =>
 
 /**
  * Orca's managed Claude account follows the default home's, which claude-swap switches (owner, Q4): the saved account
- * signed in as the default home is selected for new panes, once the user names orca with --allow. On the System
- * default, panes follow already.
+ * signed in as the default home is selected for new panes, once the user names orca with --allow, and only while
+ * claude-swap is installed. On the System default, panes follow already.
  */
 export const follow = async ({
   exec,
@@ -218,6 +227,7 @@ export const follow = async ({
   const accounts = await claudeAccountsOf({ exec });
   const mode = modeOf(accounts);
   if (accounts.selected === null || accounts.selected === accounts.home) return { mode, followed: true };
+  if (!(await swapInstalled({ exec }))) return { mode, followed: false, hint: ORCAS_OWN };
   const hint = unfollowable(accounts, found.version);
   if (hint !== undefined || accounts.home === null) return { mode, followed: false, hint };
   const args = ["account", "select", "--agent", "claude", "--account", accounts.home];

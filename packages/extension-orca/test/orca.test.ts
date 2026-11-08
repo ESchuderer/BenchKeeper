@@ -14,9 +14,18 @@ const [HOME, OTHER] = ["00000000-0000-4000-8000-000000000001", "00000000-0000-40
 // The recorded account list with `id` selected for new Claude panes, and the default home signed in as `email`.
 const selecting = (id: string, email = "Home@example.com"): string =>
   SYSTEM.replace('"host": null', `"host": "${id}"`).replace('"Home@example.com"', `"${email}"`);
+// The host's answer when none of a program's candidates is there.
+const absent = (program: string) =>
+  Object.assign(new Error(`${program} is not installed: none of ${program} found`), { code: HOST_MISSING });
+// Orca's answers; claude-swap's version answers too unless `swap` is false.
 const orca =
-  (version: string, answer: string, { code = 0, skills = recorded("skills-installed.json"), accounts = SYSTEM } = {}) =>
-  async ({ args }: ExecParams): Promise<ExecResult> => {
+  (
+    version: string,
+    answer: string,
+    { code = 0, skills = recorded("skills-installed.json"), accounts = SYSTEM, swap = true } = {},
+  ) =>
+  async ({ program, args }: ExecParams): Promise<ExecResult> => {
+    if (program === "cswap" && !swap) throw absent("cswap");
     const own: Record<string, string> = { "--version": version, skills, account: accounts };
     const stdout = own[args?.[0] ?? ""];
     return stdout === undefined ? { code, stdout: answer, stderr: "" } : { code: 0, stdout, stderr: "" };
@@ -24,9 +33,8 @@ const orca =
 // A skills list in the recorded answer's shape.
 const listed = (...skills: { name: string; providers: string[] }[]): string =>
   JSON.stringify({ id: "local-skills", ok: true, result: { skills } });
-// The host's answer when none of the manifest's candidates is there.
 const missing = async (): Promise<ExecResult> => {
-  throw Object.assign(new Error("orca is not installed: none of orca-ide found"), { code: HOST_MISSING });
+  throw absent("orca");
 };
 const codes = (findings: DoctorFinding[]) => findings.map(({ check, severity, code }) => [check, severity, code]);
 
@@ -114,32 +122,38 @@ test("the status action says whether Orca is installed, its version, whether it 
   ]);
 });
 
-test("while Orca runs, the doctor says how its Claude panes pick their account, and warns for a saved account other than the default home's or a list that does not read", async () => {
+test("while Orca runs, the doctor says how its Claude panes pick their account, and warns for a saved account other than the default home's while claude-swap is installed, or a list that does not read", async () => {
   const [version, running] = [recorded("version.txt"), recorded("status-running.json")];
   const findings = await Promise.all(
-    [selecting(HOME), selecting(OTHER), selecting(HOME, "nobody@example.com"), "{}"].map((accounts) =>
-      doctor({ exec: orca(version, running, { accounts }) }, "darwin"),
-    ),
+    [
+      { accounts: selecting(HOME) },
+      { accounts: selecting(OTHER) },
+      { accounts: selecting(HOME, "nobody@example.com") },
+      { accounts: selecting(OTHER), swap: false },
+      { accounts: "{}" },
+    ].map((options) => doctor({ exec: orca(version, running, options) }, "darwin")),
   );
   expect(findings.map((each) => codes(each).at(-1))).toEqual([
     ["orca", "info", "orca.accounts-managed"],
     ["orca", "warning", "orca.accounts-elsewhere"],
     ["orca", "warning", "orca.accounts-elsewhere"],
+    ["orca", "info", "orca.accounts-elsewhere"],
     ["orca", "warning", "orca.accounts-unreadable"],
   ]);
 });
 
 // Orca with its account list, answering a select as its CLI does from 1.4.252 (the account state accounts.selectClaude
 // returns, stablyai/orca#38944); every call kept.
-const accountsOrca = (version: string, accounts: string, selected = HOME) => {
+const accountsOrca = (version: string, accounts: string, { selected = HOME, swap = true } = {}) => {
   const ran: string[][] = [];
   const state = JSON.stringify({
     id: "local-select",
     ok: true,
     result: valueAt(JSON.parse(selecting(selected)), "result", "claude"),
   });
-  const exec = async ({ args = [] }: ExecParams): Promise<ExecResult> => {
+  const exec = async ({ program, args = [] }: ExecParams): Promise<ExecResult> => {
     ran.push(args);
+    if (program === "cswap" && !swap) throw absent("cswap");
     const answers: Record<string, string> = {
       "--version": version,
       status: recorded("status-running.json"),
@@ -176,29 +190,32 @@ test("follow selects the saved account signed in as the default home for new Cla
   ]);
 });
 
-test("follow selects nothing before Orca 1.4.252, without a host account signed in as the default home, or while Orca is not running; a select that leaves another account fails", async () => {
+test("follow selects nothing before Orca 1.4.252, without a host account signed in as the default home, without claude-swap, or while Orca is not running; a select that leaves another account fails", async () => {
   const allow = { allow: ["orca"] };
   const older = accountsOrca("1.4.251", selecting(OTHER));
   const unknown = accountsOrca("1.4.252", selecting(OTHER, "nobody@example.com"));
+  const alone = accountsOrca("1.4.252", selecting(OTHER), { swap: false });
   // The default home's account saved for a WSL distro, not for this host's panes.
   const wsl = accountsOrca(
     "1.4.252",
     selecting(OTHER).replace('"managedAuthRuntime": "host"', '"managedAuthRuntime": "wsl"'),
   );
-  const stuck = accountsOrca("1.4.252", selecting(OTHER), OTHER);
+  const stuck = accountsOrca("1.4.252", selecting(OTHER), { selected: OTHER });
   const stopped = orca(recorded("version.txt"), recorded("status-not-running.json"));
   expect([
     Object.keys(await follow({ exec: older.exec, config: allow })).toSorted(),
     Object.keys(await follow({ exec: unknown.exec, config: allow })).toSorted(),
     Object.keys(await follow({ exec: wsl.exec, config: allow })).toSorted(),
+    Object.keys(await follow({ exec: alone.exec, config: allow })).toSorted(),
     (await follow({ exec: stopped, config: allow }))["followed"],
-    [older, unknown, wsl].map(({ selects }) => selects().length),
+    [older, unknown, wsl, alone].map(({ selects }) => selects().length),
   ]).toEqual([
     ["followed", "hint", "mode"],
     ["followed", "hint", "mode"],
     ["followed", "hint", "mode"],
+    ["followed", "hint", "mode"],
     false,
-    [0, 0, 0],
+    [0, 0, 0, 0],
   ]);
   await expect(follow({ exec: stuck.exec, config: allow })).rejects.toThrow(HOME);
 });

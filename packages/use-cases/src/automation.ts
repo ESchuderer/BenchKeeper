@@ -4,14 +4,12 @@ import {
   AUTOMATION_SCHEMA_VERSION,
   type AutomationLevel,
   AutomationSettings,
-  type ModeSwitch,
   type Plan,
   readDocument,
   type Result,
 } from "@cedarloom/contracts";
-import { levelAt, stricterLevel } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
-import { readOptionalJson, withStore, withView } from "./use-cases.ts";
+import { readOptionalJson } from "./use-cases.ts";
 
 const settingsPath = (config: string): string => join(config, "automation.json");
 
@@ -81,68 +79,3 @@ export const planLevel = (config: string, change: LevelChange): Result<Plan> => 
   const content = `${JSON.stringify(AutomationSettings.parse(next), null, 2)}\n`;
   return { ok: true, value: { schemaVersion: 1, operations: [{ kind: "write", path, before, content }] } };
 };
-
-export interface Mode {
-  /** The latest switch of the level for running work; null when none was made. */
-  readonly switched: ModeSwitch | null;
-  readonly settings: AutomationSettings | null;
-}
-
-/** The latest switch for running work and the settings. Reads never write: no lock, no state folder created. */
-export const mode = (state: string, config: string): Result<Mode> => {
-  const settings = automationSettings(config);
-  if (!settings.ok) return settings;
-  return withView(state, (view) => ({
-    ok: true,
-    value: { switched: view?.modeSwitch() ?? null, settings: settings.value },
-  }));
-};
-
-// Project keys at their folders' real paths, so a key written through a link matches; duplicates keep the stricter.
-const canonicalSettings = (settings: AutomationSettings | null): AutomationSettings | null => {
-  if (settings === null) return null;
-  const projects = new Map<string, AutomationLevel>();
-  for (const [folder, level] of Object.entries(settings.projects)) {
-    const key = projectFolder(folder) ?? folder;
-    const known = projects.get(key);
-    projects.set(key, known === undefined ? level : stricterLevel(known, level));
-  }
-  return { ...settings, projects: Object.fromEntries(projects) };
-};
-
-/** A run as its gates see it: its project's folder and the time it started, an ISO date and time. */
-export interface GateRun {
-  readonly project: string;
-  readonly startedAt: string;
-}
-
-/**
- * The level that applies at a gate of `run`, read at the gate itself. Route a question with the level read at the
- * step's last gate: reading it again in the middle of a step would let a switch take effect there. With modeScope
- * `running` (when unset; owner decision, 2026-11-06) only a switch made since the run started applies to it; with
- * `until-off`, the latest switch applies to every run.
- */
-export const levelAtGate = (state: string, config: string, run: GateRun): Result<AutomationLevel> => {
-  const settings = automationSettings(config);
-  if (!settings.ok) return settings;
-  // Compared as times: a start without milliseconds would sort as text after every switch in its second.
-  const since = settings.value?.modeScope === "until-off" ? null : new Date(run.startedAt).toISOString();
-  const own = levelAt(canonicalSettings(settings.value), projectFolder(run.project) ?? run.project, null);
-  return withView(state, (view) => {
-    const switched = view?.modeSwitch(since) ?? null;
-    if (switched?.level == null) return { ok: true, value: own };
-    // A switch in the run's starting millisecond may come before or after the start: the stricter level applies.
-    return { ok: true, value: switched.at === since ? stricterLevel(switched.level, own) : switched.level };
-  });
-};
-
-/** Switches the level of running work, null back to each project's level; written to the ledger, in effect at each run's next gate. */
-export const switchMode = (
-  state: string,
-  level: AutomationLevel | null,
-  at: string = new Date().toISOString(),
-): Result<ModeSwitch> =>
-  withStore(state, (store) => {
-    store.recordModeSwitch({ at, level });
-    return { ok: true, value: { at, level } };
-  });

@@ -7,8 +7,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../accounts" },
-    { "path": "../agent-contracts" },
     { "path": "../contracts" },
     { "path": "../ledger" },
     { "path": "../engine" },

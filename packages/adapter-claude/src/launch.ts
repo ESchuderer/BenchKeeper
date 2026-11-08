@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
 import type { Effort, Launch } from "@cedarloom/agent-contracts";
-import { overlay } from "./overlay.ts";
+import { overlay, SETTINGS_SENTINEL } from "./overlay.ts";
 
 // Claude Code permission modes a session may run in; `bypassPermissions` is left out, because CedarLoom never bypasses.
 const PERMISSION_MODES = ["manual", "acceptEdits", "plan", "dontAsk", "auto"] as const;
@@ -73,6 +73,27 @@ const refuse = (launch: ClaudeLaunch): void => {
 // The worker profile's variables (https://code.claude.com/docs/en/env-vars): auto memory off (A8), the A102 caps, no
 // agent view, feedback, error reports or title requests, MCP servers without the worker's variables, and bounded Stop-hook
 // loops.
+const WORKER_TOOLS = [
+  "Read",
+  "Write",
+  "Edit",
+  "Glob",
+  "Grep",
+  "Bash",
+  "Agent",
+  "Skill",
+  "ToolSearch",
+  "TodoWrite",
+  "TaskCreate",
+  "TaskGet",
+  "TaskList",
+  "TaskUpdate",
+  "TaskStop",
+  "SubagentHandback",
+  "ExitPlanMode",
+  SETTINGS_SENTINEL,
+];
+
 const WORKER_VARIABLES = {
   CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
   CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS: "4",
@@ -127,6 +148,10 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    // The built-in tools a worker gets; every other, any a later version adds too, stays off. NotebookEdit is on the
+    // list so that only the settings' deny removes it, which proves they applied (code.claude.com/docs/en/cli-reference).
+    "--tools",
+    WORKER_TOOLS.join(","),
     // Workers read no settings file, so no enabledPlugins reaches them: their plugins come this way, start and resume
     // alike (https://code.claude.com/docs/en/cli-reference).
     ...launch.pluginDirs.flatMap((dir) => ["--plugin-dir", dir]),

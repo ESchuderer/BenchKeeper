@@ -94,6 +94,8 @@ test("runs claude -p with stream-json under the account's config folder, in the 
     "--strict-mcp-config",
     "--mcp-config",
     '{"mcpServers":{}}',
+    "--tools",
+    "Read,Write,Edit,Glob,Grep,Bash,Agent,Skill,ToolSearch,TodoWrite,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop,SubagentHandback,ExitPlanMode,NotebookEdit",
     "--plugin-dir",
     join(fixtures, "plugins", "workflow"),
     "--add-dir",
@@ -103,7 +105,6 @@ test("runs claude -p with stream-json under the account's config folder, in the 
   expect([fake.args.includes("--bare"), fake.prompt]).toEqual([false, "Do the task."]);
   expect(fake.env).toMatchObject({
     KEEP: "yes",
-    CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
     CLAUDE_CONFIG_DIR: fixtures,
     CLAUDE_CODE_EFFORT_LEVEL: "high",
     CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5-5",
@@ -319,8 +320,16 @@ test("every shell command passes the guard hook first, which no settings file be
   };
   const { args } = started(await events(runtime.start(launch({}, { guardHook }))));
   expect(JSON.parse(args[args.indexOf("--settings") + 1] ?? "")).toMatchObject({
-    hooks: { PreToolUse: [{ hooks: [{ command: "/opt/node/bin/node", args: ["/opt/cedarloom/hook.js", "{}"] }] }] },
-    permissions: { deny: expect.arrayContaining(["Edit(//opt/cedarloom/**)"]) },
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Bash|Monitor|PowerShell|Agent",
+          hooks: [{ command: "/opt/node/bin/node", args: ["/opt/cedarloom/hook.js", "{}"], onFailure: "block" }],
+        },
+      ],
+    },
+    disableAllHooks: false,
+    permissions: { deny: expect.arrayContaining(["Edit(//opt/cedarloom/**)", "mcp__*"]) },
     sandbox: { filesystem: { denyWrite: expect.arrayContaining(["/opt/cedarloom"]) } },
   });
 });

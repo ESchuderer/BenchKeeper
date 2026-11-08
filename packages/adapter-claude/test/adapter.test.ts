@@ -72,7 +72,7 @@ test("no variable of the launch's environment turns telemetry on or routes it", 
   for (const name of Object.keys(TELEMETRY_VARIABLES)) expect(fake.env).not.toHaveProperty(name);
 });
 
-test("runs claude -p with stream-json under the account's config folder, in the worker environment", async () => {
+test("runs claude -p with stream-json on the default home, in the worker environment", async () => {
   const env = {
     ...stream("stream.jsonl"),
     ...LOGIN_VARIABLES,
@@ -104,7 +104,6 @@ test("runs claude -p with stream-json under the account's config folder, in the 
   expect([fake.args.includes("--bare"), fake.prompt]).toEqual([false, "Do the task."]);
   expect(fake.env).toMatchObject({
     KEEP: "yes",
-    CLAUDE_CONFIG_DIR: fixtures,
     CLAUDE_CODE_EFFORT_LEVEL: "high",
     CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5-5",
     CLAUDE_CODE_SUBAGENT_MODEL_FORCE: "1",
@@ -115,6 +114,7 @@ test("runs claude -p with stream-json under the account's config folder, in the 
   });
   for (const name of [
     "CLAUDE_CODE_SIMPLE",
+    "CLAUDE_CONFIG_DIR",
     "claude_config_dir",
     "CEDARLOOM_PARENT_ONLY",
     ...Object.keys(LOGIN_VARIABLES),
@@ -258,7 +258,7 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   expect(settings).toMatchObject({
     permissions: {
       allow: ["Bash(pnpm test *)", expect.stringMatching(/^Edit\(\/\/.*out\/result\.json\)$/)],
-      // The path itself and below it; the working folder's own path depends on the platform. The own home's login and
+      // The path itself and below it; the working folder's own path depends on the platform. The default home's login and
       // state files come too, as the next test shows.
       deny: expect.arrayContaining([
         "Read(//accounts/other)",
@@ -292,7 +292,7 @@ test("the settings passed with --settings hold the worker profile: denials, the 
     syncClaudeAiSkills: false,
     env: { CLAUDE_CODE_EFFORT_LEVEL: "high", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" },
   });
-  // No command runs outside the sandbox; the account's folder and process-only variables stay out of the settings.
+  // No command runs outside the sandbox; the home and process-only variables stay out of the settings.
   for (const key of ["sandbox.excludedCommands", "env.CLAUDE_CONFIG_DIR", "env.CLAUDE_CODE_TRANSCRIPT_LOCAL_GC"]) {
     expect(settings).not.toHaveProperty(key);
   }
@@ -348,7 +348,7 @@ test("commands write in no plugin folder; a read-only launch writes in neither i
   );
 });
 
-test("the worker's own home stays closed to its file tools only where the login and the account's state live", async () => {
+test("the default home stays closed to the worker's file tools only where the login and its state live", async () => {
   const own = launch({}, { denyRead: [fixtures, "/accounts/other"] });
   const settings = z
     .object({
@@ -359,7 +359,7 @@ test("the worker's own home stays closed to its file tools only where the login 
   const { deny } = settings.permissions;
   // Not the home whole, so the model reads what the CLI saves there for the session, such as a large tool output.
   expect(deny.filter((rule) => rule.endsWith("/fixtures)") || rule.endsWith("/fixtures/**)"))).toEqual([]);
-  // The four files end in *, so their .signature.json and .stamp.json sidecars are closed too; ide/ holds the IDE's token.
+  // Files end in *, so their .signature.json and .stamp.json sidecars are closed too; ide/ holds the IDE's token.
   const state = [
     ".credentials.json*",
     ".claude.json*",
@@ -367,8 +367,16 @@ test("the worker's own home stays closed to its file tools only where the login 
     "remote-settings.json*",
     "policy-limits.json*",
     "ide",
+    "settings.json*",
+    "settings.local.json*",
+    "history.jsonl*",
+    "shell-snapshots",
+    "session-env",
+    "file-history",
   ];
   for (const name of state) expect(deny.filter((rule) => rule.includes(`/fixtures/${name}`))).toHaveLength(4);
+  // The global config beside the home.
+  expect(deny.filter((rule) => rule.includes("/test/.claude.json*"))).toHaveLength(4);
   // Every other home stays closed whole, and shell commands keep the whole home closed.
   expect(deny).toEqual(expect.arrayContaining(["Read(//accounts/other)", "Edit(//accounts/other/**)"]));
   expect(settings.sandbox.filesystem.denyRead).toEqual([fixtures, "/accounts/other"]);
@@ -439,10 +447,8 @@ test("refuses a launch the types alone cannot keep out, such as one built from J
     [{ subagentModel: "sonnet" }, "sonnet"],
     [{ permissionMode: "bypassPermissions" }, "not an allowed permission mode: bypassPermissions"],
     [{ effort: "max" }, "not an allowed effort: max"],
-    [{ home: "" }, 'not an existing absolute config folder: ""'],
-    [{ home: "accounts/one" }, "accounts/one"],
-    [{ home: join(fixtures, "no-such-home") }, "no-such-home"],
-    [{ home: join(fixtures, "stream.jsonl") }, "stream.jsonl"],
+    [{ home: "" }, 'not an absolute home: ""'],
+    [{ home: ".claude" }, ".claude"],
     [{ cwd: "work" }, 'not an absolute working folder: "work"'],
     [{ resultFile: "result.json" }, 'not an absolute result file: "result.json"'],
   ] as const;

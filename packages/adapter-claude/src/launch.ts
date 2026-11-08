@@ -1,4 +1,3 @@
-import { statSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
 import type { Effort, Launch } from "@cedarloom/agent-contracts";
 import { overlay, SETTINGS_SENTINEL } from "./overlay.ts";
@@ -53,19 +52,15 @@ export const phaseLaunch = (
 
 const FULL_MODEL_ID = /^claude-[a-z0-9-]+$/;
 
-// Refuses what the types cannot keep out of a launch built from JSON, such as settings or a shared workflow. On 2.1.316 an
-// empty CLAUDE_CONFIG_DIR runs on the machine's default login, a relative one creates the folder in the working directory,
-// and a missing one runs logged out.
+// Refuses what the types cannot keep out of a launch built from JSON, such as settings or a shared workflow.
 const refuse = (launch: ClaudeLaunch): void => {
   for (const model of [launch.model, launch.subagentModel]) {
     if (!FULL_MODEL_ID.test(model)) throw new Error(`not a full Claude model ID: ${model}`);
   }
   if (!MODES.has(launch.permissionMode)) throw new Error(`not an allowed permission mode: ${launch.permissionMode}`);
   if (!EFFORTS.has(launch.effort)) throw new Error(`not an allowed effort: ${launch.effort}`);
-  if (!isAbsolute(launch.home) || statSync(launch.home, { throwIfNoEntry: false })?.isDirectory() !== true) {
-    throw new Error(`not an existing absolute config folder: "${launch.home}"`);
-  }
-  // The settings deny writes below the working folder by its absolute path.
+  // The settings deny reads of the home's login state, and writes below the working folder, by their absolute paths.
+  if (!isAbsolute(launch.home)) throw new Error(`not an absolute home: "${launch.home}"`);
   if (!isAbsolute(launch.cwd)) throw new Error(`not an absolute working folder: "${launch.cwd}"`);
   if (!isAbsolute(launch.resultFile)) throw new Error(`not an absolute result file: "${launch.resultFile}"`);
 };
@@ -120,7 +115,7 @@ const pinned = (launch: ClaudeLaunch) => ({
 });
 
 /**
- * The arguments after the command. Never `--bare`: it skips the account's login, CLAUDE.md and auto memory
+ * The arguments after the command. Never `--bare`: it skips the login, CLAUDE.md and auto memory
  * (https://code.claude.com/docs/en/headless#start-faster-with-bare-mode). `--permission-prompts none` denies what nobody
  * can answer and tells Claude not to retry it (https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs).
  */
@@ -166,7 +161,8 @@ export const launchArgs = (launch: ClaudeLaunch): string[] => {
 
 // Dropped from the launch's environment, without regard to case, because Windows names ignore it: the names the adapter
 // sets, CLAUDE_CODE_SIMPLE, which is equivalent to --bare (https://code.claude.com/docs/en/env-vars), and the login
-// variables, which outrank the account's own login (https://code.claude.com/docs/en/authentication#authentication-precedence).
+// variables, which outrank the default home's login (https://code.claude.com/docs/en/authentication#authentication-precedence).
+// CLAUDE_CONFIG_DIR is dropped too, so the worker runs on the default home, the one claude-swap switches.
 const LOGIN = /^(?:ANTHROPIC_|CLAUDE_CODE_OAUTH_|CLAUDE_CODE_USE_)/i;
 // CedarLoom sends no telemetry (owner decision, 2026-11-07), so no variable of the launch's environment turns Claude
 // Code's telemetry on or routes it (https://code.claude.com/docs/en/monitoring-usage).
@@ -184,7 +180,7 @@ const OWN_NAMES = new Set([
 ]);
 
 /**
- * The process environment: the launch's own, with the account's config folder, the effort (the variable outranks the
+ * The process environment: the launch's own, with the effort (the variable outranks the
  * flag and the effort settings, https://code.claude.com/docs/en/env-vars), every subagent forced onto the phase's
  * model (https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model), the worker's temporary folder
  * and the worker profile's variables.
@@ -199,7 +195,6 @@ export const launchEnv = (launch: ClaudeLaunch): Record<string, string> => ({
   ...pinned(launch),
   // Read from the process environment only, so it is not repeated in the settings.
   CLAUDE_CODE_TRANSCRIPT_LOCAL_GC: "1",
-  CLAUDE_CONFIG_DIR: launch.home,
   // Claude Code's own temporary files only: a TMPDIR outside the sandbox's writable folders would break commands.
   CLAUDE_CODE_TMPDIR: launch.tmpDir,
 });

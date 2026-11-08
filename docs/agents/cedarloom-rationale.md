@@ -139,7 +139,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Worker home
 
-`overlay.ts` (`OWN_STATE`). The worker's own home stays closed to its file tools only where the login and the account's state live, so the model reads what the CLI keeps there for the session, such as a large tool output saved under `projects/`. Every other home stays closed whole, and so does every home to shell commands (live test, Claude Code 2.1.316, 2026-11-06). The four files end in `*`, so their `.signature.json` and `.stamp.json` sidecars, which repeat them or name the account, are closed too; `ide/` holds each IDE connection's lock file with its auth token.
+`overlay.ts` (`OWN_STATE`). The default home the worker runs on stays closed to its file tools only where the login, the account's state and the user's own data (settings, history, shell snapshots, file history, session environment) live, and so does the global config beside it, `~/.claude.json`, so the model reads what the CLI keeps there for the session, such as a large tool output saved under `projects/`. Every other home stays closed whole, and so does every home to shell commands (live test, Claude Code 2.1.316, 2026-11-06). The four files end in `*`, so their `.signature.json` and `.stamp.json` sidecars, which repeat them or name the account, are closed too; `ide/` holds each IDE connection's lock file with its auth token.
 
 ### Settings overlay
 

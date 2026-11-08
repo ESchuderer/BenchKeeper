@@ -222,7 +222,7 @@ export const claudeAuthStatus =
     });
 
 /**
- * The Claude Code adapter: runs `claude -p` with stream-json output under the account's config folder. `command` is the
+ * The Claude Code adapter: runs `claude -p` with stream-json output on the default home. `command` is the
  * CLI by its file and any arguments before its own: Windows looks for a bare name in the launch's folder before PATH. A
  * cancel that the CLI has not obeyed after `killAfterMs` kills it.
  */

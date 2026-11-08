@@ -115,7 +115,7 @@ export const Finding = z
     finding("launch.gh-login", { error: z.string().nullable() }),
     /** A managed settings file loosens the worker sandbox: a managed key outranks the worker's settings. */
     finding("launch.sandbox-overridden", { path: z.string(), key: z.string() }),
-    /** The agent's own login check shows no login in the account's home, so its CLI version is not probed (reason: why). */
+    /** The agent's own login check shows no login in the default home, so its CLI version is not probed (reason: why). */
     finding("launch.not-logged-in", { account: z.string(), reason: z.string() }),
     /** The latest run's init line: no workflow plugin went with it, as the pinned marketplace commit has none (info). */
     finding("doctor.plugin-none", { plugin: z.string(), commit: z.string() }),

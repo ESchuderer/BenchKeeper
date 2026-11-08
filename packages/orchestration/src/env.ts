@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import type { AccountRegistry } from "@cedarloom/contracts";
 
 // What a CLI needs to run, nothing that selects a login or changes the agent.
 const INHERITED = ["PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TZ"];
@@ -86,11 +85,10 @@ const CREDENTIALS = [
 ];
 
 /**
- * What a worker must not read: every account's home, its own too, since the agent process reads its login and no shell
- * command needs it, every alias, the user's credential stores, and gh's folder under XDG_CONFIG_HOME when that is set.
+ * What a worker must not read: the user's credential stores and the agents' homes, its own too, since the agent process
+ * reads its login and no shell command needs it, and gh's folder under XDG_CONFIG_HOME when that is set.
  */
-export const deniedPaths = (registry: AccountRegistry, home: string, xdgConfigHome: string | undefined): string[] => [
-  ...registry.accounts.flatMap((account) => [account.home, ...(account.aliases ?? [])]),
+export const deniedPaths = (home: string, xdgConfigHome: string | undefined): string[] => [
   ...CREDENTIALS.map((path) => join(home, path)),
   ...(xdgConfigHome === undefined ? [] : [join(xdgConfigHome, "gh")]),
 ];

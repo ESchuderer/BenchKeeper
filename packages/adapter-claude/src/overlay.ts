@@ -1,10 +1,10 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { GuardHook } from "@cedarloom/agent-contracts";
 import { sameFolder } from "@cedarloom/contracts";
 import { z } from "zod";
 
 export interface OverlayInput {
-  /** The account's config folder the worker runs in; one of `denyRead`. */
+  /** The default home the worker runs on; one of `denyRead`. */
   readonly home: string;
   readonly cwd: string;
   readonly resultFile: string;
@@ -23,7 +23,7 @@ export interface OverlayInput {
 // A trailing ` *` matches the bare command too (https://code.claude.com/docs/en/permissions).
 const PUSH = "Bash(git push *)";
 
-// Closed to file tools where the login and account state live: docs/agents/cedarloom-rationale.md#worker-home
+// Closed to file tools where login, state and user data live: docs/agents/cedarloom-rationale.md#worker-home
 const OWN_STATE = [
   ".credentials.json*",
   ".claude.json*",
@@ -31,6 +31,12 @@ const OWN_STATE = [
   "remote-settings.json*",
   "policy-limits.json*",
   "ide",
+  "settings.json*",
+  "settings.local.json*",
+  "history.jsonl*",
+  "shell-snapshots",
+  "session-env",
+  "file-history",
 ];
 
 // The settings' proof: docs/agents/cedarloom-rationale.md#settings-overlay
@@ -100,7 +106,9 @@ export const overlay = (input: OverlayInput) => {
     ...(readOnly === undefined ? [join(cwd, ".github", "workflows")] : [cwd, ...readOnly]),
     ...guardHook.files,
   ];
-  const closed = [...denyRead.filter((path) => !sameFolder(path, home)), ...OWN_STATE.map((name) => join(home, name))];
+  // The default home's global config, ~/.claude.json, lies beside it, with its sidecars.
+  const own = [...OWN_STATE.map((name) => join(home, name)), join(dirname(home), ".claude.json*")];
+  const closed = [...denyRead.filter((path) => !sameFolder(path, home)), ...own];
   const settings = {
     permissions: {
       // Edit rules cover every tool that writes a file (https://code.claude.com/docs/en/permissions).

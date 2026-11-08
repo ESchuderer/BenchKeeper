@@ -387,7 +387,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     });
   const ctx = (): Context => {
     const { json, state } = program.opts();
-    // Resolved once, so every path built from it, an own home's too, is absolute.
+    // Resolved once, so every path built from it is absolute.
     const app = io.bundled ?? BUNDLED;
     return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env), app };
   };

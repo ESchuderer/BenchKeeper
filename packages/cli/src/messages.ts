@@ -156,7 +156,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "accounts.home-unusable": (p) =>
     `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
   "launch.not-logged-in": (p) =>
-    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked.`,
+    `Claude Code shows no login in its default home (${p.reason}), so no worker starts and its CLI version is not checked: log in with claude auth login, or switch to a logged-in account with claude-swap.`,
   "doctor.plugin-none": (p) =>
     `Workers run without the ${p.plugin} plugin: the pinned marketplace commit ${p.commit} has none yet, or it could not be fetched.`,
   "doctor.plugin-not-loaded": (p) =>

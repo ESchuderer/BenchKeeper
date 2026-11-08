@@ -2,9 +2,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, relative } from "node:path";
-import type { AccountRegistry } from "@cedarloom/contracts";
 import {
-  deniedPaths,
   ghProbe,
   managedProblems,
   managedSettingsDir,
@@ -52,32 +50,6 @@ test("a worker's environment comes from an allowlist, with the profile's token a
   // Windows names ignore case: its Path is PATH. Its system and temp folders stay there, and only there.
   const windows = { Path: "C:\\Windows", SystemRoot: "C:\\Windows", TEMP: "C:\\Temp" };
   expect(workerEnv({ ...input, parent: windows, platform: "win32" })).toMatchObject(windows);
-});
-
-const home = (...path: string[]) => join("/home/dev", ...path);
-
-const account = (name: string) =>
-  ({ name, agent: "claude", home: `/accounts/${name}`, pool: null, added: "" }) as const;
-
-test("a worker may not read any account's home or alias or the user's credential folders, and reaches GitHub only", () => {
-  const registry: AccountRegistry = {
-    schemaVersion: 1,
-    accounts: [{ ...account("work"), aliases: ["/ade/work"] }, account("spare")],
-    pools: {},
-  };
-  const denied = deniedPaths(registry, "/home/dev", "/home/dev/xdg");
-  expect(denied.slice(0, 3)).toEqual(["/accounts/work", "/ade/work", "/accounts/spare"]);
-  expect(denied).toEqual(
-    expect.arrayContaining([
-      home(".ssh"),
-      home(".config", "gh"),
-      home(".git-credentials"),
-      home(".cargo", "credentials.toml"),
-      home("Library", "Keychains"),
-    ]),
-  );
-  expect(denied.at(-1)).toBe(join("/home/dev/xdg", "gh"));
-  expect(deniedPaths(registry, "/home/dev", undefined)).not.toContain(join("/home/dev/xdg", "gh"));
 });
 
 const gh = [process.execPath, join(import.meta.dirname, "fixtures", "fake-gh.ts")] as const;

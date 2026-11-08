@@ -25,7 +25,7 @@ import {
   resultPrompt,
   workerEnv,
 } from "@cedarloom/orchestration";
-import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT, ownFolder } from "./accounts.ts";
+import { type AccountRequest, chooseAccount, loadRegistry, MAX_CONCURRENT } from "./accounts.ts";
 import { checkedVersions, recordUsage } from "./agents.ts";
 import { type FetchTree, workflowPlugin } from "./plugins.ts";
 import { retryBusy, withStore } from "./use-cases.ts";
@@ -160,14 +160,11 @@ interface Prepared<L extends Launch> {
 }
 
 // The run's id, folder and launch options on `account`, given the versions whose check passed; refused while gh finds
-// a login of its own, and for an account outside its own home or in a linked one, so nothing lands in another folder.
+// a login of its own.
 const decide = async <L extends Launch>(
   state: string,
-  registry: AccountRegistry,
   { request, host, account }: { request: WorkerRequest<L>; host: LaunchHost; account: Account },
 ): Promise<Result<Prepared<L>>> => {
-  const folder = ownFolder(state, account, { create: false });
-  if (!folder.ok) return folder;
   const runId = randomUUID();
   const { dir, tmpDir, ghConfigDir, resultFile } = workerFolders(state, runId);
   const { parent, platform, home } = host;
@@ -179,12 +176,13 @@ const decide = async <L extends Launch>(
     runId,
     account,
     env,
-    // The own home as ownFolder spells it, as the login ran in it.
-    home: folder.value,
+    // The default home, which claude-swap switches: the worker runs on its login as a terminal session does.
+    home: join(home, ".claude"),
     prompt: `${request.prompt}\n\n${resultPrompt(resultFile, runId)}`,
     tmpDir,
     resultFile,
-    denyRead: deniedPaths(registry, home, parent["XDG_CONFIG_HOME"]),
+    // shortcut: the own homes of earlier development builds keep their logins; drop once no machine has them.
+    denyRead: [...deniedPaths(home, parent["XDG_CONFIG_HOME"]), join(state, "homes")],
     allowedDomains: GITHUB_DOMAINS,
     pluginDirs: plugin === null ? [] : [plugin],
     guardHook: guardHookOf(request.guard),
@@ -347,14 +345,12 @@ const runLeased = async <L extends Launch>(
 };
 
 type NoAccount = Extract<WorkerOutcome, { kind: "no-account" }>;
-type Chosen = { readonly kind: "account"; readonly accounts: AccountRegistry; readonly account: Account };
+type Chosen = { readonly kind: "account"; readonly account: Account };
 
 // The account a resumed session ran on, whose home holds its transcript.
 const pinned = (accounts: AccountRegistry, agent: Agent, name: string): NoAccount | Chosen => {
   const account = accounts.accounts.find((each) => each.name === name && each.agent === agent);
-  return account === undefined
-    ? { kind: "no-account", reason: "unknown-pool" }
-    : { kind: "account", accounts, account };
+  return account === undefined ? { kind: "no-account", reason: "unknown-pool" } : { kind: "account", account };
 };
 
 // The account a new worker of the task takes, or the one a resumed session ran on; refused under managed settings that
@@ -375,7 +371,7 @@ const accountFor = async (
   const selection = await retryBusy(() => chooseAccount(state, accounts, request));
   if (!selection.ok) return selection;
   if (!selection.value.ok) return { ok: true, value: { kind: "no-account", reason: selection.value.reason } };
-  return { ok: true, value: { kind: "account", accounts, account: selection.value.account } };
+  return { ok: true, value: { kind: "account", account: selection.value.account } };
 };
 
 /**
@@ -392,8 +388,8 @@ export const leaseWorker = async <L extends Launch>(
   const chosen = await accountFor(state, config, request, host);
   if (!chosen.ok) return chosen;
   if (chosen.value.kind === "no-account") return { ok: true, value: chosen.value };
-  const { accounts, account } = chosen.value;
-  const prepared = await decide(state, accounts, { request, host, account });
+  const { account } = chosen.value;
+  const prepared = await decide(state, { request, host, account });
   if (!prepared.ok) return prepared;
   const { runId, dir, build } = prepared.value;
   const probe = build([]);

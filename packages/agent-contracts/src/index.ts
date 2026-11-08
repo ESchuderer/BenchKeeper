@@ -19,7 +19,10 @@ export interface GuardHook {
 
 /** What every adapter needs to start a session; an adapter's launch options add its own settings. */
 export interface Launch {
-  /** The account's config folder, which selects its login: an absolute path to an existing folder. */
+  /**
+   * The agent's default home, such as ~/.claude, whose login the session runs on as a terminal session does: its login
+   * state stays closed to the session's tools. An absolute path; the adapter never points the agent at another home.
+   */
   readonly home: string;
   readonly cwd: string;
   readonly prompt: string;
@@ -40,7 +43,7 @@ export interface Launch {
   readonly tmpDir: string;
   /** The file the worker ends with its result in, outside the working folder: the one file it may write there. */
   readonly resultFile: string;
-  /** Absolute paths the agent's shell commands and file tools must not read: account homes and credential folders. */
+  /** Absolute paths the agent's shell commands and file tools must not read: agent homes and credential folders. */
   readonly denyRead: readonly string[];
   /** Hosts the agent's shell commands may reach; every other host is refused. */
   readonly allowedDomains: readonly string[];

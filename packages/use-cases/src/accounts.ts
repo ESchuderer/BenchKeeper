@@ -1,8 +1,6 @@
-import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { counted, isConfirmed, type Move, type Selection, selectAccount, selectMove } from "@cedarloom/accounts";
 import {
-  type Account,
   ACCOUNTS_SCHEMA_VERSION,
   AccountRegistry,
   type AccountSwitch,
@@ -11,7 +9,6 @@ import {
   type Reading,
   type Result,
   readDocument,
-  sameFolder,
 } from "@cedarloom/contracts";
 import type { RunStore } from "@cedarloom/ledger";
 import { readOptionalJson, withStore, withView } from "./use-cases.ts";
@@ -32,39 +29,6 @@ export const loadRegistry = (config: string): Result<AccountRegistry | null> => 
  * there, so nothing is written into another tool's folder (owner decision "Worker homes", 2026-11-06).
  */
 export const ownHome = (state: string, name: string): string => join(state, "homes", name);
-
-/**
- * The account's own home as a real folder for the owner only. Refused when the account names another folder, when the
- * homes folder or the home is a link, so nothing written for the account lands in another folder, and when the home is
- * missing: only the login (`create`) makes it, so no worker or probe runs before the account is logged in.
- */
-export const ownFolder = (
-  state: string,
-  { name, home: named }: Account,
-  { create }: { readonly create: boolean },
-): Result<string> => {
-  const home = ownHome(state, name);
-  if (!sameFolder(named, home)) {
-    return { ok: false, finding: { code: "accounts.home-not-own", params: { account: name, home: named } } };
-  }
-  for (const path of [join(state, "homes"), home]) {
-    const found = lstatSync(path, { throwIfNoEntry: false });
-    if (found?.isSymbolicLink() === true) {
-      return { ok: false, finding: { code: "accounts.home-linked", params: { account: name, path } } };
-    }
-    if (found === undefined && !create) {
-      return { ok: false, finding: { code: "accounts.home-missing", params: { account: name, home } } };
-    }
-    try {
-      mkdirSync(path, { recursive: true, mode: 0o700 });
-      chmodSync(path, 0o700);
-    } catch (error) {
-      const cause = error instanceof Error ? error.message : String(error);
-      return { ok: false, finding: { code: "accounts.home-unusable", params: { account: name, path, error: cause } } };
-    }
-  }
-  return { ok: true, value: home };
-};
 
 /** How many workers run on one account at once: two per Claude Code account, one per Codex home. */
 export const MAX_CONCURRENT: Readonly<Record<Agent, number>> = { claude: 2, codex: 1 };

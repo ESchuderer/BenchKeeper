@@ -35,7 +35,6 @@ import {
   sourceKey,
   sourcesOf,
 } from "@cedarloom/profiles";
-import { loadRegistry } from "./accounts.ts";
 import { bundledExtensions } from "./bundled.ts";
 import type { Fetch } from "./extensions.ts";
 import { type ApplyTemplate, devcontainerCli, templatesOf } from "./devcontainer.ts";
@@ -44,8 +43,8 @@ import { readOptionalJson, withView } from "./use-cases.ts";
 
 /**
  * The Claude Code home the machine level writes: `CLAUDE_CONFIG_DIR`, else `~/.claude`
- * (https://code.claude.com/docs/en/env-vars). The accounts' homes are CedarLoom's worker homes, which get their
- * settings per launch, and their aliases are only read.
+ * (https://code.claude.com/docs/en/env-vars). Workers run on the default home too, but read none of its settings
+ * files: each launch passes its own.
  */
 export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string =>
   onDisk(resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude")));
@@ -80,21 +79,13 @@ export interface Machine {
   readonly user: string;
 }
 
-// No plugin options file may reach a Claude Code home, an account's folders, or CedarLoom's config and state.
-const guardedFolders = (config: string, state: string, { home, user }: Machine): Result<string[]> => {
-  const registry = loadRegistry(config);
-  if (!registry.ok) return registry;
-  const accounts = (registry.value?.accounts ?? []).flatMap((account) => [account.home, ...(account.aliases ?? [])]);
-  return { ok: true, value: [home, join(user, ".claude"), config, state, ...accounts] };
-};
-
-// The folders the plan writes into with those no options file may reach, and what CedarLoom last left in the home.
+// The folders the plan writes into with those no plugin options file may reach (a Claude Code home, CedarLoom's config
+// and state), and what CedarLoom last left in the home.
 const targetOf = (config: string, state: string, { home, user }: Machine) => {
-  const guarded = guardedFolders(config, state, { home, user });
-  if (!guarded.ok) return guarded;
   const written = writtenIn(state, home);
   if (!written.ok) return written;
-  return { ok: true as const, value: { target: { home, user, guarded: guarded.value }, written: written.value } };
+  const guarded = [home, join(user, ".claude"), config, state];
+  return { ok: true as const, value: { target: { home, user, guarded }, written: written.value } };
 };
 
 // Orca is here when its extension is on and host/exec finds its program; unreadable components count as not here.

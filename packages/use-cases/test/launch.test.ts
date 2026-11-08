@@ -6,9 +6,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -72,13 +70,13 @@ const host = {
   fetchTree: marketplace(["workflow", "benchkeeper"]),
 } as const;
 
-// A config folder with one confirmed Claude Code pool of `names`, each in its own home, which exists.
+// A config folder with one confirmed Claude Code pool of `names`.
 const setup = (names: readonly string[] = ["work"]) => {
   const root = mkdtempSync(join(tmpdir(), "cedarloom-launch-"));
   const state = join(root, "state");
   const config = join(root, "config");
   const work = join(root, "repo");
-  for (const dir of [config, work, ...names.map((name) => ownHome(state, name))]) mkdirSync(dir, { recursive: true });
+  for (const dir of [config, work]) mkdirSync(dir, { recursive: true });
   const registry: AccountRegistry = {
     schemaVersion: 1,
     accounts: names.map((name) => ({
@@ -297,43 +295,6 @@ test("without the workflow plugin at the pinned commit a worker starts without o
   ]);
 });
 
-test("a worker starts only in its account's own home, so nothing is written into another tool's", async () => {
-  const { state, config, work } = setup();
-  const registry = JSON.parse(readFileSync(join(config, "accounts.json"), "utf8"));
-  const ade = join(state, "..", "ade-home");
-  registry.accounts[0].home = ade;
-  writeFileSync(join(config, "accounts.json"), JSON.stringify(registry));
-  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
-    ok: false,
-    finding: { code: "accounts.home-not-own", params: { account: "work", home: ade } },
-  });
-  expect(workerFolders(state)).toEqual([]);
-});
-
-test("a worker never starts in an own home that is a link, so nothing is written into the folder it points to", async () => {
-  const { state, config, work } = setup();
-  const elsewhere = mkdtempSync(join(tmpdir(), "cedarloom-elsewhere-"));
-  renameSync(ownHome(state, "work"), join(state, "work-before"));
-  symlinkSync(elsewhere, ownHome(state, "work"), "junction");
-  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
-    ok: false,
-    finding: { code: "accounts.home-linked", params: { account: "work", path: ownHome(state, "work") } },
-  });
-  expect([workerFolders(state), readdirSync(elsewhere)]).toEqual([[], []]);
-});
-
-test("a worker never starts before its account's login made the own home: no probe runs logged out", async () => {
-  const { state, config, work } = setup();
-  renameSync(ownHome(state, "work"), join(state, "work-before"));
-  await expect(launchWorker(state, config, request(work), host)).resolves.toEqual({
-    ok: false,
-    finding: { code: "accounts.home-missing", params: { account: "work", home: ownHome(state, "work") } },
-  });
-  // No contract check ran, so none is recorded for the CLI version, and the home is left to the login to make.
-  expect(withLedger(state, (store) => store.contractChecks("claude"))).toEqual([]);
-  expect([workerFolders(state), existsSync(ownHome(state, "work"))]).toEqual([[], false]);
-});
-
 test("the account choice passes over an account whose leases are all taken; with none free, no worker starts", async () => {
   const { state, config, work } = setup(["work", "spare"]);
   const held = fill(state, "work", 1);
@@ -512,8 +473,8 @@ test("managed settings that loosen the sandbox, or cannot be read, refuse a Clau
     ok: false,
     finding: { code: "launch.managed-settings-unreadable", params: { path: file, error: "not JSON" } },
   });
-  // Nothing was chosen, leased or created: the state folder holds only the accounts' homes.
-  expect(readdirSync(state)).toEqual(["homes"]);
+  // Nothing was chosen, leased or created: there is no state folder yet.
+  expect(existsSync(state)).toBe(false);
   // Claude Code's managed settings do not apply to a Codex launch, which goes on to its own refusals.
   await expect(
     launchWorker(state, config, { ...request(work), agent: "codex" }, { ...host, managedDir }),

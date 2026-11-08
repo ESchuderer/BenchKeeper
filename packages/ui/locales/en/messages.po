@@ -136,6 +136,10 @@ msgid "nav.workflows"
 msgstr "Workflows"
 
 #. js-lingui-explicit-id
+msgid "nav.import"
+msgstr "Import"
+
+#. js-lingui-explicit-id
 msgid "editor.canvas"
 msgstr "Workflow graph"
 
@@ -518,3 +522,147 @@ msgstr "Git failed to {step} ({error})."
 #. js-lingui-explicit-id
 msgid "problem.sourceWaiting"
 msgstr "{source} has a new commit {commit}; it is taken from {offered}, 3 days after this machine first saw it."
+
+#. js-lingui-explicit-id
+msgid "import.git"
+msgstr "Git URL of the export"
+
+#. js-lingui-explicit-id
+msgid "import.ref"
+msgstr "Branch or tag"
+
+#. js-lingui-explicit-id
+msgid "import.review"
+msgstr "Review"
+
+#. js-lingui-explicit-id
+msgid "import.from"
+msgstr "From {git} at {ref}, commit {commit}"
+
+#. js-lingui-explicit-id
+msgid "import.fromFolder"
+msgstr "From {folder}"
+
+#. js-lingui-explicit-id
+msgid "import.units"
+msgstr "Workflows in this import"
+
+#. js-lingui-explicit-id
+msgid "import.workflow"
+msgstr "Workflow"
+
+#. js-lingui-explicit-id
+msgid "import.status"
+msgstr "Status"
+
+#. js-lingui-explicit-id
+msgid "import.version"
+msgstr "Version"
+
+#. js-lingui-explicit-id
+msgid "import.changes"
+msgstr "Nodes"
+
+#. js-lingui-explicit-id
+msgid "import.license"
+msgstr "License"
+
+#. js-lingui-explicit-id
+msgid "import.unitStatus"
+msgstr "{status, select, new {New} same {Same as stored} update {Update} other {Conflict: edited here, never replaced}}"
+
+#. js-lingui-explicit-id
+msgid "import.versionChange"
+msgstr "{stored} to {version}"
+
+#. js-lingui-explicit-id
+msgid "import.nodes"
+msgstr "{added} added, {changed} changed, {removed} removed"
+
+#. js-lingui-explicit-id
+msgid "import.noLicense"
+msgstr "none stated"
+
+#. js-lingui-explicit-id
+msgid "import.what"
+msgstr "What they do"
+
+#. js-lingui-explicit-id
+msgid "import.noRisks"
+msgstr "They run no command or agent and write no file."
+
+#. js-lingui-explicit-id
+msgid "import.riskKind"
+msgstr "{kind, select, schedule {Schedule} precheck {Precheck} command {Command} agent {Agent task} write {Writes} workflow {Calls the workflow} other {Extension action}} ({node}):"
+
+#. js-lingui-explicit-id
+msgid "import.extensions"
+msgstr "Extensions they need (this import installs none)"
+
+#. js-lingui-explicit-id
+msgid "import.noExtensions"
+msgstr "They need no extension."
+
+#. js-lingui-explicit-id
+msgid "import.pin"
+msgstr "from {git} at {commit}:"
+
+#. js-lingui-explicit-id
+msgid "import.pinStatus"
+msgstr "{status, select, verified {its files match the lock;} mismatch {its files differ from the lock;} other {not fetched;}}"
+
+#. js-lingui-explicit-id
+msgid "import.installed"
+msgstr "installed here."
+
+#. js-lingui-explicit-id
+msgid "import.notInstalled"
+msgstr "not installed here."
+
+#. js-lingui-explicit-id
+msgid "import.net"
+msgstr "Calls {hosts}"
+
+#. js-lingui-explicit-id
+msgid "import.credential"
+msgstr "Uses the credential {id} for {hosts}, without seeing its value"
+
+#. js-lingui-explicit-id
+msgid "import.projectRead"
+msgstr "Reads project files"
+
+#. js-lingui-explicit-id
+msgid "import.planWrite"
+msgstr "Proposes file writes, each applied only through a plan you approve"
+
+#. js-lingui-explicit-id
+msgid "import.program"
+msgstr "Runs {id} from {files}"
+
+#. js-lingui-explicit-id
+msgid "import.unknownAsks"
+msgstr "What it asks for is unknown: its manifest at that commit did not read"
+
+#. js-lingui-explicit-id
+msgid "import.licenseCount"
+msgstr "{license} ({count, plural, one {# workflow} other {# workflows}})"
+
+#. js-lingui-explicit-id
+msgid "import.licenses"
+msgstr "Licenses: {licenses}"
+
+#. js-lingui-explicit-id
+msgid "import.nothing"
+msgstr "Nothing to import: every workflow is the same as stored or in conflict."
+
+#. js-lingui-explicit-id
+msgid "import.plan"
+msgstr "Importing stores {count, plural, one {# workflow} other {# workflows}} as one run."
+
+#. js-lingui-explicit-id
+msgid "import.apply"
+msgstr "Import"
+
+#. js-lingui-explicit-id
+msgid "import.applied"
+msgstr "Imported{runId, select, none {} other { in run {runId}}}."

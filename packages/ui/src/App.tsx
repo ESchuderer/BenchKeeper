@@ -20,6 +20,7 @@ import { useDisclosure } from "@mantine/hooks";
 import {
   Brain,
   ClipboardList,
+  Download,
   Gauge,
   History,
   MessagesSquare,
@@ -32,7 +33,9 @@ import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useStat
 import type { MessageId } from "@lingui/core";
 // A file, never a data: URL: the server's CSP allows images from its own origin only.
 import mark from "../../../brand/cedarloom-icon.svg?no-inline";
+import { call } from "./call.ts";
 import { t, when } from "./i18n.ts";
+import { Import } from "./Import.tsx";
 import { describe } from "./workflow/problems.ts";
 
 type Run = components["schemas"]["Run"];
@@ -40,21 +43,6 @@ type GraphRun = components["schemas"]["GraphRunSummary"];
 type ProfileView = components["schemas"]["ProfileView"];
 type Part = components["schemas"]["ProfilePart"];
 type Preview = { planHash: string | null; count: number; skipped: number };
-type Fetched<T> = { data: T; error?: never; response: Response } | { data?: never; error: unknown; response: Response };
-
-/** The answer's data, or the sentence for the user: a lost session, a refusal with its codes, an unreachable server. */
-const call = async <T,>(request: () => Promise<Fetched<T>>): Promise<{ data: T } | { problem: string }> => {
-  try {
-    const { data, error, response } = await request();
-    if (data !== undefined) return { data };
-    if (response.status === 401) return { problem: t("session.lost") };
-    const codes = typeof error === "object" && error !== null && "findings" in error ? error.findings : null;
-    const detail = Array.isArray(codes) ? codes.map((finding: { code: string }) => finding.code).join(", ") : "";
-    return { problem: t("error.failed", { status: response.status, error: detail || JSON.stringify(error) }) };
-  } catch {
-    return { problem: t("error.unreachable") };
-  }
-};
 
 const previewOf = ({ planHash, plan, findings }: components["schemas"]["UndoPreview"]): Preview => ({
   planHash,
@@ -346,6 +334,7 @@ const Profile = ({ api }: { api: Api }): ReactNode => {
 const VIEWS = [
   { id: "nav.runs", icon: History },
   { id: "nav.workflows", icon: Workflow },
+  { id: "nav.import", icon: Download },
   { id: "nav.profile", icon: SlidersHorizontal },
   { id: "nav.sessions", icon: MessagesSquare },
   { id: "nav.accounts", icon: Users },
@@ -362,6 +351,7 @@ const WorkflowEditor = lazy(() => import("./workflow/Editor.tsx"));
 const content = (view: View, session: Session): ReactNode => {
   if (view === "nav.runs") return <Runs session={session} />;
   if (view === "nav.profile") return <Profile api={session.api} />;
+  if (view === "nav.import") return <Import api={session.api} />;
   if (view === "nav.workflows") {
     return (
       <Suspense fallback={null}>

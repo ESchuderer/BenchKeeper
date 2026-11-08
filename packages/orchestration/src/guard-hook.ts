@@ -3,12 +3,16 @@ import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
 import { guardCommand, type Remotes } from "./guard.ts";
+import { programPath } from "./program.ts";
 
 // The fetch and push URLs of a folder's remotes as git reads them, its insteadOf rewrites applied; null when git cannot
-// read them.
+// read them. git comes from an absolute folder of PATH: the hook runs outside the sandbox, and a relative entry would
+// let the session's own files stand in for it.
 const gitRemotes: Remotes = (folder) => {
+  const git = programPath("git", process.env);
+  if (git === undefined) return null;
   try {
-    const listed = execFileSync("git", ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
+    const listed = execFileSync(git, ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
       encoding: "utf8",
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],

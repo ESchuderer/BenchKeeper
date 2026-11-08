@@ -99,6 +99,28 @@
       }
     },
     {
+      "files": ["packages/emitter/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "node:*",
+                  "@cedarloom/*",
+                  "!@cedarloom/contracts",
+                  "!@cedarloom/engine/graph",
+                  "!@cedarloom/engine/validate"
+                ],
+                "message": "the emitter builds files as data: the contracts and the validator only, no runtime"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/orchestration/src/**"],
       "rules": {
         "no-restricted-imports": [

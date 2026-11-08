@@ -6,9 +6,7 @@ The reasons behind CedarLoom code whose why takes more than one line. Each secti
 
 `packages/use-cases/src/drafts.ts`
 
-- **One lower-case file per workflow id, with a prefix.** Drafts are the working copies of the workflows the editor has open, in the canonical file form beside the run store. A case-insensitive file system (macOS, Windows) would join ids that differ only in case anyway. The prefix keeps a Windows device name (`con`, `nul`) from being a file's name.
-- **Only a workflow id gets a path.** The routes take workflow ids only, and no other caller gets a path outside the folder either. The id's pattern is checked before lower-casing, which maps the Kelvin sign to `k`. The `startsWith(folder + sep)` check is the form CodeQL recognizes as a path guard.
-- **No link and no wait on a FIFO.** The open uses `O_NOFOLLOW` and `O_NONBLOCK`. Windows has no `O_NOFOLLOW`; making a link there takes admin rights or developer mode.
+Drafts are the working copies of the workflows the editor has open, in the canonical file form beside the run store. Only a workflow id gets a path: the routes take workflow ids only, and no other caller gets a path outside the folder either. The id's pattern is checked before lower-casing, which maps the Kelvin sign to `k`. The `startsWith(folder + sep)` check is the form CodeQL recognizes as a path guard. The file system's part (case, device names, links, FIFOs) is in [git and child processes](git-and-processes.md#files).
 
 ## Update wait
 
@@ -17,17 +15,6 @@ The reasons behind CedarLoom code whose why takes more than one line. Each secti
 An update is offered once this machine has seen its commit for 3 days (A94). A commit's own date is whatever its author wrote, so the clock starts when CedarLoom first fetched it here. An add never waits: it is a new choice with full consent, so a remove and an add install the newest commit at once.
 
 Limit: only the ref's newest commit is fetched, so a ref that moves more often than every 3 days never offers an update; follow a tag or a release branch (`--ref`) there. The upgrade is to remember each commit seen and offer the newest one that has waited, fetched by its SHA where the server allows that.
-
-## Orphans
-
-`packages/use-cases/src/orphans.ts` (`stopOrphans`)
-
-For each attempt still marked running, the process and its tree are stopped when the process started in the minute before the attempt's start was recorded. A later process that reuses the pid started after that and is left alone.
-
-Limits:
-- `ps` tells the start to the second, so a process that ended and whose pid was reused within the second of the record would be taken for it.
-- A command whose shell has ended, while a child of it runs on, is not found this way.
-- On Windows a runner's shell ends with the runner (Node's job object kills it on close), so there is nothing to stop; the shell's own children may outlive it (hub issue 103).
 
 ## Contracts
 

@@ -119,7 +119,7 @@ const runnable = (manifest: ExtensionManifest, tree: Tree): Finding | undefined 
   return speaks(manifest.api) ? undefined : refusal(manifest.id, "protocol");
 };
 
-// Stages the files read-only under their digest, inert until an entry pins them; a failure keeps only its error code.
+// Inert until an entry pins it, so no undo; a failure keeps only its error code, as its message holds the extension's paths.
 const stage = (state: string, id: string, tree: Tree): Finding | undefined => {
   const parent = join(state, "extensions", id);
   const folder = join(parent, tree.digest);
@@ -243,7 +243,6 @@ const firstSeen = (
   return { seen: now, moved: known !== undefined && known.commit !== installed };
 };
 
-// What `after` asks for beyond `before`: a new origin, a new or rebound credential, project reads, proposed writes.
 const beyond = (before: Capabilities, after: Capabilities): Capabilities => {
   const net = (after.net ?? []).filter((origin) => !(before.net ?? []).includes(origin));
   const old = before.credentials ?? {};

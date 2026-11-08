@@ -18,7 +18,7 @@ const startOf = (pid: number): number => {
 // A process older than its record by over a minute is another one (a clock going back, another pid namespace).
 const SPAWN_MS = 60_000;
 
-// Stops what a dead runner's attempts left running: docs/agents/cedarloom-rationale.md#orphans
+// Stops what a dead runner's attempts left running: docs/agents/git-and-processes.md#child-processes
 export const stopOrphans = (attempts: readonly NodeAttempt[]): void => {
   /* v8 ignore next -- Windows only */
   if (process.platform === "win32") return;

@@ -107,7 +107,7 @@ const Credential = z.strictObject({
     .describe("The host adds the credential to requests to these hosts only; each is in `net`"),
 });
 
-// A program's name and where the host looks for it: a file name on PATH (.exe or .com on Windows) or a `~/` path.
+// A file name on PATH (on Windows .exe or .com, which run without a shell) or a `~/` path, which a desktop app's PATH often lacks.
 const ProgramId = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/);
 // Each part of a home path starts with a letter, a digit or `_`, after one optional dot, so no part is `.` or `..`.
 const Candidate = z

@@ -32,7 +32,7 @@ export const automationSettings = (config: string): Result<AutomationSettings | 
   return read.ok ? { ok: true, value: read.value?.settings ?? null } : read;
 };
 
-// A folder's real path in its on-disk case, so one folder has one entry (realpathSync.native); null when none is there.
+// On-disk case, so one folder has one entry: https://nodejs.org/api/fs.html#fsrealpathsyncnativepath-options
 const projectFolder = (folder: string): string | null => {
   try {
     const real = realpathSync.native(folder);

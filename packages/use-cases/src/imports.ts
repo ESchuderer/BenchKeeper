@@ -287,7 +287,7 @@ const usedBy = (workflows: Workflow[]): string[] => [
   ...new Set(workflows.flatMap(({ workflow }) => extensionsOf(workflow))),
 ];
 
-// An import's plan: one store.update with the chosen workflows as they are, the lock with their pins, and their hashes.
+// Byte for byte, with each hash as imported, which tells a later import an update from a local edit; null for none chosen.
 const planOf = (stored: Stored, lock: ExtensionLock, chosen: Workflow[]): Result<Plan | null> => {
   if (chosen.length === 0) return { ok: true, value: null };
   const hashes = chosen.map(({ text, workflow }) => [workflow.metadata.id.toLowerCase(), sha256(text)]);

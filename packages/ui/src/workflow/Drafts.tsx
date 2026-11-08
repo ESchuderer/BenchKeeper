@@ -12,11 +12,9 @@ type Answer<T> = { data: T | undefined } | { problem: string };
 // A save waits this long after the last edit, so a drag or a burst of edits is one write.
 const DELAY = 1000;
 
-// This tab's drafts: for each id, the hash of the version it saved or restored last, which its next save replaces. Like
-// the document, they outlive the view; a reload starts without them, and every draft is offered.
+// Per id, the hash this tab saved or restored last, which its next save replaces; a reload starts without them.
 const mine = new Map<string, string>();
-// Every workflow this tab saved or restored since the page loaded: its own drafts are no offer, even while a save that
-// started as the view closed has not answered yet.
+// Workflows this tab saved or restored since loading: no offer, even while a save from closing has not answered.
 const ours = new Set<string>();
 // The last edit made while a draft of its workflow was on offer: Discard saves it, also after the view was left.
 let held: WorkflowDefinition | null = null;
@@ -128,10 +126,7 @@ const useAutosave = ({ api, workflow, loads, onStatus, open }: Saving) => {
 
 type Props = Omit<Saving, "open"> & { change: (change: Change) => void; focus: () => void };
 
-/**
- * The editor's drafts in the state folder: each edit is saved a second after the last one, the drafts found on opening
- * are offered to restore or discard, and `release` removes this tab's draft after an export.
- */
+// Each edit saved a second after the last; drafts found on opening are offered; `release` removes this tab's draft.
 export const useDrafts = ({ change, focus, ...props }: Props) => {
   const { api, workflow, onStatus } = props;
   const { offers, open, settle } = useOffers(api);

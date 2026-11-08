@@ -20,8 +20,7 @@ export type ManagedProblem =
   | { readonly kind: "loosens"; readonly path: string; readonly key: string }
   | { readonly kind: "unreadable"; readonly path: string; readonly error: string };
 
-// The keys below, each with its entry in https://code.claude.com/docs/en/settings-reference (the anchor in the comment).
-// Boolean keys and the value that lets a command out of the sandbox or past its file and process isolation.
+// Values that loosen the sandbox, each with its anchor in https://code.claude.com/docs/en/settings-reference.
 const SWITCHES = [
   ["enabled", false], // #sandbox-enabled
   ["failIfUnavailable", false], // #sandbox-failifunavailable: commands run unsandboxed when the sandbox cannot start
@@ -38,8 +37,7 @@ const LISTS = [
   "network.allowUnixSockets", // #sandbox-network-allowunixsockets: a socket such as Docker's grants broad access
   "network.allowMachLookup", // #sandbox-network-allowmachlookup: services outside the sandbox act for the command
 ] as const;
-// A proxy of the policy's own takes over filtering: Claude Code stops applying its domain lists to it
-// (#sandbox-network-httpproxyport, #sandbox-network-socksproxyport).
+// A policy's own proxy replaces Claude Code's domain lists: docs/agents/cedarloom-rationale.md#managed-settings
 const PORTS = ["network.httpProxyPort", "network.socksProxyPort"] as const;
 // Hosts beyond the workers' GitHub-only network (#sandbox-network-alloweddomains; owner decision, 2026-11-06).
 const DOMAINS = "network.allowedDomains";
@@ -58,8 +56,7 @@ const at = (object: Json, key: string): unknown =>
       object,
     );
 
-// A quoted "true" or "false" counts as that Boolean, as Claude Code reads it; any other invalid value keeps the sandbox
-// strict (https://code.claude.com/docs/en/managed-settings#invalid-values-inside-sandbox).
+// A quoted Boolean counts, other invalid values keep it strict: docs/agents/cedarloom-rationale.md#managed-settings
 const loosens = (value: unknown, loose: boolean): boolean => value === loose || value === String(loose);
 
 interface Settings {
@@ -69,8 +66,7 @@ interface Settings {
 
 const codeOf = (error: unknown): string => String(Reflect.get(Object(error), "code"));
 
-// One managed file: null when there is none. A file that cannot be read, or holds no JSON object (a byte order mark
-// included), cannot be cleared, so it counts against the launch.
+// null for no file; one unreadable or not a JSON object (a BOM too) cannot be cleared, so it counts against the launch.
 const readManaged = (path: string): Settings | ManagedProblem | null => {
   let text: string;
   try {
@@ -87,8 +83,7 @@ const readManaged = (path: string): Settings | ManagedProblem | null => {
   }
 };
 
-// The files in the order Claude Code merges them: managed-settings.json, then managed-settings.d/*.json by name, hidden
-// files left out (https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams).
+// In Claude Code's merge order, hidden files left out: docs/agents/cedarloom-rationale.md#managed-settings
 const managedFiles = (dir: string): (Settings | ManagedProblem | null)[] => {
   const dropIns = join(dir, "managed-settings.d");
   let names: string[] = [];
@@ -104,8 +99,7 @@ const managedFiles = (dir: string): (Settings | ManagedProblem | null)[] => {
 
 const sandboxOf = (settings: Json): Json => (isObject(settings["sandbox"]) ? settings["sandbox"] : {});
 
-// What one file loosens whatever comes after it: list entries, hosts beyond GitHub, and a policy helper, whose output
-// replaces the files this preflight reads (https://code.claude.com/docs/en/settings-reference#policyhelper).
+// Loosening whatever follows: docs/agents/cedarloom-rationale.md#managed-settings
 const listed = ({ path, settings }: Settings): ManagedProblem[] => {
   const entries = (key: string): unknown[] => {
     const value = at(sandboxOf(settings), key);

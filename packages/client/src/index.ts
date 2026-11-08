@@ -40,11 +40,7 @@ type Schemas = components["schemas"];
 /** An event of the stream: the runs as they stand, or the findings that say why they cannot be read. */
 export type RunEvent = ({ event: "runs" } & Schemas["RunsEvent"]) | ({ event: "refusal" } & Schemas["Refusal"]);
 
-/**
- * The server writes `event:` and one `data:` line of JSON per event, parsed with its contract before it goes out
- * (packages/server/src/events.ts), so the data is trusted as the openapi-fetch answers are. Lines end at LF only, as
- * in SSE: a U+2028 inside a run id stays in the data.
- */
+// The server checks each event against its contract (server events.ts); lines end at LF only, as in SSE.
 const parse = (block: string): RunEvent | undefined => {
   const lines = block.split("\n");
   const field = (name: string): string | undefined =>

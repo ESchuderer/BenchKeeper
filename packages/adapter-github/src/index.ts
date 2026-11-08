@@ -7,8 +7,7 @@ import { z } from "zod";
 const GitHub = Octokit.plugin(paginateRest);
 type Client = InstanceType<typeof GitHub>;
 
-// The REST API version these calls follow; none of its breaking changes touches issue comments or labels
-// (github/rest-api-description at 2f8f80e, x-github-breaking-changes).
+// None of this version's breaking changes touch issue comments or labels (github/rest-api-description 2f8f80e).
 const VERSION = { headers: { "x-github-api-version": "2026-03-10" } };
 
 // The parts of GitHub's list answers that are read, checked as GitHub's text is untrusted.
@@ -41,8 +40,7 @@ type HttpError = Error & { status: number; response?: { headers: Record<string, 
 const httpError = (error: unknown): error is HttpError =>
   error instanceof Error && error.name === "HttpError" && "status" in error && typeof error.status === "number";
 
-// A rate limit is a 429, or a 403 with x-ratelimit-remaining 0, a retry-after header or, for a secondary limit, only its
-// message (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit).
+// A 429, or one of the 403 forms GitHub documents: docs/agents/cedarloom-rationale.md#rate-limits
 const limited = ({ status, response, message }: HttpError): boolean =>
   status === 429 ||
   (status === 403 &&
@@ -56,11 +54,7 @@ const header = (error: unknown, name: string): string | null => {
   return typeof value === "string" ? value : null;
 };
 
-/**
- * A failed call as a finding. It waits (the entry stays queued) without an answer (Octokit's status 500), on a server
- * error, a rate limit or a token GitHub does not take (401), which no entry can fix; any other answer refuses the entry,
- * as does an answer CedarLoom cannot read.
- */
+// Waits (the entry stays queued) on no answer, a server error, a rate limit or a 401; anything else refuses the entry.
 const failure = (error: unknown): Finding => {
   if (error instanceof z.ZodError) {
     const issues = error.issues.map(({ path, code }) => `${path.join(".")} ${code}`);
@@ -92,8 +86,7 @@ const repoOf = ({ repo }: IssueRef): { owner: string; repo: string } => {
 };
 const issueOf = (issue: IssueRef) => ({ ...repoOf(issue), issue_number: issue.number, ...VERSION });
 
-// What `work` answers, or null when GitHub answers 404 while the issue answers: nothing left to delete. GitHub also
-// answers 404 for a repository the token cannot see, which the issue's own 404 then refuses.
+// null on GitHub's 404 while the issue answers: nothing left to delete; a hidden repository's 404 refuses at the issue.
 const orGone = async <T>(github: Client, issue: IssueRef, work: () => Promise<T>): Promise<T | null> => {
   try {
     return await work();
@@ -104,8 +97,7 @@ const orGone = async <T>(github: Client, issue: IssueRef, work: () => Promise<T>
   }
 };
 
-// Deletes a comment of the issue: an id of a comment on another issue of the hub deletes nothing and refuses, one
-// already gone is done.
+// A comment on another hub issue deletes nothing and refuses; one already gone is done.
 const deleteComment = async (github: Client, issue: IssueRef, comment: number): Promise<null> => {
   const params = { ...repoOf(issue), ...VERSION, comment_id: comment };
   const found = await orGone(github, issue, () =>

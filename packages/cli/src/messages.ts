@@ -3,8 +3,7 @@ import { type Finding, type FindingCode, shown } from "@cedarloom/contracts";
 type Params = { [F in Finding as F["code"]]: F["params"] };
 
 const short = (hash: string | null): string => (hash === null ? "no file" : hash.slice(0, 12));
-// A folder as a shell argument, as Python's shlex.quote makes one: as it is when it holds only safe characters, else in
-// single quotes with each embedded quote closed, escaped and reopened, so pasting the command runs nothing of the path.
+// Quoted as Python's shlex.quote does, so pasting the command runs nothing of the path.
 // shortcut: PowerShell reads an embedded quote as doubled (''), not \'; due once a Windows folder name holds one.
 const folderArgument = (path: string): string =>
   /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`;
@@ -148,8 +147,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
   "accounts.unknown-pool": (p) => `The registry has no ${p.agent} pool named ${p.pool}.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
-  // Every quote checked at its source on 2026-11-06: three bullets of the Usage Policy's "Do Not Abuse Our Platform",
-  // whose page is marked effective Nov 12, 2026, and the "ordinary use" sentence of the help article on logging in.
+  // Checked 2026-11-06: the Usage Policy's "Do Not Abuse Our Platform" (effective Nov 12, 2026), the login article.
   "accounts.pool-terms": (p) =>
     `Confirm pool ${p.pool} only if you hold and pay for every account in it yourself. Anthropic's Usage Policy, in ` +
     "force from November 12, 2026 (https://www.anthropic.com/legal/aup), forbids users to " +

@@ -56,9 +56,7 @@ export const sessionRoutes: FastifyPluginAsyncZod<{ session: Session }> = async 
   );
 };
 
-// shortcut: the use cases are synchronous, so an undo, a busy store or a read while another process cleans up the WAL
-// (each up to 1 s; the WAL cleanup usually takes milliseconds) holds the event loop, and the event streams' reads wait
-// meanwhile; move the use cases to a worker when undos get long or several tabs need answers during one.
+// shortcut: synchronous use cases let an undo or a busy store (up to 1 s) hold the event loop; move them to a worker.
 
 /** The runs, one run with its steps, and the doctor's findings; reads never write. */
 export const runRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {
@@ -117,10 +115,7 @@ export const undoRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, 
   );
 };
 
-/**
- * The editor's drafts in the state folder: the list, one draft with its workflow, a save (the last one wins and says
- * whether it replaced another tab's), and a delete after an export, a new workflow or a discard.
- */
+// The editor's drafts: list, read, save (the last wins and says whether it replaced another tab's), and delete.
 export const draftRoutes: FastifyPluginAsyncZod<{ state: string }> = async (app, { state }) => {
   const DraftPath = z.strictObject({ id: WorkflowId });
   app.get(
@@ -203,11 +198,7 @@ export const graphRunRoutes: FastifyPluginAsyncZod<{ state: string }> = async (a
   );
 };
 
-/**
- * The Profile view: the selected profile's parts with this machine's plan and drift lines, read only (Git sources are
- * fetched, nothing is written); and a part switched on or off as `profiles select <part> on|off --yes` does it, by one
- * run that writes the selection file, with its undo.
- */
+// The Profile view, read only (Git sources fetched), and a part switched as `profiles select <part> on|off --yes` does.
 export const profileRoutes: FastifyPluginAsyncZod<{
   config: string;
   state: string;
@@ -248,18 +239,13 @@ export const profileRoutes: FastifyPluginAsyncZod<{
 // The plans of the latest reviews, so an apply stores what a review showed; an older one is planned again.
 const KEPT = 16;
 
-/**
- * Imports (P6 a): the review of a Git ref, fetched as data, with its plan kept under an id, and that plan applied only
- * with the hash of the preview the user approved, once. An export folder is imported through its Git URL, or with the
- * CLI: the API reads no folder a request names.
- */
+// Imports (P6 a): a reviewed Git ref's plan applies once, by the approved preview's hash; the API reads no folder.
 export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCases.Fetch | undefined }> = async (
   app,
   { state, fetch },
 ) => {
   const planned = new Map<string, Plan>();
-  // The fetch refuses a Git URL or ref it does not take, with its finding (409): their rules are no request schema's.
-  // 1024 characters: one more, each escaped as a 12-byte surrogate pair, still fits the 16 KiB body, so it gets its 400.
+  // URL and ref rules are the fetch's (409); 1,025 characters at 12 escaped bytes each fit 16 KiB, so a 400 answers.
   const source = z.strictObject({ git: z.string().max(1024), ref: z.string().max(255) });
   app.post(
     "/api/imports",

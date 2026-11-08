@@ -3,8 +3,7 @@ import { readDocument, WORKER_RESULT_SCHEMA_VERSION, WorkerResult } from "@cedar
 
 // A valid result holds a summary of 2,000 characters at most, so a larger file is refused unparsed.
 const MAX_BYTES = 64 * 1024;
-// No symbolic link is followed, and a FIFO the worker put in place does not block the open. Windows has neither flag,
-// and a missing one counts as 0 in a bitwise or.
+// No link is followed and a FIFO the worker placed does not block; Windows lacks both flags, which then or in as 0.
 const { O_NOFOLLOW, O_NONBLOCK, O_RDONLY } = constants;
 
 /**

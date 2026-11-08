@@ -5,7 +5,7 @@ Read this before changing code that runs git or another program. Each item names
 ## Child processes
 
 - **No shell.** Pass an argv to `spawn` or `execFile`, never a command string: through a shell, a branch name or a path becomes a command ([security model](../security.md#commands-and-argv)).
-- **Windows console windows.** Every spawn that opens a console sets `windowsHide: true` (`run` in `packages/git/src/git.ts` and in `packages/adapter-claude/src/index.ts`). The adapter's watcher runs detached without a console.
+- **Windows console windows.** Every spawn that opens a console sets `windowsHide: true` (`run` in `packages/git/src/git.ts`).
 - **Program lookup.** Spawn a program by its file, never by its bare name: Windows looks for a bare name in the child's working folder, often a project, before PATH. `programPath` in `packages/orchestration/src/program.ts` finds it in the absolute folders of PATH only.
 - **Stopping a process tree.** Windows has no POSIX signals: `kill()` ends the program at once and leaves its children running. `stopTree` in `packages/extension-host/src/tree.ts` ends the tree with `taskkill /T /F` from System32, and only while the child has not exited, since Windows may give its process ID to another process.
 - **A child that ignores SIGTERM** keeps its caller waiting: a timeout kills with `SIGKILL` (`packages/use-cases/src/devcontainer.ts`).
@@ -20,16 +20,7 @@ Read this before changing code that runs git or another program. Each item names
 ## Files
 
 - **Case and device names.** macOS and Windows file systems join names that differ only in case, and Windows opens a device for a name such as `con` or `nul`. Drafts are one lower-case file per workflow id behind a prefix (`pathOf` in `packages/use-cases/src/drafts.ts`).
-- **Links and FIFOs.** An open follows a symbolic link and waits on a FIFO. Reads that must do neither open with `O_NOFOLLOW` and `O_NONBLOCK` (`READ` in `packages/use-cases/src/drafts.ts`, `readResult` in `packages/orchestration/src/result.ts`). Windows has neither flag, and making a link there takes admin rights or developer mode.
+- **Links and FIFOs.** An open follows a symbolic link and waits on a FIFO. Reads that must do neither open with `O_NOFOLLOW` and `O_NONBLOCK` (`READ` in `packages/use-cases/src/drafts.ts`). Windows has neither flag, and making a link there takes admin rights or developer mode.
 - **Flushing a folder** fails on Windows, which cannot open one; NTFS journals the rename instead (`flushFolder` in `packages/engine/src/files.ts`).
-
-## Stopping Claude Code
-
-`packages/adapter-claude/src/index.ts` (`TASKKILL`, `WATCHER`, `spawned`).
-- **Cancel.** On SIGTERM the CLI stops the process tree of a running command and exits; a slow reader delays the exit by 30 s at most (https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm). A CLI still running `killAfterMs` after SIGTERM gets SIGKILL with its process group. Its exit clears the timer, since a signal sent after it would reach any process that reuses its ID (https://nodejs.org/api/child_process.html#subprocesskillsignal).
-- **Windows.** Windows has no POSIX signals: `kill()` ends the CLI at once and leaves its commands running (same page), so `taskkill` ends the whole tree there, also at once and without the CLI's SessionEnd hooks. It runs from System32, not from PATH.
-- **Process group.** On POSIX the CLI runs in a process group of its own, so a kill reaches the commands it started there. Its Bash tool commands lead groups of their own (Claude Code 2.1.316), which the CLI's SIGTERM stops. A group with members keeps its ID from reuse (https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap04.html, 4.17).
-- **Watcher.** A watcher holds a pipe from the host. When the pipe closes before the host says the CLI exited (the host died, also by SIGKILL or with its terminal), it stops the CLI as a cancel does: SIGTERM, then SIGKILL to the CLI's group while it is still there after the grace. On Windows the CLI runs outside the host's job object, which would end the CLI with the host but leave the commands that broke away from it running (hub issue 142); the watcher ends the CLI's whole tree with taskkill instead. A CLI the host cannot watch (no watcher started: EAGAIN, EMFILE, ENFILE) is stopped at once.
-- **Output.** A reader that leaves early (a session without the settings proof, a throw) must not close stdout: the CLI would die of EPIPE on its next line, before a cancel reaches it, and leave its commands running. Its output is drained instead (`readable.iterator`, stable since Node.js 24: https://nodejs.org/api/stream.html#readableiteratoroptions).
 
 CedarLoom's Windows-only branches run only in the Windows leg of its test job (`.github/workflows/cedarloom.yml`). The legacy app runs on Windows only in the `app-windows-smoke` job (start, plan, apply).

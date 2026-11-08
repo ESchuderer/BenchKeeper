@@ -348,7 +348,45 @@
       ["gh issue develop", "gh issue develop 7 --branch-repo other/x", "unreadable"],
       ["gh variable list of another repository", "gh variable list -R other/x", "outside-profiles"],
       ["gh variable get", "gh variable get X", null],
-      ["gh secret ls", "gh secret ls", null]
+      ["gh secret ls", "gh secret ls", null],
+      ["gh pr review with a word the guard cannot read", "gh pr review 12 \"$F\"", "approval"],
+      ["gh pr review --approve=true", "gh pr review 12 --approve=true", "approval"],
+      ["gh pr comment with a word the guard cannot read", "gh pr comment 1 -b hi \"$X\"", "outside-profiles"],
+      [
+        "an issue URL with a port",
+        "gh issue comment https://github.com:443/acme/app/issues/1 -b x",
+        "issue-outside-hub"
+      ],
+      [
+        "a pull request URL with user info",
+        "gh pr comment https://user@github.com/other/x/pull/1 -b x",
+        "outside-profiles"
+      ],
+      ["gh pr view -w before a URL", "gh pr view -w https://github.com/other/x/pull/1", "outside-profiles"],
+      [
+        "gh repo clone --upstream-remote-name",
+        "gh repo clone --upstream-remote-name acme/app other/x",
+        "outside-profiles"
+      ],
+      ["gh api an encoded slash", "gh api 'repos/acme/tracker%2F..%2F..%2Fother/x/pulls'", "unreadable"],
+      ["gh api /graphql by GET", "gh api /graphql -X GET -f query=x", "unreadable"],
+      [
+        "curl a backslash before @",
+        "curl -X PUT 'https://evil.example\\@api.github.com/repos/acme/app/pulls/1/merge'",
+        "unreadable"
+      ],
+      [
+        "curl a Host header",
+        "curl -X PUT -k -H 'Host: api.github.com' https://140.82.112.6/repos/acme/app/pulls/1/merge",
+        "unreadable"
+      ],
+      ["curl everyday options", "curl --retry-all-errors --no-progress-meter -D - -4 https://example.com", null],
+      ["curl brackets in a local query", "curl -s 'http://localhost:3000/api/items?filter[status]=open'", null],
+      [
+        "curl a release asset",
+        "curl -fsSLO https://objects.githubusercontent.com/github-production-release-asset-1/x",
+        null
+      ]
     ],
     "worker /work/fork": [
       ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],
@@ -367,7 +405,12 @@
         "gh api -X PUT repos/:owner/:repo/contents/x.md -f message=m",
         "unreadable"
       ],
-      ["gh api merge-upstream", "gh api -X POST repos/acme/notes/merge-upstream -f branch=main", "unreadable"]
+      ["gh api merge-upstream", "gh api -X POST repos/acme/notes/merge-upstream -f branch=main", "unreadable"],
+      [
+        "curl a push through git's protocol",
+        "curl --data-binary @pack https://github.com/acme/notes.git/git-receive-pack",
+        "unreadable"
+      ]
     ],
     "interactive /work/app": [
       ["main of another repository", "git push origin main", null],
@@ -415,6 +458,16 @@
         "GraphQL resolveReviewThread",
         "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"x\"}) { clientMutationId } }'",
         null
+      ],
+      [
+        "GraphQL a comma before the arguments",
+        "gh api graphql -f query='mutation { createRef,(input: {}) { clientMutationId } }'",
+        "unreadable"
+      ],
+      [
+        "GraphQL a comment before the arguments",
+        "gh api graphql -f query='mutation { updateIssueComment #x\n(input: {}) { clientMutationId } }'",
+        "unreadable"
       ]
     ]
   }

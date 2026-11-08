@@ -189,8 +189,7 @@ const resumed = (
 
 type Decided = Extract<JournalEvent, { type: "decided" }>;
 
-// The owner's decisions that no start has used yet, per node and the plan each approves ("" for none): one node may
-// wait at both gates, before it starts and before its plan applies. The last decision for a gate counts.
+// The owner's decisions no start used yet, per node and plan ("" for none); the last decision for a gate counts.
 const decisionsOf = (journal: readonly JournalEvent[]): Map<string, Map<string, Decided>> => {
   const open = new Map<string, Map<string, Decided>>();
   for (const event of journal) {
@@ -240,11 +239,7 @@ class Runner {
     this.#options = options;
   }
 
-  /**
-   * Goes on with the attempts `left` started, carries out the actions left from the journal, then each event's actions,
-   * until the run has finished, or until nothing is on its way and every node left waits for the owner: the run then
-   * waits without its runner.
-   */
+  // Runs on from the journal until the run finishes, or until every node left waits for the owner without a runner.
   async run(actions: readonly Action[], left: readonly Open[]): Promise<Result<RunStatus | "waiting">> {
     this.#listen();
     for (const open of left) void this.#tracked(this.#recover(open));
@@ -263,8 +258,7 @@ class Runner {
     return this.#lost === null ? { ok: true, value: this.#status } : { ok: false, finding: this.#lost };
   }
 
-  // Turns the signal's abort into a cancel. The run's end removes the listener, so a signal that outlives the run keeps
-  // no finished runner.
+  // Turns the signal's abort into a cancel; the run's end removes the listener, so no finished runner is kept.
   #listen(): void {
     const { signal } = this.#options;
     const cancel = (): void => this.#post({ type: "cancel" });
@@ -346,8 +340,7 @@ class Runner {
     return (given) => (own(this.#options.executors, type) ?? missing)(given);
   }
 
-  // Goes on with an attempt a dead runner left started, through its type's recovery; it ends interrupted when that finds
-  // nothing to go on with.
+  // Goes on with a dead runner's attempt through its type's recovery, else ends it interrupted.
   async #recover({ node, attempt, sessionId, applyRun }: Open): Promise<void> {
     const { type, config } = this.#of(node);
     const recovery = own(this.#options.recover, type);
@@ -403,12 +396,7 @@ class Runner {
     return null;
   }
 
-  /**
-   * Whether an attempt goes on at a gate: the owner approved it, for the plan it applies if it has one, or the policy lets
-   * it. The owner's decision outranks the policy, and a gate the journal holds waits for that decision whatever the policy
-   * says now, as after a switch to Auto (review of #1167). A rejection fails the attempt, or does what `rejected` says;
-   * without a decision, the gate is recorded and the attempt waits.
-   */
+  // The owner's decision outranks the policy, and a held gate waits for one whatever the policy says now (#1167).
   #cleared(
     node: string,
     attempt: number,

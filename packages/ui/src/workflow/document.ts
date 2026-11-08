@@ -58,11 +58,7 @@ const leads = (workflow: WorkflowDefinition, start: string, goal: string): boole
   return seen.has(goal);
 };
 
-/**
- * Whether an edge may join an output to an input: both exist, the engine's compatibility rule does not say no, the
- * edge closes no cycle, and the input is free (a data input or workflow output takes one edge, a control input
- * each source once). Two exclusive outputs into one input stay allowed: the problems panel warns about them.
- */
+// The input must be free (one edge into data, each source once into control); two exclusive outputs into one warn.
 export const canConnect = (workflow: WorkflowDefinition, from: From, to: To): boolean => {
   const [source, target] = [endType(workflow, from, "from"), endType(workflow, to, "to")];
   if (source === undefined || target === undefined || compatibility(source, target) === "no") return false;
@@ -72,10 +68,7 @@ export const canConnect = (workflow: WorkflowDefinition, from: From, to: To): bo
   return target === "control" ? !into.some((edge) => sameEnd(edge.from, from)) : into.length === 0;
 };
 
-/**
- * The first of `prefix1`, `prefix2` … that no node, edge, position or policy uses: a new node never takes over an
- * entry left behind in the layout or execution section.
- */
+// The first unused `prefix<n>`, so a new node never takes over an entry left in the layout or execution section.
 const freeId = (workflow: WorkflowDefinition, prefix: string): string => {
   const taken = new Set([
     ...[...workflow.nodes, ...workflow.edges].map((item) => item.id),

@@ -120,10 +120,7 @@ const edgeVerdict = (ctx: Ctx, id: string, edge: Edge): "skip" | "open" | "ok" =
   return state === "dead" && needed ? "skip" : "ok";
 };
 
-/**
- * Skip propagation (owner, 2026-11-05): a node runs once every control edge into it fired, and a node with a dead
- * control edge, or a dead edge into a required data input, is skipped; branches meet again only in a join with `any`.
- */
+// Skip propagation (owner, 2026-11-05): a dead control or required data edge skips a node; a join `any` meets branches.
 const readiness = (ctx: Ctx, id: string): "ready" | "skip" | "wait" => {
   const incoming = ctx.incoming.get(id) ?? [];
   // A node no control edge leads into never gets the order to run.
@@ -164,10 +161,7 @@ const joined = (ctx: Ctx, id: string, policy: unknown): "done" | "skip" | "wait"
   return flows.includes("open") ? "wait" : "done";
 };
 
-/**
- * A pending node ends cancelled; a waiting approval or a running precheck ends at once and the executor drops it; a
- * running attempt is asked to stop and becomes `cancelling`, recorded, so a resumed run knows it too.
- */
+// A pending node ends cancelled, an approval or precheck at once, a running attempt becomes `cancelling`, recorded.
 const cancelNode = (ctx: Ctx, id: string): void => {
   const node = ctx.run.nodes.get(id);
   if (node?.state === "pending") return end(node, "cancelled");
@@ -313,10 +307,7 @@ const dataValues = (ctx: Ctx, id: string, values: Readonly<Values> = {}): Values
   );
 };
 
-/**
- * The end of an attempt. After a cancel the run asked for, any end is `cancelled`; a `cancelled` the run did not ask
- * for counts as a failure, like an interrupted attempt, since its effect is unknown.
- */
+// An attempt's end: after a requested cancel any end is `cancelled`; an unrequested `cancelled` counts as failed.
 const ended = (ctx: Ctx, event: Extract<RunEvent, { type: "ended" }>): void => {
   const node = ctx.run.nodes.get(event.node);
   if (event.attempt !== node?.attempts || !(node.state === "running" || node.state === "cancelling")) return;

@@ -18,8 +18,7 @@ export type OwnerOnly =
   | "public"
   | "first-run";
 
-// Supervised waits at every gate; Checkpoint only before a merge, which the owner approves with one click, batchable;
-// Auto merges on agreement of the implementer and the fresh reviewer.
+// Supervised waits at every gate, Checkpoint before a merge only, Auto at none (it merges on both sides' agreement).
 const WAITS: Readonly<Record<AutomationLevel, readonly ApprovalGate[]>> = {
   supervised: ["before-implementation", "after-verdict", "before-merge"],
   checkpoint: ["before-merge"],
@@ -33,8 +32,7 @@ const WAITS: Readonly<Record<AutomationLevel, readonly ApprovalGate[]>> = {
 export const waitsForOwner = (level: AutomationLevel, gate: ApprovalGate, ownerOnly: readonly OwnerOnly[]): boolean =>
   ownerOnly.length > 0 || WAITS[level].includes(gate);
 
-// A graph run's gates as the task gates they stand for (Q10 a): a node with effects starts the work, and a plan the run
-// built is its merge.
+// A graph run's gates as task gates (Q10 a): a node with effects starts the work, a plan the run built is its merge.
 const GRAPH_GATES: Readonly<Record<GatePoint, ApprovalGate>> = {
   "before-node": "before-implementation",
   "before-apply": "before-merge",

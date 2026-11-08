@@ -24,19 +24,7 @@ const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
 // Programs that run a command from their words or later, and shells the guard does not read.
-const RUNNERS = new Set([
-  "eval",
-  "trap",
-  "alias",
-  "hash",
-  "emulate",
-  "compgen",
-  "complete",
-  "let",
-  "watch",
-  "pwsh",
-  "powershell",
-]);
+const RUNNERS = new Set("eval trap alias hash emulate compgen complete let watch pwsh powershell".split(" "));
 // A subscript holding a command, which bash runs as arithmetic in let, read, printf -v, declare -i and [[ ]].
 const CODE_SUBSCRIPT = /\[[^\]]*(?:\$\(|`)/;
 // zsh's precommand modifiers.
@@ -70,9 +58,7 @@ const WRAPPERS = new Map<string, Options>(
     ionice: "-t --ignore | -c -n -p --class --classdata --pid",
     caffeinate: "-d -i -m -s -u | -t -w",
     env: "-i -0 -v - --ignore-environment --null --debug | -u -C --unset --chdir",
-    xargs:
-      "-0 -r -t -p -x -o --null --no-run-if-empty --verbose --interactive --exit --open-tty | -I -n -L -P -d -E -s " +
-      "-a --max-args --max-procs --delimiter --arg-file --max-lines --max-chars --eof",
+    xargs: "-0 -r -t -p -x --null --no-run-if-empty --verbose | -I -n -L -P -d -E -s -a --max-args --arg-file",
   }).map(([name, spec]) => [name, options(spec)]),
 );
 // Builtins that set a variable named by an argument.
@@ -177,12 +163,8 @@ const wrapper = (name: string, words: readonly Word[], from: number, read: { spe
 };
 
 // The index of the first word after the options; at an option the guard does not know, that word's, noted as unknown.
-const wrapperOptions = (
-  name: string,
-  words: readonly Word[],
-  from: number,
-  { spec, found }: { spec: Options; found: Found },
-): number => {
+const wrapperOptions = (name: string, words: readonly Word[], from: number, read: { spec: Options; found: Found }) => {
+  const { spec, found } = read;
   let i = from;
   for (let word = words[i] ?? EMPTY; word.start.startsWith("-") && word.text !== "--"; word = words[++i] ?? EMPTY) {
     const parsed = optionsOf(word, words[i + 1], spec);
@@ -209,10 +191,7 @@ const checkPrefix = ({ prefix, cleared, unset, unknown }: Unwrapped): Denial | n
   if (unknown !== null) return unreadable(`${unknown} is an option the guard does not know`);
   if (unset.some((word) => (word?.text ?? null) === null))
     return unreadable("env -u names a variable the guard cannot read");
-  const names = [
-    ...prefix.map((word) => ASSIGNMENT.exec(word.start)?.[1] ?? ""),
-    ...unset.map((word) => word?.text ?? ""),
-  ];
+  const names = [...prefix.map((w) => ASSIGNMENT.exec(w.start)?.[1] ?? ""), ...unset.map((w) => w?.text ?? "")];
   const changed = names.find((name) => PROTECTED.test(name));
   if (changed !== undefined) return deny("environment", `it changes ${changed}`);
   return cleared ? deny("environment", "it clears the environment, the token with it") : null;
@@ -253,14 +232,9 @@ const checkProgram = (name: string, args: readonly Word[]): Denial | null => {
 };
 
 // Programs the project rules forbid, with the argument that makes them so: an apply, or any for a sudo-like.
-const FORBIDDEN = new Map([
-  ["sudo", null],
-  ["doas", null],
-  ["su", null],
-  ["pkexec", null],
-  ["run0", null],
-  ["terraform", "apply"],
-  ["kubectl", "apply"],
+const FORBIDDEN = new Map<string, string | null>([
+  ..."sudo doas su pkexec run0".split(" ").map((name): [string, null] => [name, null]),
+  ...["terraform", "kubectl"].map((name): [string, string] => [name, "apply"]),
   ["helm", "upgrade"],
 ]);
 

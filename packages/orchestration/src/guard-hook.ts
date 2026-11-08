@@ -19,11 +19,8 @@ const readPolicy = (json: string): GuardPolicy | null => {
 const readCall = (input: string): { tool: unknown; command: unknown; cwd: unknown } | null => {
   try {
     const call: unknown = JSON.parse(input);
-    return {
-      tool: field(call, "tool_name"),
-      command: field(field(call, "tool_input"), "command"),
-      cwd: field(call, "cwd"),
-    };
+    const command = field(field(call, "tool_input"), "command");
+    return { tool: field(call, "tool_name"), command, cwd: field(call, "cwd") };
   } catch {
     return null;
   }

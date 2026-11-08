@@ -6,13 +6,7 @@ Launches CedarLoom's workers: their clean environment, the paths and hosts they 
 
 `@cedarloom/orchestration/guard-hook` is a Claude Code `PreToolUse` command hook for the Bash and Monitor tools. It takes its policy as JSON in its argument, reads the call from stdin, and refuses with exit code 2 and the reason on stderr. It stops agent mistakes, not a determined hostile agent: for a worker, the narrow token is the hard limit (A13).
 
-It reads a command by structure and refuses every form outside this grammar (A79):
-
-- simple commands with their assignments, redirections and wrappers (`env`, `command`, `builtin`, `exec`, `nohup`, `time`, `nice`, `timeout`, `stdbuf`, `setsid`, `ionice`, `caffeinate`, `xargs`, each with the options it knows)
-- pipelines and lists (`|`, `&&`, `||`, `;`, `&`, newlines)
-- quotes, parameter expansions, `$(...)` and arithmetic that holds no command
-- heredocs and here-strings; an unquoted heredoc's `$(...)` is read too
-- `if`, `for`, `while` and `until`, every condition and body command read
+It reads a command by structure and refuses every form outside this grammar (A79): simple commands with their assignments, redirections and wrappers (`env`, `command`, `builtin`, `exec`, `nohup`, `time`, `nice`, `timeout`, `stdbuf`, `setsid`, `ionice`, `caffeinate`, `xargs`, each with the options it knows); pipelines and lists; quotes, parameter expansions, `$(...)` and arithmetic that holds no command; heredocs and here-strings, an unquoted heredoc's `$(...)` read too; and `if`, `for`, `while` and `until`, every condition and body command read.
 
 It also refuses when it cannot read the call at all: input that is no JSON, a missing or invalid policy, a call without its command or folder, a crash or a timeout (the launch sets `onFailure: "block"`).
 
@@ -40,5 +34,4 @@ It also refuses when it cannot read the call at all: input that is no JSON, a mi
 - Data run as code when it expands: a variable's value used in arithmetic or as a subscript (`x='y[$(cmd)]'; echo $((x))`), `${x@P}`, `PS4` with `set -x`. A subscript written out with a command in it refuses, as does arithmetic in `[[ ]]` on anything but a number or a plain `$name`, and `$'...'` with a numeric escape.
 - Script files and interpreters (`bash x.sh`, `npm run x`, `make`, `python3 -c`, `node -e`), and programs that run their arguments which the guard does not list (`flock`, `parallel`, `script -c`, `ssh`).
 - File writes: `.git/config` and git hooks, a shell's startup files, Claude Code's settings files.
-- A word whose value the shell knows only when it runs, such as `find . "$a"` with `a=-exec`.
-- zsh beyond the forms above.
+- A word whose value the shell knows only when it runs, such as `find . "$a"` with `a=-exec`; zsh beyond the forms above.

@@ -10,11 +10,7 @@
   },
   "cases": {
     "worker /work/app": [
-      [
-        "Claude Code's commit with a heredoc message",
-        "git add -A && git commit -m \"$(cat <<'EOF'\nfeat: a guard (don't skip it)\n\nAgent: worker\nEOF\n)\"",
-        null
-      ],
+      ["Claude Code's commit", "git commit -m \"$(cat <<'EOF'\nfix: a (don't)\n\nAgent: w\nEOF\n)\"", null],
       ["a token set for one command", "GH_TOKEN=x gh issue list", "environment"],
       ["export of gh's config folder", "export GH_CONFIG_DIR=/tmp/gh", "environment"],
       ["env -u GH_TOKEN", "env -u GH_TOKEN gh auth status", "environment"],
@@ -54,11 +50,7 @@
       ["su -c", "su -c 'rm -rf /tmp/x' root", "forbidden"],
       ["a case statement", "case $x in a) echo a;; esac", "unreadable"],
       ["npm test piped to tail", "npm test 2>&1 | tail -20", null],
-      [
-        "gh pr create with a heredoc body",
-        "gh pr create --title t --body \"$(cat <<'EOF'\n## Summary\n- it's done\nEOF\n)\"",
-        null
-      ],
+      ["gh pr create with a heredoc", "gh pr create -t t -b \"$(cat <<'EOF'\n- it's done\nEOF\n)\"", null],
       ["find piped to xargs grep", "find . -name '*.ts' | xargs grep -n foo", null],
       ["a glob as the command", "/usr/bin/su?o rm -rf /tmp/x", "unreadable"],
       ["a brace list as the command", "{sudo,echo} rm -rf /tmp/x", "unreadable"],

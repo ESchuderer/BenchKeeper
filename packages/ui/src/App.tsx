@@ -39,7 +39,6 @@ import { Import } from "./Import.tsx";
 import { describe } from "./workflow/problems.ts";
 
 type Run = components["schemas"]["Run"];
-type GraphRun = components["schemas"]["GraphRunSummary"];
 type ProfileView = components["schemas"]["ProfileView"];
 type Part = components["schemas"]["ProfilePart"];
 type Preview = { planHash: string | null; count: number; skipped: number };
@@ -101,22 +100,6 @@ const RunsTable = ({ runs, selected, onSelect }: { runs: Run[]; selected: string
     startedAt: run.startedAt,
   }));
   return <RunsFrame caption={t("runs.caption")} second={t("runs.kind")} rows={rows} />;
-};
-
-/** The workflows' runs: which workflow, and where it stands (its execution view comes later). */
-const GraphRunsTable = ({ runs }: { runs: GraphRun[] }) => {
-  const rows = runs.map((run) => ({
-    id: run.id,
-    first: (
-      <Text span ff="monospace" size="sm">
-        {run.id.slice(0, 8)}
-      </Text>
-    ),
-    second: run.workflow,
-    status: t("graphRun.status", { status: run.status }),
-    startedAt: run.startedAt,
-  }));
-  return <RunsFrame caption={t("graphRuns.caption")} second={t("graphRuns.workflow")} rows={rows} />;
 };
 
 const UndoOffer = ({ preview, busy, onUndo }: { preview: Preview; busy: boolean; onUndo: (hash: string) => void }) => (
@@ -194,7 +177,6 @@ export type Session = { api: Api; listen: (onEvent: (event: RunEvent) => void, s
 /** The runs, newest first; the chosen run's undo comes first, so the keyboard reaches it before the table. */
 const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => {
   const [runs, setRuns] = useState<Run[] | null>(null);
-  const [graphRuns, setGraphRuns] = useState<GraphRun[]>([]);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -206,7 +188,6 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
     }
     setError("");
     setRuns(event.runs);
-    setGraphRuns(event.graphRuns);
     setRevision((value) => value + 1);
   }, []);
   useEffect(() => {
@@ -232,12 +213,11 @@ const Runs = ({ session: { api, listen } }: { session: Session }): ReactNode => 
   }, [api, listen, update]);
   if (error !== "") return <Alert color="red">{error}</Alert>;
   if (runs === null) return null;
-  if (runs.length + graphRuns.length === 0) return <Text>{t("runs.empty")}</Text>;
+  if (runs.length === 0) return <Text>{t("runs.empty")}</Text>;
   return (
     <Stack>
       {selected && <RunDetail key={selected} api={api} runId={selected} revision={revision} />}
-      {runs.length > 0 && <RunsTable runs={runs} selected={selected} onSelect={setSelected} />}
-      {graphRuns.length > 0 && <GraphRunsTable runs={graphRuns} />}
+      <RunsTable runs={runs} selected={selected} onSelect={setSelected} />
     </Stack>
   );
 };

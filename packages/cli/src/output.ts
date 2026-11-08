@@ -1,7 +1,6 @@
 import { type Finding, severityOf } from "@cedarloom/contracts";
 import type { PlanPreview } from "@cedarloom/contracts";
-import type { ClaudeLaunch } from "@cedarloom/adapter-claude";
-import type { AgentOptions, Fetch, Keyring } from "@cedarloom/use-cases";
+import type { Fetch, Keyring } from "@cedarloom/use-cases";
 import { describe } from "./messages.ts";
 
 export interface Io {
@@ -16,8 +15,6 @@ export interface Io {
   stdin: () => Promise<string | null>;
   /** The OS credential store. */
   keyring: Keyring;
-  /** The agent CLI that `agent.run` nodes start. */
-  agent: AgentOptions<ClaudeLaunch>["runtime"];
   /** Where the app's own extensions are: the `extensions` folder of the CLI package unless a test names another. */
   bundled?: string;
 }

@@ -1,22 +1,12 @@
-import { claudeRuntime } from "@cedarloom/adapter-claude";
 import { spawnSync } from "node:child_process";
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { Fetch, Keyring } from "@cedarloom/use-cases";
 import { Finding, formatWorkflow, type Plan, WorkflowDefinition } from "@cedarloom/contracts";
 import { configDir, describe as text, EXIT, main, stateDir } from "@cedarloom/cli";
-import { openGraphStore, openRunStore, planHash, sha256 } from "@cedarloom/ledger";
+import { openRunStore, planHash, sha256 } from "@cedarloom/ledger";
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
 
@@ -54,8 +44,6 @@ const setup = (
       err: (t: string) => (err += t),
       env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
       untilStopped: () => stopped,
-      // No test starts an agent.
-      agent: claudeRuntime(["false"]),
       // The app's own extensions: none unless a test puts one there.
       bundled: join(root, "app"),
       ...(fetch === undefined ? {} : { fetch }),
@@ -191,47 +179,7 @@ test("doctor reports an interrupted run as a warning with its fix, and a busy st
   expect((await cli("runs", "list")).out).toContain("interrupted");
 });
 
-test("runs show names a worker run's totals as its session's result reported them", async () => {
-  const { state, cli } = setup();
-  const runId = "0b9f4c1e-8d2a-4c6b-9f3e-1a2b3c4d5e61";
-  const labels = {
-    phase: "implement",
-    model: "claude-opus-5-5",
-    subagentModel: "claude-opus-5-5",
-    effort: "high",
-    permissionMode: "dontAsk",
-    review: false,
-    level: "supervised",
-    tier: null,
-  } as const;
-  const lease = {
-    runId,
-    task: "t",
-    agent: "claude",
-    account: "work",
-    version: "2.1.316",
-    pid: process.pid,
-    labels,
-  } as const;
-  const totals = {
-    inputTokens: 2,
-    outputTokens: 70,
-    cacheReadTokens: 11687,
-    cacheCreationTokens: 12674,
-    costUsd: 0.105,
-  };
-  const store = openRunStore(state);
-  if (!store.ok) throw new Error(store.finding.code);
-  store.value.leaseAccount({ ...lease, startedAt: "2026-11-07T08:00:00.000Z" }, 2)?.release();
-  store.value.recordTotals(runId, totals);
-  store.value.close();
-  expect(json((await cli("runs", "show", runId, "--json")).out)).toMatchObject({
-    launch: { runId, account: "work", totals },
-  });
-  expect((await cli("runs", "show", runId)).code).toBe(EXIT.ok);
-});
-
-test("a store from a newer CedarLoom makes reads, mode and doctor fail with exit 1", async () => {
+test("a store from a newer CedarLoom makes reads and doctor fail with exit 1", async () => {
   const { state, cli } = setup();
   const store = openRunStore(state);
   if (store.ok) store.value.close();
@@ -240,7 +188,6 @@ test("a store from a newer CedarLoom makes reads, mode and doctor fail with exit
   db.close();
   expect((await cli("runs", "list")).code).toBe(EXIT.refused);
   expect((await cli("runs", "show", "x")).code).toBe(EXIT.refused);
-  expect((await cli("mode")).code).toBe(EXIT.refused);
   const report = await cli("doctor", "--json");
   expect([report.code, report.out.includes("store.newer-schema")]).toEqual([EXIT.refused, true]);
 });
@@ -269,35 +216,6 @@ test("the config folder comes from CEDARLOOM_CONFIG_DIR, then XDG_CONFIG_HOME, t
   expect(configDir({ CEDARLOOM_CONFIG_DIR: "/c", XDG_CONFIG_HOME: "/x" })).toBe("/c");
   expect(configDir({ CEDARLOOM_CONFIG_DIR: "c", XDG_CONFIG_HOME: "/x" })).toBe(join("/x", "cedarloom"));
   expect(configDir({})).toBe(join(homedir(), ".config", "cedarloom"));
-});
-
-test("mode shows the level of running work and switches it with --yes, at each run's next gate", async () => {
-  const { root, state, cli } = setup();
-  const running = async () => json((await cli("mode", "--json")).out)["running"];
-  // Without --yes, a switch is shown and changes nothing.
-  expect(json((await cli("mode", "auto", "--json")).out)).toMatchObject({ format: "cedarloom.mode", level: "auto" });
-  expect(await running()).toBeNull();
-  await cli("mode", "auto", "--yes");
-  expect(json((await cli("mode", "--json")).out)).toMatchObject({
-    format: "cedarloom.mode",
-    running: "auto",
-    modeScope: "running",
-  });
-  await cli("mode", "off", "--yes");
-  expect(await running()).toBeNull();
-  expect((await cli("mode", "fast")).code).toBe(EXIT.usage);
-  // Another holder of the store: the switch is refused, not lost silently.
-  const holder = openRunStore(state);
-  expect((await cli("mode", "auto", "--yes")).code).toBe(EXIT.refused);
-  if (holder.ok) holder.value.close();
-  // Read problems exit as for the other commands: an invalid file 65, an unreadable one 66, a newer store 1.
-  mkdirSync(join(root, "config"), { recursive: true });
-  writeFileSync(join(root, "config", "automation.json"), "{}");
-  expect((await cli("mode")).code).toBe(EXIT.data);
-  rmSync(join(root, "config", "automation.json"));
-  mkdirSync(join(root, "config", "automation.json"));
-  expect((await cli("mode")).code).toBe(EXIT.noInput);
-  expect((await cli("mode", "auto")).code).toBe(EXIT.noInput);
 });
 
 test("a profile with a problem is refused, never shown as a machine with nothing to change", async () => {
@@ -334,9 +252,6 @@ test("level shows the default and each project's level, and sets one of them by 
   expect(json((await cli("level", "--json")).out)).toMatchObject({ projects: { [here]: "supervised" } });
   expect((await cli("level", "default", "--project", app, "--yes")).code).toBe(EXIT.ok);
   expect(json((await cli("level", "--json")).out)["projects"]).toEqual({ [here]: "supervised" });
-  // An active switch of running work shows under the levels.
-  await cli("mode", "auto", "--yes");
-  expect((await cli("level")).out).toContain("Switched: auto for the runs that were running at");
   // Only a project's level can be default; a level not in the list is no level.
   expect((await cli("level", "default")).code).toBe(EXIT.usage);
   expect((await cli("level", "fast")).code).toBe(EXIT.usage);
@@ -456,7 +371,6 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
     err: () => undefined,
     env: {},
     untilStopped: () => stopped.promise,
-    agent: claudeRuntime(["false"]),
     stdin: async () => null,
     keyring: memoryKeyring(new Map()),
   };
@@ -470,184 +384,6 @@ test("ui serves the API (and the web UI once built) on 127.0.0.1 until stopped, 
   expect((await fetch(`${new URL(url).origin}/api/runs`)).status).toBe(401);
   stopped.resolve();
   expect(await running).toBe(EXIT.ok);
-});
-
-// A setup at the Checkpoint level, as these tests run: a node goes, and a plan a run built waits for the owner. Written
-// as a file, since `level --yes` would add an apply run to the ones the tests count.
-const atCheckpoint = (...options: Parameters<typeof setup>): ReturnType<typeof setup> => {
-  const at = setup(...options);
-  mkdirSync(join(at.root, "config"), { recursive: true });
-  const settings = { schemaVersion: 1, default: "checkpoint", projects: {} };
-  writeFileSync(join(at.root, "config", "automation.json"), JSON.stringify(settings));
-  return at;
-};
-
-// t -> a, a command that greets the input `name`.
-const workflow = WorkflowDefinition.parse({
-  schemaVersion: 1,
-  kind: "cedarloom.workflow",
-  metadata: { id: "greet", name: "Greet", version: "1.0.0" },
-  inputs: { name: { type: "string" } },
-  nodes: [
-    { id: "t", type: "trigger.manual" },
-    { id: "a", type: "command.run", with: { command: 'printf "hello %s" "$CEDARLOOM_INPUT_name"' } },
-  ],
-  edges: [{ id: "e1", from: { node: "t", handle: "start" }, to: { node: "a", handle: "run" } }],
-});
-
-test("on a fresh install, Supervised, workflows run waits before its command for the owner", async () => {
-  const { root, cli } = setup();
-  const file = planFile(root, workflow, "greet.json");
-  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
-  expect(ran).toMatchObject({ format: "cedarloom.run", status: "waiting" });
-});
-
-test("workflows run runs a graph run; runs list and show show it with its attempts beside apply runs", async () => {
-  const { root, cli } = atCheckpoint();
-  const file = planFile(root, workflow, "greet.json");
-  const first = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
-  const runId = String(first["runId"]);
-  // The first run of this workflow version waits before its command, at every level.
-  const asked = json((await cli("--json", "runs", "approve", runId, "a")).out);
-  const ran = json((await cli("--json", "runs", "approve", runId, "a", "--yes", "--project", root)).out);
-  expect([first["status"], asked["wait"], ran]).toMatchObject([
-    "waiting",
-    { node: "a", point: "before-node", firstRun: true },
-    { format: "cedarloom.run", status: "succeeded" },
-  ]);
-  expect((await cli("runs", "list")).out).toContain(`${runId}  graph  succeeded`);
-  expect((await cli("runs", "show", runId)).out).toMatch(
-    /^Run .*: graph greet, succeeded,.*\n {2}a#1 +done +pid \d+\n$/,
-  );
-  // A report run writes nothing: a workflow with a write is refused before it starts.
-  const write = { id: "a", type: "file.write", with: { path: "out.txt" } } as const;
-  const writing = planFile(root, { ...workflow, nodes: [workflow.nodes[0], write] }, "write.json");
-  const report = await cli("--json", "workflows", "run", writing, "--input", "name=Ada", "--project", root, "--report");
-  expect([report.code, json(report.out)]).toMatchObject([
-    EXIT.refused,
-    { findings: [{ code: "workflow.report-only-write", params: { node: "a" } }] },
-  ]);
-});
-
-test("runs approve shows what a waiting node waits for, and with --yes approves it and runs the run on", async () => {
-  const { root, cli } = atCheckpoint();
-  const asking = WorkflowDefinition.parse({
-    ...workflow,
-    nodes: [...workflow.nodes, { id: "go", type: "human.approval", with: { message: "Greet?" } }],
-    edges: [
-      { id: "e1", from: { node: "t", handle: "start" }, to: { node: "go", handle: "run" } },
-      { id: "e2", from: { node: "go", handle: "approved" }, to: { node: "a", handle: "run" } },
-    ],
-  });
-  const file = planFile(root, asking, "ask.json");
-  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
-  const runId = String(ran["runId"]);
-  const shown = json((await cli("--json", "runs", "approve", runId, "go")).out);
-  const other = await cli("--json", "runs", "reject", runId, "a");
-  const approved = json((await cli("--json", "runs", "approve", runId, "go", "--yes", "--project", root)).out);
-  // The run went on to its command, which waits as the first run of this version.
-  const done = json((await cli("--json", "runs", "approve", runId, "a", "--yes", "--project", root)).out);
-  expect([ran["status"], shown["wait"], other.code, approved["status"], done["status"]]).toEqual([
-    "waiting",
-    { node: "go", point: "human.approval", planHash: null, content: null, firstRun: false },
-    EXIT.refused,
-    "waiting",
-    "succeeded",
-  ]);
-});
-
-test("runs approve shows a first run's command and a write's content with their control characters escaped, so none of it rewrites the prompt", async () => {
-  const { root, cli } = atCheckpoint();
-  const writing = WorkflowDefinition.parse({
-    ...workflow,
-    nodes: [
-      { id: "t", type: "trigger.manual" },
-      { id: "say", type: "command.run", with: { command: "printf '\\033[2Jkept\\tline\\nnext' # \u001b[2J" } },
-      { id: "out", type: "file.write", with: { path: "out.txt" } },
-    ],
-    edges: [
-      { id: "e1", from: { node: "t", handle: "start" }, to: { node: "say", handle: "run" } },
-      { id: "e2", from: { node: "say", handle: "done" }, to: { node: "out", handle: "run" } },
-      { id: "e3", from: { node: "say", handle: "stdout" }, to: { node: "out", handle: "content" } },
-    ],
-  });
-  const file = planFile(root, writing, "write.json");
-  const ran = json((await cli("--json", "workflows", "run", file, "--input", "name=Ada", "--project", root)).out);
-  const runId = String(ran["runId"]);
-  const command = (await cli("runs", "approve", runId, "say")).out;
-  await cli("runs", "approve", runId, "say", "--yes", "--project", root);
-  const { out } = await cli("runs", "approve", runId, "out");
-  expect([command.includes("\u001b"), command]).toEqual([false, expect.stringContaining("nnext' # \\u001b[2J")]);
-  expect([out.includes("\u001b"), out]).toEqual([false, expect.stringContaining("\\u001b[2Jkept\tline\nnext")]);
-});
-
-test("runs resume and cancel take over a graph run no process runs, and Ctrl+C cancels one this process runs", async () => {
-  const { root, state, cli } = atCheckpoint();
-  const file = planFile(root, workflow, "greet.json");
-  // Two runs whose runner died while a ran with pid 4242: a resume counts the attempt as failed, a cancel ends the run.
-  const store = openGraphStore(state);
-  if (!store.ok) throw new Error(store.finding.code);
-  const [one = "", two = ""] = [1, 2].map(() => {
-    const lease = store.value.create({
-      definition: workflow,
-      inputs: {},
-      trigger: "manual",
-      mode: "act",
-      parentRun: null,
-      parentNode: null,
-      project: realpathSync(root),
-    });
-    store.value.append(lease.runId, 1, { type: "started", node: "a", attempt: 1, pid: 4242 });
-    lease.release();
-    return lease.runId;
-  });
-  store.value.close();
-  // Without --yes a resume or a cancel lists the attempts it would end, and changes nothing.
-  expect((await cli("runs", "resume", one, "--project", root)).out).toContain("\n  a#1  pid 4242\n");
-  expect((await cli("runs", "cancel", two)).out).toContain("\n  a#1  pid 4242\n");
-  expect(await cli("runs", "resume", one, "--project", root, "--yes")).toEqual({
-    code: EXIT.refused,
-    out: `Run ${one}: failed.\n`,
-    err: "",
-  });
-  expect((await cli("runs", "show", one)).out).toMatch(/a#1 +interrupted +pid 4242/);
-  // The plan refuses what --yes would: a run that has ended.
-  expect((await cli("runs", "resume", one)).err).toContain("has ended (failed)");
-  // A resume or cancel runs only in the run's own folder.
-  expect((await cli("runs", "cancel", two, "--project", state)).err).toContain(`runs in ${realpathSync(root)}, not in`);
-  expect((await cli("runs", "cancel", two, "--yes")).out).toBe(`Run ${two}: cancelled.\n`);
-  expect((await cli("runs", "list")).out.trim().split("\n")).toHaveLength(2);
-  // Ctrl+C while a run runs cancels it.
-  const slow = planFile(
-    root,
-    { ...workflow, nodes: [workflow.nodes[0], { id: "a", type: "command.run", with: { command: "sleep 30" } }] },
-    "slow.json",
-  );
-  const { promise: stopped, resolve: stop } = Promise.withResolvers<void>();
-  const stopping = atCheckpoint({ stopped });
-  // Its first run waits before the command; the approval runs it.
-  const waiting = json((await stopping.cli("--json", "workflows", "run", slow, "--project", root)).out);
-  setTimeout(stop, 500);
-  const approving = ["runs", "approve", String(waiting["runId"]), "a", "--yes", "--project", root];
-  expect((await stopping.cli(...approving)).out).toMatch(/: cancelled\.\n$/);
-  expect((await cli("runs", "resume", "nope")).code).toBe(EXIT.refused);
-  expect((await cli("runs", "resume", "nope", "--yes")).code).toBe(EXIT.refused);
-  expect((await cli("workflows", "run", file, "--input", "Ada")).code).toBe(EXIT.usage);
-  expect((await cli("workflows", "run", join(root, "none.json"))).code).toBe(EXIT.noInput);
-});
-
-test("a cancel's plan of a run its runner holds says the runner ends the attempts cancelled", async () => {
-  const { root, state, cli } = setup();
-  const store = openGraphStore(state);
-  if (!store.ok) throw new Error(store.finding.code);
-  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
-  // Held by this process, with a folder that is gone: a cancel starts nothing, so it needs none.
-  const lease = store.value.create({ ...run, definition: workflow, project: join(root, "gone") });
-  store.value.append(lease.runId, 1, { type: "started", node: "a", attempt: 1, pid: 4242 });
-  const plan = await cli("runs", "cancel", lease.runId);
-  expect(plan.out).toContain(`graph greet, running.\nRunning now; its runner ends them cancelled:\n  a#1  pid 4242\n`);
-  lease.release();
-  store.value.close();
 });
 
 const MANIFEST = {

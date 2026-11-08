@@ -2,22 +2,17 @@ import { inspect } from "node:util";
 import { Refusal, type Result, RunsEvent } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { summaryOf } from "./routes.ts";
 
 type Options = { state: string; every: number; log: (text: string) => void };
 type Message = { event: string; data: unknown };
 
-// The apply runs and the graph runs, from one read of each.
+// The runs, from one read.
 const readRuns = (state: string): Result<RunsEvent> => {
   const runs = useCases.listRuns(state);
-  if (!runs.ok) return runs;
-  const graphRuns = useCases.listGraphRuns(state);
-  return graphRuns.ok
-    ? { ok: true, value: { runs: runs.value, graphRuns: graphRuns.value.map(summaryOf) } }
-    : graphRuns;
+  return runs.ok ? { ok: true, value: { runs: runs.value } } : runs;
 };
 
-// shortcut: a change sends all runs (527 KB at 2,000), a tick reads every graph run (115 ms per tab at 2,000); page it then.
+// shortcut: a change sends all runs (527 KB at 2,000); page it then.
 const changes = (state: string): (() => Message | undefined) => {
   let last = "";
   return () => {
@@ -39,8 +34,7 @@ export const eventRoutes: FastifyPluginAsyncZod<Options> = async (app, { state, 
       // A HEAD would open a stream that never ends.
       exposeHeadRoute: false,
       schema: {
-        description:
-          "text/event-stream: `runs` events with RunsEvent (apply and graph runs), `refusal` events with Refusal",
+        description: "text/event-stream: `runs` events with RunsEvent (the runs), `refusal` events with Refusal",
       },
     },
     async (_req, reply) => {

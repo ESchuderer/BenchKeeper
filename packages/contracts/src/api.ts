@@ -4,7 +4,6 @@ import { ImportReview } from "./imports.ts";
 import { DeleteFile, GitOid, PLAN_SCHEMA_VERSION, Sha256, StoreUpdate, WriteFile } from "./plan.ts";
 import { PartProbe, ProfileLevel } from "./profile.ts";
 import { contracts } from "./registry.ts";
-import { GraphRun } from "./run.ts";
 import { WorkflowId } from "./workflow.ts";
 
 // Run and Step parse rows of the run store too, so unknown columns are dropped, not refused.
@@ -118,27 +117,8 @@ export type RunResult = z.infer<typeof RunResult>;
 /** Why a request was refused: the findings, codes and parameters only. */
 export const Refusal = z.strictObject({ findings }).register(contracts, { id: "Refusal" });
 
-/**
- * A workflow's run as a list shows it: which workflow, how it started, and where it stands. Its definition, inputs and
- * project folder stay out of the API.
- */
-export const GraphRunSummary = z
-  .strictObject({
-    id: z.uuid(),
-    workflow: WorkflowId,
-    trigger: GraphRun.shape.trigger,
-    mode: GraphRun.shape.mode,
-    status: GraphRun.shape.status,
-    startedAt: z.iso.datetime(),
-    finishedAt: z.iso.datetime().nullable(),
-  })
-  .register(contracts, { id: "GraphRunSummary" });
-export type GraphRunSummary = z.infer<typeof GraphRunSummary>;
-
 /** A `runs` event of the event stream (GET /api/events): the runs as they stand, sent whenever they change. */
-export const RunsEvent = z
-  .strictObject({ runs: z.array(Run), graphRuns: z.array(GraphRunSummary) })
-  .register(contracts, { id: "RunsEvent" });
+export const RunsEvent = z.strictObject({ runs: z.array(Run) }).register(contracts, { id: "RunsEvent" });
 export type RunsEvent = z.infer<typeof RunsEvent>;
 
 const savedAt = z.iso.datetime().describe("When the draft was last saved");

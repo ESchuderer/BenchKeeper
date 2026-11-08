@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { DatabaseSync } from "node:sqlite";
-import { openGraphStore, openRunStore, sha256 } from "@cedarloom/ledger";
+import { openRunStore, sha256 } from "@cedarloom/ledger";
 import { CSRF_HEADER, type Plan } from "@cedarloom/contracts";
 import { cookieName, openapi, type Started, startServer } from "@cedarloom/server";
 import { applyPlan, DRAFT_LIMIT, type Fetch } from "@cedarloom/use-cases";
@@ -381,47 +381,6 @@ test("an undo is previewed without file contents and applies only with the hash 
   expect(
     (await client.api({ method: "POST", path: `/api/runs/${randomUUID()}/undo`, body: { approve: planHash } })).status,
   ).toBe(404);
-});
-
-/** A graph run of the corpus's minimal workflow whose trigger started and whose runner is gone: interrupted. */
-const graphRun = async (client: Client): Promise<string> => {
-  const definition = JSON.parse(await readFile(join(corpus, "valid-minimal.json"), "utf8"));
-  const store = openGraphStore(client.state);
-  if (!store.ok) throw new Error(store.finding.code);
-  const run = { inputs: {}, trigger: "manual", mode: "act", parentRun: null, parentNode: null } as const;
-  const lease = store.value.create({ ...run, definition, project: client.state });
-  store.value.append(lease.runId, 1, { type: "started", node: "start", attempt: 1, pid: 4242 });
-  lease.release();
-  return lease.runId;
-};
-
-test("the API lists the graph runs and shows one with its node attempts, on the event stream too", async () => {
-  const client = await ready();
-  const runId = await graphRun(client);
-  const summary = {
-    id: runId,
-    workflow: "minimal",
-    trigger: "manual",
-    mode: "act",
-    status: "interrupted",
-    finishedAt: null,
-  };
-  const seen: unknown[] = [];
-  await stream(client.port, { accept: "text/event-stream", ...client.auth() }, (event, data) => {
-    seen.push([event, data]);
-    return true;
-  });
-  expect([
-    (await client.api({ path: "/api/graph-runs" })).body,
-    (await client.api({ path: `/api/graph-runs/${runId}` })).body,
-    (await client.api({ path: `/api/graph-runs/${randomUUID()}` })).status,
-    seen,
-  ]).toMatchObject([
-    { graphRuns: [summary] },
-    { run: summary, attempts: [{ node: "start", attempt: 1, pid: 4242 }] },
-    404,
-    [["runs", { runs: [], graphRuns: [summary] }]],
-  ]);
 });
 
 test("a busy or newer store is a 409 with its finding; a broken one a 500 whose details stay in the log", async () => {

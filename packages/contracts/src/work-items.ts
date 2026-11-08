@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { Finding } from "./findings.ts";
+import { RepoName } from "./guard.ts";
+import { sortKeys } from "./json.ts";
+import { fileFormats } from "./registry.ts";
 import { Sha256 } from "./plan.ts";
 import { PlainText } from "./text.ts";
 
@@ -63,3 +66,20 @@ export const IssueLink = z.strictObject({
   linkedAt: z.iso.datetime({ precision: 3 }),
 });
 export type IssueLink = z.infer<typeof IssueLink>;
+
+/** The work-items settings format (`work-items.json` in CedarLoom's config folder) this CedarLoom writes and reads. */
+export const WORK_ITEMS_SCHEMA_VERSION = 1;
+
+/** This machine's work-item settings: the project repositories whose linked runs post to their hub issues (A36 a). */
+export const WorkItemsConfig = z
+  .strictObject({
+    schemaVersion: z.literal(WORK_ITEMS_SCHEMA_VERSION),
+    kind: z.literal("cedarloom.work-items"),
+    mirroring: z.array(RepoName).max(500),
+  })
+  .register(fileFormats, { id: "WorkItemsConfig" });
+export type WorkItemsConfig = z.infer<typeof WorkItemsConfig>;
+
+/** The file text of the work-items settings: keys sorted, two spaces, a final line break. */
+export const formatWorkItemsConfig = (config: WorkItemsConfig): string =>
+  `${JSON.stringify(WorkItemsConfig.parse(sortKeys(config)), null, 2)}\n`;

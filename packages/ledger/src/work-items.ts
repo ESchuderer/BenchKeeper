@@ -5,7 +5,7 @@ import {
   Finding,
   Intent,
   IssueLink,
-  type IssueRef,
+  IssueRef,
   OutboxEntry,
   RemoteComment,
   type Result,
@@ -21,6 +21,14 @@ export const intentHash = (intent: Intent): string => sha256(canonicalJson(Inten
 export type Settled =
   | { status: "sent"; remote: RemoteComment | null }
   | { status: "failed" | "pending"; finding: Finding };
+
+/** A linked run that has ended: how (a graph run's status or a worker's verdict), and its project folder. */
+export interface EndedLink {
+  runId: string;
+  issue: IssueRef;
+  project: string;
+  ended: string;
+}
 
 /** A sender's hold on an entry: the entry as claimed, and its lease, which the OS releases when the sender ends. */
 export interface OutboxClaim extends LeaseLock {
@@ -73,6 +81,11 @@ export class WorkItemStore {
 
   entry(id: string): OutboxEntry | undefined {
     return this.#where("id = ?", id)[0];
+  }
+
+  /** Every entry, oldest first. */
+  entries(): OutboxEntry[] {
+    return this.#where("1 = 1");
   }
 
   /** The entries not sent yet, oldest first, with those a live sender holds, whose claim is refused. */
@@ -173,6 +186,30 @@ export class WorkItemStore {
       .prepare("SELECT runId, repo, number, linkedAt FROM issue_links WHERE runId = ? ORDER BY linkedAt, rowid")
       .all(runId)
       .map(({ repo, number, ...row }) => IssueLink.parse({ ...row, issue: { repo, number } }));
+  }
+
+  /**
+   * The linked runs that have ended, in the order they were linked: a graph run by its status, a worker by its verdict,
+   * each with the project folder of its graph run (a worker's task starts with its graph run's id).
+   */
+  endedLinks(): EndedLink[] {
+    return this.#db
+      .prepare(
+        `SELECT l.runId, l.repo, l.number, l.linkedAt, g.project, g.status AS ended
+           FROM issue_links l JOIN graph_runs g ON g.id = l.runId WHERE g.finishedAt IS NOT NULL
+         UNION ALL
+         SELECT l.runId, l.repo, l.number, l.linkedAt, g.project, w.verdict
+           FROM issue_links l JOIN launches w ON w.runId = l.runId JOIN graph_runs g ON g.id = substr(w.task, 1, 36)
+           WHERE w.finishedAt IS NOT NULL
+         ORDER BY linkedAt, runId`,
+      )
+      .all()
+      .map(({ runId, repo, number, project, ended }) => ({
+        runId: String(runId),
+        issue: IssueRef.parse({ repo, number }),
+        project: String(project),
+        ended: String(ended),
+      }));
   }
 
   close(): void {

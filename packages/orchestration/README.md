@@ -27,6 +27,10 @@ The launch gives every worker the hook through `--settings`: a `PreToolUse` hook
 
 Not covered: MDM profiles, the Windows registry and server-managed settings, which the launch does not read. No worker starts on a Claude Code older than 2.1.295, which ignores `onFailure`, nor on native Windows: Claude Code has no command sandbox there, and the launch requires one (`failIfUnavailable`).
 
+### The OS credential store
+
+The `hub-issues` token sits in the OS credential store, and the `cedarloom work-items` commands that use it are the owner's. Nothing in them tells who asks, so the worker's sandbox is the boundary (owner decision, 2026-11-08). A trial on macOS 27.0 with Claude Code 2.1.316 launched a worker with CedarLoom's arguments and settings, with Bash allowed for `node` and `printf`. Reading and writing a keychain entry through `@napi-rs/keyring`, and `cedarloom work-items token`, each failed with "A default keychain could not be found". They failed the same way with `~/Library/Keychains` taken off the read-deny list. The commands that need no token fail too, because a worker writes only its working folder, its result folder and its temporary folder. With a CedarLoom state and config folder under the home folder, `work-items comment --yes` could not read the hub binding, and `work-items mirror --yes` could not open the ledger ("unable to open database file"). Nothing was queued or written. Not tried: Linux, where the Secret Service is reached over the D-Bus session socket.
+
 ### Everyday forms it refuses
 
 | Form                                                                                                                                                                              | Instead                                                              |

@@ -351,6 +351,9 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "tracker.refused": (p) => `The tracker refused the write with HTTP ${p.status}: ${shown(p.error, 300)}`,
   "tracker.invalid-answer": (p) =>
     `The tracker's answer is not what CedarLoom reads (${shown(p.error, 300)}); the entry failed, and the write may have happened.`,
+  "work-items.no-hub": () => "This machine binds no hub. Name it: cedarloom profiles bind hub <owner/repo> --yes",
+  "work-items.not-hub": (p) =>
+    `${p.repo} is not this machine's hub (${p.hub}); CedarLoom works on hub issues only, so nothing was queued or linked.`,
   "secret.missing": (p) => `No ${p.name} token is in the OS credential store. ${PIPE}`,
   "secret.unavailable": (p) =>
     `The OS credential store did not answer for ${p.name} (${shown(p.error, 300)}). Check that it is unlocked and, on Linux, that a Secret Service such as GNOME Keyring or KWallet runs.`,

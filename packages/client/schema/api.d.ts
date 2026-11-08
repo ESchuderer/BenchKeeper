@@ -2097,6 +2097,17 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "work-items.no-hub";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "work-items.not-hub";
+            params: {
+                repo: string;
+                hub: string;
+            };
+        } | {
+            /** @constant */
             code: "secret.missing";
             params: {
                 name: string;
@@ -3460,6 +3471,17 @@ export interface components {
             code: "tracker.invalid-answer";
             params: {
                 error: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.no-hub";
+            params: Record<string, never>;
+        } | {
+            /** @constant */
+            code: "work-items.not-hub";
+            params: {
+                repo: string;
+                hub: string;
             };
         } | {
             /** @constant */

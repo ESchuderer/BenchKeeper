@@ -141,6 +141,8 @@ importers:
         specifier: 'catalog:'
         version: 4.10.2
 
+  packages/emitter: {}
+
   packages/engine:
     dependencies:
       '@cedarloom/contracts':

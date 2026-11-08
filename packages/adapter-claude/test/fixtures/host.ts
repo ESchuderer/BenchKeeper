@@ -20,6 +20,7 @@ const session = runtime.start({
   allow: [],
   verifiedVersions: [],
   pluginDirs: [],
+  guardHook: { command: process.execPath, args: ["-e", ""], files: [] },
 });
 const Line = z.object({ type: z.string(), pid: z.int() });
 const pids: Record<string, number> = {};

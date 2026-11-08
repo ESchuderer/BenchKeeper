@@ -31,7 +31,14 @@ const SWITCHES = [
   ["network.allowAllUnixSockets", true], // #sandbox-network-allowallunixsockets
   ["filesystem.disabled", true], // #sandbox-filesystem-disabled: unrestricted read and write of the host
 ] as const;
-const SWITCH_VALUES = new Map<string, boolean>(SWITCHES);
+// Top-level keys that switch the workers' guard hook or their deny rules off (#disableallhooks,
+// #allowmanagedhooksonly, #allowmanagedpermissionrulesonly).
+const HOOK_SWITCHES = ["disableAllHooks", "allowManagedHooksOnly", "allowManagedPermissionRulesOnly"] as const;
+// Each Boolean by its full key, and the value that loosens it.
+const SWITCH_VALUES = new Map<string, boolean>([
+  ...SWITCHES.map(([name, loose]): [string, boolean] => [`sandbox.${name}`, loose]),
+  ...HOOK_SWITCHES.map((name): [string, boolean] => [name, true]),
+]);
 // Lists of which any entry reaches past the sandbox.
 const LISTS = [
   "excludedCommands", // #sandbox-excludedcommands: commands that run outside the sandbox
@@ -104,6 +111,16 @@ const managedFiles = (dir: string): (Settings | ManagedProblem | null)[] => {
 
 const sandboxOf = (settings: Json): Json => (isObject(settings["sandbox"]) ? settings["sandbox"] : {});
 
+// The Booleans and ports a file sets, by their full key.
+const keyed = (settings: Json): [string, unknown][] =>
+  [
+    ...[...SWITCHES.map(([name]) => name), ...PORTS].map((key): [string, unknown] => [
+      `sandbox.${key}`,
+      at(sandboxOf(settings), key),
+    ]),
+    ...HOOK_SWITCHES.map((key): [string, unknown] => [key, at(settings, key)]),
+  ].filter(([, value]) => value !== undefined);
+
 // What one file loosens whatever comes after it: list entries, hosts beyond GitHub, and a policy helper, whose output
 // replaces the files this preflight reads (https://code.claude.com/docs/en/settings-reference#policyhelper).
 const listed = ({ path, settings }: Settings): ManagedProblem[] => {
@@ -137,17 +154,14 @@ export const managedProblems = (dir: string): ManagedProblem[] => {
       if (read !== null) problems.push(read);
       continue;
     }
-    for (const key of [...SWITCHES.map(([name]) => name), ...PORTS]) {
-      const value = at(sandboxOf(read.settings), key);
-      if (value !== undefined) last.set(key, { path: read.path, value });
-    }
+    for (const [key, value] of keyed(read.settings)) last.set(key, { path: read.path, value });
     problems.push(...listed(read));
   }
   for (const [key, { path, value }] of last) {
     // A Boolean loosens with its value; a port loosens once it is set to anything but null.
     const loose = SWITCH_VALUES.get(key);
     const loosened = loose === undefined ? value !== null : loosens(value, loose);
-    if (loosened) problems.push({ kind: "loosens", path, key: `sandbox.${key}` });
+    if (loosened) problems.push({ kind: "loosens", path, key });
   }
   return problems;
 };

@@ -237,6 +237,14 @@ test("each documented sandbox escape is found, with the file that sets it", () =
   expect(managedProblems(managed({}))).toEqual([]);
 });
 
+test("managed keys that switch the guard hook or the deny rules off are found; false leaves them on", () => {
+  const off = { disableAllHooks: true, allowManagedHooksOnly: "true", allowManagedPermissionRulesOnly: true };
+  expect(loosened(off).toSorted()).toEqual(
+    ["disableAllHooks", "allowManagedHooksOnly", "allowManagedPermissionRulesOnly"].toSorted(),
+  );
+  expect(loosened({ disableAllHooks: false, allowManagedHooksOnly: false })).toEqual([]);
+});
+
 test("hosts beyond GitHub, a proxy of the policy's own, and a policy helper are found", () => {
   expect(loosened({ sandbox: { network: { allowedDomains: ["github.com", "registry.npmjs.org"] } } })).toEqual([
     "sandbox.network.allowedDomains",

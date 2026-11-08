@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { GuardHook } from "@cedarloom/agent-contracts";
 import { sameFolder } from "@cedarloom/contracts";
 import { z } from "zod";
 
@@ -13,6 +14,8 @@ export interface OverlayInput {
   readonly env: Readonly<Record<string, string>>;
   /** Plugin folders the session loads; its file tools may read them, never change them. */
   readonly pluginDirs: readonly string[];
+  /** The hook every shell command passes first; its files are closed to the session's writes. */
+  readonly guardHook: GuardHook;
   /**
    * A report run's worker, given the other folders it may not write either, such as the shared `.git` of a linked
    * worktree, which Claude Code's sandbox opens to its commands. It changes nothing in the working folder or those
@@ -82,6 +85,17 @@ const Checked = z.looseObject({
   env: z.record(z.string(), z.string()),
 });
 
+// Every shell command passes the guard first; a crash, a timeout or invalid output refuses it, and a disableAllHooks in
+// a settings file below these settings does not apply (https://code.claude.com/docs/en/hooks).
+const guardHooks = ({ command, args }: GuardHook) => ({
+  PreToolUse: [
+    {
+      matcher: "Bash|Monitor|PowerShell",
+      hooks: [{ type: "command", command, args, timeout: 10, onFailure: "block" }],
+    },
+  ],
+});
+
 /**
  * The per-launch settings passed with --settings, the worker profile of the settings defaults; --settings can set any
  * key the user settings file can (https://code.claude.com/docs/en/cli-reference). Throws when a value is not one the
@@ -89,10 +103,13 @@ const Checked = z.looseObject({
  * then lists SETTINGS_SENTINEL, and its init event reports the settings as not applied.
  */
 export const overlay = (input: OverlayInput) => {
-  const { home, cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs, readOnly } = input;
+  const { home, cwd, resultFile, allow, denyRead, allowedDomains, env, pluginDirs, readOnly, guardHook } = input;
   // Deny rules outrank ask and allow rules (https://code.claude.com/docs/en/permissions). A read-only worker's file tools
   // and shell commands change nothing in the working folder; any other worker's, nothing in its workflows folder.
-  const closedToWrites = readOnly === undefined ? [join(cwd, ".github", "workflows")] : [cwd, ...readOnly];
+  const closedToWrites = [
+    ...(readOnly === undefined ? [join(cwd, ".github", "workflows")] : [cwd, ...readOnly]),
+    ...guardHook.files,
+  ];
   const closed = [...denyRead.filter((path) => !sameFolder(path, home)), ...OWN_STATE.map((name) => join(home, name))];
   const settings = {
     permissions: {
@@ -125,6 +142,8 @@ export const overlay = (input: OverlayInput) => {
       filesystem: { denyRead, denyWrite: [...closedToWrites, ...pluginDirs], allowRead: TOOLCHAINS },
       network: { allowedDomains, strictAllowlist: true },
     },
+    hooks: guardHooks(guardHook),
+    disableAllHooks: false,
     // A102: a window lasts hours, not minutes.
     maxEffortLevel: "xhigh",
     workflowSizeGuideline: "small",

@@ -31,6 +31,7 @@ const launch = (env: Record<string, string>, change: Partial<ClaudeLaunch> = {})
   allow: ["Bash(pnpm test *)"],
   verifiedVersions: ["2.1.316", "2.1.309"],
   pluginDirs: [],
+  guardHook: { command: process.execPath, args: ["-e", ""], files: [] },
   ...change,
 });
 
@@ -309,6 +310,37 @@ test("the settings passed with --settings hold the worker profile: denials, the 
   for (const key of ["sandbox.excludedCommands", "env.CLAUDE_CONFIG_DIR", "env.CLAUDE_CODE_TRANSCRIPT_LOCAL_GC"]) {
     expect(settings).not.toHaveProperty(key);
   }
+});
+
+test("every shell command passes the guard hook first, which no settings file below turns off and the session cannot change", async () => {
+  const guardHook = {
+    command: "/opt/node/bin/node",
+    args: ["/opt/cedarloom/hook.js", "{}"],
+    files: ["/opt/cedarloom"],
+  };
+  const { args } = started(await events(runtime.start(launch({}, { guardHook }))));
+  expect(JSON.parse(args[args.indexOf("--settings") + 1] ?? "")).toMatchObject({
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Bash|Monitor|PowerShell",
+          hooks: [
+            {
+              type: "command",
+              command: "/opt/node/bin/node",
+              args: ["/opt/cedarloom/hook.js", "{}"],
+              timeout: 10,
+              onFailure: "block",
+            },
+          ],
+        },
+      ],
+    },
+    disableAllHooks: false,
+    permissions: { deny: expect.arrayContaining(["Edit(//opt/cedarloom/**)"]) },
+    sandbox: { filesystem: { denyWrite: expect.arrayContaining(["/opt/cedarloom"]) } },
+    env: { CLAUDE_CODE_USE_POWERSHELL_TOOL: "0" },
+  });
 });
 
 test("commands write in no plugin folder; a read-only launch writes in neither its working folder nor the shared .git", async () => {

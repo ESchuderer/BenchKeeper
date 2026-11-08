@@ -1,28 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
 import { guardCommand, type Remotes } from "./guard.ts";
-
-// The fetch and push URLs of a folder's remotes as git reads them, its insteadOf rewrites applied; null when git cannot
-// read them.
-const gitRemotes: Remotes = (folder) => {
-  try {
-    const listed = execFileSync("git", ["-c", "core.fsmonitor=false", "-C", folder, "remote", "-v"], {
-      encoding: "utf8",
-      timeout: 5000,
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-    });
-    const remotes = new Map<string, string[]>();
-    for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {
-      remotes.set(name, [...new Set([...(remotes.get(name) ?? []), url])]);
-    }
-    return remotes;
-  } catch {
-    return null;
-  }
-};
+import { gitRemotes } from "./session-guard.ts";
 
 // A folder's remotes, read once per hook run.
 const once = (remotes: Remotes): Remotes => {

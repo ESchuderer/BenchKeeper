@@ -87,6 +87,8 @@ const WORKER_VARIABLES = {
   CLAUDE_CODE_MCP_ALLOWLIST_ENV: "1",
   MCP_TOOL_TIMEOUT: "600000",
   CLAUDE_CODE_STOP_HOOK_BLOCK_CAP: "8",
+  // The guard reads no PowerShell; on Windows the worker's shell is Git Bash (code.claude.com/docs/en/hooks#powershell).
+  CLAUDE_CODE_USE_POWERSHELL_TOOL: "0",
 } as const;
 
 // The phase's effort and subagent model; the settings repeat them with the worker variables.

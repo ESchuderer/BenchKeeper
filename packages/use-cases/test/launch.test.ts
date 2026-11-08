@@ -117,6 +117,7 @@ const request = (work: string, fake: Fake = {}): WorkerRequest<ClaudeLaunch> => 
     previous: null,
     prompt: "Do the task.",
     ghToken: null,
+    guard: { schemaVersion: 1, repositories: [], hub: null, memory: null },
     labels: { phase: fake.phase ?? "implement", review: true, level: "checkpoint", tier: "standard" },
     runtime,
     launch: (decided) => {

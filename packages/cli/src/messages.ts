@@ -80,25 +80,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "run.not-found": (p) => `No run ${p.runId} in this state folder.`,
   "run.interrupted": (p) => `Run ${p.runId} was interrupted. ${undoHint(p)}`,
   "run.failed": (p) => `Run ${p.runId} stopped before its end; earlier changes of it stay. ${undoHint(p)}`,
-  "run.input-unknown": (p) => `The workflow has no input ${p.input}.`,
-  "run.input-missing": (p) => `The workflow needs its input ${p.input}, which has no default.`,
-  "run.input-invalid": (p) => `The input ${p.input} must be a ${p.type} value.`,
-  "run.event-invalid": (p) =>
-    `Event ${p.seq} of run ${p.runId} does not match its schema (${issueList(p.issues)}), so the run is not replayed.`,
-  "run.lease-held": (p) =>
-    `Process ${p.pid} holds run ${p.runId}; resuming the run takes it over once that process has ended.`,
-  "run.finished": (p) => `Run ${p.runId} has ended (${p.status}); nothing of it runs any more.`,
-  "run.not-waiting": (p) => `Node ${p.node} of run ${p.runId} waits for no decision.`,
-  "run.report-only-apply": (p) =>
-    `Run ${p.runId} only reports, so no apply run (${p.applyRun}) is recorded under it and nothing is written.`,
   "run.node-unsupported": (p) => `Node ${p.node} is a ${p.type} node, which this version does not run yet.`,
-  "run.project-mismatch": (p) =>
-    `Run ${p.runId} runs in ${p.project}, not in ${p.given}: a run stays in the folder it started in.`,
-  "run.project-missing": (p) =>
-    `The project folder ${p.project} is not there, so no command of the run could run there.`,
-  "run.shell-missing": () => "No POSIX sh was found for the commands; on Windows, install Git for Windows.",
-  "run.sandbox-unavailable": (p) =>
-    `Node ${p.node} needs an OS sandbox in a report run, and none runs it here (${p.reason}); run the workflow without --report.`,
   "undo.file-edited": (p) => `${p.path} was edited after run ${p.runId} wrote it; it is left as it is.`,
   "undo.backup-missing": (p) => `The backup of ${p.path} from run ${p.runId} is gone; nothing was undone.`,
   "undo.backup-changed": (p) => `The backup of ${p.path} from run ${p.runId} was changed; nothing was undone.`,
@@ -145,33 +127,6 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "workflow.unreachable": (p) => `Nothing leads to node ${p.node} from the trigger, so it never runs.`,
   "workflow.stray-entry": (p) => `The ${p.section} section names node ${p.node}, which the workflow does not have.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,
-  "accounts.home-not-own": (p) =>
-    `Account ${p.account} names ${p.home}, not its own home on this machine, so nothing runs there.`,
-  "accounts.home-linked": (p) =>
-    `The own home of account ${p.account} is a link or lies in one (${p.path}), so nothing runs or logs in there; make ${p.path} a real folder.`,
-  "accounts.home-missing": (p) => `Account ${p.account} has no own home yet (${p.home}), so nothing runs on it.`,
-  "accounts.home-unusable": (p) =>
-    `The own home of account ${p.account} cannot be made or closed to its owner at ${p.path} (${p.error}), so nothing runs or logs in there.`,
-  "launch.not-logged-in": (p) =>
-    `Account ${p.account} shows no login in its own home (${p.reason}), so no worker starts on it and its CLI version is not checked.`,
-  "doctor.plugin-none": (p) =>
-    `Workers run without the ${p.plugin} plugin: the pinned marketplace commit ${p.commit} has none yet, or it could not be fetched.`,
-  "doctor.plugin-not-loaded": (p) =>
-    `The ${p.plugin} plugin went with the latest worker but did not load with its skills${p.errors === "" ? "" : ` (${p.errors})`}.`,
-  "launch.settings-unproven": (p) =>
-    `The ${p.agent} CLI ${p.version} gave no proof that it applies the worker settings, sandbox included; no worker starts on it.`,
-  "launch.account-full": (p) =>
-    `Account ${p.account} runs ${p.max} workers already, its most at once; no worker starts on it until one ends.`,
-  "launch.agent-unavailable": (p) =>
-    `The ${p.agent} CLI could not report its version or run its contract check (${p.error}); no worker of it starts.`,
-  "launch.sandbox-overridden": (p) =>
-    `The managed settings file ${p.path} sets ${p.key}, which loosens the worker sandbox or replaces the settings checked; no worker starts while it does.`,
-  "launch.managed-settings-unreadable": (p) =>
-    `The managed settings file ${p.path} cannot be read or parsed (${p.error}), so it may loosen the worker sandbox; no worker starts until it can.`,
-  "launch.gh-login": (p) =>
-    p.error === null
-      ? "gh finds a token without GH_TOKEN, so a worker could fall back to it; the launch is refused."
-      : `The check for a gh login without GH_TOKEN failed (${p.error}); the launch is refused.`,
   "extension.refused": (p) => `Extension ${p.extension} is not run: ${EXTENSION_REFUSALS[p.reason]}.`,
   "extension.failed": (p) => `Extension ${p.extension} failed to ${EXTENSION_STEPS[p.step]} (${p.error}).`,
   "extension.finding": (p) => `${p.extension}: ${p.message}`,

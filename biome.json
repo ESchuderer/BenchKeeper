@@ -15,7 +15,7 @@
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "overrides": [
     {
-      "includes": ["packages/contracts/corpus/WorkflowDefinition/**", "packages/contracts/corpus/AccountRegistry/**"],
+      "includes": ["packages/contracts/corpus/WorkflowDefinition/**"],
       "json": { "formatter": { "expand": "always" } }
     }
   ],

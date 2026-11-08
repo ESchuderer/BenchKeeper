@@ -39,7 +39,7 @@ test.each(["lose-answer", "crash"] as const)(
   },
 );
 
-test("a refused write fails for good, while an outage keeps its entry and the ones after it queued", async () => {
+test("a refused write fails until the owner retries it, while an outage keeps its entry and the ones after it queued", async () => {
   const [store, tracker] = [fresh(), new FakeTracker([issue])];
   const [one, two] = ["One.", "Two."].map((body) => queue(store, body, { kind: "comment", issue, body }));
   tracker.fault = "refuse";
@@ -67,8 +67,6 @@ test("a retried comment is sent behind the entries queued while it waited, and p
     { id: one, status: "failed", finding: { code: "tracker.invalid-answer" } },
   ]);
   const two = queue(store, "two", { kind: "comment", issue, body: "Two." });
-  tracker.fault = "outage";
-  await drain(store, tracker);
   expect(store.retry(one)).toMatchObject({ ok: true, value: { id: one, status: "pending", finding: null } });
   expect(await drain(store, tracker)).toMatchObject([
     { id: two, status: "sent" },

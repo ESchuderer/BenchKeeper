@@ -463,7 +463,12 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
       "state folder (default: CEDARLOOM_STATE_DIR, XDG_STATE_HOME/cedarloom, ~/.local/state/cedarloom)",
     )
     .exitOverride()
-    .configureOutput({ writeOut: io.out, writeErr: io.err });
+    .configureOutput({
+      writeOut: io.out,
+      writeErr: io.err,
+      // commander repeats a stray word in its usage errors; GitHub's token prefixes keep a pasted token out of them.
+      outputError: (text, write) => write(text.replace(/\b(?:github_pat|gh[opsur])_\w+/g, "<token>")),
+    });
   const ctx = (): Context => {
     const { json, state } = program.opts();
     // Resolved once, so every path built from it, an own home's too, is absolute.

@@ -1131,7 +1131,10 @@ test("a token typed on the command line instead of piped in is never repeated in
   for (const argv of [
     ["work-items", "token", "github_pat_11FAKE_0123"],
     ["work-items", "token", "--token=github_pat_11FAKE_0123"],
+    // A token's end without its prefix, as a paste that missed its start.
+    ["work-items", "token", "11FAKE_0123"],
     ["work-items", "github_pat_11FAKE_0123"],
+    ["--token=github_pat_11FAKE_0123", "work-items", "token"],
   ]) {
     const typed = await cli(...argv);
     expect([typed.code, `${typed.out}${typed.err}`.includes("FAKE")]).toEqual([EXIT.usage, false]);

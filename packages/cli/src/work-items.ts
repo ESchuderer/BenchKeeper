@@ -13,19 +13,17 @@ const storeToken = async (ctx: Context): Promise<number> => {
   return EXIT.ok;
 };
 
-// commander repeats a stray word in its usage errors, and here that word may be the token itself.
-const unechoed = (text: string) => ({ outputError: (_: string, write: (out: string) => void) => write(`${text}\n`) });
-
 /** The work-items commands: the hub-issues token CedarLoom's own calls on hub issues use (A37). */
 export const workItemsGroup = (program: Command, ctx: () => Context, done: (code: number) => void): void => {
-  const group = program.command("work-items").description("hub issues as work items");
-  group
+  program
+    .command("work-items")
+    .description("hub issues as work items")
     .command("token")
     .description("store the hub-issues token, piped in on standard input, in the OS credential store")
-    .configureOutput(
-      unechoed("error: work-items token takes no arguments or options: pipe the token in on standard input"),
-    )
+    // Its only word on the command line would be the token: commander's errors never repeat it.
+    .configureOutput({
+      outputError: (_, write) =>
+        write("error: work-items token takes no arguments or options: pipe the token in on standard input\n"),
+    })
     .action(async () => done(await storeToken(ctx())));
-  // After its commands, which keep commander's own errors.
-  group.configureOutput(unechoed("error: unknown work-items command (cedarloom work-items --help)"));
 };

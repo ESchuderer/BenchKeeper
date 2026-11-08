@@ -379,13 +379,19 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     );
   profiles
     .command("bind")
-    .description("name this machine's hub repository or gate workflow source; with --yes, save it as one run")
-    .addArgument(new Argument("<binding>").choices(["hub", "gates"] as const))
-    .argument("<repository>", "the hub as owner/repo; the gates' reusable workflows as owner/repo@<commit>")
+    .description(
+      "name this machine's hub, agent memory repository or gate workflow source; with --yes, save it as one run",
+    )
+    .addArgument(new Argument("<binding>").choices(["hub", "memory", "gates"] as const))
+    .argument(
+      "<repository>",
+      "the hub and the memory repository as owner/repo; the gates' reusable workflows as owner/repo@<commit>",
+    )
     .option("--yes", "save the binding as computed now")
-    .action((binding, repository, options) =>
-      done(profilesChoose(ctx(), binding === "hub" ? { hub: repository } : { gates: repository }, options)),
-    );
+    .action((binding, repository, options) => {
+      const choices = { hub: { hub: repository }, memory: { memory: repository }, gates: { gates: repository } };
+      done(profilesChoose(ctx(), choices[binding], options));
+    });
   profileFiles(profiles, ctx, done);
 };
 

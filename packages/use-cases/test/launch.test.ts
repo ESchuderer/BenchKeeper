@@ -789,6 +789,10 @@ test("an agent fails, saying why, before it makes a worktree or a branch; one st
   // The level's settings file cannot be read.
   writeFileSync(join(config, "automation.json"), "{");
   await runWorkflow(state, file, {}, { project: work, agents });
+  // The selection, which holds the memory binding the guard needs, cannot be read.
+  rmSync(join(config, "automation.json"));
+  mkdirSync(join(config, "profile.json"));
+  await runWorkflow(state, file, {}, { project: work, agents });
   // A session whose init line proves no settings is no session to resume.
   expect(attemptsOf(state).map((row) => [row.state, row.outputs, row.sessionId])).toEqual([
     ["failed", { error: "no-single-pool" }, null],
@@ -797,6 +801,7 @@ test("an agent fails, saying why, before it makes a worktree or a branch; one st
     ["failed", { error: "launch.gh-login" }, null],
     ["failed", { error: "launch.settings-unproven" }, null],
     ["failed", { error: "document.invalid" }, null],
+    ["failed", { error: "document.unreadable" }, null],
   ]);
   expect(withLedger(state, (store) => store.launches().map((each) => each.verdict))).toEqual([
     "not-run",

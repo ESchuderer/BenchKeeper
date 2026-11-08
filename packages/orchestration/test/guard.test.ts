@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
-import { guardCommand, guardHookOf, type Remotes, workerPolicy } from "@cedarloom/orchestration";
+import { guardCommand, guardHookOf, type Remotes, TYPED_REMOTE, workerPolicy } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 import { z } from "zod";
 
@@ -14,7 +14,9 @@ const Fixtures = z.object({
   cases: z.record(z.string(), z.array(z.tuple([z.string(), z.string(), z.string().nullable()]))),
 });
 const fixtures = Fixtures.parse(JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "guard.json"), "utf8")));
-const remotes: Remotes = (folder) => {
+// A typed URL stays as typed: no fixture folder rewrites one.
+const remotes: Remotes = (folder, url) => {
+  if (url !== undefined) return new Map([[TYPED_REMOTE, [url]]]);
   // git -C reaches its folder as the OS does; these fixture folders hold no links, and on Windows lose their drive.
   const found =
     fixtures.remotes[
@@ -69,7 +71,7 @@ test("the hook reads a Monitor command as a Bash one, refuses PowerShell and a r
   ]).toEqual(["refused", "refused", "runs", "runs", "refused", "runs"]);
 }, 30_000);
 
-test("a worker's policy holds its project's GitHub repositories and the hub, and its hook runs from the package", () => {
+test("a worker's policy holds its project's GitHub repositories, the hub and the memory repository, whose main no push reaches, and its hook runs from the package", () => {
   const project = mkdtempSync(join(tmpdir(), "guard-"));
   try {
     execFileSync("git", ["init", "-q", project]);
@@ -79,16 +81,27 @@ test("a worker's policy holds its project's GitHub repositories and the hub, and
     ]) {
       execFileSync("git", ["-C", project, "remote", "add", name ?? "", url ?? ""]);
     }
-    const policy = workerPolicy(project, "acme/tracker");
+    const policy = workerPolicy(project, { hub: "acme/tracker", memory: "acme/memory" });
     expect(policy).toEqual({
       schemaVersion: 1,
-      repositories: ["acme/app", "acme/tracker"],
+      repositories: ["acme/app", "acme/tracker", "acme/memory"],
       hub: "acme/tracker",
-      memory: null,
+      memory: "acme/memory",
     });
     const { command, args } = guardHookOf(policy);
     const run = (text: string) => spawnSync(command, args, { input: bash(text, project), encoding: "utf8" }).status;
-    expect([run("git status"), run("git push -f origin main")]).toEqual([0, 2]);
+    const memory = "https://github.com/acme/memory.git";
+    // A rewrite the checkout's config holds, which sends a push to the project's URL to the memory repository.
+    execFileSync("git", ["-C", project, "config", `url.${memory}.pushInsteadOf`, "https://github.com/acme/app"]);
+    // A pushurl for a remote of the name the guard once used for typed URLs, which would show the allowed URL instead.
+    execFileSync("git", ["-C", project, "config", "remote.cedarloom-typed-url.pushurl", "https://github.com/acme/app"]);
+    expect([
+      run("git status"),
+      run("git push -f origin main"),
+      run(`git push ${memory} HEAD:refs/heads/memory/worker-20261108`),
+      run(`git push ${memory} HEAD:main`),
+      run("git push https://github.com/acme/app HEAD:main"),
+    ]).toEqual([0, 2, 0, 2, 2]);
   } finally {
     rmSync(project, { recursive: true, force: true });
   }

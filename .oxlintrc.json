@@ -27,7 +27,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/contracts/src/**", "packages/accounts/src/**"],
+      "files": ["packages/contracts/src/**"],
       "rules": {
         "no-restricted-globals": [
           "error",
@@ -67,15 +67,15 @@
       }
     },
     {
-      "files": ["packages/agent-contracts/src/**", "packages/adapter-*/src/**"],
+      "files": ["packages/adapter-*/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
           {
             "patterns": [
               {
-                "group": ["@cedarloom/*", "!@cedarloom/contracts", "!@cedarloom/agent-contracts"],
-                "message": "the agent contract and the adapters depend on the contracts only, never on each other"
+                "group": ["@cedarloom/*", "!@cedarloom/contracts"],
+                "message": "the adapters depend on the contracts only, never on each other"
               }
             ]
           }
@@ -106,14 +106,8 @@
           {
             "patterns": [
               {
-                "group": [
-                  "@cedarloom/*",
-                  "!@cedarloom/contracts",
-                  "!@cedarloom/agent-contracts",
-                  "!@cedarloom/accounts",
-                  "!@cedarloom/engine"
-                ],
-                "message": "orchestration takes the domain packages and the agent contract, never an adapter or a front end"
+                "group": ["@cedarloom/*", "!@cedarloom/contracts", "!@cedarloom/engine"],
+                "message": "orchestration takes the domain packages, never an adapter or a front end"
               }
             ]
           }
@@ -135,23 +129,7 @@
                   "@cedarloom/ui",
                   "@cedarloom/client"
                 ],
-                "message": "use-cases takes the agent contract, never an adapter or a front end: the caller hands the adapter in"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/accounts/src/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["node:*", "@cedarloom/*", "!@cedarloom/contracts"],
-                "message": "accounts is a pure domain package (D2): the contracts and zod only, no Node and no other package"
+                "message": "use-cases never takes an adapter or a front end: the caller hands the adapter in"
               }
             ]
           }

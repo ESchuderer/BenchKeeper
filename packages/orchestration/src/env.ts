@@ -1,19 +1,7 @@
-import { join } from "node:path";
-import type { AccountRegistry } from "@cedarloom/contracts";
-
 // What a CLI needs to run, nothing that selects a login or changes the agent.
 const INHERITED = ["PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TZ"];
 // Windows' system, profile and temp folders: docs/agents/git-and-processes.md#child-processes
 const WINDOWS = ["SYSTEMROOT", "WINDIR", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP"];
-
-export interface WorkerEnvInput {
-  readonly parent: Readonly<Record<string, string | undefined>>;
-  readonly platform: NodeJS.Platform;
-  /** The fine-grained token of the worker's access profile; null when it has none. */
-  readonly ghToken: string | null;
-  /** An empty folder of this worker for gh's configuration. */
-  readonly ghConfigDir: string;
-}
 
 /**
  * The network settings Claude Code documents: proxies (also lowercase), extra and system CAs, and an mTLS client
@@ -35,7 +23,7 @@ export const NETWORK_SETTINGS = [
 
 /** What an agent process gets of the launcher's environment, by an allowlist: no login variable or hidden override. */
 export const cleanEnv = (
-  parent: WorkerEnvInput["parent"],
+  parent: Readonly<Record<string, string | undefined>>,
   platform: NodeJS.Platform,
   extra: readonly string[] = [],
 ): Record<string, string> => {
@@ -49,51 +37,6 @@ export const cleanEnv = (
   );
   return Object.fromEntries(inherited);
 };
-
-/**
- * A worker's environment, built from an allowlist: no login variable, hidden override or token of the launcher reaches
- * it. gh gets the access profile's token and an empty configuration folder of its own, so it never falls back to the
- * keyring login of `gh auth login`.
- */
-export const workerEnv = ({ parent, platform, ghToken, ghConfigDir }: WorkerEnvInput): Record<string, string> => ({
-  ...cleanEnv(parent, platform),
-  GH_CONFIG_DIR: ghConfigDir,
-  ...(ghToken === null ? {} : { GH_TOKEN: ghToken }),
-});
-
-// The user's credential stores and the agents' default homes, below the user's home folder.
-const CREDENTIALS = [
-  ".ssh",
-  ".gnupg",
-  ".aws",
-  ".azure",
-  ".docker",
-  ".kube",
-  ".netrc",
-  ".npmrc",
-  ".git-credentials",
-  // allowRead reopens ~/.cargo for toolchains; the narrower deny keeps its tokens out.
-  join(".cargo", "credentials.toml"),
-  join(".cargo", "credentials"),
-  join(".config", "git", "credentials"),
-  join(".config", "gh"),
-  join(".config", "gcloud"),
-  join(".local", "share", "keyrings"),
-  join("Library", "Keychains"),
-  ".claude",
-  ".claude.json",
-  ".codex",
-];
-
-/**
- * What a worker must not read: every account's home, its own too, since the agent process reads its login and no shell
- * command needs it, every alias, the user's credential stores, and gh's folder under XDG_CONFIG_HOME when that is set.
- */
-export const deniedPaths = (registry: AccountRegistry, home: string, xdgConfigHome: string | undefined): string[] => [
-  ...registry.accounts.flatMap((account) => [account.home, ...(account.aliases ?? [])]),
-  ...CREDENTIALS.map((path) => join(home, path)),
-  ...(xdgConfigHome === undefined ? [] : [join(xdgConfigHome, "gh")]),
-];
 
 /**
  * The hosts a worker reaches: GitHub only, until repositories name the package registries they need (owner decision,

@@ -1,3 +1,0 @@
-{"type":"system","subtype":"init","session_id":"00000000-0000-4000-8000-000000000003","model":"claude-sonnet-5-5","claude_code_version":"2.1.316","tools":["Bash","Read","Edit"]}
-{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","rateLimitType":"five_hour","unifiedWindows":{"five_hour":{"status":"allowed","utilization":0.1}}}}
-{"type":"result","subtype":"success","is_error":false,"result":"OK"}

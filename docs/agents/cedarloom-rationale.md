@@ -137,39 +137,6 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 - **Each source on its own.** By default Claude Code applies only the highest-ranked source that holds a policy key (`first-wins`). With `managedSourcesBehavior: "merge"`, a higher source's value wins on most keys, lists union and locks take the strictest value (https://code.claude.com/docs/en/managed-settings#compose-every-managed-source). A policy helper's output replaces every managed source, so the doctor reports one as a policy it cannot read. The check still counts a value in any source, so the doctor warns rather than stays silent on a policy it read wrong. The cost is a warning when a stricter source outranks the loosening one.
 - **The server-managed cache.** The cache is the settings object itself. Claude Code treats a copy it cannot read, or does not trust, as absent, so such a copy counts as none here too. A session's startup fetch can bring a newer policy than the cache holds.
 
-## Claude Code adapter
-
-`packages/adapter-claude/src/`
-
-### Read-only workers
-
-`overlay.ts` (`readOnly`). A report run's worker gets the other folders it may not write either, such as the shared `.git` of a linked worktree, which Claude Code's sandbox opens to its commands. It changes nothing in the working folder or those folders and runs no `git push`; it still writes its result. It does not stop a push in another spelling (`git -C`, `sh -c`, `gh`, `curl`: the read-only token, or none, is that boundary), hooks, writes to its temporary and result folders, or sending out what it read.
-
-### Worker home
-
-`overlay.ts` (`OWN_STATE`). The worker's own home stays closed to its file tools only where the login and the account's state live, so the model reads what the CLI keeps there for the session, such as a large tool output saved under `projects/`. Every other home stays closed whole, and so does every home to shell commands (live test, Claude Code 2.1.316, 2026-11-06). The four files end in `*`, so their `.signature.json` and `.stamp.json` sidecars, which repeat them or name the account, are closed too; `ide/` holds each IDE connection's lock file with its auth token.
-
-### Settings overlay
-
-`overlay.ts` (`overlay`, `SETTINGS_SENTINEL`).
-- **The settings' proof.** The settings deny a core tool by its bare name, which removes it from the session's tools (https://code.claude.com/docs/en/permissions), so its absence from the init line's tool list proves the CLI applied the settings. Plan mode lists it too (2.1.316). The tool is `NotebookEdit`. The cost: workers cannot change notebooks with the file tools, since Edit refuses `.ipynb` files (2.1.316); shell commands still can (owner decision, kept).
-- **Checked before the launch.** `--settings` can set any key the user settings file can (https://code.claude.com/docs/en/cli-reference). `overlay` throws when a value is not one the documented syntax takes. A key a later CLI version stops taking drops the settings silently; the session's init line then lists the sentinel, and its init event reports the settings as not applied.
-
-### Permission rules
-
-`overlay.ts` (`Rule`). The documented rule syntax: a tool name with an optional specifier in parentheses that holds no closing parenthesis, or an MCP tool without one. Deny and ask rules also take a glob in the tool name such as `mcp__*` or `*`. An allow rule takes only a server's own wildcard, `mcp__github__*`, since 2.1.316 skips the others there (https://code.claude.com/docs/en/permissions).
-
-### Stream-json
-
-`stream.ts`.
-- **The init line** follows the Agent SDK's `SDKSystemMessage` (https://code.claude.com/docs/en/agent-sdk/typescript). A field of another form is left out, so it never costs the line its settings proof.
-- **Totals** cover every model the session used, subagents included, which `usage` leaves out (https://code.claude.com/docs/en/agent-sdk/cost-tracking). There are none when the result reports none, or only zeros, as the result of a crashed session may.
-- **Long lines.** `lines` ends with `null` in place of a line longer than `max` bytes: a string past the engine's limit (https://nodejs.org/api/buffer.html#bufferconstantsmax_string_length) throws where no caller can catch it. The size is checked per chunk, so a line passes `max` by one chunk at most.
-
-### Quota names
-
-`stream.ts` (`QUOTA`). Claude Code's window names in the agent-neutral quota model. 2.1.316's `unifiedWindows` schema names `five_hour`, `seven_day` and `seven_day_overage_included`, the Fable limit (as claude-swap v0.30.0 maps it); `seven_day_opus` and `seven_day_sonnet` are the usage report's names for those models.
-
 ## Hub tracker
 
 `packages/adapter-github/src/`

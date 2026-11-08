@@ -51,15 +51,12 @@ export {
 } from "./launch.ts";
 export {
   type AccountRequest,
-  accountsStatus,
   chooseAccount,
   chooseMove,
-  keepSwapReadings,
   loadRegistry,
   MAX_CONCURRENT,
   type MoveRequest,
   ownHome,
-  type SwapWindow,
 } from "./accounts.ts";
 export {
   type Approval,

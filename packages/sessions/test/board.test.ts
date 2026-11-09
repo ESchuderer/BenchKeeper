@@ -62,9 +62,9 @@ test("one project over all time, from its first session's day", () => {
   expect(board.figures).toMatchObject({ sessions: 4, daysWorked: 4, streak: 3, costUSD: 3, tested: 1, testsPassed: 0 });
 });
 
-test("days are the time zone's: an evening in Los Angeles counts on that day, not the next", () => {
-  // 19:30 on November 4 in Los Angeles, and 22:00 there when the board is read.
-  const evening = [row("2026-11-05T03:30:00.000Z", "/work/shop")];
+test("days are the time zone's: an evening in Los Angeles counts on that day, and nothing after today", () => {
+  // 19:30 on November 4 and 5 in Los Angeles (a clock ahead), and 22:00 on the 4th there when the board is read.
+  const evening = [row("2026-11-06T03:30:00.000Z", "/work/shop"), row("2026-11-05T03:30:00.000Z", "/work/shop")];
   const board = boardOf(
     evening,
     { days: 2, project: null, zone: "America/Los_Angeles" },

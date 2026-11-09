@@ -60,7 +60,7 @@ export const boardOf = (
   const start = from > floor ? from : floor;
   const span: string[] = [];
   for (let day = start <= today ? start : today; day <= today; day = plusDays(day, 1)) span.push(day);
-  const sessions = own.filter((s) => dayOf(s.start) >= (span[0] ?? today));
+  const sessions = own.filter((s) => dayOf(s.start) >= (span[0] ?? today) && dayOf(s.start) <= today);
   const counts = Map.groupBy(
     all.flatMap((s) => (s.project === null ? [] : [s.project])),
     (name) => name,

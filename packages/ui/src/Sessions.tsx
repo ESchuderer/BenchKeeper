@@ -319,8 +319,8 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
     <Stack>
       {problem !== "" && <Alert color="red">{problem}</Alert>}
       <Filters board={board} days={days} project={project} onDays={setDays} onProject={setProject} />
-      {board === null ? (
-        <Text role="status">{t("sessions.reading")}</Text>
+      {board === null || problem !== "" || board.project !== project || String(board.days ?? "all") !== days ? (
+        problem === "" && <Text role="status">{t("sessions.reading")}</Text>
       ) : (
         <>
           <Figures board={board} />

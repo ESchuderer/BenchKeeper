@@ -8,7 +8,7 @@ writes: "Specs, prompts and handoff copies in `.benchkeeper/runs/<run id>/`, del
 
 # Orchestrating projects
 
-This session is the coordinator. Workers do the issue work in their own worktrees, each the phase orchestrator of its task (the Flow line of [spec-template.md](spec-template.md)); the coordinator picks, specs, watches, verifies, merges by policy, cleans up and starts the next. The runner's commands are in [orca.md](orca.md); the runner's own guide stays the source for its mechanics. Everything below is runner-neutral.
+This session is the coordinator. Workers do the issue work in their own worktrees, each working by the workflow skill at its tier (the Flow line of [spec-template.md](spec-template.md)); the coordinator picks, specs, watches, verifies, merges by policy, cleans up and starts the next. The runner's commands are in [orca.md](orca.md); the runner's own guide stays the source for its mechanics. Everything below is runner-neutral.
 
 Projects: $ARGUMENTS (Codex: the paths after the skill name). Each is a repository with a GitHub remote and an `AGENTS.md`.
 

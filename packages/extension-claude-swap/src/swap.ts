@@ -270,13 +270,13 @@ const lineOf = (words: string[]): string => words.map((word) => (/[[>]/.test(wor
 // The claude-swap release an install pins, the one this extension reads (coordinator, 2026-11-07); on macOS with the
 // menu bar, which runs claude-swap's own auto mode as a service (switching plan 14.3).
 const specOf = (platform: string): string => `claude-swap${platform === "darwin" ? "[menubar]" : ""}==${OBSERVED}`;
-// Where an install downloads claude-swap from: PyPI, named in the command; the host passes no UV_ or PIP_ variable.
+// Where an install downloads claude-swap from: PyPI, named in the command; the host lets uv and pip read no config.
 const INDEX = "https://pypi.org/simple";
 const SOURCE = `https://pypi.org/project/claude-swap/${OBSERVED}/`;
 // The installers the host may run, in this order, their install arguments, and what else they fetch, which the approval
 // shows. claude-swap needs Python 3.12 or newer, which uv finds or downloads when asked (the first python3 on the path
 // can be older: macOS ships 3.9); uv reads no uv.toml, whose indexes would come before PyPI, and takes the dependencies
-// as they were the day after the pin's release. pipx has no such options.
+// as they were the day after the pin's release; pipx has no such date option.
 const INSTALLERS: [string, string[], string][] = [
   [
     "uv",
@@ -290,7 +290,7 @@ const INSTALLERS: [string, string[], string][] = [
   [
     "pipx",
     ["install", "--index-url", INDEX],
-    "pipx takes the newest releases of claude-swap's dependencies, and pip's own configuration files on this machine can add an index besides PyPI.",
+    "pipx takes the newest releases of claude-swap's dependencies from PyPI.",
   ],
 ];
 // Below the minute a CLI verb's action has; claude-swap and the menu bar's packages download once.

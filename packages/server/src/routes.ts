@@ -302,19 +302,33 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
   );
 };
 
+const isZone = (zone: string): boolean => {
+  try {
+    return new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone !== "";
+  } catch {
+    return false;
+  }
+};
+
 // Reads the session logs (a first read of a large history takes seconds), never writes but the cache.
 export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
   const query = z.strictObject({
     days: z.coerce.number().int().min(1).max(3650).optional().describe("The period's length in days; absent: all time"),
     // 1,025 characters at 12 escaped bytes each fit the 16 KiB a request line may take, so a 400 answers, not a 431.
     project: z.string().max(1024).optional().describe("The project's folder; absent: every project"),
+    tz: z
+      .string()
+      .max(64)
+      .refine(isZone)
+      .optional()
+      .describe("The IANA time zone the days are counted in, such as Europe/Berlin; absent: UTC"),
   });
   app.get(
     "/api/sessions",
     { schema: { querystring: query, response: answers({ 200: SessionsBoard }) } },
     async (req, _reply) => {
-      const { days, project } = req.query;
-      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null });
+      const { days, project, tz } = req.query;
+      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone: tz ?? "UTC" });
     },
   );
 };

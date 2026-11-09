@@ -207,6 +207,7 @@ export interface MessageValues {
   "sessions.costColumn": Record<never, never>;
   "sessions.costNote": { date: string | number; uncosted: number };
   "sessions.count": Record<never, never>;
+  "sessions.dataFrom": { first: string | number };
   "sessions.days": { days: string | number };
   "sessions.daysOf": { worked: string | number; days: string | number };
   "sessions.daysWorked": Record<never, never>;
@@ -214,6 +215,7 @@ export interface MessageValues {
   "sessions.hint": Record<never, never>;
   "sessions.metric": Record<never, never>;
   "sessions.metricName": { metric: string };
+  "sessions.noData": Record<never, never>;
   "sessions.none": Record<never, never>;
   "sessions.other": Record<never, never>;
   "sessions.peak": { value: string | number };

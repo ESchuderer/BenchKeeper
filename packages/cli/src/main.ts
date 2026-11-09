@@ -377,7 +377,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     .command("board")
     .description("the sessions board: agent time, tokens, cost, days worked and tests of this machine's agent sessions")
     .option("--days <n>", "the last n days, today included (default: 30)", dayCount)
-    .option("--all", "all time")
+    .addOption(new Option("--all", "all time").conflicts("days"))
     .option("--project <folder>", "one project's sessions, by its folder")
     .action(async (options) => done(await board(ctx(), options)));
   program

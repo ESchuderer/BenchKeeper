@@ -27,7 +27,7 @@ export type AgentSession = z.infer<typeof AgentSession>;
 
 /**
  * The figures of a period's sessions: `costUSD` is null when no session has a cost and `uncosted` counts those without;
- * `daysWorked` of `days` are UTC days with a session start, `streak` the longest run of them; `testsPassed` is the share
+ * `daysWorked` of `days` are the board's days with a session start, `streak` the longest run of them; `testsPassed` is the share
  * of the `tested` sessions whose last test run passed.
  */
 export const SessionFigures = z
@@ -48,15 +48,18 @@ export type SessionFigures = z.infer<typeof SessionFigures>;
 
 /**
  * The sessions board of a period and a project: `days` is the period's length up to today (null: all time) and `span` its
- * UTC days, oldest first; `projects` are every project with a session, most sessions first, so a project keeps its place;
- * `sessions` are the period's sessions of the project (null: of every project), newest first; `prices` dates the table
- * that prices Codex.
+ * calendar days in the time zone `zone`, oldest first; `first` is the first day the machine's session logs cover, as the
+ * agent tools delete old ones; `projects` are every project with a session, most sessions first, so a project keeps its
+ * place; `sessions` are the period's sessions of the project (null: of every project), newest first; `prices` dates the
+ * table that prices Codex.
  */
 export const SessionsBoard = z
   .strictObject({
     days: z.int().min(1).nullable(),
     project: z.string().nullable(),
+    zone: z.string(),
     span: z.array(z.iso.date()),
+    first: z.iso.date().nullable(),
     projects: z.array(z.string()),
     figures: SessionFigures,
     sessions: z.array(AgentSession),

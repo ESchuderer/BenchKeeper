@@ -18,16 +18,21 @@ const time = (ms: number | null): string => {
 const usd = (value: number | null): string => (value === null ? "-" : `$${value.toFixed(2)}`);
 const share = (value: number | null): string => (value === null ? "-" : `${Math.round(value * 100)}%`);
 
+const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? "" : "s"}`;
+
 // Paths and titles come from the session logs: shown with control characters escaped.
-const figures = ({ span, project, figures: f }: Board): string[] => [
-  `${f.sessions} sessions from ${span[0] ?? "-"} to ${span.at(-1) ?? "-"}, ${project === null ? "every project" : shown(project)}`,
-  `agent time ${time(f.busyMs)}, tokens ${compact.format(f.tokens)}, cost ${usd(f.costUSD)} (estimates; ${f.uncosted} without a cost)`,
-  `days worked ${f.daysWorked} of ${f.days}, longest run ${f.streak}; tests passed ${share(f.testsPassed)} of ${f.tested} with a test run`,
+const figures = ({ span, project, zone, first, prices, figures: f }: Board): string[] => [
+  `${plural(f.sessions, "session")} from ${span[0] ?? "-"} to ${span.at(-1) ?? "-"} (${zone}), ${project === null ? "every project" : shown(project)}`,
+  `agent time ${time(f.busyMs)}, tokens ${compact.format(f.tokens)}, cost ${usd(f.costUSD)} (estimates: Claude Code's own, Codex at OpenAI's list prices of ${prices.date}; ${f.uncosted} without a cost)`,
+  `days worked ${f.daysWorked} of ${f.days}, longest run ${plural(f.streak, "day")}; tests passed ${share(f.testsPassed)} of ${plural(f.tested, "session")} with a test run`,
+  ...(first !== null && (span[0] ?? first) < first
+    ? [`data from ${first}: the agent tools delete older session logs`]
+    : []),
 ];
 
-const line = (s: Board["sessions"][number]): string =>
+const line = (s: Board["sessions"][number], at: Intl.DateTimeFormat): string =>
   [
-    `${s.start.slice(0, 16).replace("T", " ")}Z`,
+    at.format(Date.parse(s.start)),
     s.agent.padEnd(11),
     time(s.busyMs).padStart(7),
     compact.format(s.tokens).padStart(6),
@@ -45,7 +50,12 @@ export const board = async (
   const days = options.all === true ? null : (options.days ?? 30);
   // A folder names its repository's project, as the sessions count it: `--project .` in a worktree too.
   const project = options.project === undefined ? null : useCases.projectOf(resolve(options.project));
-  const value = await useCases.sessionsBoard(logsOf(ctx), { days, project });
-  emit(ctx, "board", { board: value }, [...figures(value), ...value.sessions.map(line)].join("\n"));
+  // The days of this machine's own time zone, as its clock shows the sessions' times.
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const value = await useCases.sessionsBoard(logsOf(ctx), { days, project, zone });
+  // Swedish dates and times read as ISO: 2026-11-09 08:44.
+  const at = new Intl.DateTimeFormat("sv-SE", { timeZone: zone, dateStyle: "short", timeStyle: "short" });
+  const lines = [...figures(value), ...value.sessions.map((s) => line(s, at))];
+  emit(ctx, "board", { board: value }, lines.join("\n"));
   return EXIT.ok;
 };

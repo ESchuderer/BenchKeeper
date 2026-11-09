@@ -1004,6 +1004,7 @@ export interface paths {
                 query?: {
                     days?: number;
                     project?: string;
+                    tz?: string;
                 };
                 header?: never;
                 path?: never;
@@ -2287,7 +2288,9 @@ export interface components {
         SessionsBoardInput: {
             days: number | null;
             project: string | null;
+            zone: string;
             span: string[];
+            first: string | null;
             projects: string[];
             figures: components["schemas"]["SessionFiguresInput"];
             sessions: components["schemas"]["AgentSessionInput"][];
@@ -3504,7 +3507,9 @@ export interface components {
         SessionsBoard: {
             days: number | null;
             project: string | null;
+            zone: string;
             span: string[];
+            first: string | null;
             projects: string[];
             figures: components["schemas"]["SessionFigures"];
             sessions: components["schemas"]["AgentSession"][];

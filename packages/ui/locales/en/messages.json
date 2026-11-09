@@ -505,6 +505,11 @@
       ]
     ],
     "sessions.count": ["Sessions"],
+    "sessions.dataFrom": [
+      "Data from ",
+      ["first"],
+      ": the agent tools delete older session logs, so earlier days show no work."
+    ],
     "sessions.days": ["Last ", ["days"], " days"],
     "sessions.daysOf": [["worked"], " of ", ["days"]],
     "sessions.daysWorked": ["Days worked"],
@@ -518,6 +523,7 @@
         { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
       ]
     ],
+    "sessions.noData": ["no data, before the oldest session log"],
     "sessions.none": ["None"],
     "sessions.other": ["Other"],
     "sessions.peak": ["Top line: ", ["value"], " a day"],

@@ -47,7 +47,17 @@ const Figure = ({ label, value, note }: { label: string; value: string; note: st
   </Paper>
 );
 
-const Figures = ({ board: { figures: f, prices } }: { board: Board }) => (
+// The period reaches past the logs the agent tools still keep: its first days have no data, not no work.
+const before = ({ span, first }: Board): boolean => first !== null && (span[0] ?? first) < first;
+
+const Figures = ({ board }: { board: Board }) => {
+  const { figures: f, prices, first } = board;
+  const since =
+    before(board) && first !== null ? t("sessions.dataFrom", { first: date.format(Date.parse(first)) }) : "";
+  return <FigureGrid f={f} prices={prices} since={since} />;
+};
+
+const FigureGrid = ({ f, prices, since }: { f: Board["figures"]; prices: Board["prices"]; since: string }) => (
   <SimpleGrid cols={{ base: 2, sm: 3 }}>
     <Figure label={t("sessions.count")} value={String(f.sessions)} note={null} />
     <Figure label={t("sessions.time")} value={time(f.busyMs)} note={t("sessions.timeNote")} />
@@ -60,7 +70,7 @@ const Figures = ({ board: { figures: f, prices } }: { board: Board }) => (
     <Figure
       label={t("sessions.daysWorked")}
       value={t("sessions.daysOf", { worked: f.daysWorked, days: f.days })}
-      note={t("sessions.streak", { streak: f.streak })}
+      note={[t("sessions.streak", { streak: f.streak }), since].filter(Boolean).join(". ")}
     />
     <Figure
       label={t("sessions.testsPassed")}
@@ -71,13 +81,24 @@ const Figures = ({ board: { figures: f, prices } }: { board: Board }) => (
 );
 
 /** The board's series: its busiest projects by rank over all time, so a project keeps its color, then Other. */
+// The calendar day a session started on in the board's time zone, as the server counts it.
+const dayIn = (zone: string): ((iso: string) => string) => {
+  const format = new Intl.DateTimeFormat("en", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" });
+  return (iso) => {
+    const part = new Map(format.formatToParts(Date.parse(iso)).map(({ type, value }) => [type, value]));
+    return `${part.get("year")}-${part.get("month")}-${part.get("day")}`;
+  };
+};
+
 const seriesOf = (board: Board) => {
-  const named = board.projects.slice(0, SERIES.length);
+  const top = board.projects.slice(0, SERIES.length);
+  // A chosen project outside the busiest is named too, in Other's color.
+  const named = board.project === null || top.includes(board.project) ? top : [...top, board.project];
   const slot = (row: Row): number => {
     const at = named.indexOf(row.project ?? "");
     return at === -1 ? named.length : at;
   };
-  const byDay = Map.groupBy(board.sessions, (row) => row.start.slice(0, 10));
+  const byDay = Map.groupBy(board.sessions, (row) => dayIn(board.zone)(row.start));
   return { named, slot, byDay };
 };
 
@@ -158,6 +179,16 @@ const Bars = ({ stacks, days, at, series }: BarsProps) => {
   });
 };
 
+// The days before the oldest session log, greyed: no data, not no work.
+const Before = ({ board: { span, first } }: { board: Board }) => {
+  const days = first === null ? 0 : span.filter((day) => day < first).length;
+  return days === 0 ? null : <rect width={(days * W) / span.length} height={H} fill="var(--mantine-color-gray-1)" />;
+};
+
+// A day's values per project, or that the logs do not reach it.
+const readoutOf = (board: Board, day: string, values: string[]): string =>
+  board.first !== null && day < board.first ? t("sessions.noData") : values.join(", ") || "0";
+
 /** Sessions, time, tokens or cost per day and project; the readout names a day's values, by pointer or arrow keys. */
 const Chart = ({ board, metric }: { board: Board; metric: Metric }): ReactNode => {
   const [at, setAt] = useState<number | null>(null);
@@ -175,9 +206,8 @@ const Chart = ({ board, metric }: { board: Board; metric: Metric }): ReactNode =
   const day = at === null ? undefined : board.span[at];
   const names = [...named, t("sessions.other")];
   const parts = at === null ? [] : (stacks[at] ?? []);
-  const readout = parts.flatMap((value, k) =>
-    value > 0 ? [`${folder(names[k] ?? "")} ${FORMAT[metric](value)}`] : [],
-  );
+  const values = parts.flatMap((value, k) => (value > 0 ? [`${folder(names[k] ?? "")} ${FORMAT[metric](value)}`] : []));
+  const readout = day === undefined ? "" : readoutOf(board, day, values);
   return (
     <Stack gap="xs">
       <svg
@@ -190,6 +220,7 @@ const Chart = ({ board, metric }: { board: Board; metric: Metric }): ReactNode =
         onMouseMove={onPointer}
         onMouseLeave={() => setAt(null)}
       >
+        <Before board={board} />
         <line x1={0} x2={W} y1={8.5} y2={8.5} stroke="var(--mantine-color-gray-3)" />
         <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="var(--mantine-color-gray-4)" />
         <Bars stacks={stacks} days={board.span} at={at} series={named.length} />
@@ -200,7 +231,7 @@ const Chart = ({ board, metric }: { board: Board; metric: Metric }): ReactNode =
         <Text size="xs">{date.format(Date.parse(board.span.at(-1) ?? ""))}</Text>
       </Group>
       <Text size="sm" role="status">
-        {day === undefined ? t("sessions.hint") : `${date.format(Date.parse(day))}: ${readout.join(", ") || "0"}`}
+        {day === undefined ? t("sessions.hint") : `${date.format(Date.parse(day))}: ${readout}`}
       </Text>
       <Legend named={named} rows={board.sessions} stacks={stacks} />
     </Stack>
@@ -279,6 +310,13 @@ const Filters = ({ board, days, project, onChoose }: FilterProps) => (
   </Group>
 );
 
+// The board's days are the browser's, as its table shows the sessions' times.
+const queryOf = (days: string, project: string | null) => ({
+  tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  ...(days === "all" ? {} : { days: Number(days) }),
+  ...(project === null ? {} : { project }),
+});
+
 /** The sessions board: a period's figures, sessions per day and project, and its sessions; read on each choice. */
 export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
   const [days, setDays] = useState("30");
@@ -288,7 +326,7 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
   const [problem, setProblem] = useState("");
   useEffect(() => {
     let current = true;
-    const query = { ...(days === "all" ? {} : { days: Number(days) }), ...(project === null ? {} : { project }) };
+    const query = queryOf(days, project);
     const show = async (): Promise<void> => {
       const answer = await call(() => api.GET("/api/sessions", { params: { query } }));
       if (!current) return;

@@ -902,3 +902,11 @@ msgstr "No session in this period."
 #. js-lingui-explicit-id
 msgid "sessions.peak"
 msgstr "Top line: {value} a day"
+
+#. js-lingui-explicit-id
+msgid "sessions.dataFrom"
+msgstr "Data from {first}: the agent tools delete older session logs, so earlier days show no work."
+
+#. js-lingui-explicit-id
+msgid "sessions.noData"
+msgstr "no data, before the oldest session log"

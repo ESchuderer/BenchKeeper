@@ -32,7 +32,7 @@ const all = [
 const now = new Date("2026-11-05T12:00:00.000Z");
 
 test("a period: its UTC days up to today, its sessions, and figures with days worked and the longest run", () => {
-  const board = boardOf(all, { days: 3, project: null }, now);
+  const board = boardOf(all, { days: 3, project: null, zone: "UTC" }, now);
   expect(board.span).toEqual(["2026-11-03", "2026-11-04", "2026-11-05"]);
   expect(board.sessions.map((s) => s.start)).toEqual(all.slice(0, 4).map((s) => s.start));
   expect(board.figures).toEqual({
@@ -52,8 +52,23 @@ test("a period: its UTC days up to today, its sessions, and figures with days wo
 });
 
 test("one project over all time, from its first session's day", () => {
-  const board = boardOf(all, { days: null, project: "/work/lab" }, now);
+  const board = boardOf(all, { days: null, project: "/work/lab", zone: "UTC" }, now);
   expect(board.span[0]).toBe("2026-10-18");
   expect(board.span).toHaveLength(19);
+  // The logs go back further than the project's sessions: the first day of any session on the machine.
+  expect(board.first).toBe("2026-10-01");
   expect(board.figures).toMatchObject({ sessions: 4, daysWorked: 4, streak: 3, costUSD: 3, tested: 1, testsPassed: 0 });
+});
+
+test("days are the time zone's: an evening in Los Angeles counts on that day, not the next", () => {
+  // 19:30 on November 4 in Los Angeles, and 22:00 there when the board is read.
+  const evening = [row("2026-11-05T03:30:00.000Z", "/work/shop")];
+  const board = boardOf(
+    evening,
+    { days: 2, project: null, zone: "America/Los_Angeles" },
+    new Date("2026-11-05T06:00:00.000Z"),
+  );
+  expect(board.span).toEqual(["2026-11-03", "2026-11-04"]);
+  expect(board.first).toBe("2026-11-04");
+  expect(board.figures).toMatchObject({ sessions: 1, daysWorked: 1 });
 });

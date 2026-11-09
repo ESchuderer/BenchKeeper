@@ -2,12 +2,23 @@ import type { AgentSession, SessionFigures, SessionsBoard } from "@cedarloom/con
 import { PRICES } from "./prices.ts";
 
 const DAY = 86_400_000;
-const dayOf = (time: number): string => new Date(time).toISOString().slice(0, 10);
 const sum = (values: number[]): number => values.reduce((total, value) => total + value, 0);
+// Calendar days as `YYYY-MM-DD`, stepped in UTC, where no day is shorter or longer than another.
+const plusDays = (day: string, count: number): string =>
+  new Date(Date.parse(day) + count * DAY).toISOString().slice(0, 10);
 
-/** The figures of a period: `sessions` are its sessions, `span` its UTC days (`YYYY-MM-DD`, oldest first). */
-const figuresOf = (sessions: readonly AgentSession[], span: readonly string[]): SessionFigures => {
-  const started = new Set(sessions.map((session) => session.start.slice(0, 10)));
+/** The calendar day an instant falls on in a time zone (an IANA name such as `Europe/Berlin`). */
+const dayIn = (zone: string): ((iso: string) => string) => {
+  const format = new Intl.DateTimeFormat("en", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" });
+  return (iso) => {
+    const part = new Map(format.formatToParts(Date.parse(iso)).map(({ type, value }) => [type, value]));
+    return `${part.get("year")}-${part.get("month")}-${part.get("day")}`;
+  };
+};
+
+/** The figures of a period: `days` are its sessions' days, `span` the period's days, oldest first. */
+const figuresOf = (sessions: readonly AgentSession[], days: string[], span: readonly string[]): SessionFigures => {
+  const started = new Set(days);
   let run = 0;
   let streak = 0;
   for (const day of span) {
@@ -30,28 +41,31 @@ const figuresOf = (sessions: readonly AgentSession[], span: readonly string[]): 
   };
 };
 
-/** The period, by its length in days up to today (null: all time), and the project (null: every project). */
+/** The period by its length in days up to today (null: all time), the project (null: every one), and the time zone. */
 export interface BoardQuery {
   readonly days: number | null;
   readonly project: string | null;
+  readonly zone: string;
 }
 
 // All time is at most the longest period, so one log with a reset clock does not make a span of decades.
 const LONGEST = 3650;
 
 /** The board of a period and a project, from every session of the machine, newest first; `now` decides today. */
-export const boardOf = (all: readonly AgentSession[], { days, project }: BoardQuery, now: Date): SessionsBoard => {
-  const today = Date.parse(dayOf(now.getTime()));
+export const boardOf = (
+  all: readonly AgentSession[],
+  { days, project, zone }: BoardQuery,
+  now: Date,
+): SessionsBoard => {
+  const dayOf = dayIn(zone);
+  const today = dayOf(now.toISOString());
   const own = project === null ? all : all.filter((s) => s.project === project);
-  const oldest = Date.parse(own.at(-1)?.start.slice(0, 10) ?? dayOf(today));
-  const from = Math.max(
-    days === null ? Math.min(oldest, today) : today - (days - 1) * DAY,
-    today - (LONGEST - 1) * DAY,
-  );
+  const oldest = own.at(-1);
+  const from = days === null && oldest !== undefined ? dayOf(oldest.start) : plusDays(today, 1 - (days ?? 1));
+  const start = [from, plusDays(today, 1 - LONGEST)].reduce((a, b) => (a > b ? a : b));
   const span: string[] = [];
-  for (let time = from; time <= today; time += DAY) span.push(dayOf(time));
-  const first = span[0] ?? "";
-  const sessions = own.filter((s) => s.start.slice(0, 10) >= first);
+  for (let day = start <= today ? start : today; day <= today; day = plusDays(day, 1)) span.push(day);
+  const sessions = own.filter((s) => dayOf(s.start) >= (span[0] ?? today));
   const counts = Map.groupBy(
     all.flatMap((s) => (s.project === null ? [] : [s.project])),
     (name) => name,
@@ -59,12 +73,19 @@ export const boardOf = (all: readonly AgentSession[], { days, project }: BoardQu
   const projects = [...counts]
     .toSorted(([a, x], [b, y]) => y.length - x.length || a.localeCompare(b))
     .map(([name]) => name);
+  const first = all.at(-1);
   return {
     days,
     project,
+    zone,
     span,
+    first: first === undefined ? null : dayOf(first.start),
     projects,
-    figures: figuresOf(sessions, span),
+    figures: figuresOf(
+      sessions,
+      sessions.map((s) => dayOf(s.start)),
+      span,
+    ),
     sessions,
     prices: { date: PRICES.date, source: PRICES.source },
   };

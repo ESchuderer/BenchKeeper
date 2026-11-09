@@ -9,7 +9,7 @@ import { childEnv } from '../childenv.mjs';
 import { contentDir, contentRefusal, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
-import { mergeJson, parseJson, setToml } from '../merge.mjs';
+import { getBlock, mergeJson, parseJson, setToml } from '../merge.mjs';
 import { copied, globalSkillPacks, libraryWith, ownSkillFiles, packScope, packScopes, scopeText, skillFolder } from '../packs.mjs';
 import { bandStacks, hideBandChanges } from '../ponytail.mjs';
 import { dismissAll, dismissedNotes } from '../preferences.mjs';
@@ -21,6 +21,9 @@ import { verifyArgv } from '../verify.mjs';
 // lite: the BenchKeeper plugin alone (nothing outside the plugin install). standard: the same on the machine, plus the local block
 // that `projects apply` writes per project. full: everything below (global rules, settings, other plugins, host tools).
 export const LEVELS = ['lite', 'standard', 'full'];
+// A global rules file that still holds these sections gets a note on its rules change, so the update does not read as rules dropped.
+const MOVED_SECTIONS = /^## (Questions to the user|Best practice|Writing)\b/m;
+const MOVED_NOTE = " (its questions, best practice and writing rules are now in each project's block: benchkeeper projects update)";
 // The oldest skills CLI the app runs: used when the registry cannot be asked, and never undercut by a newer answer.
 export const SKILLS_CLI = '1.7.2';
 // As an npm alias: npx runs a package from the project's node_modules when its version satisfies a plain spec, so a
@@ -297,7 +300,9 @@ export function globalPlan(env) {
     try { edited = cur != null && cur !== renderRules(r.format, cur, forAgent(rules, id)); } catch { /* shown by the rules change */ }
     // A kept edit holds for this file content and this setup version: a new version offers its rules again.
     const keeps = edited && kept[file]?.hash === hashText(cur) && kept[file]?.version === ctx.appVersion;
-    if (!keeps) add(`rules:${id}`, `${agent(id).name} rules ${r.path}`, { kind: 'write', path: file, edit: (c) => renderRules(r.format, c, forAgent(rules, id)),
+    const ours = r.format === 'block' ? getBlock(cur, 'rules') : cur;
+    const moved = MOVED_SECTIONS.test(ours ?? '') ? MOVED_NOTE : '';
+    if (!keeps) add(`rules:${id}`, `${agent(id).name} rules ${r.path}${moved}`, { kind: 'write', path: file, edit: (c) => renderRules(r.format, c, forAgent(rules, id)),
       installUnit: unit({ id: `rules:${id}`, kind: 'rules', source: { type: 'library' }, agents: [id], scope: 'global', removal: 'block' }) });
     const write = !keeps && changes.at(-1).id;
     // Offered, not preselected: the edits are the user's, this only stops the finding.

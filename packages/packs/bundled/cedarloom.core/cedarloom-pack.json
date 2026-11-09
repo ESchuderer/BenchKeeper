@@ -10,7 +10,7 @@
   "entries": {
     "rules/global.md": {
       "kind": "rules",
-      "description": "Global rules: secrets, confirmation, questions, best practice, writing"
+      "description": "Global rules: secrets, confirmation, assumptions, the minimum change, the check that proves done"
     },
     "rules/questions.md": {
       "kind": "rules",
@@ -18,11 +18,11 @@
     },
     "rules/project.md": {
       "kind": "rules",
-      "description": "Project rules: the workflow skill, open questions, failed checks"
+      "description": "Project rules: the workflow skill, questions, failed checks, best practice"
     },
     "rules/family.md": {
       "kind": "rules",
-      "description": "Rules for every project's AGENTS.md: checks before a push, CI, dependencies, comments, names, UI"
+      "description": "Rules for every project's AGENTS.md: checks before a push, CI, dependencies, comments, names, UI, writing"
     },
     "rules/tests.md": {
       "kind": "rules",

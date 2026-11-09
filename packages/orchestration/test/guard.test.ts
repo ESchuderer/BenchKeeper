@@ -51,7 +51,7 @@ const hook = (input: string, policy: string | null = JSON.stringify(fixtures.pol
 };
 // A workflow script's agent: its type, with the agent id a subagent has.
 const WORKFLOW = { agent_type: "workflow-subagent", agent_id: "a1" };
-const call = (tool: string, input: object, cwd: unknown = "/work/app", agent: object = WORKFLOW) =>
+const call = (tool: string, input: object, cwd: unknown = "/work/app", agent: object = {}) =>
   JSON.stringify({ hook_event_name: "PreToolUse", tool_name: tool, tool_input: input, cwd, ...agent });
 const bash = (command: unknown, cwd?: unknown) => call("Bash", { command }, cwd);
 
@@ -66,7 +66,7 @@ test("the hook refuses what it cannot read: input that is no JSON, a call withou
   );
 }, 30_000);
 
-test("the hook reads a Monitor command as a Bash one, refuses a workflow agent's PowerShell and remote agent, and lets other tools and a WebSocket monitor through", () => {
+test("the hook reads a Monitor command as a Bash one, refuses PowerShell and a remote agent, and lets other tools and a WebSocket monitor through", () => {
   expect([
     hook(call("Monitor", { command: "sudo rm -rf /tmp/x" })),
     hook(call("PowerShell", { command: "Get-ChildItem" }, "C:\\work")),
@@ -107,7 +107,7 @@ test("at Auto the hook lets a workflow's agent merge in its project's origin, an
 test("the hook limits only a workflow's agents to their repositories and to what it reads; it refuses every caller's merges and approvals", () => {
   inProject("refuse", (project, policy) => {
     const session = (tool: string, command: string) => hook(call(tool, { command }, project, {}), policy);
-    const agent = (command: string) => hook(call("Bash", { command }, project), policy);
+    const agent = (command: string, type = WORKFLOW) => hook(call("Bash", { command }, project, type), policy);
     expect([
       session("Bash", "gh pr view 7 -R cli/cli"),
       session("Bash", "(cd src && ls)"),
@@ -116,9 +116,12 @@ test("the hook limits only a workflow's agents to their repositories and to what
       // The command after one the guard lets a session run unread is still read.
       session("Bash", "gh pr view 7 -R cli/cli && gh pr merge 5"),
       session("Bash", "gh pr review 5 --approve"),
+      session("Bash", "(cd app && gh pr merge 5)"),
       agent("gh pr view 7 -R cli/cli"),
       agent("(cd src && ls)"),
-    ]).toEqual(["runs", "runs", "runs", "runs", "refused", "refused", "refused", "refused"]);
+      // A step that runs as its own subagent.
+      agent("(cd src && ls)", { agent_type: "w:build", agent_id: "a3" }),
+    ]).toEqual(["runs", "runs", "runs", "runs", "refused", "refused", "refused", "refused", "refused", "refused"]);
   });
 }, 30_000);
 

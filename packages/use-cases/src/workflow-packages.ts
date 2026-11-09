@@ -67,8 +67,7 @@ const precheckRule = (folder: string): string => `Bash(sh "${slashed(folder)}/sc
 // A step's script as the stage runner's agent runs it, quoted as the runner quotes it.
 const quoted = (text: string): string => text.replaceAll("'", `'\\''`);
 const stepRule = (folder: string, script: string): string => `Bash(sh '${quoted(`${slashed(folder)}/${script}`)}')`;
-// Reads of the package, which a step's agent may do outside the project: an absolute path after `//`, and on Windows in
-// POSIX form, C:\x as /c/x (https://code.claude.com/docs/en/permissions).
+// Reads of the package by a step's agent: `//` and the absolute path, on Windows as /c/x (Claude Code's permissions docs).
 const readRule = (folder: string): string =>
   `Read(/${slashed(folder).replace(/^([A-Za-z]):/, (_drive, letter: string) => `/${letter.toLowerCase()}`)}/**)`;
 
@@ -78,8 +77,7 @@ const scriptRule = (folder: string, path: string): string[] => {
   return /^steps\/[^/]+\/scripts\/run\.sh$/.test(path) ? [stepRule(folder, path)] : [];
 };
 
-// A plugin's own settings hold no rules: the approved scripts run unasked (a workflow's agent cannot ask in `claude -p`),
-// later stages ask.
+// A plugin's settings hold no rules: approved scripts run unasked (an agent cannot ask in `claude -p`), later stages ask.
 const rulesOf = (plugin: string, folder: string, files: readonly PackageFile[]): Json => {
   const stages = files.flatMap(({ path }) => /^workflows\/(run-[a-z0-9-]+)\.js$/.exec(path)?.slice(1) ?? []);
   const later = stages.filter((stage) => stage !== "run-start").map((stage) => `Workflow(${plugin}:${stage})`);
@@ -257,8 +255,7 @@ const installedPackages = (marketplace: string) => {
   }
 };
 
-// Each other package on the other side of Auto: every package's guard runs in every session, so one below Auto refuses
-// the merges of one at Auto.
+// Every package's guard runs in every session, so one below Auto refuses the merges of one at Auto.
 const levelsMixed = ({ plugin, marketplace }: Place, id: string, level: AutomationLevel): Finding[] =>
   installedPackages(marketplace).flatMap(({ plugin: name, id: other, level: otherLevel }): Finding[] =>
     name !== plugin && other !== null && otherLevel !== null && (otherLevel === "auto") !== (level === "auto")

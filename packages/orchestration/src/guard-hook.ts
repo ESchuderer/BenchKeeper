@@ -60,12 +60,11 @@ const readCall = (input: string): Call | null => {
 // The agent type Claude Code gives a workflow script's agents, which may merge at Auto.
 const WORKFLOW_AGENT = "workflow-subagent";
 
-// A workflow script's agent: that type with an agent id, which a session started as that type (`claude --agent`) lacks
-// (https://code.claude.com/docs/en/hooks).
-const ofWorkflow = (call: Call | null): boolean =>
-  call?.agent === WORKFLOW_AGENT && typeof call.agentId === "string" && call.agentId !== "";
+// A subagent of a type: it has an agent id, which a session started as that type (`claude --agent`) lacks (hooks docs).
+const isAgent = (call: Call | null, type: (agent: string) => boolean): boolean =>
+  typeof call?.agent === "string" && type(call.agent) && typeof call.agentId === "string" && call.agentId !== "";
 
-// Who calls: merges at Auto, and whether the guard limits the caller to what it reads (a workflow's agents).
+// Whether a workflow agent merges at this call, and whether the full guard limits the caller.
 type Reach = { readonly merges: boolean; readonly limited: boolean };
 
 // Why the guard refuses to start an agent, or null.
@@ -95,14 +94,13 @@ const commandOf = (call: Call | null, reach: Reach): { command: string; cwd: str
 };
 
 /**
- * The policy as this call meets it. A workflow's agent: `origin` read from the working folder, with the hub and the
- * memory repository; a merge only at Auto, which a stage reaches after its reviewer agreed (owner 2026-11-08), and only
- * in the origin's own repositories: never the hub's, nor the memory repository's, whose `main` no agent updates. Any
- * other caller, as the package's hooks run in every session: no repository limit, and what the guard cannot read runs;
- * merges, approvals and the other rules hold (Q5, option b until the owner answers).
+ * The policy as this call meets it. A limited caller: `origin` read from the working folder, with the hub and the
+ * memory repository; a workflow script's agent merges only at Auto, which a stage reaches after its reviewer agreed
+ * (owner 2026-11-08), and only in the origin's own repositories: never the hub's, nor the memory repository's, whose
+ * `main` no agent updates. Any other caller, as the package's hooks run in every session: no repository limit, and what
+ * the guard cannot read runs; merges, approvals and the other rules hold (Q5, option b until the owner answers).
  */
-const callPolicy = (policy: GuardPolicy, cwd: string, limited: boolean, remotes: Remotes): CallPolicy => {
-  const merges = policy.merge === "workflow" && limited;
+const callPolicy = (policy: GuardPolicy, cwd: string, { merges, limited }: Reach, remotes: Remotes): CallPolicy => {
   const origin = limited && (policy.repositories === "origin" || merges) ? originRepos(cwd, remotes) : [];
   const bound = [policy.hub, policy.memory].filter((repo) => repo !== null);
   const repositories = policy.repositories === "origin" ? [...new Set([...origin, ...bound])] : policy.repositories;
@@ -119,10 +117,13 @@ const guardHook = (input: string, policyJson: string | null, remotes: Remotes): 
   const policy = policyJson === null ? null : readPolicy(policyJson);
   if (policy === null) return "its policy is missing or invalid";
   const read = readCall(input);
-  const limited = ofWorkflow(read);
-  const call = commandOf(read, { merges: policy.merge === "workflow", limited });
+  const [auto, workflow] = [policy.merge === "workflow", isAgent(read, (type) => type === WORKFLOW_AGENT)];
+  // A step's own subagent (`<plugin>:<step>`) and any caller of a worker's policy, which lists its repositories, too.
+  const limited = workflow || isAgent(read, (type) => type.includes(":")) || policy.repositories !== "origin";
+  const call = commandOf(read, { merges: auto, limited });
   if (call === null || typeof call === "string") return call;
-  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, limited, remotes), remotes);
+  const reach = { merges: auto && workflow, limited };
+  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, reach, remotes), remotes);
   return denial === null ? null : `${denial.detail} (${denial.rule})`;
 };
 

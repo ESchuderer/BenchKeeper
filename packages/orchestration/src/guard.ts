@@ -122,7 +122,8 @@ const programOf = (word: string): string => {
 /** Whether the guard refuses the shell command `text`, run in the folder `folder`, and why; null to let it run. */
 export const guardCommand = (text: string, folder: string, policy: CallPolicy, remotes: Remotes): Denial | null => {
   const script = readShell(text);
-  const lenient = policy.lenient === true;
+  // A lenient caller runs what the guard cannot read, unless the text may hide a merge or approval, which none may run.
+  const lenient = policy.lenient === true && !/merge|approv|review/i.test(text);
   if (script.skipped && !lenient) {
     return unreadable("the command holds a form the guard does not read, such as a subshell");
   }
@@ -133,7 +134,6 @@ export const guardCommand = (text: string, folder: string, policy: CallPolicy, r
   const context = { policy, remotes, folders: foldersOf(script, [folder]) };
   for (const command of script.commands) {
     const denial = checkCommand(command, context);
-    // A lenient policy runs what the guard cannot read, and still reads the commands after it.
     if (denial !== null && !(lenient && denial.rule === "unreadable")) return denial;
   }
   return null;

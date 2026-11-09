@@ -23,7 +23,8 @@ Builds a CedarLoom workflow, at the automation level chosen at install, into one
   - allow rules for the first stage, the precheck and each step's script, the commands the approval listed, as a workflow's agent cannot ask;
   - an ask rule for each later stage. Claude Code asks before such a stage in an interactive session, in auto mode too, and refuses it in `claude -p` (2.1.316).
 - **The level** is `--level`, else the default level (`cedarloom level`). Installing again at another level rebuilds the package; a project's own level does not reach it, as one package serves every project.
-- **Node.js** for the hooks: the PATH's `node` where it links to the running one, which stays put over an upgrade, else the running one.
+- **Every session:** the hooks run in every Claude Code session while the package is on, not only in its stages, so the guard refuses there what it refuses in a stage, a subshell or a brace group too. The plan says so.
+- **Node.js** for the hooks: the PATH's `node` where it links to the running one, which stays put over an upgrade, else the running one. The plan names it: should it go, as a versioned Homebrew path does on `brew upgrade`, Claude Code refuses every guarded call in those sessions until the next install, and `cedarloom doctor` reports it.
 - **Codex** loads the same folder from its own copy: `codex plugin marketplace add <folder>` once, then `codex plugin add <plugin>@cedarloom-workflows` after every install.
 
 `cedarloom workflows uninstall <id>` removes the package, its settings entries and its data folder (what its hooks kept).

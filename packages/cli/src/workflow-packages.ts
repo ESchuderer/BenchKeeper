@@ -20,6 +20,10 @@ const bundlesIn = (folder: string): { guard: string; exits: string } | null => {
 const codexAdd = (plugin: string, marketplace: string): string =>
   `\n  Codex: codex plugin marketplace add ${folderArgument(marketplace)} (once), then codex plugin add ${plugin}@${WORKFLOW_MARKETPLACE}; Codex runs its own copy, so add it again after every install, a rebuild at another level too.`;
 
+// What the package changes beyond its stages: the hooks guard every session, and need the Node.js they were given.
+const hooksNote = (node: string): string =>
+  `\n  Its hooks run in every Claude Code session while the package is on: the guard refuses there what it refuses in a stage, a subshell (cd x && make) or a group { a; b; } too. They run with ${node}; should that path go, as a versioned Homebrew one does on brew upgrade, Claude Code refuses every shell call and agent in those sessions until you install again, which cedarloom doctor reports.`;
+
 type Install = { level?: AutomationLevel; allow?: string; yes?: true };
 
 /**
@@ -39,13 +43,13 @@ export const workflowsInstall = (ctx: Context, id: string, { level, allow, yes }
   const { plan, findings, plugin, marketplace } = planned.value;
   // The approval by name is the plugin's: --yes alone never installs hooks that run in every session.
   if (yes === true && findings.length > 0) return fail(ctx, "plan", findings, EXIT.refused);
-  const data = { plugin, level: planned.value.level, marketplace };
+  const data = { plugin, level: planned.value.level, marketplace, node };
   if (plan === null) {
     emit(ctx, "plan", { planHash: null, plan: null, findings, ...data }, `${plugin} is installed as built now.`);
     report(ctx, findings);
     return EXIT.ok;
   }
-  return change(ctx, plan, { note: codexAdd(plugin, marketplace), data, findings }, yes);
+  return change(ctx, plan, { note: `${hooksNote(node)}${codexAdd(plugin, marketplace)}`, data, findings }, yes);
 };
 
 /** Shows removing the installed package of `id` with what its hooks kept, or with `--yes` removes it as one run. */

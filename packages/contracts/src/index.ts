@@ -22,6 +22,7 @@ export {
   WorkflowJson,
 } from "./api.ts";
 export { type Result, readDocument } from "./documents.ts";
+export { AgentSession } from "./sessions.ts";
 export { canonicalJson, type Json } from "./json.ts";
 export { Finding, type FindingCode, findingInfo, severityOf } from "./findings.ts";
 export {

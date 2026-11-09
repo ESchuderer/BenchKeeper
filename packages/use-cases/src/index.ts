@@ -37,6 +37,7 @@ export {
   packageDoctor,
   planPackageInstall,
   planPackageUninstall,
+  removeEmptyFolders,
   stableNode,
 } from "./workflow-packages.ts";
 export {

@@ -52,13 +52,13 @@ A stage runs in Codex, signed in (`codex login`), with this command from the pro
 codex exec --sandbox workspace-write '$<plugin>:start'
 ```
 
-The stage runs the precheck and its steps in order and ends with a report that names the next stage's skill (`$<plugin>:<gate>-approved`), which runs the same way.
+The stage runs the precheck and its steps in order and ends with a report that names the next stage's skill (`$<plugin>:<gate>-approved`), which runs the same way. `workspace-write` keeps the project's `.git` read-only and the network off ([Codex: approvals and security](https://learn.chatgpt.com/docs/agent-approvals-security)); `-c 'sandbox_workspace_write.network_access=true'` turns the network on, `.git` stays read-only. So a stage that commits, pushes, opens a pull request or calls `gh` fails there: run it in a disposable checkout with `--sandbox danger-full-access` in place of `--sandbox workspace-write`, which also drops every approval.
 
 ## Windows
 
 Not run on a Windows machine; CI's Windows job runs the tests, the rule forms below with its real drive path included.
 
-- **Git for Windows is needed:** with it, Claude Code runs the Bash tool in Git Bash; without it, only the PowerShell tool, which the guard refuses to a workflow's agents, so no step runs ([setup](https://code.claude.com/docs/en/setup)). WSL works as Linux does.
+- **Git for Windows is needed:** with it, Claude Code runs the Bash tool in Git Bash, and its PowerShell tool stays on next to it, which a step's agent may try first and the guard refuses (`CLAUDE_CODE_USE_POWERSHELL_TOOL=0` turns it off); without it, only the PowerShell tool, so no step runs ([setup](https://code.claude.com/docs/en/setup)). WSL works as Linux does.
 - **Rules:** the precheck and step rules name the package folder with forward slashes (`C:/Users/...`), as Claude Code fills a skill's `${CLAUDE_PLUGIN_ROOT}` ([plugins reference](https://code.claude.com/docs/en/plugins-reference), "Quoting and path separators"); the Read rule takes the POSIX form (`//c/Users/...`).
 - **Hooks** run as `node.exe` by its absolute path, in exec form, so no shell takes part; a step's script runs with Git Bash's `sh`.
 - **Codex:** a step skill runs `sh '<root>/steps/<step>/scripts/run.sh'`, which needs an `sh` on the PATH Codex runs commands with; Git for Windows' default install puts only `git` there (unverified).

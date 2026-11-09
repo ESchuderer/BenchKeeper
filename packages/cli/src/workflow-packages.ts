@@ -60,5 +60,8 @@ export const workflowsUninstall = (ctx: Context, id: string, { yes }: { yes?: tr
   const { plan, plugin, marketplace } = planned.value;
   const note = `\n  Codex: codex plugin remove ${plugin}@${WORKFLOW_MARKETPLACE}`;
   if (plan === null) return refused(ctx, "plan", { code: "package.not-installed", params: { id } });
-  return change(ctx, plan, { note, data: { plugin, marketplace }, findings: [] }, yes);
+  const code = change(ctx, plan, { note, data: { plugin, marketplace }, findings: [] }, yes);
+  // Its emptied folders would still count as an installed package, Codex's copy then never as left over.
+  if (yes === true && code === EXIT.ok) useCases.removeEmptyFolders(marketplace);
+  return code;
 };

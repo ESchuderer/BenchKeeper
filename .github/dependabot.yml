@@ -1,4 +1,5 @@
-# Version updates for the `uses:` pins (SHA plus version comment) and the npm packages of the site, the app and .github/pnpm.
+# Version updates for the `uses:` pins (SHA plus version comment) and the npm packages of the site, the app, .github/pnpm and
+# .github/codex.
 # Not covered, bumped by hand: the actionlint image digest in checks.yml, node-version (checks, links, pages and npm workflows) and
 # the Node image and pnpm of .devcontainer/Dockerfile, which follow NODE_VERSION of cedarloom.yml and .github/pnpm (Node 26;
 # BenchKeeper's own workflows stay on Node 22). Each version update waits until the release is 3

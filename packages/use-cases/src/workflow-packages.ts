@@ -1,4 +1,4 @@
-import { accessSync, constants, readdirSync, realpathSync } from "node:fs";
+import { accessSync, constants, readdirSync, realpathSync, rmdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
   type AutomationLevel,
@@ -247,6 +247,16 @@ const foldersIn = (folder: string): string[] => {
     return readdirSync(folder, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? [entry.name] : []));
   } catch {
     return [];
+  }
+};
+
+/** Removes the empty folders under `folder`, and `folder` once empty: a plan deletes files, never their folders. */
+export const removeEmptyFolders = (folder: string): void => {
+  for (const name of foldersIn(folder)) removeEmptyFolders(join(folder, name));
+  try {
+    rmdirSync(folder);
+  } catch {
+    // Not empty, or gone.
   }
 };
 

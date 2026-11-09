@@ -253,6 +253,7 @@ jobs:
           cli workflows install cedarloom-ci --allow cedarloom-ci --yes
           codex plugin marketplace add "$CEDARLOOM_STATE_DIR/workflow-packages"
           codex plugin add cedarloom-ci@cedarloom-workflows
+          codex debug prompt-input > /dev/null
           listed() { codex debug prompt-input | grep -oE 'cedarloom-ci:[a-z0-9-]+' | sort -u | tr '\n' ' '; }
           copies() { cli doctor --json | jq -c '[.findings[] | select(.code | startswith("package.codex"))]'; }
           test -z "$(listed)"

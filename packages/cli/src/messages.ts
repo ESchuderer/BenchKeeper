@@ -150,7 +150,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "package.codex-missing": (p) =>
     `Codex holds CedarLoom's packages but not ${p.plugin}, the workflow ${p.id}: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
   "package.codex-stale": (p) =>
-    `Codex runs an older copy of ${p.plugin}, the workflow ${p.id}, than CedarLoom installed; add it again: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
+    `Codex runs a copy of ${p.plugin}, the workflow ${p.id}, that differs from the one CedarLoom installed; add it again: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
   "package.codex-left": (p) =>
     `Codex still runs ${p.plugin}, which CedarLoom no longer installs: codex plugin remove ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
   "package.node-missing": (p) =>

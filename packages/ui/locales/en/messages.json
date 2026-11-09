@@ -475,6 +475,76 @@
     "session.lost": [
       "This page has no session. Run cedarloom ui again and open the link it prints: each link works once, in one tab."
     ],
+    "sessions.agent": [["agent", "select", { "codex": ["Codex"], "other": ["Claude Code"] }]],
+    "sessions.agentColumn": ["Agent"],
+    "sessions.allProjects": ["All projects"],
+    "sessions.allTime": ["All time"],
+    "sessions.caption": ["Sessions, newest first"],
+    "sessions.chart": [
+      [
+        "metric",
+        "select",
+        { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
+      ],
+      " per day and project, ",
+      ["from"],
+      " to ",
+      ["to"],
+      ". Arrow keys move through the days."
+    ],
+    "sessions.cost": ["Cost"],
+    "sessions.costColumn": ["Cost (estimate)"],
+    "sessions.costNote": [
+      "Estimates: Claude Code's own, and Codex at OpenAI's list prices of ",
+      ["date"],
+      ".",
+      [
+        "uncosted",
+        "plural",
+        { "0": [], "one": [" ", "#", " session without a cost."], "other": [" ", "#", " sessions without a cost."] }
+      ]
+    ],
+    "sessions.count": ["Sessions"],
+    "sessions.dataFrom": [
+      "Claude Code's transcripts start on ",
+      ["first"],
+      ": it deletes older ones, so earlier days show less work than there was."
+    ],
+    "sessions.days": ["Last ", ["days"], " days"],
+    "sessions.daysOf": [["worked"], " of ", ["days"]],
+    "sessions.daysWorked": ["Days worked"],
+    "sessions.empty": ["No session in this period."],
+    "sessions.hint": ["Point at a day, or focus the chart and use the arrow keys, to read its values."],
+    "sessions.metric": ["Per day"],
+    "sessions.metricName": [
+      [
+        "metric",
+        "select",
+        { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
+      ]
+    ],
+    "sessions.noData": ["before the oldest Claude Code transcript"],
+    "sessions.none": ["None"],
+    "sessions.other": ["Other"],
+    "sessions.peak": ["Top line: ", ["value"], " a day"],
+    "sessions.period": ["Period"],
+    "sessions.project": ["Project"],
+    "sessions.reading": ["Reading the session logs. A first read of a long history takes a few seconds."],
+    "sessions.result": [["tests", "select", { "pass": ["Passed"], "fail": ["Failed"], "other": ["None"] }]],
+    "sessions.started": ["Started"],
+    "sessions.streak": ["Longest run ", ["streak", "plural", { "one": ["#", " day"], "other": ["#", " days"] }]],
+    "sessions.tested": [
+      "Of ",
+      ["tested", "plural", { "one": ["#", " session"], "other": ["#", " sessions"] }],
+      " with a test run"
+    ],
+    "sessions.tests": ["Tests"],
+    "sessions.testsPassed": ["Tests passed"],
+    "sessions.time": ["Agent time"],
+    "sessions.timeNote": ["API and tool time, summed; Codex's turn time"],
+    "sessions.title": ["Title"],
+    "sessions.tokens": ["Tokens"],
+    "sessions.tokensNote": ["Input, cache and output"],
     "view.notBuilt": ["This view is not built yet."]
   }
 }

@@ -35,6 +35,7 @@
     "@cedarloom/ledger": "workspace:*",
     "@cedarloom/orchestration": "workspace:*",
     "@cedarloom/profiles": "workspace:*",
+    "@cedarloom/sessions": "workspace:*",
     "@cedarloom/work-items": "workspace:*"
   },
   "devDependencies": {

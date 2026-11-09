@@ -766,3 +766,147 @@ msgstr "The extension {extension} {reason, select, off {is switched off: cedarlo
 #. js-lingui-explicit-id
 msgid "problem.extensionUnknown"
 msgstr "The extension {extension} is not found."
+
+#. js-lingui-explicit-id
+msgid "sessions.reading"
+msgstr "Reading the session logs. A first read of a long history takes a few seconds."
+
+#. js-lingui-explicit-id
+msgid "sessions.period"
+msgstr "Period"
+
+#. js-lingui-explicit-id
+msgid "sessions.days"
+msgstr "Last {days} days"
+
+#. js-lingui-explicit-id
+msgid "sessions.allTime"
+msgstr "All time"
+
+#. js-lingui-explicit-id
+msgid "sessions.project"
+msgstr "Project"
+
+#. js-lingui-explicit-id
+msgid "sessions.allProjects"
+msgstr "All projects"
+
+#. js-lingui-explicit-id
+msgid "sessions.count"
+msgstr "Sessions"
+
+#. js-lingui-explicit-id
+msgid "sessions.time"
+msgstr "Agent time"
+
+#. js-lingui-explicit-id
+msgid "sessions.timeNote"
+msgstr "API and tool time, summed; Codex's turn time"
+
+#. js-lingui-explicit-id
+msgid "sessions.cost"
+msgstr "Cost"
+
+#. js-lingui-explicit-id
+msgid "sessions.costNote"
+msgstr "Estimates: Claude Code's own, and Codex at OpenAI's list prices of {date}.{uncosted, plural, =0 {} one { # session without a cost.} other { # sessions without a cost.}}"
+
+#. js-lingui-explicit-id
+msgid "sessions.tokens"
+msgstr "Tokens"
+
+#. js-lingui-explicit-id
+msgid "sessions.tokensNote"
+msgstr "Input, cache and output"
+
+#. js-lingui-explicit-id
+msgid "sessions.daysWorked"
+msgstr "Days worked"
+
+#. js-lingui-explicit-id
+msgid "sessions.daysOf"
+msgstr "{worked} of {days}"
+
+#. js-lingui-explicit-id
+msgid "sessions.streak"
+msgstr "Longest run {streak, plural, one {# day} other {# days}}"
+
+#. js-lingui-explicit-id
+msgid "sessions.testsPassed"
+msgstr "Tests passed"
+
+#. js-lingui-explicit-id
+msgid "sessions.tested"
+msgstr "Of {tested, plural, one {# session} other {# sessions}} with a test run"
+
+#. js-lingui-explicit-id
+msgid "sessions.none"
+msgstr "None"
+
+#. js-lingui-explicit-id
+msgid "sessions.metric"
+msgstr "Per day"
+
+#. js-lingui-explicit-id
+msgid "sessions.metricName"
+msgstr "{metric, select, sessions {Sessions} busyMs {Agent time} tokens {Tokens} other {Cost}}"
+
+#. js-lingui-explicit-id
+msgid "sessions.chart"
+msgstr "{metric, select, sessions {Sessions} busyMs {Agent time} tokens {Tokens} other {Cost}} per day and project, {from} to {to}. Arrow keys move through the days."
+
+#. js-lingui-explicit-id
+msgid "sessions.hint"
+msgstr "Point at a day, or focus the chart and use the arrow keys, to read its values."
+
+#. js-lingui-explicit-id
+msgid "sessions.other"
+msgstr "Other"
+
+#. js-lingui-explicit-id
+msgid "sessions.caption"
+msgstr "Sessions, newest first"
+
+#. js-lingui-explicit-id
+msgid "sessions.started"
+msgstr "Started"
+
+#. js-lingui-explicit-id
+msgid "sessions.title"
+msgstr "Title"
+
+#. js-lingui-explicit-id
+msgid "sessions.agentColumn"
+msgstr "Agent"
+
+#. js-lingui-explicit-id
+msgid "sessions.agent"
+msgstr "{agent, select, codex {Codex} other {Claude Code}}"
+
+#. js-lingui-explicit-id
+msgid "sessions.costColumn"
+msgstr "Cost (estimate)"
+
+#. js-lingui-explicit-id
+msgid "sessions.tests"
+msgstr "Tests"
+
+#. js-lingui-explicit-id
+msgid "sessions.result"
+msgstr "{tests, select, pass {Passed} fail {Failed} other {None}}"
+
+#. js-lingui-explicit-id
+msgid "sessions.empty"
+msgstr "No session in this period."
+
+#. js-lingui-explicit-id
+msgid "sessions.peak"
+msgstr "Top line: {value} a day"
+
+#. js-lingui-explicit-id
+msgid "sessions.dataFrom"
+msgstr "Claude Code's transcripts start on {first}: it deletes older ones, so earlier days show less work than there was."
+
+#. js-lingui-explicit-id
+msgid "sessions.noData"
+msgstr "before the oldest Claude Code transcript"

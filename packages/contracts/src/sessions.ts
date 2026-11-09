@@ -24,3 +24,44 @@ export const AgentSession = z
   })
   .register(contracts, { id: "AgentSession" });
 export type AgentSession = z.infer<typeof AgentSession>;
+
+/**
+ * The figures of a period's sessions: `costUSD` is null when no session has a cost and `uncosted` counts those without;
+ * `daysWorked` of `days` have a session start, `streak` is their longest run; `testsPassed` is the share of the `tested`
+ * sessions whose last test run passed.
+ */
+export const SessionFigures = z
+  .strictObject({
+    sessions: z.int().min(0),
+    busyMs: z.number().min(0),
+    costUSD: z.number().min(0).nullable(),
+    uncosted: z.int().min(0),
+    tokens: z.int().min(0),
+    days: z.int().min(0),
+    daysWorked: z.int().min(0),
+    streak: z.int().min(0),
+    tested: z.int().min(0),
+    testsPassed: z.number().min(0).max(1).nullable(),
+  })
+  .register(contracts, { id: "SessionFigures" });
+export type SessionFigures = z.infer<typeof SessionFigures>;
+
+/**
+ * The sessions board of a period (`days` up to today; null: all time) and a project (null: every one): `span` holds its
+ * days in `zone`, oldest first; `first` is the first day Claude Code's transcripts cover, as it deletes old ones;
+ * `projects` are ranked by sessions over all time; `sessions` are newest first; `prices` dates Codex's price table.
+ */
+export const SessionsBoard = z
+  .strictObject({
+    days: z.int().min(1).nullable(),
+    project: z.string().nullable(),
+    zone: z.string(),
+    span: z.array(z.iso.date()),
+    first: z.iso.date().nullable(),
+    projects: z.array(z.string()),
+    figures: SessionFigures,
+    sessions: z.array(AgentSession),
+    prices: z.strictObject({ date: z.iso.date(), source: z.url() }),
+  })
+  .register(contracts, { id: "SessionsBoard" });
+export type SessionsBoard = z.infer<typeof SessionsBoard>;

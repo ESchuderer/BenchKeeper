@@ -33,6 +33,7 @@ import type { MessageId } from "@lingui/core";
 // A file, never a data: URL: the server's CSP allows images from its own origin only.
 import mark from "../../../brand/cedarloom-icon.svg?no-inline";
 import { Accounts } from "./Accounts.tsx";
+import { SessionsBoard } from "./Sessions.tsx";
 import { call } from "./call.ts";
 import { t, when } from "./i18n.ts";
 import { Import } from "./Import.tsx";
@@ -325,6 +326,7 @@ const content = (view: View, session: Session): ReactNode => {
   if (view === "nav.profile") return <Profile api={session.api} />;
   if (view === "nav.import") return <Import api={session.api} />;
   if (view === "nav.accounts") return <Accounts api={session.api} />;
+  if (view === "nav.sessions") return <SessionsBoard api={session.api} />;
   if (view === "nav.workflows") {
     return (
       <Suspense fallback={null}>

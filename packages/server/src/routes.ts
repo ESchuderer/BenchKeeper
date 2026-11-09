@@ -12,6 +12,7 @@ import {
   type Result,
   Run,
   RunResult,
+  SessionsBoard,
   Sha256,
   Step,
   SwapAccounts,
@@ -297,6 +298,29 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
       const { key, value, allow } = req.body;
       const ran = await swap("settings", allow, { key, value: String(value) });
       return ran.ok ? SettingsSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+};
+
+// Reads the session logs (a first read of a large history takes seconds), never writes but the cache.
+export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
+  const query = z.strictObject({
+    days: z.coerce.number().int().min(1).max(3650).optional().describe("The period's length in days; absent: all time"),
+    // 1,025 characters at 12 escaped bytes each fit the 16 KiB a request line may take, so a 400 answers, not a 431.
+    project: z.string().max(1024).optional().describe("The project's folder; absent: every project"),
+    tz: z
+      .string()
+      .max(64)
+      .optional()
+      .describe("The IANA time zone the days are counted in, such as Europe/Berlin; absent or unknown: UTC"),
+  });
+  app.get(
+    "/api/sessions",
+    { schema: { querystring: query, response: answers({ 200: SessionsBoard }) } },
+    async (req, _reply) => {
+      const { days, project, tz } = req.query;
+      // An unknown zone counts in UTC, and the answer names the zone it counted in.
+      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone: tz });
     },
   );
 };

@@ -15,6 +15,7 @@
     { "path": "../git" },
     { "path": "../orchestration" },
     { "path": "../profiles" },
+    { "path": "../sessions" },
     { "path": "../work-items" }
   ]
 }

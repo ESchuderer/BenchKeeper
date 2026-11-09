@@ -15,3 +15,6 @@ export const stateDir = (env: Env): string =>
 
 /** The config folder: CEDARLOOM_CONFIG_DIR, else `cedarloom` in XDG_CONFIG_HOME, else in ~/.config. */
 export const configDir = (env: Env): string => folder(env, "CEDARLOOM_CONFIG_DIR", "XDG_CONFIG_HOME", ".config");
+
+/** The cache folder, for what CedarLoom can rebuild: CEDARLOOM_CACHE_DIR, else `cedarloom` in XDG_CACHE_HOME, else in ~/.cache. */
+export const cacheDir = (env: Env): string => folder(env, "CEDARLOOM_CACHE_DIR", "XDG_CACHE_HOME", ".cache");

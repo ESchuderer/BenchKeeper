@@ -32,6 +32,7 @@ const server = await startServer({
   state,
   config: join(root, "config"),
   machine: { home: join(root, ".claude"), user: root },
+  logs: { claude: join(root, ".claude"), codex: join(root, ".codex"), cache: null },
   fetch: await flowsExport(),
   log: (text) => process.stderr.write(text),
 });

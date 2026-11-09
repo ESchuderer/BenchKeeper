@@ -21,7 +21,6 @@ import {
   Brain,
   ClipboardList,
   Download,
-  Gauge,
   History,
   MessagesSquare,
   SlidersHorizontal,
@@ -33,6 +32,7 @@ import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useStat
 import type { MessageId } from "@lingui/core";
 // A file, never a data: URL: the server's CSP allows images from its own origin only.
 import mark from "../../../brand/cedarloom-icon.svg?no-inline";
+import { Accounts } from "./Accounts.tsx";
 import { call } from "./call.ts";
 import { t, when } from "./i18n.ts";
 import { Import } from "./Import.tsx";
@@ -313,7 +313,6 @@ const VIEWS = [
   { id: "nav.accounts", icon: Users },
   { id: "nav.memory", icon: Brain },
   { id: "nav.workItems", icon: ClipboardList },
-  { id: "nav.usage", icon: Gauge },
 ] as const satisfies { id: MessageId; icon: unknown }[];
 
 type View = (typeof VIEWS)[number]["id"];
@@ -325,6 +324,7 @@ const content = (view: View, session: Session): ReactNode => {
   if (view === "nav.runs") return <Runs session={session} />;
   if (view === "nav.profile") return <Profile api={session.api} />;
   if (view === "nav.import") return <Import api={session.api} />;
+  if (view === "nav.accounts") return <Accounts api={session.api} />;
   if (view === "nav.workflows") {
     return (
       <Suspense fallback={null}>

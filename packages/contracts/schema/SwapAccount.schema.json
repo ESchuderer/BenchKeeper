@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SwapAccount.schema.json",
+  "type": "object",
+  "properties": {
+    "number": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "alias": {
+      "type": "string"
+    },
+    "active": {
+      "type": "boolean"
+    },
+    "disabled": {
+      "type": "boolean"
+    },
+    "held": {
+      "type": "boolean"
+    },
+    "threshold": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "windows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "string",
+            "description": "fiveHour, sevenDay, or sevenDay:<model> for a model's own weekly window"
+          },
+          "usedPercent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "resetsAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "readAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "window",
+          "usedPercent",
+          "resetsAt",
+          "readAt"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "number",
+    "active",
+    "disabled",
+    "held",
+    "threshold",
+    "windows"
+  ],
+  "additionalProperties": false
+}

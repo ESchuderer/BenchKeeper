@@ -1,6 +1,6 @@
 import { isUtf8 } from "node:buffer";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   FILES_RECORD,
   type Finding,
@@ -9,7 +9,7 @@ import {
   sealedTarget,
   targetClass,
 } from "@cedarloom/contracts";
-import { errorCode } from "@cedarloom/engine";
+import { repositoryOf } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
@@ -299,41 +299,15 @@ const filesOf = (given: Given, written: Written) => {
   return { ok: true as const, value: files };
 };
 
-// null without a `.git`; read as it is, never checked first, so nothing changes between a check and its read.
-const excludeAt = (root: string): string | null => {
-  const dotGit = join(root, ".git");
-  let text: string;
-  try {
-    text = readFileSync(dotGit, "utf8");
-  } catch (error) {
-    // A `.git` folder, or a link to one, cannot be read as a file.
-    return errorCode(error) === "EISDIR" ? join(dotGit, "info", "exclude") : null;
-  }
-  const gitdir = /^gitdir: (.+)$/m.exec(text)?.[1]?.trim();
-  if (gitdir === undefined) return null;
-  const folder = resolve(root, gitdir);
-  const common = textFile(join(folder, "commondir"));
-  const shared = common.ok && common.value !== null ? resolve(folder, common.value.trim()) : folder;
-  return join(shared, "info", "exclude");
-};
-
-// The repository a folder lies in, the folder's own or a parent's, with its exclude file; null outside Git.
-const repositoryOf = (project: string): { root: string; exclude: string } | null => {
-  for (let root = project; ; root = dirname(root)) {
-    const exclude = excludeAt(root);
-    if (exclude !== null) return { root, exclude };
-    if (dirname(root) === root) return null;
-  }
-};
-
 // Anchored and with glob characters escaped, so each line matches only its own file.
 const excludeWrites = (project: string, paths: string[]): Result<Operation[]>[] => {
   const repository = repositoryOf(project);
   if (repository === null) return [];
+  const exclude = join(repository.common, "info", "exclude");
   const anchor = (path: string) => `/${relative(repository.root, path).split(sep).join("/")}`;
   const lines = paths.map((path) => anchor(path).replaceAll(/[*?[\\]/g, "\\$&"));
   const body = lines.length === 0 ? null : `${lines.join("\n")}\n`;
-  return [blockWrite(repository.exclude, excludeMarkers(anchor(project)), body)];
+  return [blockWrite(exclude, excludeMarkers(anchor(project)), body)];
 };
 
 // AGENTS.md's block: the manual's rules, then the default tier when one is set.

@@ -98,7 +98,7 @@ const codexRows = (summaries: Summary[]): (AgentSession | null)[] => {
   };
   return [...Map.groupBy(byId.values(), rootOf)].map(([root, family]) => {
     const estimates = family.map(estimate);
-    const unpriced = [...new Set(estimates.flatMap((e) => e.unpriced))].toSorted();
+    const unpriced = [...new Set(estimates.flatMap((e) => e.unpriced))].toSorted((a, b) => a.localeCompare(b));
     const cost = { costUSD: total(estimates.map((e) => e.costUSD)), unpriced };
     const tokens = family.reduce((sum, s) => sum + s.tokens, 0);
     return rowOf(

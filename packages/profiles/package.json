@@ -29,6 +29,7 @@
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/engine": "workspace:*",
+    "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
     "@cedarloom/packs": "workspace:*"
   }

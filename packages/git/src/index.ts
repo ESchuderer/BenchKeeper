@@ -10,6 +10,7 @@ export {
   type Tree,
   type TreeFile,
 } from "./git.ts";
+export { type Repository, repositoryOf } from "./repository.ts";
 export { type Commit, openStore, type Store } from "./store.ts";
 
 /** Fetches a tree over https and ssh only; see `fetchTreeOver`. */

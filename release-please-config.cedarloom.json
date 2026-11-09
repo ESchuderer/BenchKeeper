@@ -23,6 +23,7 @@
         "packs",
         "profiles",
         "server",
+        "sessions",
         "ui",
         "use-cases",
         "work-items"
@@ -49,6 +50,7 @@
       "component": "server",
       "extra-files": [{ "type": "json", "path": "openapi.json", "jsonpath": "$.info.version" }]
     },
+    "packages/sessions": { "component": "sessions" },
     "packages/ui": { "component": "ui" },
     "packages/use-cases": { "component": "use-cases" },
     "packages/work-items": { "component": "work-items" }

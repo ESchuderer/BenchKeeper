@@ -2137,6 +2137,21 @@ export interface components {
             runs: string;
             approve: string;
         };
+        AgentSessionInput: {
+            /** @enum {string} */
+            agent: "claude-code";
+            id: string;
+            project: string | null;
+            title: string | null;
+            /** Format: date-time */
+            start: string;
+            /** Format: date-time */
+            end: string;
+            busyMs: number | null;
+            tokens: number;
+            costUSD: number | null;
+            tests: ("pass" | "fail") | null;
+        };
         SchemaVersion: number;
         Sha256: string;
         WriteFile: {
@@ -3241,6 +3256,21 @@ export interface components {
         SwapApproval: {
             runs: string;
             approve: string;
+        };
+        AgentSession: {
+            /** @enum {string} */
+            agent: "claude-code";
+            id: string;
+            project: string | null;
+            title: string | null;
+            /** Format: date-time */
+            start: string;
+            /** Format: date-time */
+            end: string;
+            busyMs: number | null;
+            tokens: number;
+            costUSD: number | null;
+            tests: ("pass" | "fail") | null;
         };
     };
     responses: never;

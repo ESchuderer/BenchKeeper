@@ -6,3 +6,7 @@ locale = "en-us"
 [default.extend-words]
 axe = "axe"
 Axe = "Axe"
+
+# Recorded session logs: ids, not words.
+[files]
+extend-exclude = ["packages/sessions/test/fixtures/"]

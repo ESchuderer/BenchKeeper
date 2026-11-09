@@ -9,7 +9,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Check, TierLine, Where } from '../../types'
-import { askUntil, span } from '../ask/window.mjs'
+import { askUntil, lasting } from '../ask/window.mjs'
 
 export const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm
 const CHOICES = ['quick', 'standard', 'full', 'research']
@@ -195,7 +195,7 @@ export const register: Register = (on, options) => {
     const lintRun = await read($, lint)
     const ready = verdict(v ?? line?.tier ?? null, testRun, lintRun)
     const now = asking === null ? null : await $.clock.now()
-    const ask = asking !== null && now !== null && asking > now ? `ASK ${span(asking, now)}` : null
+    const ask = asking !== null && now !== null && asking > now ? `ASK ${lasting(asking, now)}` : null
     const pick = async (level: string) => {
       await $.command.run({ command: 'benchkeeper:tier', args: level })
       await setOverride($, level)

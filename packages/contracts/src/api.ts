@@ -189,7 +189,31 @@ export const SwapAccounts = z
   })
   .register(contracts, { id: "SwapAccounts" });
 
-/** A claude-swap command that runs only once the user approves it: the command, and the CLI line that approves it. */
+/**
+ * A claude-swap command that runs only once the user approves it: the command, the CLI line that approves it, and what
+ * the command needs, such as what claude-swap's menu bar service starts.
+ */
 export const SwapApproval = z
-  .strictObject({ runs: z.string(), approve: z.string() })
+  .strictObject({ runs: z.string(), approve: z.string(), hint: z.string().optional() })
   .register(contracts, { id: "SwapApproval" });
+
+/**
+ * claude-swap's auto mode: its menu bar service's first line and whether that menu bar switches accounts (macOS only;
+ * absent while no service is installed), and what to do next for auto mode.
+ */
+export const SwapService = z
+  .strictObject({ service: z.string().optional(), autoSwitch: z.boolean().optional(), hint: z.string().optional() })
+  .register(contracts, { id: "SwapService" });
+
+/** claude-swap's install, which runs only once the user approves it: also its installer, source and pinned release. */
+export const SwapInstall = SwapApproval.extend({
+  installed: z.literal(false),
+  installer: z.literal("uv"),
+  source: z.url(),
+  release: z.string(),
+}).register(contracts, { id: "SwapInstall" });
+
+/** claude-swap as installed: its version. */
+export const SwapInstalled = z
+  .strictObject({ installed: z.literal(true), version: z.string() })
+  .register(contracts, { id: "SwapInstalled" });

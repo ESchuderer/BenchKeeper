@@ -5525,11 +5525,84 @@
           },
           "approve": {
             "type": "string"
+          },
+          "hint": {
+            "type": "string"
           }
         },
         "required": [
           "runs",
           "approve"
+        ],
+        "additionalProperties": false
+      },
+      "SwapServiceInput": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "autoSwitch": {
+            "type": "boolean"
+          },
+          "hint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SwapInstallInput": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean",
+            "const": false
+          },
+          "installer": {
+            "type": "string",
+            "const": "uv"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "release": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runs",
+          "approve",
+          "installed",
+          "installer",
+          "source",
+          "release"
+        ],
+        "additionalProperties": false
+      },
+      "SwapInstalledInput": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "const": true
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installed",
+          "version"
         ],
         "additionalProperties": false
       },
@@ -11292,11 +11365,84 @@
           },
           "approve": {
             "type": "string"
+          },
+          "hint": {
+            "type": "string"
           }
         },
         "required": [
           "runs",
           "approve"
+        ],
+        "additionalProperties": false
+      },
+      "SwapService": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "autoSwitch": {
+            "type": "boolean"
+          },
+          "hint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SwapInstall": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean",
+            "const": false
+          },
+          "installer": {
+            "type": "string",
+            "const": "uv"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "release": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runs",
+          "approve",
+          "installed",
+          "installer",
+          "source",
+          "release"
+        ],
+        "additionalProperties": false
+      },
+      "SwapInstalled": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "const": true
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installed",
+          "version"
         ],
         "additionalProperties": false
       },
@@ -12727,6 +12873,219 @@
                         "settings"
                       ],
                       "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/auto": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwapService"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "on": {
+                    "type": "boolean"
+                  },
+                  "allow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "on",
+                  "allow"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SwapApproval"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SwapService"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/install": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "allow": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "installer": {
+                            "type": "string",
+                            "enum": [
+                              "uv"
+                            ]
+                          },
+                          "runs": {
+                            "type": "string",
+                            "maxLength": 1024
+                          }
+                        },
+                        "required": [
+                          "installer",
+                          "runs"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "allow"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SwapInstall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SwapInstalled"
                     }
                   ]
                 }

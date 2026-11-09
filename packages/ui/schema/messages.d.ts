@@ -11,6 +11,11 @@ export interface MessageValues {
   "accounts.action": Record<never, never>;
   "accounts.active": Record<never, never>;
   "accounts.approve": Record<never, never>;
+  "accounts.approveInstall": Record<never, never>;
+  "accounts.auto": Record<never, never>;
+  "accounts.autoOff": Record<never, never>;
+  "accounts.autoOn": Record<never, never>;
+  "accounts.autoSwitch": { on: string };
   "accounts.cancel": Record<never, never>;
   "accounts.cancelled": Record<never, never>;
   "accounts.caption": Record<never, never>;
@@ -18,6 +23,8 @@ export interface MessageValues {
   "accounts.disabled": Record<never, never>;
   "accounts.globalLine": Record<never, never>;
   "accounts.held": Record<never, never>;
+  "accounts.install": Record<never, never>;
+  "accounts.installed": { version: string | number };
   "accounts.line": Record<never, never>;
   "accounts.lines": Record<never, never>;
   "accounts.name": { number: string | number; alias: string | number };
@@ -26,6 +33,7 @@ export interface MessageValues {
   "accounts.resets": { when: string | number };
   "accounts.run": Record<never, never>;
   "accounts.set": { key: string | number; value: string | number };
+  "accounts.source": { release: string | number; source: string | number };
   "accounts.stale": Record<never, never>;
   "accounts.state": Record<never, never>;
   "accounts.switch": { name: string | number };

@@ -629,8 +629,8 @@ test("an import of a Git ref is reviewed with its plan under an id, which applie
   expect(answers).toEqual([200, ["new"], 409, 200, 404, 409, 400]);
 }, 30_000);
 
-test("a claude-swap switch runs only once the request allows it; before that, the extension only names the command", async () => {
-  // The app's own claude-swap extension as a stand-in that answers as the real one does, so no claude-swap runs.
+// A server whose app's own claude-swap extension is a stand-in that answers as the real one does, so no claude-swap runs.
+const withSwap = async () => {
   const app = mkdtempSync(join(tmpdir(), "cedarloom-app-"));
   const folder = join(app, "cedarloom.claude-swap");
   mkdirSync(folder);
@@ -643,7 +643,14 @@ test("a claude-swap switch runs only once the request allows it; before that, th
     name: "claude-swap",
     api: "1.0",
     runtime: { kind: "node", entry: "main.mjs" },
-    contributes: { actions: { switch: { title: "Switch", inputs: { account } } } },
+    contributes: {
+      actions: {
+        switch: { title: "Switch", inputs: { account } },
+        "auto-on": { title: "On" },
+        "auto-off": { title: "Off" },
+        install: { title: "In" },
+      },
+    },
   };
   writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify(manifest));
   const fixtures = join(import.meta.dirname, "..", "..", "use-cases", "test", "fixtures");
@@ -652,10 +659,46 @@ test("a claude-swap switch runs only once the request allows it; before that, th
   const client = await serve(undefined, undefined, { app });
   started.push(client);
   await client.login();
+  return client;
+};
+
+test("a claude-swap switch runs only once the request allows it; before that, the extension only names the command", async () => {
+  const client = await withSwap();
   const switchTo = (allow: boolean) =>
     client.api({ method: "POST", path: "/api/accounts/switch", body: { account: 2, allow } });
   expect([(await switchTo(false)).body, (await switchTo(true)).body]).toEqual([
     { runs: "cswap switch 2", approve: "cedarloom claude-swap switch --account 2 --allow cswap" },
     { switched: true, from: 3, to: 2 },
+  ]);
+});
+
+test("claude-swap's install runs only with the installer and command its approval named, and auto mode on or off only once allowed", async () => {
+  const client = await withSwap();
+  const install = (allow: object | null) =>
+    client.api({ method: "POST", path: "/api/accounts/install", body: { allow } });
+  const auto = (on: boolean, allow: boolean) =>
+    client.api({ method: "POST", path: "/api/accounts/auto", body: { on, allow } });
+  const shown = {
+    installed: false,
+    runs: "uv tool install --no-config --default-index https://pypi.org/simple 'claude-swap[menubar]==1.0.0'",
+    approve: "cedarloom claude-swap install --allow uv",
+    installer: "uv",
+    source: "https://pypi.org/project/claude-swap/1.0.0/",
+    release: "1.0.0",
+  };
+  expect([
+    (await install(null)).body,
+    (await install({ installer: "uv", runs: shown.runs })).body,
+    (await auto(true, false)).body,
+    (await auto(true, true)).body,
+    (await auto(false, false)).body,
+    (await auto(false, true)).body,
+  ]).toEqual([
+    shown,
+    { installed: true, version: "1.0.0" },
+    { runs: "cswap menubar --install-service --auto-switch", approve: "cedarloom claude-swap auto-on --allow cswap" },
+    { service: "Menu bar service installed (com.cswap.menubar).", autoSwitch: true },
+    { runs: "cswap menubar --no-auto-switch", approve: "cedarloom claude-swap auto-off --allow cswap" },
+    { service: "Menu bar restarted (pid 4243) to apply the auto-switch setting.", autoSwitch: false },
   ]);
 });

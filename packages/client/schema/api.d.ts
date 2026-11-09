@@ -992,6 +992,172 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/auto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapService"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        on: boolean;
+                        allow: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapApproval"] | components["schemas"]["SwapService"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        allow: {
+                            /** @enum {string} */
+                            installer: "uv";
+                            runs: string;
+                        } | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapInstall"] | components["schemas"]["SwapInstalled"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions": {
         parameters: {
             query?: never;
@@ -2255,6 +2421,29 @@ export interface components {
         SwapApprovalInput: {
             runs: string;
             approve: string;
+            hint?: string;
+        };
+        SwapServiceInput: {
+            service?: string;
+            autoSwitch?: boolean;
+            hint?: string;
+        };
+        SwapInstallInput: {
+            runs: string;
+            approve: string;
+            hint?: string;
+            /** @constant */
+            installed: false;
+            /** @constant */
+            installer: "uv";
+            /** Format: uri */
+            source: string;
+            release: string;
+        };
+        SwapInstalledInput: {
+            /** @constant */
+            installed: true;
+            version: string;
         };
         AgentSessionInput: {
             /** @enum {string} */
@@ -3474,6 +3663,29 @@ export interface components {
         SwapApproval: {
             runs: string;
             approve: string;
+            hint?: string;
+        };
+        SwapService: {
+            service?: string;
+            autoSwitch?: boolean;
+            hint?: string;
+        };
+        SwapInstall: {
+            runs: string;
+            approve: string;
+            hint?: string;
+            /** @constant */
+            installed: false;
+            /** @constant */
+            installer: "uv";
+            /** Format: uri */
+            source: string;
+            release: string;
+        };
+        SwapInstalled: {
+            /** @constant */
+            installed: true;
+            version: string;
         };
         AgentSession: {
             /** @enum {string} */

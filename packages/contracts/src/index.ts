@@ -22,6 +22,9 @@ export {
   SwapAccount,
   SwapAccounts,
   SwapApproval,
+  SwapInstall,
+  SwapInstalled,
+  SwapService,
   UndoPreview,
   WorkflowJson,
 } from "./api.ts";

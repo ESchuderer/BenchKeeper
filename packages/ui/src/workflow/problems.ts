@@ -3,7 +3,10 @@ import { shown as escaped } from "@cedarloom/contracts/escape";
 import { t, when } from "../i18n.ts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
-/** The findings the UI shows: the validator's, why an imported file or a draft was refused, and the profile's lines. */
+/**
+ * The findings the UI shows: the validator's, why an imported file or a draft was refused, the profile's lines, and why
+ * an extension did not answer.
+ */
 type Shown = Extract<
   Finding["code"],
   | `workflow.${string}`
@@ -30,6 +33,9 @@ type Shown = Extract<
   | "profile.extra"
   | "profile.owner-changed"
   | "profile.approval-needed"
+  | "extension.failed"
+  | "extension.refused"
+  | "extension.unknown"
 >;
 
 // A file can break in thousands of places (x and y on 1000 nodes): the first ten show where to start.
@@ -103,6 +109,9 @@ const texts: { [C in Shown]: (params: Params[C]) => string } = {
   "profile.extra": (p) => t("problem.extra", p),
   "profile.owner-changed": (p) => t("problem.ownerChanged", p),
   "profile.approval-needed": (p) => t("problem.approvalNeeded", p),
+  "extension.failed": (p) => t("problem.extensionFailed", p),
+  "extension.refused": (p) => t("problem.extensionRefused", p),
+  "extension.unknown": (p) => t("problem.extensionUnknown", p),
 };
 
 const text = <C extends Shown>(code: C, params: Params[C]): string => texts[code](params);

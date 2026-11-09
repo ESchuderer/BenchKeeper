@@ -16,7 +16,15 @@ import {
   validatorCompiler,
 } from "fastify-type-provider-zod";
 import { eventRoutes } from "./events.ts";
-import { draftRoutes, importRoutes, profileRoutes, runRoutes, sessionRoutes, undoRoutes } from "./routes.ts";
+import {
+  accountRoutes,
+  draftRoutes,
+  importRoutes,
+  profileRoutes,
+  runRoutes,
+  sessionRoutes,
+  undoRoutes,
+} from "./routes.ts";
 import { frameworkErrors, guard, portOf, Session } from "./session.ts";
 
 export interface AppOptions {
@@ -26,7 +34,7 @@ export interface AppOptions {
   config: string;
   /** The Claude Code home and the user's home that the profile's machine level writes. */
   machine: Machine;
-  /** The app's folder of its own extensions, where the profile finds Orca (without it, no Orca is found). */
+  /** The app's folder of its own extensions, the only place the profile finds Orca and the accounts claude-swap. */
   app?: string | undefined;
   session: Session;
   /** Where errors the client does not see go, such as the server's terminal. */
@@ -152,6 +160,7 @@ export const buildApp = async (options: AppOptions): Promise<FastifyInstance> =>
   await app.register(draftRoutes, { state });
   await app.register(importRoutes, { state, fetch });
   await app.register(profileRoutes, { config, state, machine, app: options.app, fetch });
+  await app.register(accountRoutes, { state, config, app: options.app });
   // CommonJS typed as ESM: wrapped as its module.exports is, so reply.sse reaches the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));
   await app.register(eventRoutes, { state, every, log });

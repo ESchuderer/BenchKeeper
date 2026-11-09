@@ -269,9 +269,11 @@ const SettingsBody = z.strictObject({
 const AutoSet = z.union([SwapApproval, SwapService]);
 const AutoBody = z.strictObject({ on: z.boolean().describe("true: auto-on, false: auto-off"), allow: approved });
 const Installed = z.union([SwapInstall, SwapInstalled]);
-// The installer, not cswap, and the command the user approved: the extension runs no other one.
+// The installer, not cswap, and the command the user approved: the extension runs no other one. 1,024 characters at 12
+// escaped bytes each fit the server's 16 KiB body limit, so a longer one answers 400, not 413.
 const InstallBody = z.strictObject({
-  allow: SwapInstall.pick({ installer: true, runs: true })
+  allow: z
+    .strictObject({ installer: SwapInstall.shape.installer, runs: z.string().max(1024) })
     .nullable()
     .describe("The installer and command of the approval the user gave; null asks for it"),
 });

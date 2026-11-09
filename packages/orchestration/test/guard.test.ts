@@ -193,7 +193,11 @@ test("the exit hook keeps a step script's own exit code whatever the agent adds,
       run("record", { ...ran, error: "Exit code 1\ncedarloom-exit 1" }),
       report(1),
       // A run again whose output lost the status line (cut short, in the background) leaves no status to report.
-      run("record", { ...ran, tool_response: { stdout: "Command running in background", stderr: "" } }),
+      run("record", {
+        tool_name: "Bash",
+        tool_input: { command: script.replace("sh ", "sh -x ") },
+        tool_response: { stdout: "Command running in background", stderr: "" },
+      }),
       report(1),
       report(-1),
       // Another workflow's report, and an agent step's verdict, are not the runner's.

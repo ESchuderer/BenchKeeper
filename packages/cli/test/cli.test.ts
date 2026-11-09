@@ -33,10 +33,16 @@ const setup = (
     const io = {
       out: (t: string) => (out += t),
       err: (t: string) => (err += t),
-      env: { CEDARLOOM_STATE_DIR: state, CEDARLOOM_CONFIG_DIR: join(root, "config") },
+      // A Claude Code home of the test's own, so that no command reaches the user's.
+      env: {
+        CEDARLOOM_STATE_DIR: state,
+        CEDARLOOM_CONFIG_DIR: join(root, "config"),
+        CLAUDE_CONFIG_DIR: join(root, "claude"),
+      },
       untilStopped: () => new Promise<void>(() => undefined),
-      // The app's own extensions: none unless a test puts one there.
+      // The app's own extensions and the hooks' bundles: none unless a test puts them there.
       bundled: join(root, "app"),
+      hooks: join(root, "hooks"),
       ...(fetch === undefined ? {} : { fetch }),
       stdin: async () => stdin,
       keyring: memoryKeyring(keyring),
@@ -559,6 +565,36 @@ const drafted = (root: string, state: string, name: string, more: object[] = [])
   writeFileSync(join(state, "drafts", "workflow-w.json"), formatWorkflow(draft));
   return draft;
 };
+
+// The codes of a command's findings, from its --json output.
+const codes = (out: string): unknown =>
+  Finding.array()
+    .parse(json(out)["findings"])
+    .map(({ code }) => code);
+
+test("workflows install refuses without the hooks' bundles, and installs only once approved by the plugin's name", async () => {
+  const { root, state, cli } = setup();
+  drafted(root, state, "valid-build-and-review.json");
+  await cli("workflows", "save", "w", "--yes");
+  const bundleless = await cli("workflows", "install", "w", "--allow", "w", "--yes", "--json");
+  mkdirSync(join(root, "hooks"));
+  for (const name of ["guard.mjs", "exits.mjs"]) writeFileSync(join(root, "hooks", name), "// bundle\n");
+  const unapproved = await cli("workflows", "install", "w", "--yes", "--json");
+  const settings = join(root, "claude", "settings.json");
+  const untouched = existsSync(settings);
+  const approved = await cli("workflows", "install", "w", "--allow", "w", "--yes");
+  expect([bundleless.code, codes(bundleless.out), unapproved.code, codes(unapproved.out), untouched]).toEqual([
+    EXIT.refused,
+    ["package.hooks-missing"],
+    EXIT.refused,
+    ["package.approval-needed"],
+    false,
+  ]);
+  expect([approved.code, JSON.parse(readFileSync(settings, "utf8")).enabledPlugins]).toEqual([
+    EXIT.ok,
+    { "w@cedarloom-workflows": true },
+  ]);
+});
 
 test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none, --yes from Git at a moving ref and --ref with a folder exit 64", async () => {
   const { root, state, cli } = setup();

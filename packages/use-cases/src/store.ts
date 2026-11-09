@@ -133,17 +133,21 @@ export const openVersion = (state: string, id: string, commit?: string): Result<
   return saved;
 };
 
+/** The latest stored version of a workflow: its file's text and the workflow. */
+export const storedWorkflow = (state: string, id: string): Result<{ text: string; workflow: WorkflowDefinition }> => {
+  const store = storeOf(state);
+  const head = store.head();
+  const blob = head === null ? null : store.blob(head, fileOf(id));
+  return blob === null ? refuse({ code: "store.not-found", params: { id, commit: null } }) : readStored(store, blob);
+};
+
 type Stored = { files: [string, string][]; ids: string[] };
 
 /** The stored files of `ids` by their paths in the export layout, and their ids as stored. */
 const storedFiles = (state: string, ids: string[]): Result<Stored> => {
-  const store = storeOf(state);
-  const head = store.head();
   const stored: Stored = { files: [], ids: [] };
   for (const id of ids) {
-    const blob = head === null ? null : store.blob(head, fileOf(id));
-    if (blob === null) return refuse({ code: "store.not-found", params: { id, commit: null } });
-    const read = readStored(store, blob);
+    const read = storedWorkflow(state, id);
     if (!read.ok) return read;
     stored.files.push([fileOf(id), read.value.text]);
     stored.ids.push(read.value.workflow.metadata.id);

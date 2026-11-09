@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Commit, GitUrl, PackRef, WorkflowId } from "@cedarloom/contracts";
-import { Argument, Command, CommanderError, InvalidArgumentError } from "@commander-js/extra-typings";
+import { Argument, Command, CommanderError, InvalidArgumentError, Option } from "@commander-js/extra-typings";
 import {
   componentsSwitch,
   doctor,
@@ -31,11 +31,14 @@ import { type Context, EXIT, type Io } from "./output.ts";
 import { configDir, stateDir } from "./state.ts";
 import { ui } from "./ui.ts";
 import { workItemsGroup } from "./work-items.ts";
+import { workflowsInstall, workflowsUninstall } from "./workflow-packages.ts";
 
 type Done = (code: number) => void;
 
 // The app's own extensions ship in the package's `extensions` folder, beside `src` (or the emitted `dist`).
 const BUNDLED = fileURLToPath(new URL("../extensions", import.meta.url));
+// And the bundles of the workflow packages' hooks in its `hooks` folder (pnpm --filter @cedarloom/orchestration run build).
+const HOOKS = fileURLToPath(new URL("../hooks", import.meta.url));
 type Ctx = () => Context;
 
 const plansGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -101,9 +104,35 @@ const storeCommands = (workflows: Command, ctx: Ctx, done: Done): void => {
     .action((ids, { to, ...options }) => done(workflowsExport(ctx(), ids ?? [], resolve(to), options)));
 };
 
+const packageCommands = (workflows: Command, ctx: Ctx, done: Done): void => {
+  workflows
+    .command("install")
+    .description(
+      "show installing a stored workflow as the plugin Claude Code and Codex run; with --allow and --yes, install it as one run",
+    )
+    .addArgument(new Argument("<id>", ID).argParser(workflowId))
+    .addOption(
+      new Option("--level <level>", "the automation level whose gates it keeps (default: the default level)").choices(
+        LEVELS,
+      ),
+    )
+    .option("--allow <plugin>", "approve the package by its plugin's name, as its hooks run in every session")
+    .option("--yes", "install it as computed now")
+    .action((id, options) => done(workflowsInstall(ctx(), id, options)));
+  workflows
+    .command("uninstall")
+    .description(
+      "show removing an installed workflow's plugin and what its hooks kept; with --yes, remove it as one run",
+    )
+    .addArgument(new Argument("<id>", ID).argParser(workflowId))
+    .option("--yes", "remove it as computed now")
+    .action((id, options) => done(workflowsUninstall(ctx(), id, options)));
+};
+
 const workflowsGroup = (program: Command, ctx: Ctx, done: Done): void => {
   const workflows = program.command("workflows").description("workflow files and the workflow store");
   storeCommands(workflows, ctx, done);
+  packageCommands(workflows, ctx, done);
 };
 
 const importGroup = (program: Command, ctx: Ctx, done: Done): void => {
@@ -300,6 +329,16 @@ const GROUPS = [
   workItemsGroup,
 ];
 
+// The state folder resolved once, so every path built from it, an own home's too, is absolute.
+const contextOf = (io: Io, { json, state }: { json?: true; state?: string }): Context => ({
+  io,
+  json: json ?? false,
+  state: resolve(state ?? stateDir(io.env)),
+  config: configDir(io.env),
+  app: io.bundled ?? BUNDLED,
+  hooks: io.hooks ?? HOOKS,
+});
+
 /** Runs one command line (without the program name) and returns the exit code. */
 export const main = async (argv: string[], io: Io): Promise<number> => {
   let exit: number = EXIT.ok;
@@ -320,12 +359,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
       // commander repeats a stray word in its usage errors; GitHub's token prefixes keep a pasted token out of them.
       outputError: (text, write) => write(text.replace(/\b(?:github_pat|gh[opsur])_\w+/g, "<token>")),
     });
-  const ctx = (): Context => {
-    const { json, state } = program.opts();
-    // Resolved once, so every path built from it, an own home's too, is absolute.
-    const app = io.bundled ?? BUNDLED;
-    return { io, json: json ?? false, state: resolve(state ?? stateDir(io.env)), config: configDir(io.env), app };
-  };
+  const ctx = (): Context => contextOf(io, program.opts());
   for (const group of GROUPS) group(program, ctx, done);
   program
     .command("doctor")

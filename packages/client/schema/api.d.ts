@@ -1268,6 +1268,35 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.approval-needed";
+            params: {
+                id: string;
+                plugin: string;
+                /** @enum {string} */
+                level: "supervised" | "checkpoint" | "auto";
+                commands: string[];
+            };
+        } | {
+            /** @constant */
+            code: "package.hooks-missing";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.not-installed";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.node-missing";
+            params: {
+                plugin: string;
+                path: string;
+            };
+        } | {
+            /** @constant */
             code: "automation.unknown-folder";
             params: {
                 path: string;
@@ -2348,6 +2377,35 @@ export interface components {
             code: "package.reserved-name";
             params: {
                 name: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.approval-needed";
+            params: {
+                id: string;
+                plugin: string;
+                /** @enum {string} */
+                level: "supervised" | "checkpoint" | "auto";
+                commands: string[];
+            };
+        } | {
+            /** @constant */
+            code: "package.hooks-missing";
+            params: {
+                path: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.not-installed";
+            params: {
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.node-missing";
+            params: {
+                plugin: string;
+                path: string;
             };
         } | {
             /** @constant */

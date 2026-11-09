@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AutomationLevel } from "./automation.ts";
 import { GitOid, Sha256 } from "./plan.ts";
 import { contracts, SchemaVersion } from "./registry.ts";
 import { HandleType } from "./workflow.ts";
@@ -80,6 +81,21 @@ export const Finding = z
     finding("package.cross-stage", { edge: z.string() }),
     finding("package.name-taken", { name: z.string(), node: z.string() }),
     finding("package.reserved-name", { name: z.string() }),
+    /**
+     * A workflow package installs only once approved by its plugin's name, as its hooks run in every session: the
+     * commands its steps and its precheck run, as the package writes them.
+     */
+    finding("package.approval-needed", {
+      id: z.string(),
+      plugin: z.string(),
+      level: AutomationLevel,
+      commands: z.array(z.string()),
+    }),
+    /** The guard's or the exit hook's bundle, which every package carries, is missing from the CLI's hooks folder. */
+    finding("package.hooks-missing", { path: z.string() }),
+    finding("package.not-installed", { id: z.string() }),
+    /** An installed package's hooks run with a Node.js that is gone, so Claude Code refuses every call they guard. */
+    finding("package.node-missing", { plugin: z.string(), path: z.string() }),
     /** A project's level is set for a folder that exists, by its real path. */
     finding("automation.unknown-folder", { path: z.string() }),
     /**
@@ -342,6 +358,10 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "package.cross-stage": { severity: "error", effort: "manual" },
   "package.name-taken": { severity: "error", effort: "manual" },
   "package.reserved-name": { severity: "error", effort: "manual" },
+  "package.approval-needed": { severity: "warning", effort: "command" },
+  "package.hooks-missing": { severity: "error", effort: "command" },
+  "package.not-installed": { severity: "error", effort: "manual" },
+  "package.node-missing": { severity: "error", effort: "command" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },
   "extension.failed": { severity: "error", effort: "manual" },

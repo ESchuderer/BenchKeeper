@@ -221,6 +221,18 @@ jobs:
           node packages/cli/src/bin.ts claude-swap status --json | tee /dev/stderr | grep -q '"installed":false'
           files=$(cd packages/cli && npm pack --dry-run --json --ignore-scripts)
           for id in cedarloom.orca cedarloom.claude-swap; do grep -q "\"path\": \"extensions/$id/main.mjs\"" <<< "$files"; done
+      # The workflow packages' hooks as the CLI package ships them: the bundled guard lets an ls run and refuses a sudo, and
+      # the package's files hold both bundles, which `cedarloom workflows install` copies into every package.
+      - if: runner.os == 'Linux'
+        name: The workflow packages' hooks
+        run: |
+          pnpm --filter @cedarloom/orchestration run build
+          policy='{"schemaVersion":1,"repositories":"origin","hub":null,"memory":null}'
+          call() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"},"cwd":"%s"}' "$1" "$PWD" | node packages/cli/hooks/guard.mjs "$policy"; }
+          call ls
+          ! call "sudo ls" 2> /dev/null
+          files=$(cd packages/cli && npm pack --dry-run --json --ignore-scripts)
+          for name in guard exits; do grep -q "\"path\": \"hooks/$name.mjs\"" <<< "$files"; done
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed
   # OpenAPI document. oasdiff, the other API contract gate, follows once a released document exists to compare against.

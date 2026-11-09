@@ -370,6 +370,9 @@ importers:
       '@cedarloom/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@cedarloom/emitter':
+        specifier: workspace:*
+        version: link:../emitter
       '@cedarloom/engine':
         specifier: workspace:*
         version: link:../engine

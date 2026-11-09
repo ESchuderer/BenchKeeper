@@ -13,6 +13,21 @@ Builds a CedarLoom workflow, at the automation level chosen at install, into one
 | `steps/<step>/agents/openai.yaml`, `codex/<stage>/agents/openai.yaml` | Codex             | The policy file that keeps a skill off the model's list: only the user starts it                                        |
 | `scripts/precheck.sh`                                                 | both              | The workflow's precheck, which the start skills run                                                                     |
 
+## Install
+
+`cedarloom workflows install <id>` shows the plan for a stored workflow; with `--allow <plugin> --yes` it installs the package as one run, which `cedarloom runs undo` takes back. The approval names the plugin because its hooks run in every Claude Code session, and the plan lists every command the package runs.
+
+- **The package** goes into `workflow-packages/<plugin>/` in CedarLoom's state folder: a directory marketplace, `cedarloom-workflows`, from which Claude Code loads it in place.
+- **The user's Claude Code settings** get:
+  - the marketplace and the plugin switched on;
+  - allow rules for the first stage, the precheck and each step's script, the commands the approval listed, as a workflow's agent cannot ask;
+  - an ask rule for each later stage. Claude Code asks before such a stage in an interactive session, in auto mode too, and refuses it in `claude -p` (2.1.316).
+- **The level** is `--level`, else the default level (`cedarloom level`). Installing again at another level rebuilds the package; a project's own level does not reach it, as one package serves every project.
+- **Node.js** for the hooks: the PATH's `node` where it links to the running one, which stays put over an upgrade, else the running one.
+- **Codex** loads the same folder from its own copy: `codex plugin marketplace add <folder>` once, then `codex plugin add <plugin>@cedarloom-workflows` after every install.
+
+`cedarloom workflows uninstall <id>` removes the package, its settings entries and its data folder (what its hooks kept).
+
 ## The hooks
 
 Claude Code runs the package under two hooks from `@cedarloom/orchestration`, bundled into one file each (`pnpm --filter @cedarloom/orchestration run build`); `buildPackage` takes their contents.

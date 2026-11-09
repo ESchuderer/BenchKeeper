@@ -1,7 +1,14 @@
 import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import { isUtf8 } from "node:buffer";
-import { type Finding, isTree, type Json, type Operation, type Result } from "@cedarloom/contracts";
+import {
+  type Finding,
+  isTree,
+  type Json,
+  type Operation,
+  type Result,
+  WORKFLOW_MARKETPLACE,
+} from "@cedarloom/contracts";
 import { hashFile } from "@cedarloom/engine";
 
 /** What a home holds that no part that is on names, as `apply --remove` takes it: `plugin:<id>`, `rules:<file>`… */
@@ -19,16 +26,21 @@ const offer = (kind: string, name: string, named: Named): Offer[] => {
   return [{ item: `${kind}:${name}`, status: named.off.has(name) ? "deselected-present" : "extra" }];
 };
 
-// Plugins and marketplaces no on part names; a marketplace in use is offered only with its plugin's removal.
+const workflowPackage = (id: string): boolean => id.endsWith(`@${WORKFLOW_MARKETPLACE}`);
+
+// Plugins and marketplaces no on part names; a marketplace in use is offered only with its plugin's removal. The
+// workflow packages are `cedarloom workflows install`'s to change, never the profile's.
 export const settingsOffers = (settings: Json, named: { plugins: Named; marketplaces: Named }, removing: string[]) => {
   const { plugins, marketplaces } = named;
-  const enabled = keysOf(settings, "enabledPlugins").flatMap(([id, on]) => (on === true ? [id] : []));
+  const enabled = keysOf(settings, "enabledPlugins").flatMap(([id, on]) =>
+    on === true && !workflowPackage(id) ? [id] : [],
+  );
   const kept = enabled.filter((id) => !removing.includes(`plugin:${id}`));
   const used = new Set(kept.map((id) => id.slice(id.indexOf("@") + 1)));
   return [
     ...enabled.flatMap((id) => offer("plugin", id, plugins)),
     ...keysOf(settings, "extraKnownMarketplaces")
-      .filter(([name]) => !used.has(name))
+      .filter(([name]) => !used.has(name) && name !== WORKFLOW_MARKETPLACE)
       .flatMap(([name]) => offer("marketplace", name, marketplaces)),
   ];
 };

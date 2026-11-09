@@ -134,6 +134,7 @@ export const doctor = async (ctx: Context): Promise<number> => {
   const findings = [
     ...useCases.doctor(ctx.state),
     ...useCases.managedPolicyDoctor(ctx.io.env, process.platform),
+    ...useCases.packageDoctor(ctx.state),
     ...own,
     ...profile,
   ];

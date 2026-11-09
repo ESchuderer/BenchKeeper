@@ -8,6 +8,8 @@ import { nameOf, precheckOf, skillOf, stagesOf } from "./stages.ts";
 export type { Hooks } from "./claude.ts";
 export type { PackageFile } from "./files.ts";
 export { type Source, type StageScript, type Step, stageScript } from "./runner.ts";
+/** The plugin a workflow builds into, named from its id. */
+export { nameOf as pluginOf } from "./stages.ts";
 
 // Plugin names Claude Code keeps for Anthropic's own (https://code.claude.com/docs/en/plugins/manifest-reference#name).
 const RESERVED = [

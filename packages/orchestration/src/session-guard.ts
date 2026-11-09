@@ -1,8 +1,5 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { GUARD_SCHEMA_VERSION, type GuardPolicy, heldRepo } from "@cedarloom/contracts";
 import { githubRepo, type Remotes, TYPED_REMOTE } from "./guard.ts";
 import { programPath } from "./program.ts";
 
@@ -39,33 +36,4 @@ export const originRepos = (folder: string, remotes: Remotes = gitRemotes): stri
   // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
   const urls = remotes(folder)?.get("origin") ?? [];
   return [...new Set(urls.map(githubRepo).filter((repo) => repo !== null))];
-};
-
-/**
- * A worker's guard policy: the GitHub repositories of its project's origin, the hub and the memory repository, both from
- * this machine's bindings. A push to the memory repository reaches its `memory/` branches only (A14).
- */
-export const workerPolicy = (
-  project: string,
-  bindings: { readonly hub?: string | undefined; readonly memory?: string | undefined },
-): GuardPolicy => {
-  const [hub, memory] = [heldRepo(bindings.hub), heldRepo(bindings.memory)];
-  const named = [...originRepos(project), hub, memory].filter((repo) => repo !== null);
-  return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory };
-};
-
-// The root folder of a CedarLoom package, from the file its entry resolves to (src/ or dist/).
-const packageRoot = (specifier: string): string => dirname(dirname(fileURLToPath(import.meta.resolve(specifier))));
-
-/**
- * The guard hook of a session under `policy`: this Node.js runs the hook's file, the policy's JSON its argument (no
- * shell), and the session may change neither the hook's package nor the contracts it reads the policy with.
- */
-export const guardHookOf = (policy: GuardPolicy): { command: string; args: string[]; files: string[] } => {
-  const hook = fileURLToPath(import.meta.resolve("@cedarloom/orchestration/guard-hook"));
-  return {
-    command: process.execPath,
-    args: [hook, JSON.stringify(policy)],
-    files: [packageRoot("@cedarloom/orchestration/guard-hook"), packageRoot("@cedarloom/contracts")],
-  };
 };

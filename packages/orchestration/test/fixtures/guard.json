@@ -1,15 +1,9 @@
 {
   "source": "Command shapes as agents and people type them: Claude Code's commit with a heredoc message, git's documented push, fetch, clone, config and remote forms, the usual install pipe, every evasion of the guard's reviews, and everyday forms outside the guard's grammar, which it refuses. A case's rule is the guard's answer, null when it lets the call run. Cases are grouped by policy and folder; each is its name, the command and the rule.",
   "policies": {
-    "worker": {
+    "workflow": {
       "schemaVersion": 1,
       "repositories": ["acme/app", "acme/tracker"],
-      "hub": "acme/tracker",
-      "memory": "acme/notes"
-    },
-    "interactive": {
-      "schemaVersion": 1,
-      "repositories": null,
       "hub": "acme/tracker",
       "memory": "acme/notes"
     },
@@ -34,7 +28,7 @@
     }
   },
   "cases": {
-    "worker /work/app": [
+    "workflow /work/app": [
       ["Claude Code's commit", "git commit -m \"$(cat <<'EOF'\nfix: a (don't)\n\nAgent: w\nEOF\n)\"", null],
       ["a token set for one command", "GH_TOKEN=x gh issue list", "environment"],
       ["export of gh's config folder", "export GH_CONFIG_DIR=/tmp/gh", "environment"],
@@ -44,6 +38,8 @@
       ["a command name in a variable", "$GIT push origin main", "unreadable"],
       ["xargs adding words to git", "ls | xargs git rm", "unreadable"],
       ["eval of sudo", "eval sudo rm -rf /tmp/x", "unreadable"],
+      ["a Claude Code session, which the guard does not bind", "claude -p 'gh pr merge 5'", "unreadable"],
+      ["a Codex session", "codex exec 'gh pr merge 5'", "unreadable"],
       ["sudo", "sudo rm -rf /tmp/x", "forbidden"],
       ["terraform apply", "terraform apply -auto-approve", "forbidden"],
       ["sudo behind timeout", "timeout 60 sudo rm -rf /tmp/x", "forbidden"],
@@ -404,11 +400,11 @@
       ["gh api graphql/ by GET", "gh api graphql/ -X GET -f query=x", "unreadable"],
       ["gh api an encoded slash in the query", "gh api 'search/issues?q=repo%3Aacme%2Fapp+is%3Apr'", null]
     ],
-    "worker /work/fork": [
+    "workflow /work/fork": [
       ["fetch from a remote outside the profiles", "git fetch upstream", "outside-profiles"],
       ["remote update", "git remote update", "outside-profiles"]
     ],
-    "interactive /work/notes": [
+    "auto-workflow /work/notes": [
       ["a push of main to the memory repository", "git push origin main", "memory-main"],
       ["a push of HEAD:main", "git push origin HEAD:main", "memory-main"],
       ["a push without a refspec", "git push", "memory-main"],
@@ -438,23 +434,27 @@
         "unreadable"
       ]
     ],
-    "interactive /work/app": [
-      ["main of another repository", "git push origin main", null],
+    "auto-workflow /work/app": [
+      ["main of the project's own repository, which branch protection limits", "git push origin main", null],
       ["main of the memory repository from another folder", "cd ../notes && git push origin main", "memory-main"],
       [
         "ssh on port 443 to the memory repository",
         "git push ssh://git@ssh.github.com:443/acme/notes.git main",
+        "outside-profiles"
+      ],
+      ["github.com with a trailing dot", "git push https://github.com./acme/notes.git main", "outside-profiles"],
+      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"],
+      [
+        "gh api graphql, which may reach any repository",
+        "gh api graphql -f query='query { viewer { login } }'",
         "unreadable"
       ],
-      ["github.com with a trailing dot", "git push https://github.com./acme/notes.git main", "unreadable"],
-      ["an assignment before cd", "X=1 cd /work/notes && git push origin main", "memory-main"],
-      ["gh api graphql read in an open session", "gh api graphql -f query='query { viewer { login } }'", null],
       [
         "gh api contents on the memory repository",
         "gh api -X PUT repos/acme/notes/contents/x.md -f message=m -f content=Y",
         "unreadable"
       ],
-      ["gh issue list outside the hub in an open session", "gh issue list", "issue-outside-hub"],
+      ["gh issue list outside the hub", "gh issue list", "issue-outside-hub"],
       [
         "GraphQL mergeBranch",
         "gh api graphql -f query='mutation { mergeBranch(input: {repositoryId: \"x\", base: \"main\", head: \"f\"}) { clientMutationId } }'",
@@ -466,37 +466,10 @@
         "merge"
       ],
       [
-        "GraphQL createCommitOnBranch",
-        "gh api graphql -f query='mutation { createCommitOnBranch(input: {}) { clientMutationId } }'",
-        "unreadable"
-      ],
-      [
         "GraphQL review with its event in a variable",
         "gh api graphql -f query='mutation($e: PullRequestReviewEvent) { addPullRequestReview(input: {pullRequestId: \"x\", event: $e}) { clientMutationId } } # event: COMMENT' -f e=APPROVE",
         "approval"
       ],
-      [
-        "GraphQL updateIssueComment",
-        "gh api graphql -f query='mutation { updateIssueComment(input: {id: \"x\", body: \"y\"}) { clientMutationId } }'",
-        "unreadable"
-      ],
-      [
-        "GraphQL resolveReviewThread",
-        "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"x\"}) { clientMutationId } }'",
-        null
-      ],
-      [
-        "GraphQL a comma before the arguments",
-        "gh api graphql -f query='mutation { createRef,(input: {}) { clientMutationId } }'",
-        "unreadable"
-      ],
-      [
-        "GraphQL a comment before the arguments",
-        "gh api graphql -f query='mutation { updateIssueComment #x\n(input: {}) { clientMutationId } }'",
-        "unreadable"
-      ]
-    ],
-    "auto-workflow /work/app": [
       [
         "a workflow agent at Auto merges a pull request of its project",
         "gh pr merge 12 --squash --delete-branch",

@@ -97,8 +97,8 @@ export const Finding = z
     /** Two workflow ids fold to one plugin name: `id` is the workflow whose package the plugin holds. */
     finding("package.plugin-taken", { plugin: z.string(), id: z.string() }),
     /**
-     * Another installed package is built at a level on the other side of Auto: each package's guard runs in every session,
-     * so a merge passes only while every installed package is at Auto.
+     * Another installed package is built at a level on the other side of Auto: each package's guard binds every workflow
+     * script's agents, so their merge passes only while every installed package is at Auto.
      */
     finding("package.levels-mixed", {
       id: z.string(),

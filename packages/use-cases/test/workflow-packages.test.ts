@@ -106,7 +106,9 @@ test("installing at another level rebuilds the package in place, naming a packag
     JSON.parse(readFileSync(join(marketplace, ".claude-plugin", "marketplace.json"), "utf8"));
   applied(folders, install(folders, "w"));
   applied(folders, install(folders, "v"));
-  const rebuild = ok(planPackageInstall(folders, "w", { bundles: BUNDLES, node: "/usr/bin/node", allow: ["w"], level: "auto" }));
+  const rebuild = ok(
+    planPackageInstall(folders, "w", { bundles: BUNDLES, node: "/usr/bin/node", allow: ["w"], level: "auto" }),
+  );
   // v's guard, at Supervised, refuses the merges of w's stages in every session.
   expect(rebuild.findings).toEqual([
     { code: "package.levels-mixed", params: { id: "w", level: "auto", other: "v", otherLevel: "supervised" } },

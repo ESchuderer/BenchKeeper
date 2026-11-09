@@ -126,8 +126,8 @@ export const guardCommand = (text: string, folder: string, policy: CallPolicy, r
   if (script.skipped && !lenient) {
     return unreadable("the command holds a form the guard does not read, such as a subshell");
   }
-  const words = script.commands.flatMap(({ words }) => words);
-  if (!lenient && words.some((word) => CODE_SUBSCRIPT.test(word.text ?? word.start))) {
+  const all = script.commands.flatMap((command) => command.words);
+  if (!lenient && all.some((word) => CODE_SUBSCRIPT.test(word.text ?? word.start))) {
     return unreadable("a subscript holds a command, which bash may run");
   }
   const context = { policy, remotes, folders: foldersOf(script, [folder]) };

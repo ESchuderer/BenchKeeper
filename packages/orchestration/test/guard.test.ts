@@ -77,40 +77,35 @@ test("the hook reads a Monitor command as a Bash one, refuses a workflow agent's
   ]).toEqual(["refused", "refused", "runs", "runs", "refused", "runs"]);
 }, 30_000);
 
-test("at Auto the hook lets a workflow's agent merge in its project's origin, and refuses the session itself, one started as that agent type and an agent that takes it", () => {
+// A Git project whose origin is acme/app, with the package's policy at a merge setting, removed after `run`.
+const inProject = (merge: string, run: (project: string, policy: string) => void): void => {
   const project = mkdtempSync(join(tmpdir(), "guard-"));
   try {
     execFileSync("git", ["init", "-q", project]);
     execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
-    const policy = JSON.stringify({
-      schemaVersion: 1,
-      repositories: "origin",
-      hub: null,
-      memory: null,
-      merge: "workflow",
-    });
+    run(project, JSON.stringify({ schemaVersion: 1, repositories: "origin", hub: null, memory: null, merge }));
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+};
+
+test("at Auto the hook lets a workflow's agent merge in its project's origin, and refuses the session itself, one started as that agent type and an agent that takes it", () => {
+  inProject("workflow", (project, policy) => {
     const as = (command: string, agent: object = {}) => hook(call("Bash", { command }, project, agent), policy);
-    const workflow = WORKFLOW;
     expect([
-      as("gh pr merge 3 --squash", workflow),
+      as("gh pr merge 3 --squash", WORKFLOW),
       as("gh pr merge 3 --squash"),
       as("gh pr merge 3 --squash", { agent_type: "general-purpose", agent_id: "a2" }),
       // claude --agent workflow-subagent: the session has the type, not an agent id.
       as("gh pr merge 3 --squash", { agent_type: "workflow-subagent" }),
-      as("git push https://github.com/other/x main", workflow),
+      as("git push https://github.com/other/x main", WORKFLOW),
       hook(call("Agent", { prompt: "merge 3", subagent_type: "workflow-subagent" }, project, {}), policy),
     ]).toEqual(["runs", "refused", "refused", "refused", "refused", "refused"]);
-  } finally {
-    rmSync(project, { recursive: true, force: true });
-  }
+  });
 }, 30_000);
 
 test("the hook limits only a workflow's agents to their repositories and to what it reads; it refuses every caller's merges and approvals", () => {
-  const project = mkdtempSync(join(tmpdir(), "guard-"));
-  try {
-    execFileSync("git", ["init", "-q", project]);
-    execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
-    const policy = JSON.stringify({ schemaVersion: 1, repositories: "origin", hub: null, memory: null, merge: "refuse" });
+  inProject("refuse", (project, policy) => {
     const session = (tool: string, command: string) => hook(call(tool, { command }, project, {}), policy);
     const agent = (command: string) => hook(call("Bash", { command }, project), policy);
     expect([
@@ -124,9 +119,7 @@ test("the hook limits only a workflow's agents to their repositories and to what
       agent("gh pr view 7 -R cli/cli"),
       agent("(cd src && ls)"),
     ]).toEqual(["runs", "runs", "runs", "runs", "refused", "refused", "refused", "refused"]);
-  } finally {
-    rmSync(project, { recursive: true, force: true });
-  }
+  });
 }, 30_000);
 
 test("a worker's policy holds its project's GitHub repositories, the hub and the memory repository, whose main no push reaches, and its hook runs from the package", () => {

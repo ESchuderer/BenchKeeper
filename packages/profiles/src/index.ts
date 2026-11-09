@@ -1,4 +1,4 @@
-export { HUB_RULES, onDisk, planMachine, type Target } from "./machine.ts";
+export { fileWrite, HUB_RULES, mergeSets, onDisk, planMachine, type Target } from "./machine.ts";
 export type { LevelPlan } from "./owned.ts";
 export { hasContainer, planProject, projectWritten } from "./project.ts";
 export { type ProfileChange, profileChanges } from "./changes.ts";

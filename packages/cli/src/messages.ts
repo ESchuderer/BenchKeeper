@@ -5,7 +5,8 @@ type Params = { [F in Finding as F["code"]]: F["params"] };
 const short = (hash: string | null): string => (hash === null ? "no file" : hash.slice(0, 12));
 // Quoted as Python's shlex.quote does, so pasting the command runs nothing of the path.
 // shortcut: PowerShell reads an embedded quote as doubled (''), not \'; due once a Windows folder name holds one.
-const folderArgument = (path: string): string =>
+/** A folder as one shell word. */
+export const folderArgument = (path: string): string =>
   /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`;
 // An undo run that stopped is not undone itself: planning the undo of its target again starts from the files as they are.
 const undoHint = (p: { runId: string; undoes: string | null }): string =>
@@ -135,6 +136,19 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `Edge ${p.edge} passes a value from one stage to the next, but a stage keeps no value once a gate ends it.`,
   "package.name-taken": (p) =>
     `Node ${p.node} takes the name ${p.name}, which another node or stage of the package takes too; give an agent step another skill, or rename the node.`,
+  "package.approval-needed": (p) => {
+    const runs = p.commands.map((command) => `\n      ${command.replaceAll("\n", "\n      ")}`).join("");
+    return `${p.plugin}, the workflow ${p.id} at ${p.level}, waits for your approval by name, as its guard and exit hooks run in every Claude Code session and its commands then run unasked: cedarloom workflows install ${p.id} --level ${p.level} --allow ${p.plugin} --yes. ${p.commands.length === 0 ? "It runs no command of its own." : `Its commands:${runs}`}`;
+  },
+  "package.hooks-missing": (p) =>
+    `The guard's and the exit hook's bundles are missing from ${p.path}, where the CLI package ships them; in a checkout, build them with pnpm --filter @cedarloom/orchestration run build.`,
+  "package.not-installed": (p) => `No package of the workflow ${p.id} is installed.`,
+  "package.plugin-taken": (p) =>
+    `The plugin ${p.plugin} holds the package of the workflow ${p.id}, whose id folds to the same name; uninstall that one first, or give one of the two workflows another id.`,
+  "package.levels-mixed": (p) =>
+    `The workflow ${p.other} is installed at ${p.otherLevel}, and ${p.id} at ${p.level}. Each package's guard runs in every Claude Code session, so for merges the strictest installed level holds: no merge passes while one package is below Auto. Install them at one level: cedarloom workflows install ${p.other} --level ${p.level}, or this one at ${p.otherLevel}.`,
+  "package.node-missing": (p) =>
+    `The hooks of ${p.plugin} run with ${p.path}, which is gone, so Claude Code refuses every shell call and agent they guard, in every session. Install its workflow again: cedarloom workflows install ${p.id ?? "<id>"}${p.level === null ? "" : ` --level ${p.level}`} --allow ${p.plugin} --yes`,
   "package.reserved-name": (p) =>
     `The package would be named ${p.name}, which Claude Code keeps for Anthropic's own plugins; give the workflow another id.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,

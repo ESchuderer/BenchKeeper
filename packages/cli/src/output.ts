@@ -17,6 +17,8 @@ export interface Io {
   keyring: Keyring;
   /** Where the app's own extensions are: the `extensions` folder of the CLI package unless a test names another. */
   bundled?: string;
+  /** Where the workflow packages' hook bundles are: the `hooks` folder of the CLI package unless a test names another. */
+  hooks?: string;
 }
 
 export interface Context {
@@ -26,6 +28,8 @@ export interface Context {
   config: string;
   /** The folder of the app's own (bundled) extensions. */
   app: string;
+  /** The folder of the bundles every workflow package's hooks run. */
+  hooks: string;
 }
 
 /** sysexits: 64 usage, 65 data, 66 missing input, 70 internal; 1 when a rule refused the change. */

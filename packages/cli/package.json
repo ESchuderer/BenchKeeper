@@ -26,7 +26,8 @@
   },
   "files": [
     "dist",
-    "extensions"
+    "extensions",
+    "hooks"
   ],
   "engines": {
     "node": ">=26"

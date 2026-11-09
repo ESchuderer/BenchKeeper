@@ -31,6 +31,15 @@ export {
 } from "./extensions.ts";
 export { automationSettings, type LevelChange, planLevel } from "./automation.ts";
 export {
+  type Folders,
+  type InstallOptions,
+  type PackagePlan,
+  packageDoctor,
+  planPackageInstall,
+  planPackageUninstall,
+  stableNode,
+} from "./workflow-packages.ts";
+export {
   type Approval,
   applyPlan,
   doctor,

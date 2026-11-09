@@ -5,6 +5,8 @@ node_modules/
 packages/*/dist/
 # The app's own extensions, built into the CLI package (pnpm --filter @cedarloom/extension-orca run build)
 packages/cli/extensions/
+# The workflow packages' guard and exit hooks, built into the CLI package (pnpm --filter @cedarloom/orchestration run build)
+packages/cli/hooks/
 packages/*/test-results/
 packages/*/playwright-report/
 coverage/

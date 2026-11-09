@@ -54,20 +54,31 @@ export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile
   }
   // "./" first: cd reads no option from it (-P), and CDPATH takes no part.
   const cwd = typeof config["cwd"] === "string" ? `cd ${quoted(`./${config["cwd"]}`)} || exit 1\n` : "";
+  // The script's own status as its last line, which Claude Code's exit hook reads whatever the agent adds to the call. The
+  // output before it is the command's last 6,000 bytes, printed when it ends, which a hook reads whole (Claude Code 2.1.316
+  // cut a failed call's to about 10,000 characters, observed). The status passes the pipe in a file, as sh has no pipefail.
+  const run = `(\n(\n${cwd}${textIn(node, "command")}\n)\necho "$?" > "$st"\n) 2>&1 | tail -c 6000\nstatus=$(cat "$st")\nrm -f "$st"\n`;
+  const script = `#!/bin/sh\nst=$(mktemp) || { echo "cedarloom-exit 1"; exit 1; }\n${run}printf '\\ncedarloom-exit %s\\n' "\${status:-1}"\nexit "\${status:-1}"\n`;
   const skill = `${frontmatter({ name, description: describe(`${head}: runs its command`), [OWN]: true })}Run the script \`scripts/run.sh\` of this skill's folder with \`sh\`, from the project folder, exactly once. Report its exit code and the last 100 lines of its output.\n`;
   return [
     { path: `steps/${name}/SKILL.md`, content: skill },
     { path: `steps/${name}/agents/openai.yaml`, content: USER_ONLY },
-    { path: `steps/${name}/scripts/run.sh`, content: `#!/bin/sh\n${cwd}${textIn(node, "command")}\n` },
+    { path: `steps/${name}/scripts/run.sh`, content: script },
   ];
 };
 
-/** A tool's plugin manifest: the step skills and that tool's stage skills. */
+/** A tool's plugin manifest: the step skills and that tool's stage skills, and its hooks file if it has one. */
 export const manifestOf = (
   workflow: WorkflowDefinition,
-  { plugin, level, folder }: { plugin: string; level: AutomationLevel; folder: string },
+  { plugin, level, folder, hooks }: { plugin: string; level: AutomationLevel; folder: string; hooks?: string },
 ): string => {
   const description = describe(`The CedarLoom workflow ${titleOf(workflow)}, at the automation level ${level}.`);
-  const manifest = { name: plugin, version: workflow.metadata.version, description, skills: ["./steps/", folder] };
+  const manifest = {
+    name: plugin,
+    version: workflow.metadata.version,
+    description,
+    skills: ["./steps/", folder],
+    ...(hooks === undefined ? {} : { hooks }),
+  };
   return `${JSON.stringify(manifest, null, 2)}\n`;
 };

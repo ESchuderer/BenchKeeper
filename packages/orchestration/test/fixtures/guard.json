@@ -12,6 +12,13 @@
       "repositories": null,
       "hub": "acme/tracker",
       "memory": "acme/notes"
+    },
+    "auto-workflow": {
+      "schemaVersion": 1,
+      "repositories": ["acme/app", "acme/tracker", "acme/notes"],
+      "hub": "acme/tracker",
+      "memory": "acme/notes",
+      "merge": ["acme/app"]
     }
   },
   "remotes": {
@@ -488,6 +495,33 @@
         "gh api graphql -f query='mutation { updateIssueComment #x\n(input: {}) { clientMutationId } }'",
         "unreadable"
       ]
+    ],
+    "auto-workflow /work/app": [
+      [
+        "a workflow agent at Auto merges a pull request of its project",
+        "gh pr merge 12 --squash --delete-branch",
+        null
+      ],
+      ["a workflow agent at Auto merges through the REST API", "gh api -X PUT repos/acme/app/pulls/1/merge", null],
+      ["a merge at Auto reaches only the project's own repositories", "gh pr merge 12 -R other/x", "merge"],
+      [
+        "a merge at Auto never reaches the memory repository, whose main no agent updates",
+        "gh pr merge 5 -R acme/notes --squash",
+        "merge"
+      ],
+      ["nor the hub", "gh api -X PUT repos/acme/tracker/pulls/5/merge", "merge"],
+      ["--admin, which merges past branch protection, stays refused", "gh pr merge 12 --admin --squash", "merge"],
+      [
+        "a branch merged without a pull request stays refused",
+        "gh api -X POST repos/acme/app/merges -f base=main -f head=feature",
+        "merge"
+      ],
+      [
+        "a merge through GraphQL stays refused: the guard cannot tell its repository",
+        "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+        "merge"
+      ],
+      ["an approval stays refused at every level", "gh pr review 12 --approve", "approval"]
     ]
   }
 }

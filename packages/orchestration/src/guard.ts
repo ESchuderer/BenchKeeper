@@ -119,11 +119,14 @@ const programOf = (word: string): string => {
     .replace(/\.exe$/, "");
 };
 
+/** Text that may hide a merge or an approval, which no caller runs unread. */
+export const MAY_MERGE = /merge|approv|review/i;
+
 /** Whether the guard refuses the shell command `text`, run in the folder `folder`, and why; null to let it run. */
 export const guardCommand = (text: string, folder: string, policy: CallPolicy, remotes: Remotes): Denial | null => {
   const script = readShell(text);
-  // A lenient caller runs what the guard cannot read, unless the text may hide a merge or approval, which none may run.
-  const lenient = policy.lenient === true && !/merge|approv|review/i.test(text);
+  // A lenient caller runs what the guard cannot read, unless the text may hide a merge or an approval.
+  const lenient = policy.lenient === true && !MAY_MERGE.test(text);
   if (script.skipped && !lenient) {
     return unreadable("the command holds a form the guard does not read, such as a subshell");
   }

@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
-import { type CallPolicy, guardCommand, type Remotes } from "./guard.ts";
+import { type CallPolicy, guardCommand, MAY_MERGE, type Remotes } from "./guard.ts";
 import { gitRemotes, originRepos } from "./session-guard.ts";
 
 // A folder's remotes, with or without a typed URL, read once per hook run.
@@ -68,9 +68,9 @@ const isAgent = (call: Call | null, type: (agent: string) => boolean): boolean =
 type Reach = { readonly merges: boolean; readonly limited: boolean };
 
 // Why the guard refuses to start an agent, or null.
-const agentRefusal = ({ isolation, subagent }: Call, { merges, limited }: Reach): string | null => {
+const agentRefusal = ({ isolation, subagent }: Call, { merges }: Reach): string | null => {
   // A remote subagent runs in the cloud, where no hook of this session reads its commands.
-  if (limited && isolation === "remote") return "a remote agent runs where the guard reads nothing";
+  if (isolation === "remote") return "a remote agent runs where the guard reads nothing";
   // Where workflow agents may merge, a project's agent of that name would merge as one.
   return merges && subagent === WORKFLOW_AGENT ? `the agent type ${WORKFLOW_AGENT} is kept for workflow scripts` : null;
 };
@@ -89,8 +89,8 @@ const commandOf = (call: Call | null, reach: Reach): { command: string; cwd: str
   // A Monitor call without a command watches a WebSocket and runs nothing.
   if (!SHELL_TOOLS.has(tool) || (tool === "Monitor" && command === undefined)) return null;
   if (tool !== "PowerShell") return located(command, cwd);
-  // A workflow agent's shell is Bash; PowerShell, which the guard does not read, refuses it.
-  return reach.limited ? "the guard reads no PowerShell; run the command with the Bash tool" : null;
+  // PowerShell, which the guard does not read, refuses a workflow agent (its shell is Bash) and text naming a merge.
+  return reach.limited || MAY_MERGE.test(String(command)) ? "the guard reads no PowerShell; use the Bash tool" : null;
 };
 
 /**

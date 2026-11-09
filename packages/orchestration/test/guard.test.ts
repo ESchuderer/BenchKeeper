@@ -117,11 +117,13 @@ test("the hook limits only a workflow's agents to their repositories and to what
       session("Bash", "gh pr view 7 -R cli/cli && gh pr merge 5"),
       session("Bash", "gh pr review 5 --approve"),
       session("Bash", "(cd app && gh pr merge 5)"),
+      session("PowerShell", "gh pr merge 5"),
+      hook(call("Agent", { prompt: "x", isolation: "remote" }, project, {}), policy),
       agent("gh pr view 7 -R cli/cli"),
       agent("(cd src && ls)"),
       // A step that runs as its own subagent.
       agent("(cd src && ls)", { agent_type: "w:build", agent_id: "a3" }),
-    ]).toEqual(["runs", "runs", "runs", "runs", "refused", "refused", "refused", "refused", "refused", "refused"]);
+    ]).toEqual([...Array(4).fill("runs"), ...Array(8).fill("refused")]);
   });
 }, 30_000);
 

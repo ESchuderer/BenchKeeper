@@ -148,7 +148,8 @@ test("Codex sessions: a subagent's tokens and cost on its root row at list price
       id: "019a3b7e-5c1d-7e42-9a10-3f2c8d4e6a01",
       start: "2026-11-02T09:00:00.000Z",
       end: "2026-11-02T09:01:30.000Z",
-      busyMs: 90000,
+      // Its own 90 s of turns and its subagent's 5 s; the subagent names its parent in `source` only.
+      busyMs: 95000,
       tokens: 293800,
       // gpt-5.5 at 0.038 (short context) and 1.099 (long), its gpt-5.4-mini subagent at 0.002175.
       costUSD: expect.closeTo(1.139175, 9),

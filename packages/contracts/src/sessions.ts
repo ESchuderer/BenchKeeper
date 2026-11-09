@@ -3,9 +3,9 @@ import { contracts } from "./registry.ts";
 
 /**
  * One agent session as its own log records it, for the sessions board. `project`: the repository its folder belongs to
- * (the main worktree's folder), else the folder; `title` is the agent's own text, never markup. `busyMs` (API and tool
- * time) and `costUSD` are null when the log has none; `costEstimated`: priced from the dated list-price table, which has
- * no rate for the `unpriced` models.
+ * (the main worktree's folder), else the folder; `title` is the agent's own text, never markup. `busyMs` (Claude Code's
+ * API and tool time, Codex's turn time) and `costUSD` are null when the log has none; `costEstimated`: priced from the
+ * dated list-price table, which has no rate for the `unpriced` models.
  */
 export const AgentSession = z
   .strictObject({

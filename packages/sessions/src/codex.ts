@@ -8,13 +8,23 @@ import { outcomeOf, testRunIn } from "./test-run.ts";
 // The rollout format of openai/codex at commit 8703d32b (codex-rs/protocol, history and rollout/src/policy.rs).
 const count = z.number().min(0);
 const Line = z.object({ type: z.string(), payload: z.record(z.string(), z.unknown()) });
-const Meta = z.object({
-  id: z.string(),
-  parent_thread_id: z.string().nullish(),
-  cwd: z.string().optional(),
-  timestamp: z.string().optional(),
-  model_provider: z.string().nullish(),
-});
+// A spawned subagent names its parent in `source` (SessionSource::SubAgent), also at the top level.
+const Meta = z
+  .object({
+    id: z.string(),
+    parent_thread_id: z.string().nullish(),
+    source: z
+      .object({ subagent: z.object({ thread_spawn: z.object({ parent_thread_id: z.string() }) }) })
+      .optional()
+      .catch(undefined),
+    cwd: z.string().optional(),
+    timestamp: z.string().optional(),
+    model_provider: z.string().nullish(),
+  })
+  .transform(({ parent_thread_id, source, ...meta }) => ({
+    ...meta,
+    parent: parent_thread_id ?? source?.subagent.thread_spawn.parent_thread_id ?? null,
+  }));
 const Context = z.object({ model: z.string() });
 const TokenCount = z.object({
   info: z.object({
@@ -74,9 +84,14 @@ const outcomeIn = ({ command, exit_code, aggregated_output }: z.infer<typeof Com
   return exit_code === 0 ? "pass" : "fail";
 };
 
+// Without a readable session_meta line, the thread id from the name `rollout-<time>-<id>[_<copy>].jsonl`.
+const idOf = (file: string): string =>
+  /-([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})(?:_|$)/.exec(basename(file, ".jsonl"))?.[1] ??
+  basename(file, ".jsonl");
+
 const metaOf = (meta: z.infer<typeof Meta> | null, file: string) => ({
-  id: meta?.id ?? basename(file, ".jsonl"),
-  parent: meta?.parent_thread_id ?? null,
+  id: meta?.id ?? idOf(file),
+  parent: meta?.parent ?? null,
   provider: meta?.model_provider ?? null,
   folder: meta?.cwd ?? null,
 });
@@ -128,9 +143,9 @@ class Rollout {
     this.add(growth, (info.last_token_usage?.input_tokens ?? 0) > PRICES.longAbove);
   }
 
+  // Tokens before any turn names its model are kept, so the estimate lists them as unpriced.
   add(growth: Counts, long: boolean): void {
-    if (this.model === null) return;
-    const used = (this.usage[this.model] ??= { short: NONE, long: NONE });
+    const used = (this.usage[this.model ?? "unknown model"] ??= { short: NONE, long: NONE });
     if (long) used.long = plus(used.long, growth);
     else used.short = plus(used.short, growth);
   }

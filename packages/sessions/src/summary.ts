@@ -9,8 +9,7 @@ export type Counts = z.infer<typeof Counts>;
 
 export const NONE: Counts = { input: 0, cached: 0, written: 0, output: 0 };
 
-// What the cache keeps of a log: the row as the contract has it, with the folder, the times as read, and a Codex thread's
-// parent, provider and usage, priced when the rows are built, so a new price table applies to it.
+// Codex usage is priced when the rows are built, so a new price table applies to cached logs too.
 export const Summary = AgentSession.omit({ costEstimated: true, unpriced: true }).extend({
   parent: z.string().nullable(),
   provider: z.string().nullable(),

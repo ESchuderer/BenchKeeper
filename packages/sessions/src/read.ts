@@ -16,7 +16,7 @@ export interface Logs {
 }
 
 // A change to what a summary holds raises it, so every log is read again.
-const VERSION = 1;
+const VERSION = 2;
 const Cache = z.object({
   version: z.literal(VERSION),
   files: z.record(z.string(), z.object({ key: z.string(), summary: Summary })),
@@ -79,25 +79,33 @@ const rowOf = (summary: Summary, tokens: number, { costUSD, unpriced }: Cost): A
   return { agent, id, project, title, start, end, busyMs, tokens, costUSD, costEstimated, unpriced, tests };
 };
 
-// A subagent's rollout, at any depth, adds to its root session's row; of two copies of one rollout (a revert) the longer counts.
+const latest = (times: (string | null)[]): string | null =>
+  times.reduce<string | null>((last, time) => (time !== null && (last === null || time > last) ? time : last), null);
+
+const total = (values: (number | null)[]): number | null =>
+  values.reduce<number | null>((sum, value) => (value === null ? sum : (sum ?? 0) + value), null);
+
+// A subagent's rollout, at any depth, adds its tokens, cost and time to its root session's row, whose tests stay its own;
+// of two copies of one rollout (a revert) the longer counts.
 const codexRows = (summaries: Summary[]): (AgentSession | null)[] => {
   const byId = new Map<string, Summary>();
   for (const s of summaries) if (s.agent === "codex" && (byId.get(s.id)?.end ?? "") <= (s.end ?? "")) byId.set(s.id, s);
   // The bound stops a loop of parents in damaged logs.
-  const rootOf = (summary: Summary): string => {
+  const rootOf = (summary: Summary): Summary => {
     let at = summary;
     for (let step = 0; step < 50 && at.parent !== null; step++) at = byId.get(at.parent) ?? at;
-    return at.id;
+    return at;
   };
-  const families = Map.groupBy(byId.values(), rootOf);
-  return [...families].map(([root, family]) => {
+  return [...Map.groupBy(byId.values(), rootOf)].map(([root, family]) => {
     const estimates = family.map(estimate);
-    const costs = estimates.flatMap(({ costUSD }) => (costUSD === null ? [] : [costUSD]));
     const unpriced = [...new Set(estimates.flatMap((e) => e.unpriced))].toSorted();
-    const tokens = family.reduce((total, s) => total + s.tokens, 0);
-    const costUSD = costs.length > 0 ? costs.reduce((total, cost) => total + cost, 0) : null;
-    const own = byId.get(root);
-    return own === undefined ? null : rowOf(own, tokens, { costUSD, unpriced });
+    const cost = { costUSD: total(estimates.map((e) => e.costUSD)), unpriced };
+    const tokens = family.reduce((sum, s) => sum + s.tokens, 0);
+    return rowOf(
+      { ...root, end: latest(family.map((s) => s.end)), busyMs: total(family.map((s) => s.busyMs)) },
+      tokens,
+      cost,
+    );
   });
 };
 

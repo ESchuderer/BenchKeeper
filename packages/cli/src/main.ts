@@ -25,6 +25,7 @@ import {
   workflowsOpen,
   workflowsSave,
 } from "./commands.ts";
+import { board } from "./board.ts";
 import { contributedGroups } from "./contributed.ts";
 import { importCommand } from "./imports.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
@@ -339,6 +340,13 @@ const contextOf = (io: Io, { json, state }: { json?: true; state?: string }): Co
   hooks: io.hooks ?? HOOKS,
 });
 
+const dayCount = (value: string): number => {
+  const days = Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > 3650)
+    throw new InvalidArgumentError("a whole number from 1 to 3650");
+  return days;
+};
+
 /** Runs one command line (without the program name) and returns the exit code. */
 export const main = async (argv: string[], io: Io): Promise<number> => {
   let exit: number = EXIT.ok;
@@ -365,6 +373,13 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     .command("doctor")
     .description("report interrupted runs, store problems, and the extensions' and the profile's checks")
     .action(async () => done(await doctor(ctx())));
+  program
+    .command("board")
+    .description("the sessions board: agent time, tokens, cost, days worked and tests of this machine's agent sessions")
+    .option("--days <n>", "the last n days, today included (default: 30)", dayCount)
+    .option("--all", "all time")
+    .option("--project <folder>", "one project's sessions, by its folder")
+    .action(async (options) => done(await board(ctx(), options)));
   program
     .command("ui")
     .description("serve the web UI on 127.0.0.1 and print the link that opens it; runs until stopped")

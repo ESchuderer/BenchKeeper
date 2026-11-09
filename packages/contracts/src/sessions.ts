@@ -24,3 +24,43 @@ export const AgentSession = z
   })
   .register(contracts, { id: "AgentSession" });
 export type AgentSession = z.infer<typeof AgentSession>;
+
+/**
+ * The figures of a period's sessions: `costUSD` is null when no session has a cost and `uncosted` counts those without;
+ * `daysWorked` of `days` are UTC days with a session start, `streak` the longest run of them; `testsPassed` is the share
+ * of the `tested` sessions whose last test run passed.
+ */
+export const SessionFigures = z
+  .strictObject({
+    sessions: z.int().min(0),
+    busyMs: z.number().min(0),
+    costUSD: z.number().min(0).nullable(),
+    uncosted: z.int().min(0),
+    tokens: z.int().min(0),
+    days: z.int().min(0),
+    daysWorked: z.int().min(0),
+    streak: z.int().min(0),
+    tested: z.int().min(0),
+    testsPassed: z.number().min(0).max(1).nullable(),
+  })
+  .register(contracts, { id: "SessionFigures" });
+export type SessionFigures = z.infer<typeof SessionFigures>;
+
+/**
+ * The sessions board of a period and a project: `days` is the period's length up to today (null: all time) and `span` its
+ * UTC days, oldest first; `projects` are every project with a session, most sessions first, so a project keeps its place;
+ * `sessions` are the period's sessions of the project (null: of every project), newest first; `prices` dates the table
+ * that prices Codex.
+ */
+export const SessionsBoard = z
+  .strictObject({
+    days: z.int().min(1).nullable(),
+    project: z.string().nullable(),
+    span: z.array(z.iso.date()),
+    projects: z.array(z.string()),
+    figures: SessionFigures,
+    sessions: z.array(AgentSession),
+    prices: z.strictObject({ date: z.iso.date(), source: z.url() }),
+  })
+  .register(contracts, { id: "SessionsBoard" });
+export type SessionsBoard = z.infer<typeof SessionsBoard>;

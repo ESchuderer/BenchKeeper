@@ -992,6 +992,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    days?: number;
+                    project?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SessionsBoard"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -2223,6 +2272,32 @@ export interface components {
             unpriced: string[];
             tests: ("pass" | "fail") | null;
         };
+        SessionFiguresInput: {
+            sessions: number;
+            busyMs: number;
+            costUSD: number | null;
+            uncosted: number;
+            tokens: number;
+            days: number;
+            daysWorked: number;
+            streak: number;
+            tested: number;
+            testsPassed: number | null;
+        };
+        SessionsBoardInput: {
+            days: number | null;
+            project: string | null;
+            span: string[];
+            projects: string[];
+            figures: components["schemas"]["SessionFiguresInput"];
+            sessions: components["schemas"]["AgentSessionInput"][];
+            prices: {
+                /** Format: date */
+                date: string;
+                /** Format: uri */
+                source: string;
+            };
+        };
         SchemaVersion: number;
         Sha256: string;
         WriteFile: {
@@ -3413,6 +3488,32 @@ export interface components {
             costEstimated: boolean;
             unpriced: string[];
             tests: ("pass" | "fail") | null;
+        };
+        SessionFigures: {
+            sessions: number;
+            busyMs: number;
+            costUSD: number | null;
+            uncosted: number;
+            tokens: number;
+            days: number;
+            daysWorked: number;
+            streak: number;
+            tested: number;
+            testsPassed: number | null;
+        };
+        SessionsBoard: {
+            days: number | null;
+            project: string | null;
+            span: string[];
+            projects: string[];
+            figures: components["schemas"]["SessionFigures"];
+            sessions: components["schemas"]["AgentSession"][];
+            prices: {
+                /** Format: date */
+                date: string;
+                /** Format: uri */
+                source: string;
+            };
         };
     };
     responses: never;

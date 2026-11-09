@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { logsOf } from "./board.ts";
 import { machineOf } from "./commands.ts";
 import { type Context, EXIT, emit } from "./output.ts";
 
@@ -12,6 +13,7 @@ export const ui = async (ctx: Context): Promise<number> => {
     state: ctx.state,
     config: ctx.config,
     machine: machineOf(ctx),
+    logs: logsOf(ctx),
     app: ctx.app,
     fetch: ctx.io.fetch,
     ui: dist,

@@ -409,6 +409,9 @@ importers:
       '@cedarloom/profiles':
         specifier: workspace:*
         version: link:../profiles
+      '@cedarloom/sessions':
+        specifier: workspace:*
+        version: link:../sessions
       '@cedarloom/work-items':
         specifier: workspace:*
         version: link:../work-items

@@ -12,6 +12,7 @@ import {
   type Result,
   Run,
   RunResult,
+  SessionsBoard,
   Sha256,
   Step,
   SwapAccounts,
@@ -297,6 +298,22 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
       const { key, value, allow } = req.body;
       const ran = await swap("settings", allow, { key, value: String(value) });
       return ran.ok ? SettingsSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+};
+
+// Reads the session logs (a first read of a large history takes seconds), never writes but the cache.
+export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
+  const query = z.strictObject({
+    days: z.coerce.number().int().min(1).max(3650).optional().describe("The period's length in days; absent: all time"),
+    project: z.string().max(4096).optional().describe("The project's folder; absent: every project"),
+  });
+  app.get(
+    "/api/sessions",
+    { schema: { querystring: query, response: answers({ 200: SessionsBoard }) } },
+    async (req, _reply) => {
+      const { days, project } = req.query;
+      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null });
     },
   );
 };

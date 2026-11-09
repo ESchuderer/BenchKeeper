@@ -24,7 +24,7 @@ const runsSuite = (words: string[]): boolean => {
 };
 
 /** A test run in one command's words: a runner, a package manager's test script, or a shell's `-c` script with one. */
-const testRunIn = (words: string[]): TestRun => {
+export const testRunIn = (words: string[]): TestRun => {
   const own = words.slice(words.findIndex((word) => !/^\w+=/.test(word)));
   const shell = own.findIndex((word) => word === "sh" || word === "bash");
   if (shell >= 0 && /^-[a-z]*c$/.test(own[shell + 1] ?? "")) return testRunOf(own[shell + 2] ?? "");

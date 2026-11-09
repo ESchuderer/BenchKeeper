@@ -1926,7 +1926,7 @@ export interface components {
         };
         AgentSessionInput: {
             /** @enum {string} */
-            agent: "claude-code";
+            agent: "claude-code" | "codex";
             id: string;
             project: string | null;
             title: string | null;
@@ -1937,6 +1937,8 @@ export interface components {
             busyMs: number | null;
             tokens: number;
             costUSD: number | null;
+            costEstimated: boolean;
+            unpriced: string[];
             tests: ("pass" | "fail") | null;
         };
         SchemaVersion: number;
@@ -3022,7 +3024,7 @@ export interface components {
         };
         AgentSession: {
             /** @enum {string} */
-            agent: "claude-code";
+            agent: "claude-code" | "codex";
             id: string;
             project: string | null;
             title: string | null;
@@ -3033,6 +3035,8 @@ export interface components {
             busyMs: number | null;
             tokens: number;
             costUSD: number | null;
+            costEstimated: boolean;
+            unpriced: string[];
             tests: ("pass" | "fail") | null;
         };
     };

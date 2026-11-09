@@ -27,7 +27,7 @@ const runsSuite = (words: string[]): boolean => {
 export const testRunIn = (words: string[]): TestRun => {
   const own = words.slice(words.findIndex((word) => !/^\w+=/.test(word)));
   // By its name: Codex records the shell's full path, such as `/bin/zsh -lc 'npm test'`.
-  const shell = own.findIndex((word) => /(?:^|[\\/])(?:ba|z|da|k)?sh(?:\.exe)?$/.test(word));
+  const shell = own.findIndex((word) => /(?:^|[\\/])(?:bash|zsh|dash|ksh|sh)(?:\.exe)?$/.test(word));
   if (shell >= 0 && /^-[a-z]*c$/.test(own[shell + 1] ?? "")) return testRunOf(own[shell + 2] ?? "");
   return runsSuite(own) ? "exit" : null;
 };

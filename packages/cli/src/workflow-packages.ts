@@ -20,9 +20,9 @@ const bundlesIn = (folder: string): { guard: string; exits: string } | null => {
 const codexAdd = (plugin: string, marketplace: string): string =>
   `\n  Codex: codex plugin marketplace add ${folderArgument(marketplace)} (once), then codex plugin add ${plugin}@${WORKFLOW_MARKETPLACE}; Codex runs its own copy, so add it again after every install, a rebuild at another level too.`;
 
-// What the package changes beyond its stages: the hooks guard every session, and need the Node.js they were given.
+// In every plan, approved or not: the approval's finding, which says the hooks run in every session, goes with --allow.
 const hooksNote = (node: string): string =>
-  `\n  Its hooks run in every Claude Code session while the package is on: there the guard refuses merges, approvals, force pushes, gh's configuration and the owner's writes; a workflow's agents also meet its repository limit and its refusal of what it cannot read, such as a subshell (cd x && make) or a group { a; b; }. They run with ${node}; should that path go, as a versioned Homebrew one does on brew upgrade, Claude Code refuses every shell call and agent in those sessions until you install again, which cedarloom doctor reports.`;
+  `\n  Its hooks run in every Claude Code session while the package is on: there the guard refuses merges, approvals, force pushes, gh's configuration and the owner's writes; a workflow's agents also meet its repository limit and its refusal of what it cannot read, such as a subshell ( … ), a group { …; } or PowerShell. They run with ${folderArgument(node)}; should that file go, as a versioned one does when its Node.js version is removed (Homebrew's Cellar, a version manager's), Claude Code refuses every call they guard in those sessions until you install again, which cedarloom doctor reports.`;
 
 type Install = { level?: AutomationLevel; allow?: string; yes?: true };
 

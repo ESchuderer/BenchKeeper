@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
+import { type AutomationLevel, ExportIndex, WorkflowDefinition } from "@cedarloom/contracts";
 import { buildPackage, type Hooks, type PackageFile } from "@cedarloom/emitter";
 import { expect, test } from "vitest";
 import { type Call, passing, report, runScript } from "./script.ts";
@@ -132,6 +132,32 @@ test("each level keeps its gates, and a stop carries the inputs every later stag
     .split("\n")
     .find((each) => each.includes("`merge`, once"));
   expect([stop?.includes("`$w:merge-approved`"), stop?.includes("`topic`")]).toEqual([true, true]);
+});
+
+// The core pack's export folder, as `cedarloom import` reads it.
+const FEATURE = join(import.meta.dirname, "..", "..", "packs", "bundled", "cedarloom.core", "templates", "workflows");
+const json = (path: string): unknown => JSON.parse(readFileSync(join(FEATURE, path), "utf8"));
+
+test("the bundled feature workflow builds at each level, its merge step a workflow script's own agent", () => {
+  const index = ExportIndex.parse(json("cedarloom-export.json"));
+  const feature = WorkflowDefinition.parse(json(`workflows/workflow-${index.workflows[0] ?? ""}.json`));
+  const paths = (level: AutomationLevel) =>
+    built(feature, level)
+      .map((file) => file.path)
+      .filter((path) => /^(agents|workflows)\//.test(path));
+  // Only test and review run as the plugin's own subagents: a step that does cannot merge at Auto.
+  const agents = ["agents/review.md", "agents/test.md"];
+  expect([paths("supervised"), paths("checkpoint"), paths("auto")]).toEqual([
+    [
+      ...agents,
+      "workflows/run-implementation-approved.js",
+      "workflows/run-merge-approved.js",
+      "workflows/run-start.js",
+      "workflows/run-verdict-approved.js",
+    ],
+    [...agents, "workflows/run-merge-approved.js", "workflows/run-start.js"],
+    [...agents, "workflows/run-start.js"],
+  ]);
 });
 
 test("workflow text in skill content never runs as a command when the skill loads, and no unreviewed text reaches it", () => {

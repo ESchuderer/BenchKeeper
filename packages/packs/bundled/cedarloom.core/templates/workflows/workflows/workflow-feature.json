@@ -1,0 +1,283 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.workflow",
+  "metadata": {
+    "id": "feature",
+    "name": "Feature",
+    "version": "0.1.0",
+    "description": "Plans, implements, tests and reviews a change, each step its own agent, then opens its pull request and merges it where the level lets an agent merge. The plan, the test report and the review pass between the steps in .cedarloom/feature/, a folder git ignores."
+  },
+  "inputs": {
+    "task": {
+      "type": "string",
+      "required": true,
+      "description": "The change to make: the request or the issue, in a few sentences"
+    }
+  },
+  "nodes": [
+    {
+      "id": "implement",
+      "type": "agent.run",
+      "with": {
+        "task": "Implement the plan in `.cedarloom/feature/plan.md`; where it leaves an open question unanswered, take its recommendation. Work on the branch an earlier round of this task made, else on a new branch from the up-to-date default branch, named by the project's convention. When `.cedarloom/feature/test.md` or `.cedarloom/feature/review.md` list failures or Blocking or Important findings, fix those first, then delete both files, so that only this round's test report and review count. Run the existing tests of the code you touch first, add only the tests the plan and the project's test rules call for, and run the project's fast checks after each edit. Commit by the project's convention, and do not push. Return what changed and each check you ran with its result."
+      }
+    },
+    {
+      "id": "implementation",
+      "type": "human.approval",
+      "with": {
+        "gate": "implementation",
+        "message": "Read the plan in .cedarloom/feature/plan.md and answer its open questions in that file; the implementation follows the file as it is then. To plan again, start the workflow again."
+      }
+    },
+    {
+      "id": "merge",
+      "type": "human.approval",
+      "with": {
+        "gate": "merge",
+        "message": "The pull request is open. At this level only you merge it: review and merge it yourself, or start the workflow again with the same task to fix it first."
+      }
+    },
+    {
+      "id": "merge-pr",
+      "type": "agent.run",
+      "with": {
+        "task": "Merge the pull request of this branch only when the first line of `.cedarloom/feature/review.md` is `Verdict: agree`, the pull request is no draft, and `gh pr checks --watch` ends with every check passed: then run `gh pr merge` with the merge method the project uses. Otherwise, or when the merge is refused (below the Auto level the owner merges), leave the pull request open and return why. When it is merged already, return that."
+      }
+    },
+    {
+      "id": "open-pr",
+      "type": "agent.run",
+      "with": {
+        "task": "Push the branch the implementation committed on, and open its pull request into the default branch by the project's convention. The body: what changed and why, from `.cedarloom/feature/plan.md`, with the open questions and the answers taken; each check and its result, from `.cedarloom/feature/test.md`; the review's verdict and its open findings, from `.cedarloom/feature/review.md`. Open it as a draft unless the first line of `review.md` is `Verdict: agree`. Return the pull request's number and address."
+      }
+    },
+    {
+      "id": "plan",
+      "type": "agent.run",
+      "with": {
+        "task": "Plan the change the context describes. Change no project file: the plan goes into `.cedarloom/feature/`, a folder git ignores. Create it with a `.gitignore` that holds the single line `*`, and check that `git check-ignore -q .cedarloom/feature/plan.md` succeeds. When `plan.md` there plans another task, delete it, `test.md` and `review.md` first; when it plans this task, keep them and plan the fixes of the failures and findings they list.\nRead `AGENTS.md`, the files it points to and the code the change touches. Write `.cedarloom/feature/plan.md`: first the line `Task:` with the task as given, then the approach, each file to change and why, an acceptance table (per requirement the check that proves it, the wrong implementation it rejects, and where its result is observed), the tests the project's test rules call for, the checks to run, and the open questions, each with your recommendation. Return the open questions with your recommendations, and the plan's path."
+      }
+    },
+    {
+      "id": "review",
+      "type": "agent.run",
+      "with": {
+        "fresh": true,
+        "task": "Review the change on this branch before it is pushed; the context is the task as it was given. Read `.cedarloom/feature/plan.md`, the test report `.cedarloom/feature/test.md`, the branch's diff against the default branch and the code around it. Check that the diff does what the task and the plan say and nothing more, each acceptance row included. Each finding names its file and line and a class: Blocking (wrong behavior, security, data loss, an unmet acceptance row, a failing check), Important (a likely defect, or a missing test the project's test rules call for) or Minor (style, naming). Change no project file. Write `.cedarloom/feature/review.md`: first the line `Verdict: agree` when the test report's first line is `Result: pass` and no Blocking or Important finding is open, else `Verdict: changes needed`, then the findings. Return the same text.",
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Bash",
+          "Write"
+        ]
+      }
+    },
+    {
+      "id": "start",
+      "type": "trigger.manual"
+    },
+    {
+      "id": "test",
+      "type": "agent.run",
+      "with": {
+        "fresh": true,
+        "task": "Try to break the change on this branch. Read `.cedarloom/feature/plan.md` with its acceptance table, and the branch's diff against the default branch. Run the checks the plan and `AGENTS.md` name, the full suite included, where `AGENTS.md` says. Then try what would break the change: the edge cases of each acceptance row, wrong, empty and large input, and the platforms the project supports. Change no project file; scratch files go into `.cedarloom/feature/`. Write `.cedarloom/feature/test.md`: first the line `Result: pass` or `Result: fail`, then each check with its command and result, and each failure with the steps that reproduce it. Return the same text.",
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Bash",
+          "Write"
+        ]
+      }
+    },
+    {
+      "id": "verdict",
+      "type": "human.approval",
+      "with": {
+        "gate": "verdict",
+        "message": "The test report and the review are in .cedarloom/feature/ (test.md, review.md). Go on to push the branch and open its pull request; to fix their findings first, run the implementation stage again."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e01",
+      "from": {
+        "node": "start",
+        "handle": "start"
+      },
+      "to": {
+        "node": "plan",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e02",
+      "from": {
+        "node": "plan",
+        "handle": "done"
+      },
+      "to": {
+        "node": "implementation",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e03",
+      "from": {
+        "node": "implementation",
+        "handle": "approved"
+      },
+      "to": {
+        "node": "implement",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e04",
+      "from": {
+        "node": "implement",
+        "handle": "done"
+      },
+      "to": {
+        "node": "test",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e05",
+      "from": {
+        "node": "test",
+        "handle": "done"
+      },
+      "to": {
+        "node": "review",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e06",
+      "from": {
+        "node": "review",
+        "handle": "done"
+      },
+      "to": {
+        "node": "verdict",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e07",
+      "from": {
+        "node": "verdict",
+        "handle": "approved"
+      },
+      "to": {
+        "node": "open-pr",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e08",
+      "from": {
+        "node": "open-pr",
+        "handle": "done"
+      },
+      "to": {
+        "node": "merge",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e09",
+      "from": {
+        "node": "merge",
+        "handle": "approved"
+      },
+      "to": {
+        "node": "merge-pr",
+        "handle": "run"
+      }
+    },
+    {
+      "id": "e10",
+      "from": {
+        "input": "task"
+      },
+      "to": {
+        "node": "plan",
+        "handle": "context"
+      }
+    },
+    {
+      "id": "e11",
+      "from": {
+        "input": "task"
+      },
+      "to": {
+        "node": "review",
+        "handle": "context"
+      }
+    }
+  ],
+  "execution": {
+    "nodes": {
+      "plan": {
+        "retries": 1
+      },
+      "review": {
+        "retries": 1
+      },
+      "test": {
+        "retries": 1
+      }
+    }
+  },
+  "layout": {
+    "nodes": {
+      "implement": {
+        "x": 600,
+        "y": 0
+      },
+      "implementation": {
+        "x": 400,
+        "y": 0
+      },
+      "merge": {
+        "x": 1600,
+        "y": 0
+      },
+      "merge-pr": {
+        "x": 1800,
+        "y": 0
+      },
+      "open-pr": {
+        "x": 1400,
+        "y": 0
+      },
+      "plan": {
+        "x": 200,
+        "y": 0
+      },
+      "review": {
+        "x": 1000,
+        "y": 0
+      },
+      "start": {
+        "x": 0,
+        "y": 0
+      },
+      "test": {
+        "x": 800,
+        "y": 0
+      },
+      "verdict": {
+        "x": 1200,
+        "y": 0
+      }
+    }
+  }
+}

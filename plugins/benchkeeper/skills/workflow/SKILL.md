@@ -40,7 +40,7 @@ Sets the tier when the user named none, and the check before done. Never run a c
 
 | Change | Tier | Check before done |
 |---|---|---|
-| Docs, typo | quick | docs build, link check |
+| Docs, typo | quick | docs build |
 | Config value | quick, full for production, deploy or security config | tests, schema or lint |
 | Tests only, log line | quick (standard when it logs user data) | |
 | Dependency patch or minor | quick | full suite, package audit |

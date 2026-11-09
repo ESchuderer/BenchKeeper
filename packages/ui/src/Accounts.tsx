@@ -17,7 +17,9 @@ const nameOf = ({ number, alias }: Account): string =>
 const windowOf = ({ window, usedPercent, resetsAt, readAt }: Account["windows"][number]): string => {
   const [span = window, model = "none"] = window.split(":");
   const parts = [t("accounts.window", { span, model, percent: usedPercent })];
-  if (resetsAt !== null) parts.push(t("accounts.resets", { when: when(resetsAt) }));
+  // claude-swap's own text: a date the browser cannot read is left out, not thrown.
+  if (resetsAt !== null && !Number.isNaN(Date.parse(resetsAt)))
+    parts.push(t("accounts.resets", { when: when(resetsAt) }));
   if (readAt === null) parts.push(t("accounts.stale"));
   return parts.join(", ");
 };
@@ -213,6 +215,7 @@ export const Accounts = ({ api }: { api: Api }): ReactNode => {
   const ask = async (change: Change): Promise<void> => {
     setBusy(true);
     setOutcome("");
+    setPending(null);
     const answer = await send(change, false);
     setBusy(false);
     if ("problem" in answer) announce(answer.problem);
@@ -224,7 +227,9 @@ export const Accounts = ({ api }: { api: Api }): ReactNode => {
     setBusy(false);
     setPending(null);
     if ("problem" in answer) announce(answer.problem);
-    else announce("account" in change ? t("accounts.switched", change) : t("accounts.set", change));
+    // claude-swap names the account active after the switch, which is the one it stayed on when it switched nothing.
+    else if ("to" in answer.data) announce(t("accounts.switched", { account: answer.data.to }));
+    else if ("settings" in answer.data && "key" in change) announce(t("accounts.set", change));
     setVersion((value) => value + 1);
   };
   const cancel = (): void => {

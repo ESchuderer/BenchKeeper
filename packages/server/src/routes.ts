@@ -266,8 +266,7 @@ const SettingsBody = z.strictObject({
   allow: approved,
 });
 
-// Accounts belong to claude-swap: these routes run its extension's actions and keep nothing. A change runs only with
-// `allow`, so the page shows claude-swap's command first and sends `allow` only on the user's word.
+// Accounts belong to claude-swap: these routes keep nothing, and a change runs only once the request says `allow`.
 export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: string; app: string | undefined }> = async (
   server,
   { state, config, app },

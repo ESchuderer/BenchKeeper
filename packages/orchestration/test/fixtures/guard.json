@@ -44,6 +44,8 @@
       ["a command name in a variable", "$GIT push origin main", "unreadable"],
       ["xargs adding words to git", "ls | xargs git rm", "unreadable"],
       ["eval of sudo", "eval sudo rm -rf /tmp/x", "unreadable"],
+      ["a Claude Code session, which the guard does not bind", "claude -p 'gh pr merge 5'", "unreadable"],
+      ["a Codex session", "codex exec 'gh pr merge 5'", "unreadable"],
       ["sudo", "sudo rm -rf /tmp/x", "forbidden"],
       ["terraform apply", "terraform apply -auto-approve", "forbidden"],
       ["sudo behind timeout", "timeout 60 sudo rm -rf /tmp/x", "forbidden"],

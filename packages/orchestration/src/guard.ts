@@ -34,11 +34,9 @@ export const TYPED_REMOTE = "cedarloom-typed-url";
  * A policy as one call meets it: the repositories read, and those it may merge pull requests in, none but where the hook
  * found an agent of a workflow script at Auto.
  */
-export type CallPolicy = Omit<GuardPolicy, "repositories" | "merge"> & {
+export type CallPolicy = Omit<GuardPolicy, "repositories" | "merge" | "plugin"> & {
   readonly repositories: readonly string[] | null;
   readonly merge: readonly string[];
-  /** true: what the guard cannot read runs, and issues may be worked on outside the hub; its other rules still hold. */
-  readonly lenient?: boolean;
 };
 
 interface Context {
@@ -66,8 +64,11 @@ const PROTECTED = new RegExp(`^(?:${PROTECTED_NAMES})$`);
 const MENTIONED = new RegExp(`(?:^|\\W)(?:${PROTECTED_NAMES})(?:\\W|$)`);
 const ASSIGNMENT = /^([A-Za-z_]\w*)(?:\[[^\]]*\])?\+?=/;
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"]);
-// Programs that run a command from their words or later, and shells the guard does not read.
-const RUNNERS = new Set("eval trap alias hash emulate compgen complete let watch pwsh powershell".split(" "));
+// Programs that run a command from their words or later, shells the guard does not read, and agent sessions it does
+// not bind.
+const RUNNERS = new Set(
+  "eval trap alias hash emulate compgen complete let watch pwsh powershell claude codex".split(" "),
+);
 // A subscript holding a command, which bash runs as arithmetic in let, read, printf -v, declare -i and [[ ]].
 const CODE_SUBSCRIPT = /\[[^[\]]*(?:\$\(|`)/;
 // zsh's precommand modifiers.
@@ -119,25 +120,17 @@ const programOf = (word: string): string => {
     .replace(/\.exe$/, "");
 };
 
-/** Text that may hide a merge or an approval, which no caller runs unread. */
-export const MAY_MERGE = /merge|approv|review/i;
-
 /** Whether the guard refuses the shell command `text`, run in the folder `folder`, and why; null to let it run. */
 export const guardCommand = (text: string, folder: string, policy: CallPolicy, remotes: Remotes): Denial | null => {
   const script = readShell(text);
-  // A lenient caller runs what the guard cannot read, unless the text may hide a merge or an approval.
-  const lenient = policy.lenient === true && !MAY_MERGE.test(text);
-  if (script.skipped && !lenient) {
-    return unreadable("the command holds a form the guard does not read, such as a subshell");
-  }
-  const all = script.commands.flatMap((command) => command.words);
-  if (!lenient && all.some((word) => CODE_SUBSCRIPT.test(word.text ?? word.start))) {
+  if (script.skipped) return unreadable("the command holds a form the guard does not read, such as a subshell");
+  if (script.commands.some(({ words }) => words.some((word) => CODE_SUBSCRIPT.test(word.text ?? word.start)))) {
     return unreadable("a subscript holds a command, which bash may run");
   }
   const context = { policy, remotes, folders: foldersOf(script, [folder]) };
   for (const command of script.commands) {
     const denial = checkCommand(command, context);
-    if (denial !== null && !(lenient && denial.rule === "unreadable")) return denial;
+    if (denial !== null) return denial;
   }
   return null;
 };
@@ -941,8 +934,7 @@ const checkRepos = (repos: readonly (string | null)[] | null, context: Context, 
 
 // Issues are worked on in the hub only (A3): a call on issues of any other repository, or of one the guard cannot tell.
 const checkHub = (repos: readonly (string | null)[] | null, context: Context, what: string): Denial | null => {
-  const { hub, lenient } = context.policy;
-  if (lenient === true) return null;
+  const { hub } = context.policy;
   const elsewhere = repos === null || hub === null || repos.some((repo) => !sameRepo(repo, hub));
   return elsewhere ? deny("issue-outside-hub", `${what} works on issues outside the hub`) : null;
 };

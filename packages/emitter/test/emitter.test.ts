@@ -283,22 +283,23 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-test("the package's guard lets an agent of a workflow script merge at Auto only, never the session itself", () => {
+test("the package's guard lets an agent of a workflow script merge at Auto only, never the package's own step subagent", () => {
   const project = mkdtempSync(join(tmpdir(), "guarded-"));
   try {
     execFileSync("git", ["init", "-q", project]);
     execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
-    const merge = (agent?: string) =>
+    const merge = (agent: string) =>
       JSON.stringify({
         tool_name: "Bash",
         tool_input: { command: "gh pr merge 12 --squash" },
         cwd: project,
-        ...(agent === undefined ? {} : { agent_type: agent, agent_id: "a1" }),
+        agent_type: agent,
+        agent_id: "a1",
       });
     const verdicts = (["supervised", "checkpoint", "auto"] as const).map((level) => {
       const hooks = JSON.parse(fileOf(built(read("valid-build-and-review.json"), level), "hooks/claude-code.json"));
       const [, policy = ""]: string[] = hooks.hooks.PreToolUse[0].hooks[0].args;
-      return [merge("workflow-subagent"), merge()].map(
+      return [merge("workflow-subagent"), merge("build-and-review:review")].map(
         (input) => spawnSync(process.execPath, [GUARD, policy], { input, encoding: "utf8" }).status,
       );
     });

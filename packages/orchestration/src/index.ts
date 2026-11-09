@@ -11,4 +11,4 @@ export {
 } from "./managed.ts";
 export { missing, programPath, runnable } from "./program.ts";
 export { type Denial, guardCommand, type Remotes, type Rule, TYPED_REMOTE } from "./guard.ts";
-export { guardHookOf, originRepos, workerPolicy } from "./session-guard.ts";
+export { originRepos } from "./session-guard.ts";

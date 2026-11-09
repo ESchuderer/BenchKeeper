@@ -71,7 +71,7 @@ const workflowFile = (
 /**
  * What the package's hooks run: the guard's and the exit hook's built files (`hooks/guard.mjs`, `hooks/exits.mjs` of
  * the CLI package), the Node.js that runs them, and this machine's hub and memory repositories, which the guard lets a
- * session reach besides the working folder's origin (one it cannot hold counts as none).
+ * workflow's agent reach besides the working folder's origin (one it cannot hold counts as none).
  */
 export type Hooks = {
   readonly guard: string;
@@ -96,13 +96,14 @@ const hookOf = (node: string, file: string, ...args: string[]): Record<string, u
  * owner 2026-11-08), and the exit hook, which keeps each step script's status and refuses a report that differs. A crash
  * or timeout of the guard or of `verify` refuses (`onFailure`, Claude Code 2.1.295 or later); Codex reads no such file.
  */
-const hooksFile = (level: AutomationLevel, { node, hub, memory }: Hooks): PackageFile => {
+const hooksFile = (plugin: string, level: AutomationLevel, { node, hub, memory }: Hooks): PackageFile => {
   const policy: GuardPolicy = {
     schemaVersion: GUARD_SCHEMA_VERSION,
     repositories: "origin",
     hub: heldRepo(hub),
     memory: heldRepo(memory),
     merge: level === "auto" ? "workflow" : "refuse",
+    plugin,
   };
   const record = [{ matcher: "Bash", hooks: [hookOf(node, "exits.mjs", "record")] }];
   const hooks = {
@@ -129,7 +130,7 @@ export const claudeFiles = (
   const manifest = manifestOf(workflow, { plugin, level, folder: "./claude/", hooks: `./${HOOKS}` });
   return [
     { path: ".claude-plugin/plugin.json", content: manifest },
-    hooksFile(level, hooks),
+    hooksFile(plugin, level, hooks),
     { path: "hooks/guard.mjs", content: hooks.guard },
     { path: "hooks/exits.mjs", content: hooks.exits },
     ...stages.flatMap((stage) => [

@@ -83,6 +83,7 @@ A scheduled run starts a session only when there is work, so a tick with nothing
 ## Rules
 
 - Workers decide the safest reversible option and write it in the PR; they never wait for a coordinator answer. The coordinator does not answer questions workers hold back.
+- The coordinator asks the owner in the session only while terminal questions are allowed; otherwise an owner decision goes into an issue, that work waits, and the loop keeps watching, verifying and starting work.
 - Two gates belong to the owner: approving the design of full-tier work and merging outside `merge.allowed`. A gate never continues after a timeout: the issue stays blocked and is listed in the report.
 - Nothing is typed into a worker's terminal except through the runner's message commands, and a trust or permission dialog in a worker's terminal is never answered: that worker is blocked for the owner.
 - Report each step with what was skipped or not checked.

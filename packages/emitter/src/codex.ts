@@ -122,7 +122,7 @@ const stageSkill = (workflow: WorkflowDefinition, stage: Stage, script: StageScr
     stage.from === null
       ? ""
       : ` Starting this stage is the answer at gate \`${stage.from.node}\`: it was ${stage.from.handle}.`;
-  const body = `${precheck}Run the stage \`${stage.name}\` of the workflow \`${titleOf(workflow)}\`.${answer} Do the steps below, in this order, each only once the steps it names ended as it says; skip it otherwise. \`<root>\` is this plugin's folder, two levels above the folder of this skill; run every command from the project folder. ${inputs}\n\n${steps.join("\n")}\n\n${report}\n`;
+  const body = `${precheck}Run the stage \`${stage.name}\` of the workflow \`${titleOf(workflow)}\`.${answer} Do the steps below, in this order, each only once the steps it names ended as it says; skip it otherwise. Once the steps start, ask the user nothing: a step that needs an answer takes the safest reversible option, or fails when none is safe, and the report names the question. \`<root>\` is this plugin's folder, two levels above the folder of this skill; run every command from the project folder. ${inputs}\n\n${steps.join("\n")}\n\n${report}\n`;
   const description = describe(
     `Runs the stage ${stage.name} of the workflow ${titleOf(workflow)} in Codex, up to its next gate.`,
   );

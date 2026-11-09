@@ -90,6 +90,14 @@ test('the push and pull request ask rules of the settings catalog are not offere
   assert.deepEqual(m.plan().filter((c) => c.step.startsWith('ask:claude')).map((c) => c.step), ['ask:claude:Bash(mine *)']);
 });
 
+test('global rules of an earlier release: the rules change names where their moved sections went', () => {
+  const m = machine();
+  writeFileSync(join(m.home, '.claude/rules/00-global.md'), readFileSync(new URL('./fixtures/global-rules-6.26.0.md', import.meta.url)));
+  const title = (step) => m.plan().find((c) => c.step === step).title;
+  assert.match(title('rules:claude'), /benchkeeper projects update/);
+  assert.doesNotMatch(title('rules:codex'), /projects update/, 'a file without those sections');
+});
+
 test('a failed install does not stop the other steps', () => {
   const m = machine({ failCodexInstall: true });
   const run = apply(m.plan(), m.ctx, { select: all(m.plan()) });

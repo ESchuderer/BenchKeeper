@@ -46,12 +46,16 @@ const withoutEmails = (text: string): string =>
     .map((word) => (word.includes("@") ? "<email>" : word))
     .join(" ");
 
-/** claude-swap's JSON answer to a command: one object of schemaVersion 1; its error envelope or another version throws. */
-const cswap = async ({ exec }: Exec, args: string[], timeoutMs = FETCH_MS): Promise<unknown> => {
-  const command = `cswap ${args.join(" ")}`;
-  const ran = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs }).catch((error: unknown) => {
+// cswap run through the host, whose missing program becomes the install hint.
+const runCswap = ({ exec }: Exec, args: string[], timeoutMs: number) =>
+  exec({ program: "cswap", args, timeoutMs }).catch((error: unknown) => {
     throw at(error, "code") === HOST_MISSING ? new Error(MISSING) : error;
   });
+
+/** claude-swap's JSON answer to a command: one object of schemaVersion 1; its error envelope or another version throws. */
+const cswap = async (context: Exec, args: string[], timeoutMs = FETCH_MS): Promise<unknown> => {
+  const command = `cswap ${args.join(" ")}`;
+  const ran = await runCswap(context, [...args, "--json"], timeoutMs);
   const answer = jsonAnswer(command, ran);
   const message = at(answer, "error", "message");
   if (typeof message === "string") throw new Error(`${command}: ${withoutEmails(message)}`);
@@ -198,7 +202,7 @@ export const settings = async ({
       };
     }
     // After --, a value that starts with - stays a value.
-    const ran = await exec({ program: "cswap", args: ["config", "set", "--", key, value], timeoutMs: MS });
+    const ran = await runCswap({ exec }, ["config", "set", "--", key, value], MS);
     const why = withoutEmails(ran.stderr.trim().split("\n")[0] ?? "").slice(0, 300);
     if (ran.code !== 0) throw new Error(`cswap config set ${key} exited with ${ran.code}: ${why}`);
   }

@@ -3,12 +3,13 @@ import { contracts } from "./registry.ts";
 
 /**
  * One agent session as its own log records it, for the sessions board. `project`: the repository its folder belongs to
- * (the main worktree's folder), else the folder; `title` is the agent's own text, never markup. `busyMs` (API and tool
- * time) and `costUSD` are null when the log has none.
+ * (the main worktree's folder), else the folder; `title` is the agent's own text, never markup. `busyMs` (Claude Code's
+ * API and tool time, Codex's turn time) and `costUSD` are null when the log has none; `costEstimated`: priced from the
+ * dated list-price table, which has no rate for the `unpriced` models.
  */
 export const AgentSession = z
   .strictObject({
-    agent: z.enum(["claude-code"]),
+    agent: z.enum(["claude-code", "codex"]),
     id: z.string(),
     project: z.string().nullable(),
     title: z.string().nullable(),
@@ -17,6 +18,8 @@ export const AgentSession = z
     busyMs: z.number().min(0).nullable(),
     tokens: z.int().min(0),
     costUSD: z.number().min(0).nullable(),
+    costEstimated: z.boolean(),
+    unpriced: z.array(z.string()),
     tests: z.enum(["pass", "fail"]).nullable(),
   })
   .register(contracts, { id: "AgentSession" });

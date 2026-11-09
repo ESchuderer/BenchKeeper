@@ -5539,7 +5539,8 @@
           "agent": {
             "type": "string",
             "enum": [
-              "claude-code"
+              "claude-code",
+              "codex"
             ]
           },
           "id": {
@@ -5594,6 +5595,15 @@
               }
             ]
           },
+          "costEstimated": {
+            "type": "boolean"
+          },
+          "unpriced": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "tests": {
             "anyOf": [
               {
@@ -5619,6 +5629,8 @@
           "busyMs",
           "tokens",
           "costUSD",
+          "costEstimated",
+          "unpriced",
           "tests"
         ],
         "additionalProperties": false
@@ -11122,7 +11134,8 @@
           "agent": {
             "type": "string",
             "enum": [
-              "claude-code"
+              "claude-code",
+              "codex"
             ]
           },
           "id": {
@@ -11177,6 +11190,15 @@
               }
             ]
           },
+          "costEstimated": {
+            "type": "boolean"
+          },
+          "unpriced": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "tests": {
             "anyOf": [
               {
@@ -11202,6 +11224,8 @@
           "busyMs",
           "tokens",
           "costUSD",
+          "costEstimated",
+          "unpriced",
           "tests"
         ],
         "additionalProperties": false

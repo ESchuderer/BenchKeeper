@@ -36,7 +36,7 @@ const machine = () => {
     writeFileSync(file, lines === undefined ? moved : `${moved.split("\n").slice(0, lines).join("\n")}\n`);
     return file;
   };
-  return { repository, worktree, put, logs: { claude: home, cache: join(at, "cache.json") } };
+  return { repository, worktree, put, logs: { claude: home, codex: join(at, "codex"), cache: join(at, "cache.json") } };
 };
 
 const shop = {
@@ -48,6 +48,8 @@ const shop = {
   busyMs: 4075,
   tokens: 41248,
   costUSD: 0.0401998,
+  costEstimated: false,
+  unpriced: [],
   // Its one run, `npm test 2>&1 | tail -30`, exits with tail's code: its summary counts.
   tests: "pass",
 } as const satisfies Omit<AgentSession, "project">;
@@ -123,4 +125,51 @@ test.each([
 ])("a piped run's result is its summary line, whatever the pipe's exit code: %s", async (summary, tests) => {
   const output = JSON.stringify(`\n\n${summary}`).slice(1, -1);
   expect(await testsAfter(SHOP, "-work-shop", String.raw`\n\n2 passed`, output)).toBe(tests);
+});
+
+// Built from the rollout format of openai/codex at 8703d32b: no Codex rollout was recorded yet.
+test("Codex sessions: a subagent's tokens and cost on its root row at list prices, another provider's unpriced, the last test run", async () => {
+  const codex = { agent: "codex", project: "/work/shop", title: null } as const;
+  expect(await readSessions({ claude: join(root, "none"), codex: join(fixtures, "codex"), cache: null })).toEqual([
+    {
+      ...codex,
+      id: "019a3c11-7a4f-7d55-b032-1e8f5c2d9e03",
+      start: "2026-11-02T14:00:00.000Z",
+      end: "2026-11-02T14:00:31.000Z",
+      busyMs: 30000,
+      tokens: 4000,
+      costUSD: null,
+      costEstimated: false,
+      unpriced: ["gpt-oss:20b"],
+      tests: null,
+    },
+    {
+      // A fork of the root: only what it added counts, not the history and totals it copied (with a failed test run).
+      ...codex,
+      id: "019a3d02-4e6f-7a18-b2c3-5d4e6f708a04",
+      start: "2026-11-02T10:00:00.000Z",
+      end: "2026-11-02T10:00:07.000Z",
+      busyMs: 2000,
+      tokens: 1100,
+      costUSD: expect.closeTo(0.0062, 9),
+      costEstimated: true,
+      unpriced: [],
+      tests: null,
+    },
+    {
+      ...codex,
+      id: "019a3b7e-5c1d-7e42-9a10-3f2c8d4e6a01",
+      start: "2026-11-02T09:00:00.000Z",
+      end: "2026-11-02T09:01:30.000Z",
+      // Its own 90 s of turns and its subagent's 5 s; the subagent names its parent in `source` only.
+      busyMs: 95000,
+      tokens: 293800,
+      // gpt-5.5 at 0.038 (short context) and 1.099 (long), its gpt-5.4-mini subagent at 0.002175.
+      costUSD: expect.closeTo(1.139175, 9),
+      costEstimated: true,
+      unpriced: [],
+      // A piped run counts by its summary line, not its exit code; a quoted `npm test` and a declined one are no runs.
+      tests: "pass",
+    },
+  ]);
 });

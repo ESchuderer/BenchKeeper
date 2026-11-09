@@ -18,7 +18,7 @@ const bundlesIn = (folder: string): { guard: string; exits: string } | null => {
 
 // Codex loads the same folder from its own copy (`codex plugin add`), which CedarLoom shows and never writes.
 const codexAdd = (plugin: string, marketplace: string): string =>
-  `\n  Codex: codex plugin marketplace add ${folderArgument(marketplace)} (once), then codex plugin add ${plugin}@${WORKFLOW_MARKETPLACE}; Codex runs its own copy, so add it again after every install, a rebuild at another level too.`;
+  `\n  Codex: codex plugin marketplace add ${folderArgument(marketplace)} (once), then codex plugin add ${plugin}@${WORKFLOW_MARKETPLACE}; Codex runs its own copy, so add it again after every install, a rebuild at another level too; cedarloom doctor reports a copy that differs.`;
 
 // In every plan, approved or not: the approval's finding, which says the hooks run in every session, goes with --allow.
 const hooksNote = (node: string): string =>

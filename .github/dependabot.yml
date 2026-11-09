@@ -5,7 +5,8 @@
 # days old (cooldown): a release withdrawn within that time never reaches a version-update pull request. Security updates
 # are not delayed (the cooldown applies to version updates only), so they can name a newer release. The CedarLoom packages (pnpm workspace at
 # the root) pin typos and Node 26 in .github/workflows/cedarloom.yml, bumped by hand; this file updates their pnpm in .github/pnpm
-# and the Schemathesis of their api job in .github/schemathesis (pip-compile with hashes).
+# and the Schemathesis of their api job in .github/schemathesis (pip-compile with hashes), and the Codex CLI of their test job
+# in .github/codex.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -46,6 +47,12 @@ updates:
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /.github/pnpm
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+  - package-ecosystem: npm
+    directory: /.github/codex
     schedule:
       interval: weekly
     cooldown:

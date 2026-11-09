@@ -1308,6 +1308,22 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.codex-missing";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-outdated";
+            params: {
+                plugin: string;
+                id: string | null;
+                /** @enum {string} */
+                copy: "stale" | "left";
+            };
+        } | {
+            /** @constant */
             code: "package.node-missing";
             params: {
                 plugin: string;
@@ -2437,6 +2453,22 @@ export interface components {
                 other: string;
                 /** @enum {string} */
                 otherLevel: "supervised" | "checkpoint" | "auto";
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-missing";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-outdated";
+            params: {
+                plugin: string;
+                id: string | null;
+                /** @enum {string} */
+                copy: "stale" | "left";
             };
         } | {
             /** @constant */

@@ -31,6 +31,7 @@ export {
 } from "./extensions.ts";
 export { automationSettings, type LevelChange, planLevel } from "./automation.ts";
 export {
+  codexHome,
   type Folders,
   type InstallOptions,
   type PackagePlan,

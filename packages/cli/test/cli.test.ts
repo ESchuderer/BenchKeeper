@@ -38,6 +38,7 @@ const setup = (
         CEDARLOOM_STATE_DIR: state,
         CEDARLOOM_CONFIG_DIR: join(root, "config"),
         CLAUDE_CONFIG_DIR: join(root, "claude"),
+        CODEX_HOME: join(root, "codex"),
       },
       untilStopped: () => new Promise<void>(() => undefined),
       // The app's own extensions and the hooks' bundles: none unless a test puts them there.

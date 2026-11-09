@@ -2114,6 +2114,77 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "package.codex-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "package.codex-outdated"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "copy": {
+                    "type": "string",
+                    "enum": [
+                      "stale",
+                      "left"
+                    ]
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "id",
+                  "copy"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "package.node-missing"
               },
               "params": {
@@ -7416,6 +7487,77 @@
                   "level",
                   "other",
                   "otherLevel"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "package.codex-missing"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "package.codex-outdated"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "copy": {
+                    "type": "string",
+                    "enum": [
+                      "stale",
+                      "left"
+                    ]
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "id",
+                  "copy"
                 ],
                 "additionalProperties": false
               }

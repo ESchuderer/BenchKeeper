@@ -25,9 +25,8 @@ Builds a CedarLoom workflow, at the automation level chosen at install, into one
 - **The level** is `--level`, else the default level (`cedarloom level`). Installing again at another level rebuilds the package; a project's own level does not reach it, as one package serves every project.
 - **Every session:** outside a workflow's agents the guard refuses merges and approvals and holds its other rules, but not its repository limit or its refusal of what it cannot read, such as a subshell `( … )` ([the hooks](#the-hooks)).
 - **For merges, the strictest installed level holds:** each package's guard runs in every session, so a merge passes only while every installed package is at Auto. The install warns (`package.levels-mixed`) when another package is on the other side of Auto.
-- **Windows:** the precheck and step rules name the package folder with forward slashes (`C:/Users/...`), as Claude Code fills a skill's `${CLAUDE_PLUGIN_ROOT}` ([plugins reference](https://code.claude.com/docs/en/plugins-reference), "Quoting and path separators"); the Read rule takes the POSIX form (`//c/Users/...`). Unverified on a Windows machine.
 - **Node.js** for the hooks: the PATH's `node` where it links to the running one, which stays put over an upgrade, else the running one. The plan names it. Should that file go, as a versioned one does when its version is removed, the hooks cannot start, which `onFailure: "block"` makes refuse every call they guard ([hooks reference](https://code.claude.com/docs/en/hooks), "Block the action when a hook fails") until the next install; `cedarloom doctor` reports it.
-- **Codex** loads the same folder from its own copy: `codex plugin marketplace add <folder>` once, then `codex plugin add <plugin>@cedarloom-workflows` after every install.
+- **Codex** loads the same folder from its own copy: `codex plugin marketplace add <folder>` once, then `codex plugin add <plugin>@cedarloom-workflows` after every install. `cedarloom doctor` reports a package Codex has no copy of, a copy that differs from the installed package, and one CedarLoom no longer installs ([below](#running-in-codex)).
 
 `cedarloom workflows uninstall <id>` removes the package, its settings entries and its data folder (what its hooks kept).
 
@@ -39,6 +38,30 @@ Claude Code runs the package under two hooks from `@cedarloom/orchestration`, bu
 - **The exit hook:** a command step's script prints only the last 6,000 bytes of its output, printed when the command ends, so that a hook reads it whole: Claude Code 2.1.316 handed a hook a successful call's output whole only up to 30,000 characters, and cut a failed call's middle to about 10,000 (observed in trials; the hooks reference gives no limit). The script ends with the line `cedarloom-exit <status>`. The hook keeps the last such line of each agent's run of a step script (a run without the line clears the status only in the runner's own form, `sh`, `bash` or `.` before the path, with options or without, so a `cat` of the script keeps it), whatever the agent added to the command, and refuses a reported exit code that differs, or a report other than -1 when no run was seen. A run in the background or cut by Bash's timeout leaves no line, so only -1 passes.
 
 Both stop an agent's mistakes, not a hostile agent: the guard does not read a script file (a command step's script included), so a merge that a command step runs passes at every level, after the gates the level keeps; and an agent that prints the marker line itself can fake a status.
+
+## Running in Codex
+
+Codex 0.166.0 runs a package from its copy in `<CODEX_HOME>/plugins/cache/cedarloom-workflows/<plugin>/<version>/` (`CODEX_HOME` defaults to `~/.codex`):
+
+- It loads the skills of both folders the manifest lists, `steps/` and `codex/`, and each skill's `agents/openai.yaml` keeps it off the model's list, so only the user starts one. CI's test job checks both with the pinned Codex (`.github/codex`): an installed package lists none of its skills, and lists a step's and a stage's once their policy files are gone from the copy.
+- `codex plugin add` again replaces the copy, a rebuild at the same version too, and `codex plugin remove` deletes it. The doctor compares each package with its copy, file by file.
+
+A stage runs in Codex, signed in (`codex login`), with this command from the project folder. It is the owner's check, not yet run, as no Codex account was signed in on the machine that built this:
+
+```sh
+codex exec --sandbox workspace-write '$<plugin>:start'
+```
+
+The stage runs the precheck and its steps in order and ends with a report that names the next stage's skill (`$<plugin>:<gate>-approved`), which runs the same way.
+
+## Windows
+
+Not run on a Windows machine; CI's Windows job runs the tests, the rule forms below with its real drive path included.
+
+- **Git for Windows is needed:** with it, Claude Code runs the Bash tool in Git Bash; without it, only the PowerShell tool, which the guard refuses to a workflow's agents, so no step runs ([setup](https://code.claude.com/docs/en/setup)). WSL works as Linux does.
+- **Rules:** the precheck and step rules name the package folder with forward slashes (`C:/Users/...`), as Claude Code fills a skill's `${CLAUDE_PLUGIN_ROOT}` ([plugins reference](https://code.claude.com/docs/en/plugins-reference), "Quoting and path separators"); the Read rule takes the POSIX form (`//c/Users/...`).
+- **Hooks** run as `node.exe` by its absolute path, in exec form, so no shell takes part; a step's script runs with Git Bash's `sh`.
+- **Codex:** a step skill runs `sh '<root>/steps/<step>/scripts/run.sh'`, which needs an `sh` on the PATH Codex runs commands with; Git for Windows' default install puts only `git` there (unverified).
 
 ## Where Codex loses a guarantee
 

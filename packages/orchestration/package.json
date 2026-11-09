@@ -7,7 +7,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./guard-hook": "./src/guard-hook.ts"
+    "./guard-hook": "./src/guard-hook.ts",
+    "./exit-hook": "./src/exit-hook.ts"
   },
   "publishConfig": {
     "exports": {
@@ -18,6 +19,10 @@
       "./guard-hook": {
         "types": "./dist/guard-hook.d.ts",
         "default": "./dist/guard-hook.js"
+      },
+      "./exit-hook": {
+        "types": "./dist/exit-hook.d.ts",
+        "default": "./dist/exit-hook.js"
       }
     }
   },
@@ -29,12 +34,14 @@
   },
   "scripts": {
     "typecheck": "tsc -b test",
-    "test": "vitest run --config ../../vitest.config.ts"
+    "test": "vitest run --config ../../vitest.config.ts",
+    "build": "node scripts/build-hooks.ts"
   },
   "dependencies": {
     "@cedarloom/contracts": "workspace:*"
   },
   "devDependencies": {
+    "rolldown": "1.2.16",
     "zod": "catalog:"
   }
 }

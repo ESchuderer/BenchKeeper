@@ -1,4 +1,5 @@
 import type { AgentSession, SessionFigures, SessionsBoard } from "@cedarloom/contracts";
+import { dayIn, zoneOf } from "@cedarloom/contracts/http";
 import { PRICES } from "./prices.ts";
 
 const DAY = 86_400_000;
@@ -6,12 +7,6 @@ const sum = (values: number[]): number => values.reduce((total, value) => total 
 // Calendar days as `YYYY-MM-DD`, stepped in UTC, where no day is shorter or longer than another.
 const plusDays = (day: string, count: number): string =>
   new Date(Date.parse(day) + count * DAY).toISOString().slice(0, 10);
-
-/** The calendar day an instant falls on in a time zone (an IANA name such as `Europe/Berlin`); Canada writes YYYY-MM-DD. */
-const dayIn = (zone: string): ((iso: string) => string) => {
-  const format = new Intl.DateTimeFormat("en-CA", { timeZone: zone });
-  return (iso) => format.format(Date.parse(iso));
-};
 
 /** The figures of a period: `days` are its sessions' days, `span` the period's days, oldest first. */
 const figuresOf = (sessions: readonly AgentSession[], days: string[], span: readonly string[]): SessionFigures => {
@@ -42,7 +37,7 @@ const figuresOf = (sessions: readonly AgentSession[], days: string[], span: read
 export interface BoardQuery {
   readonly days: number | null;
   readonly project: string | null;
-  readonly zone: string;
+  readonly zone: string | undefined;
 }
 
 // All time is at most the longest period, so one log with a reset clock does not make a span of decades.
@@ -51,9 +46,11 @@ const LONGEST = 3650;
 /** The board of a period and a project, from every session of the machine, newest first; `now` decides today. */
 export const boardOf = (
   all: readonly AgentSession[],
-  { days, project, zone }: BoardQuery,
+  { days, project, ...query }: BoardQuery,
   now: Date,
 ): SessionsBoard => {
+  // An unknown zone (TZ set but empty gives Etc/Unknown) counts in UTC, and the board says so.
+  const zone = zoneOf(query.zone);
   const dayOf = dayIn(zone);
   const today = dayOf(now.toISOString());
   const own = project === null ? all : all.filter((s) => s.project === project);
@@ -71,7 +68,8 @@ export const boardOf = (
   const projects = [...counts]
     .toSorted(([a, x], [b, y]) => y.length - x.length || a.localeCompare(b))
     .map(([name]) => name);
-  const first = all.at(-1);
+  // Only Claude Code deletes its logs by age (cleanupPeriodDays); Codex keeps a rollout until its thread is deleted.
+  const first = all.findLast((s) => s.agent === "claude-code");
   return {
     days,
     project,

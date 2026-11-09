@@ -302,14 +302,6 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
   );
 };
 
-const isZone = (zone: string): boolean => {
-  try {
-    return new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone !== "";
-  } catch {
-    return false;
-  }
-};
-
 // Reads the session logs (a first read of a large history takes seconds), never writes but the cache.
 export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
   const query = z.strictObject({
@@ -327,9 +319,8 @@ export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async
     { schema: { querystring: query, response: answers({ 200: SessionsBoard }) } },
     async (req, _reply) => {
       const { days, project, tz } = req.query;
-      // The answer names the zone it counted in.
-      const zone = tz !== undefined && isZone(tz) ? tz : "UTC";
-      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone });
+      // An unknown zone counts in UTC, and the answer names the zone it counted in.
+      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone: tz });
     },
   );
 };

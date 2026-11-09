@@ -26,7 +26,7 @@ const figures = ({ span, project, zone, first, prices, figures: f }: Board): str
   `agent time ${time(f.busyMs)}, tokens ${compact.format(f.tokens)}, cost ${usd(f.costUSD)} (estimates: Claude Code's own, Codex at OpenAI's list prices of ${prices.date}; ${f.uncosted} without a cost)`,
   `days worked ${f.daysWorked} of ${f.days}, longest run ${plural(f.streak, "day")}; tests passed ${share(f.testsPassed)} of ${plural(f.tested, "session")} with a test run`,
   ...(first !== null && (span[0] ?? first) < first
-    ? [`data from ${first}: the agent tools delete older session logs`]
+    ? [`Claude Code data from ${first}: it deletes older transcripts`]
     : []),
 ];
 
@@ -51,10 +51,11 @@ export const board = async (
   // A folder names its repository's project, as the sessions count it: `--project .` in a worktree too.
   const project = options.project === undefined ? null : useCases.projectOf(resolve(options.project));
   // The days of this machine's own time zone, as its clock shows the sessions' times.
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const zone: string | undefined = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const value = await useCases.sessionsBoard(logsOf(ctx), { days, project, zone });
   // Swedish dates and times read as ISO: 2026-11-09 08:44.
-  const at = new Intl.DateTimeFormat("sv-SE", { timeZone: zone, dateStyle: "short", timeStyle: "short" });
+  // The board's zone: an unknown one (TZ set but empty gives Etc/Unknown) counted in UTC.
+  const at = new Intl.DateTimeFormat("sv-SE", { timeZone: value.zone, dateStyle: "short", timeStyle: "short" });
   const lines = [...figures(value), ...value.sessions.map((s) => line(s, at))];
   emit(ctx, "board", { board: value }, lines.join("\n"));
   return EXIT.ok;

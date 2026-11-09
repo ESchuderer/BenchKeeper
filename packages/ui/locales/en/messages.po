@@ -905,8 +905,8 @@ msgstr "Top line: {value} a day"
 
 #. js-lingui-explicit-id
 msgid "sessions.dataFrom"
-msgstr "Data from {first}: the agent tools delete older session logs, so earlier days show no work."
+msgstr "Claude Code's transcripts start on {first}: it deletes older ones, so earlier days show less work than there was."
 
 #. js-lingui-explicit-id
 msgid "sessions.noData"
-msgstr "no data, before the oldest session log"
+msgstr "before the oldest Claude Code transcript"

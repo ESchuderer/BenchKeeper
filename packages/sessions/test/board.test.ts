@@ -28,6 +28,8 @@ const all = [
   row("2026-10-19T08:00:00.000Z", "/work/lab"),
   row("2026-10-18T08:00:00.000Z", "/work/lab"),
   row("2026-10-01T08:00:00.000Z", null),
+  // Codex keeps a rollout until its thread is deleted: an older one says nothing of Claude Code's window.
+  row("2026-09-01T08:00:00.000Z", null, { agent: "codex" }),
 ];
 const now = new Date("2026-11-05T12:00:00.000Z");
 
@@ -55,7 +57,7 @@ test("one project over all time, from its first session's day", () => {
   const board = boardOf(all, { days: null, project: "/work/lab", zone: "UTC" }, now);
   expect(board.span[0]).toBe("2026-10-18");
   expect(board.span).toHaveLength(19);
-  // The logs go back further than the project's sessions: the first day of any session on the machine.
+  // The first day Claude Code's transcripts cover, before the project's first session and after Codex's.
   expect(board.first).toBe("2026-10-01");
   expect(board.figures).toMatchObject({ sessions: 4, daysWorked: 4, streak: 3, costUSD: 3, tested: 1, testsPassed: 0 });
 });
@@ -71,4 +73,9 @@ test("days are the time zone's: an evening in Los Angeles counts on that day, no
   expect(board.span).toEqual(["2026-11-03", "2026-11-04"]);
   expect(board.first).toBe("2026-11-04");
   expect(board.figures).toMatchObject({ sessions: 1, daysWorked: 1 });
+});
+
+test("a time zone this runtime does not know counts in UTC, as TZ set but empty gives Etc/Unknown", () => {
+  const board = boardOf(all, { days: 1, project: null, zone: "Etc/Unknown" }, now);
+  expect([board.zone, board.span]).toEqual(["UTC", ["2026-11-05"]]);
 });

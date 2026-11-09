@@ -1,8 +1,9 @@
 import type { Api, components } from "@cedarloom/client";
 import { Alert, Group, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useState } from "react";
+import { dayIn, zoneOf } from "@cedarloom/contracts/http";
 import { call } from "./call.ts";
-import { t, when } from "./i18n.ts";
+import { t } from "./i18n.ts";
 
 type Board = components["schemas"]["SessionsBoard"];
 type Row = Board["sessions"][number];
@@ -54,34 +55,23 @@ const Figures = ({ board }: { board: Board }) => {
   const { figures: f, prices, first } = board;
   const since =
     before(board) && first !== null ? t("sessions.dataFrom", { first: date.format(Date.parse(first)) }) : "";
+  const passed = f.testsPassed === null ? t("sessions.none") : `${Math.round(f.testsPassed * 100)}%`;
+  const streak = [t("sessions.streak", { streak: f.streak }), since].filter(Boolean).join(". ");
+  const items: [string, string, string | null][] = [
+    [t("sessions.count"), String(f.sessions), null],
+    [t("sessions.time"), time(f.busyMs), t("sessions.timeNote")],
+    [t("sessions.cost"), usd(f.costUSD), t("sessions.costNote", { date: prices.date, uncosted: f.uncosted })],
+    [t("sessions.tokens"), compact.format(f.tokens), t("sessions.tokensNote")],
+    [t("sessions.daysWorked"), t("sessions.daysOf", { worked: f.daysWorked, days: f.days }), streak],
+    [t("sessions.testsPassed"), passed, t("sessions.tested", { tested: f.tested })],
+  ];
   return (
     <SimpleGrid cols={{ base: 2, sm: 3 }}>
-      <Figure label={t("sessions.count")} value={String(f.sessions)} note={null} />
-      <Figure label={t("sessions.time")} value={time(f.busyMs)} note={t("sessions.timeNote")} />
-      <Figure
-        label={t("sessions.cost")}
-        value={usd(f.costUSD)}
-        note={t("sessions.costNote", { date: prices.date, uncosted: f.uncosted })}
-      />
-      <Figure label={t("sessions.tokens")} value={compact.format(f.tokens)} note={t("sessions.tokensNote")} />
-      <Figure
-        label={t("sessions.daysWorked")}
-        value={t("sessions.daysOf", { worked: f.daysWorked, days: f.days })}
-        note={[t("sessions.streak", { streak: f.streak }), since].filter(Boolean).join(". ")}
-      />
-      <Figure
-        label={t("sessions.testsPassed")}
-        value={f.testsPassed === null ? t("sessions.none") : `${Math.round(f.testsPassed * 100)}%`}
-        note={t("sessions.tested", { tested: f.tested })}
-      />
+      {items.map(([label, value, note]) => (
+        <Figure key={label} label={label} value={value} note={note} />
+      ))}
     </SimpleGrid>
   );
-};
-
-// The calendar day a session started on in the board's time zone, as the server counts it; Canada writes YYYY-MM-DD.
-const dayIn = (zone: string): ((iso: string) => string) => {
-  const format = new Intl.DateTimeFormat("en-CA", { timeZone: zone });
-  return (iso) => format.format(Date.parse(iso));
 };
 
 /** The board's series: its busiest projects by rank over all time, so a project keeps its color, then Other. */
@@ -93,7 +83,9 @@ const seriesOf = (board: Board) => {
     const at = named.indexOf(row.project ?? "");
     return at === -1 ? named.length : at;
   };
-  const byDay = Map.groupBy(board.sessions, (row) => dayIn(board.zone)(row.start));
+  // The days the server counted, in its zone.
+  const dayOf = dayIn(zoneOf(board.zone));
+  const byDay = Map.groupBy(board.sessions, (row) => dayOf(row.start));
   return { named, slot, byDay };
 };
 
@@ -168,7 +160,7 @@ const Before = ({ board: { span, first } }: { board: Board }) => {
 
 // A day's values per project, or that the logs do not reach it.
 const readoutOf = (board: Board, day: string, values: string[]): string =>
-  board.first !== null && day < board.first ? t("sessions.noData") : values.join(", ") || "0";
+  [values.join(", ") || "0", ...(board.first !== null && day < board.first ? [t("sessions.noData")] : [])].join("; ");
 
 /** Sessions, time, tokens or cost per day and project; the readout names a day's values, by pointer or arrow keys. */
 const Chart = ({ board, metric }: { board: Board; metric: Metric }): ReactNode => {
@@ -219,9 +211,9 @@ const Chart = ({ board, metric }: { board: Board; metric: Metric }): ReactNode =
   );
 };
 
-const SessionRow = ({ row }: { row: Row }) => (
+const SessionRow = ({ row, started }: { row: Row; started: Intl.DateTimeFormat }) => (
   <Table.Tr>
-    <Table.Td>{when(row.start)}</Table.Td>
+    <Table.Td>{started.format(Date.parse(row.start))}</Table.Td>
     <Table.Td title={row.project ?? ""}>{row.project === null ? t("sessions.none") : folder(row.project)}</Table.Td>
     <Table.Td>{row.title ?? ""}</Table.Td>
     <Table.Td>{t("sessions.agent", { agent: row.agent })}</Table.Td>
@@ -232,30 +224,34 @@ const SessionRow = ({ row }: { row: Row }) => (
   </Table.Tr>
 );
 
-const SessionTable = ({ rows }: { rows: Row[] }) => (
-  <Table.ScrollContainer minWidth={760}>
-    <Table striped>
-      <Table.Caption c="bright">{t("sessions.caption")}</Table.Caption>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>{t("sessions.started")}</Table.Th>
-          <Table.Th>{t("sessions.project")}</Table.Th>
-          <Table.Th>{t("sessions.title")}</Table.Th>
-          <Table.Th>{t("sessions.agentColumn")}</Table.Th>
-          <Table.Th>{t("sessions.time")}</Table.Th>
-          <Table.Th>{t("sessions.tokens")}</Table.Th>
-          <Table.Th>{t("sessions.costColumn")}</Table.Th>
-          <Table.Th>{t("sessions.tests")}</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {rows.map((row) => (
-          <SessionRow key={`${row.agent}-${row.id}`} row={row} />
-        ))}
-      </Table.Tbody>
-    </Table>
-  </Table.ScrollContainer>
-);
+// Started in the board's zone, so a row and its bar name the same day.
+const SessionTable = ({ rows, zone }: { rows: Row[]; zone: string }) => {
+  const started = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: zoneOf(zone) });
+  return (
+    <Table.ScrollContainer minWidth={760}>
+      <Table striped>
+        <Table.Caption c="bright">{t("sessions.caption")}</Table.Caption>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>{t("sessions.started")}</Table.Th>
+            <Table.Th>{t("sessions.project")}</Table.Th>
+            <Table.Th>{t("sessions.title")}</Table.Th>
+            <Table.Th>{t("sessions.agentColumn")}</Table.Th>
+            <Table.Th>{t("sessions.time")}</Table.Th>
+            <Table.Th>{t("sessions.tokens")}</Table.Th>
+            <Table.Th>{t("sessions.costColumn")}</Table.Th>
+            <Table.Th>{t("sessions.tests")}</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {rows.map((row) => (
+            <SessionRow key={`${row.agent}-${row.id}`} row={row} started={started} />
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  );
+};
 
 const PERIODS = ["7", "30", "90", "all"];
 const METRICS: Metric[] = ["sessions", "busyMs", "tokens", "costUSD"];
@@ -264,15 +260,16 @@ type FilterProps = {
   board: Board | null;
   days: string;
   project: string | null;
-  onChoose: (choice: { days?: string; project?: string | null }) => void;
+  onDays: (days: string) => void;
+  onProject: (project: string | null) => void;
 };
 
-const Filters = ({ board, days, project, onChoose }: FilterProps) => (
+const Filters = ({ board, days, project, onDays, onProject }: FilterProps) => (
   <Group align="end">
     <SegmentedControl
       aria-label={t("sessions.period")}
       value={days}
-      onChange={(value) => onChoose({ days: value })}
+      onChange={onDays}
       data={PERIODS.map((value) => ({
         value,
         label: value === "all" ? t("sessions.allTime") : t("sessions.days", { days: value }),
@@ -281,7 +278,7 @@ const Filters = ({ board, days, project, onChoose }: FilterProps) => (
     <Select
       label={t("sessions.project")}
       value={project ?? ""}
-      onChange={(value) => onChoose({ project: value === "" || value === null ? null : value })}
+      onChange={(value) => onProject(value === "" || value === null ? null : value)}
       data={[
         { value: "", label: t("sessions.allProjects") },
         ...(board?.projects ?? []).map((value) => ({ value, label: value })),
@@ -321,15 +318,7 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
   return (
     <Stack>
       {problem !== "" && <Alert color="red">{problem}</Alert>}
-      <Filters
-        board={board}
-        days={days}
-        project={project}
-        onChoose={(choice) => {
-          if (choice.days !== undefined) setDays(choice.days);
-          if (choice.project !== undefined) setProject(choice.project);
-        }}
-      />
+      <Filters board={board} days={days} project={project} onDays={setDays} onProject={setProject} />
       {board === null ? (
         <Text role="status">{t("sessions.reading")}</Text>
       ) : (
@@ -342,7 +331,11 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
             data={METRICS.map((value) => ({ value, label: t("sessions.metricName", { metric: value }) }))}
           />
           <Chart key={`${board.days}-${board.project}`} board={board} metric={metric} />
-          {board.sessions.length === 0 ? <Text>{t("sessions.empty")}</Text> : <SessionTable rows={board.sessions} />}
+          {board.sessions.length === 0 ? (
+            <Text>{t("sessions.empty")}</Text>
+          ) : (
+            <SessionTable rows={board.sessions} zone={board.zone} />
+          )}
         </>
       )}
     </Stack>

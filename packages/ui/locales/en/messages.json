@@ -506,9 +506,9 @@
     ],
     "sessions.count": ["Sessions"],
     "sessions.dataFrom": [
-      "Data from ",
+      "Claude Code's transcripts start on ",
       ["first"],
-      ": the agent tools delete older session logs, so earlier days show no work."
+      ": it deletes older ones, so earlier days show less work than there was."
     ],
     "sessions.days": ["Last ", ["days"], " days"],
     "sessions.daysOf": [["worked"], " of ", ["days"]],
@@ -523,7 +523,7 @@
         { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
       ]
     ],
-    "sessions.noData": ["no data, before the oldest session log"],
+    "sessions.noData": ["before the oldest Claude Code transcript"],
     "sessions.none": ["None"],
     "sessions.other": ["Other"],
     "sessions.peak": ["Top line: ", ["value"], " a day"],

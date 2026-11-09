@@ -47,11 +47,9 @@ export const SessionFigures = z
 export type SessionFigures = z.infer<typeof SessionFigures>;
 
 /**
- * The sessions board of a period and a project: `days` is the period's length up to today (null: all time) and `span` its
- * calendar days in the time zone `zone`, oldest first; `first` is the first day the machine's session logs cover, as the
- * agent tools delete old ones; `projects` are every project with a session, most sessions first, so a project keeps its
- * place; `sessions` are the period's sessions of the project (null: of every project), newest first; `prices` dates the
- * table that prices Codex.
+ * The sessions board of a period (`days` up to today; null: all time) and a project (null: every one): `span` holds its
+ * days in `zone`, oldest first; `first` is the first day Claude Code's transcripts cover, as it deletes old ones;
+ * `projects` are ranked by sessions over all time; `sessions` are newest first; `prices` dates Codex's price table.
  */
 export const SessionsBoard = z
   .strictObject({

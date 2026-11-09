@@ -7,6 +7,33 @@ declare module "@lingui/core" {
 
 /** The values each message of the catalog takes, by id. */
 export interface MessageValues {
+  "accounts.account": Record<never, never>;
+  "accounts.action": Record<never, never>;
+  "accounts.active": Record<never, never>;
+  "accounts.approve": Record<never, never>;
+  "accounts.cancel": Record<never, never>;
+  "accounts.cancelled": Record<never, never>;
+  "accounts.caption": Record<never, never>;
+  "accounts.change": Record<never, never>;
+  "accounts.disabled": Record<never, never>;
+  "accounts.globalLine": Record<never, never>;
+  "accounts.held": Record<never, never>;
+  "accounts.line": Record<never, never>;
+  "accounts.lines": Record<never, never>;
+  "accounts.name": { number: string | number; alias: string | number };
+  "accounts.percent": { percent: string | number };
+  "accounts.reading": Record<never, never>;
+  "accounts.resets": { when: string | number };
+  "accounts.run": Record<never, never>;
+  "accounts.set": { key: string | number; value: string | number };
+  "accounts.stale": Record<never, never>;
+  "accounts.state": Record<never, never>;
+  "accounts.switch": { name: string | number };
+  "accounts.switched": { account: string | number };
+  "accounts.threshold": { window: string; setting: string | number };
+  "accounts.unset": Record<never, never>;
+  "accounts.usage": Record<never, never>;
+  "accounts.window": { span: string; model: string; percent: string | number };
   "app.licenses": Record<never, never>;
   "app.title": Record<never, never>;
   "draft.discard": Record<never, never>;
@@ -92,7 +119,6 @@ export interface MessageValues {
   "nav.runs": Record<never, never>;
   "nav.sessions": Record<never, never>;
   "nav.toggle": Record<never, never>;
-  "nav.usage": Record<never, never>;
   "nav.workItems": Record<never, never>;
   "nav.workflows": Record<never, never>;
   "problem.approvalNeeded": { part: string | number; plugin: string | number };
@@ -113,6 +139,9 @@ export interface MessageValues {
   "problem.duplicateId": { kind: string | number; id: string | number };
   "problem.duplicateSkill": { node: string | number; of: string | number; name: string | number };
   "problem.exclusiveSources": { handle: string | number; node: string | number; from: string | number };
+  "problem.extensionFailed": { extension: string | number; error: string | number };
+  "problem.extensionRefused": { extension: string | number; reason: string };
+  "problem.extensionUnknown": { extension: string | number };
   "problem.extra": { item: string | number };
   "problem.fileChanged": { path: string | number };
   "problem.gitFailed": { step: string | number; error: string | number };

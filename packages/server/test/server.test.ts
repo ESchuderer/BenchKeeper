@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { type IncomingHttpHeaders, request } from "node:http";
 import { connect } from "node:net";
@@ -72,8 +72,7 @@ interface Client {
 const serve = async (
   tokenMs?: number,
   state = join(mkdtempSync(join(tmpdir(), "cedarloom-server-")), "state"),
-  ui?: string,
-  fetch?: Fetch,
+  { ui, fetch, app }: { ui?: string | undefined; fetch?: Fetch; app?: string } = {},
 ): Promise<Client> => {
   const log: string[] = [];
   const server = await startServer({
@@ -82,6 +81,7 @@ const serve = async (
     machine: { home: join(state, "..", ".claude"), user: join(state, "..") },
     ui,
     fetch,
+    app,
     every: 25,
     log: (text) => log.push(text),
     ...(tokenMs === undefined ? {} : { tokenMs }),
@@ -106,7 +106,7 @@ const sessionCookie = (port: number, value: string): string => `${cookieName(por
 
 const started: Client[] = [];
 const open = async (tokenMs?: number, ui?: string): Promise<Client> => {
-  const client = await serve(tokenMs, undefined, ui);
+  const client = await serve(tokenMs, undefined, { ui });
   started.push(client);
   return client;
 };
@@ -604,7 +604,7 @@ test("an import of a Git ref is reviewed with its plan under an id, which applie
   writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = Ada\n\temail = ada@example.org\n");
   vi.stubEnv("HOME", home);
   vi.stubEnv("XDG_CONFIG_HOME", home);
-  const client = await serve(undefined, undefined, undefined, await flowsExport());
+  const client = await serve(undefined, undefined, { fetch: await flowsExport() });
   started.push(client);
   await client.login();
   const imports = (body: object) => client.api({ method: "POST", path: "/api/imports", body });
@@ -627,3 +627,34 @@ test("an import of a Git ref is reviewed with its plan under an id, which applie
   ];
   expect(answers).toEqual([200, ["new"], 409, 200, 404, 409, 400]);
 }, 30_000);
+
+test("a claude-swap switch runs only once the request allows it; before that, the extension only names the command", async () => {
+  // The app's own claude-swap extension as a stand-in that answers as the real one does, so no claude-swap runs.
+  const app = mkdtempSync(join(tmpdir(), "cedarloom-app-"));
+  const folder = join(app, "cedarloom.claude-swap");
+  mkdirSync(folder);
+  const account = { type: "string", required: true };
+  const manifest = {
+    schemaVersion: 1,
+    kind: "cedarloom.extension",
+    id: "cedarloom.claude-swap",
+    version: "1.0.0",
+    name: "claude-swap",
+    api: "1.0",
+    runtime: { kind: "node", entry: "main.mjs" },
+    contributes: { actions: { switch: { title: "Switch", inputs: { account } } } },
+  };
+  writeFileSync(join(folder, "cedarloom-extension.json"), JSON.stringify(manifest));
+  const fixtures = join(import.meta.dirname, "..", "..", "use-cases", "test", "fixtures");
+  copyFileSync(join(fixtures, "doctor", "main.mjs"), join(folder, "main.mjs"));
+  copyFileSync(join(import.meta.dirname, "fixtures", "claude-swap.mjs"), join(folder, "answers.mjs"));
+  const client = await serve(undefined, undefined, { app });
+  started.push(client);
+  await client.login();
+  const switchTo = (allow: boolean) =>
+    client.api({ method: "POST", path: "/api/accounts/switch", body: { account: 2, allow } });
+  expect([(await switchTo(false)).body, (await switchTo(true)).body]).toEqual([
+    { runs: "cswap switch 2", approve: "cedarloom claude-swap switch --account 2 --allow cswap" },
+    { switched: true, from: 3, to: 2 },
+  ]);
+});

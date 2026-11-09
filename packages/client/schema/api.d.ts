@@ -803,6 +803,195 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapAccounts"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        account: number;
+                        allow: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapApproval"] | {
+                            switched: boolean;
+                            from?: number;
+                            to: number;
+                        };
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        key: "autoswitch.threshold" | "autoswitch.weeklyThreshold";
+                        value: number;
+                        allow: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapApproval"] | {
+                            settings: {
+                                [key: string]: string | number | boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -1924,6 +2113,30 @@ export interface components {
             bytes: number;
             overwrote: boolean;
         };
+        SwapAccountInput: {
+            number: number;
+            alias?: string;
+            active: boolean;
+            disabled: boolean;
+            held: boolean;
+            threshold: number | null;
+            windows: {
+                window: string;
+                usedPercent: number;
+                resetsAt: string | null;
+                readAt: string | null;
+            }[];
+        };
+        SwapAccountsInput: {
+            accounts: components["schemas"]["SwapAccountInput"][];
+            settings: {
+                [key: string]: string | number | boolean;
+            };
+        };
+        SwapApprovalInput: {
+            runs: string;
+            approve: string;
+        };
         AgentSessionInput: {
             /** @enum {string} */
             agent: "claude-code";
@@ -3019,6 +3232,30 @@ export interface components {
             hash: components["schemas"]["Sha256"];
             bytes: number;
             overwrote: boolean;
+        };
+        SwapAccount: {
+            number: number;
+            alias?: string;
+            active: boolean;
+            disabled: boolean;
+            held: boolean;
+            threshold: number | null;
+            windows: {
+                window: string;
+                usedPercent: number;
+                resetsAt: string | null;
+                readAt: string | null;
+            }[];
+        };
+        SwapAccounts: {
+            accounts: components["schemas"]["SwapAccount"][];
+            settings: {
+                [key: string]: string | number | boolean;
+            };
+        };
+        SwapApproval: {
+            runs: string;
+            approve: string;
         };
         AgentSession: {
             /** @enum {string} */

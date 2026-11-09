@@ -1,5 +1,5 @@
 // The smallest extension with a doctor check and an action, speaking the protocol itself (Content-Length frames over
-// stdio), since its folder holds nothing to import.
+// stdio), since its folder holds nothing to import but an answers.mjs a test puts beside it, whose answers replace these.
 let input = Buffer.alloc(0);
 const send = (message) => {
   const text = JSON.stringify({ ...message, jsonrpc: "2.0" });
@@ -15,6 +15,8 @@ const answers = {
   "action/run": ({ inputs }) => ({ outputs: { ready: true, ...inputs } }),
   shutdown: () => null,
 };
+const own = new URL("answers.mjs", import.meta.url).href;
+Object.assign(answers, (await import(own).catch(() => ({ default: {} }))).default);
 process.stdin.on("data", (chunk) => {
   input = Buffer.concat([input, chunk]);
   for (let end = input.indexOf("\r\n\r\n"); end >= 0; end = input.indexOf("\r\n\r\n")) {

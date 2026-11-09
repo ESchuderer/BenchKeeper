@@ -63,7 +63,7 @@ test("the header shows the CedarLoom mark beside the title, and the tab the Ceda
 
 test("every view is reachable from the navigation and passes axe", async () => {
   const nav = page.getByRole("navigation", { name: "Views" });
-  for (const view of ["Workflows", "Sessions", "Accounts", "Memory", "Work items", "Usage", "Runs"]) {
+  for (const view of ["Workflows", "Sessions", "Memory", "Work items", "Runs"]) {
     await nav.getByRole("button", { name: view }).click();
     await expect(page.getByRole("heading", { level: 2, name: view })).toBeVisible();
     await expect(nav.getByRole("button", { name: view })).toHaveAttribute("aria-current", "page");
@@ -123,8 +123,8 @@ test("a narrow window keeps the views behind a menu button, out of the keyboard'
   await page.keyboard.press("Tab");
   expect(await inNav()).toBe(true);
   await expect(page.getByRole("main")).toHaveAttribute("inert", "");
-  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Usage" }).click();
-  await expect(page.getByRole("heading", { level: 2, name: "Usage" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Memory" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Memory" })).toBeVisible();
   await accessible();
   await page.getByRole("button", { name: "Show the views" }).click();
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Runs" }).click();

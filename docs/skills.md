@@ -4,7 +4,7 @@ What each skill does, who starts it, when it runs and what it writes, so you can
 
 ## BenchKeeper's skills
 
-The BenchKeeper plugin installs these seven in Claude Code and Codex at every level. A skill that "you" start never starts on its own.
+The BenchKeeper plugin installs these eight in Claude Code and Codex at every level. A skill that "you" start never starts on its own.
 
 <!-- generated:skills -->
 | Skill | What it is for | Started by | When it runs | What it writes |

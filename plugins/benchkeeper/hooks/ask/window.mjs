@@ -14,8 +14,7 @@ export function clock(at, now) {
 
 export const allowed = (until, now) => `Terminal questions are allowed until ${clock(until, now)}: the user opened them with /benchkeeper:ask, and the question tool is refused again after that.`;
 
-// The end of the window the arguments ask for, in epoch milliseconds: none for 30 minutes, `for <n>m` or `for <n>h`, or
-// `until HH:MM` (the next such local time); null for `off`, undefined for arguments it does not read.
+// The window's end in epoch ms: none 30 minutes, `for <n>m|h`, `until HH:MM` (next such local time); null off, undefined unread.
 export function askUntil(args, now) {
   const a = args.trim().toLowerCase();
   if (a === 'off') return null;

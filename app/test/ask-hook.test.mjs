@@ -18,9 +18,9 @@ const QUESTION = {
 };
 const prompt = (text) => ({ ...BASE, hook_event_name: 'UserPromptSubmit', prompt: text });
 
-// Every run is a child of this test process, so all of them share one window file, as the hooks of one Claude Code process do.
+// Every run carries one CLAUDE_PID, as the hooks of one Claude Code process do.
 const run = (data, input) => {
-  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify(input), env: { ...process.env, CLAUDE_PLUGIN_DATA: data }, encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [HOOK], { input: JSON.stringify(input), env: { ...process.env, CLAUDE_PLUGIN_DATA: data, CLAUDE_PID: '4242' }, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   return r.stdout === '' ? null : JSON.parse(r.stdout).hookSpecificOutput;
 };

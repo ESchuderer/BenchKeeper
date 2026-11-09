@@ -5,7 +5,7 @@
 
 ## Questions to the user
 
-- When the request reads two ways with different results, name both readings and ask; never pick one silently. Unattended runs: take the safest reversible reading, state it in one line and flag it in the report.
+- When the request reads two ways with different results, name both readings and ask; never pick one silently.
 - Settle facts yourself from research, the code, the project docs or a safe default. Say in one line what you chose and why; prefer the choice that is easy to undo.
 - Ask when the choice is the user's (taste, priorities, scope, money, risk). Unsure whether to ask: ask once.
 - Research the recommended option before asking (code, docs, an official source, a cheap trial).

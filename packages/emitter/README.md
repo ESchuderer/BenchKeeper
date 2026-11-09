@@ -33,3 +33,4 @@ Codex runs the same steps through skills only (no Codex hooks, agents or rules i
 - A step's `model` and `effort` are not applied.
 - A command's exit code is reported by the model and not checked: the guard and the exit-code hook are Claude Code hooks.
 - A missing input stops the stage with a question, where Claude Code's runner refuses to start.
+- A step asks the user nothing mid-stage only because one sentence says so; Claude Code's step agents are subagents, which have no question tool ([subagents](https://code.claude.com/docs/en/sub-agents)).

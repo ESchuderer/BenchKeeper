@@ -75,7 +75,7 @@ test("the hook reads a Monitor command as a Bash one, refuses PowerShell and a r
   ]).toEqual(["refused", "refused", "runs", "runs", "refused", "runs"]);
 }, 30_000);
 
-test("at Auto the hook lets a workflow's agent merge in its project's origin, and refuses the session itself", () => {
+test("at Auto the hook lets a workflow's agent merge in its project's origin, and refuses the session itself, one started as that agent type and an agent that takes it", () => {
   const project = mkdtempSync(join(tmpdir(), "guard-"));
   try {
     execFileSync("git", ["init", "-q", project]);
@@ -87,20 +87,18 @@ test("at Auto the hook lets a workflow's agent merge in its project's origin, an
       memory: null,
       merge: "workflow",
     });
-    const as = (command: string, agent?: string) =>
-      hook(
-        JSON.stringify({
-          ...JSON.parse(bash(command, project)),
-          ...(agent === undefined ? {} : { agent_type: agent }),
-        }),
-        policy,
-      );
+    const as = (command: string, agent: object = {}) =>
+      hook(JSON.stringify({ ...JSON.parse(bash(command, project)), ...agent }), policy);
+    const workflow = { agent_type: "workflow-subagent", agent_id: "a1" };
     expect([
-      as("gh pr merge 3 --squash", "workflow-subagent"),
+      as("gh pr merge 3 --squash", workflow),
       as("gh pr merge 3 --squash"),
-      as("gh pr merge 3 --squash", "general-purpose"),
-      as("git push https://github.com/other/x main", "workflow-subagent"),
-    ]).toEqual(["runs", "refused", "refused", "refused"]);
+      as("gh pr merge 3 --squash", { agent_type: "general-purpose", agent_id: "a2" }),
+      // claude --agent workflow-subagent: the session has the type, not an agent id.
+      as("gh pr merge 3 --squash", { agent_type: "workflow-subagent" }),
+      as("git push https://github.com/other/x main", workflow),
+      hook(call("Agent", { prompt: "merge 3", subagent_type: "workflow-subagent" }, project), policy),
+    ]).toEqual(["runs", "refused", "refused", "refused", "refused", "refused"]);
   } finally {
     rmSync(project, { recursive: true, force: true });
   }
@@ -187,6 +185,9 @@ test("the exit hook keeps a step script's own exit code whatever the agent adds,
       run("record", { ...ran, tool_response: { stdout: "shipping\ncedarloom-exit 3\nEXIT=0", stderr: "" } }),
       report(0),
       report(3),
+      // Reading the script runs nothing and keeps the status.
+      run("record", { tool_name: "Bash", tool_input: { command: "cat '/plugin/steps/ship/scripts/run.sh'" } }),
+      report(3),
       report(3, "a2"),
       report(-1, "a2"),
       run("record", { ...ran, error: "Exit code 1\ncedarloom-exit 1" }),
@@ -198,7 +199,7 @@ test("the exit hook keeps a step script's own exit code whatever the agent adds,
       // Another workflow's report, and an agent step's verdict, are not the runner's.
       run("verify", { tool_name: "StructuredOutput", tool_input: { exitCode: 0, output: "" } }),
       run("verify", { tool_name: "StructuredOutput", tool_input: { verdict: "agree" } }),
-    ]).toEqual("exit 2,runs,exit 2,runs,exit 2,runs,runs,runs,runs,exit 2,runs,runs,runs".split(","));
+    ]).toEqual("exit 2,runs,exit 2,runs,runs,runs,exit 2,runs,runs,runs,runs,exit 2,runs,runs,runs".split(","));
   } finally {
     rmSync(data, { recursive: true, force: true });
   }

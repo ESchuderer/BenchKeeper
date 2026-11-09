@@ -121,6 +121,22 @@
       }
     },
     {
+      "files": ["packages/sessions/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@cedarloom/*", "!@cedarloom/contracts", "!@cedarloom/git"],
+                "message": "the session log readers depend on the contracts and the repository lookup only"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/orchestration/src/**"],
       "rules": {
         "no-restricted-imports": [

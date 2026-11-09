@@ -13,6 +13,8 @@
     { "path": "packages/orchestration/test" },
     { "path": "packages/git" },
     { "path": "packages/git/test" },
+    { "path": "packages/sessions" },
+    { "path": "packages/sessions/test" },
     { "path": "packages/packs" },
     { "path": "packages/packs/test" },
     { "path": "packages/profiles" },

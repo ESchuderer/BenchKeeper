@@ -2,6 +2,7 @@ export {
   AUTOMATION_SCHEMA_VERSION,
   AutomationLevel,
   AutomationSettings,
+  WORKFLOW_MARKETPLACE,
 } from "./automation.ts";
 export { COMPONENTS_SCHEMA_VERSION, Components, formatComponents, Switch } from "./components.ts";
 export { GUARD_SCHEMA_VERSION, GuardPolicy, heldRepo, RepoName } from "./guard.ts";

@@ -15,6 +15,9 @@ import { fileFormats } from "./registry.ts";
  * CedarLoom itself runs no workflow and enforces none of them.
  */
 export const AutomationLevel = z.enum(["supervised", "checkpoint", "auto"]);
+
+/** The directory marketplace through which Claude Code and Codex load the workflow packages CedarLoom installs. */
+export const WORKFLOW_MARKETPLACE = "cedarloom-workflows";
 export type AutomationLevel = z.infer<typeof AutomationLevel>;
 
 /** The automation settings format this CedarLoom writes and reads; readers refuse a newer one. */

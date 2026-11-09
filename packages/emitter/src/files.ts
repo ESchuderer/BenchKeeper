@@ -67,6 +67,18 @@ export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile
   ];
 };
 
+// How a manifest names the workflow and the level it was built from, which `builtFrom` reads back.
+const DESCRIBED = /^The CedarLoom workflow (\S+), at the automation level (supervised|checkpoint|auto)\.$/;
+
+/** The workflow and level a package's manifest was built from; null for any other manifest. */
+export const builtFrom = (manifest: unknown): { id: string; level: AutomationLevel } | null => {
+  const description: unknown = Reflect.get(Object(manifest), "description");
+  const [, id, level] = (typeof description === "string" ? DESCRIBED.exec(description) : null) ?? [];
+  return id === undefined || (level !== "supervised" && level !== "checkpoint" && level !== "auto")
+    ? null
+    : { id, level };
+};
+
 /** A tool's plugin manifest: the step skills and that tool's stage skills, and its hooks file if it has one. */
 export const manifestOf = (
   workflow: WorkflowDefinition,

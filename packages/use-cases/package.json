@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
+    "@cedarloom/emitter": "workspace:*",
     "@cedarloom/engine": "workspace:*",
     "@cedarloom/extension-host": "workspace:*",
     "@cedarloom/git": "workspace:*",

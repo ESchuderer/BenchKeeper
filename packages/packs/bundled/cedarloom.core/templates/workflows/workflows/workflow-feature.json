@@ -49,7 +49,7 @@
       "id": "open-pr",
       "type": "agent.run",
       "with": {
-        "task": "Push the branch the implementation committed on, and open its pull request into the default branch by the project's convention. The body: what changed and why, from `.cedarloom/feature/plan.md`, with the open questions and the answers taken; each check and its result, from `.cedarloom/feature/test.md`; the review's verdict and its open findings, from `.cedarloom/feature/review.md`. Open it as a draft unless the first line of `review.md` is `Verdict: agree`. Return the pull request's number and address."
+        "task": "Push the branch the implementation committed on, and open its pull request into the default branch by the project's convention; when the branch has an open pull request already, update its body instead of opening another. The body: what changed and why, from `.cedarloom/feature/plan.md`, with the open questions and the answers taken; each check and its result, from `.cedarloom/feature/test.md`; the review's verdict and its open findings, from `.cedarloom/feature/review.md`. Open it as a draft unless the first line of `review.md` is `Verdict: agree`; mark an existing one ready (`gh pr ready`) when it is and a draft (`gh pr ready --undo`) otherwise. Return the pull request's number and address."
       }
     },
     {

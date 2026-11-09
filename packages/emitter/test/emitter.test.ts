@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AutomationLevel, ExportIndex, WorkflowDefinition } from "@cedarloom/contracts";
 import { buildPackage, type Hooks, type PackageFile } from "@cedarloom/emitter";
+import { BUNDLED } from "@cedarloom/packs";
 import { expect, test } from "vitest";
 import { type Call, passing, report, runScript } from "./script.ts";
 
@@ -135,7 +136,7 @@ test("each level keeps its gates, and a stop carries the inputs every later stag
 });
 
 // The core pack's export folder, as `cedarloom import` reads it.
-const FEATURE = join(import.meta.dirname, "..", "..", "packs", "bundled", "cedarloom.core", "templates", "workflows");
+const FEATURE = join(BUNDLED, "cedarloom.core", "templates", "workflows");
 const json = (path: string): unknown => JSON.parse(readFileSync(join(FEATURE, path), "utf8"));
 
 test("the bundled feature workflow builds at each level, its merge step a workflow script's own agent", () => {

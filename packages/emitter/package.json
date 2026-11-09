@@ -29,5 +29,8 @@
   "dependencies": {
     "@cedarloom/contracts": "workspace:*",
     "@cedarloom/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@cedarloom/packs": "workspace:*"
   }
 }

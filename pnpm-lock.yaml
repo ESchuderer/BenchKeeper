@@ -149,6 +149,10 @@ importers:
       '@cedarloom/engine':
         specifier: workspace:*
         version: link:../engine
+    devDependencies:
+      '@cedarloom/packs':
+        specifier: workspace:*
+        version: link:../packs
 
   packages/engine:
     dependencies:

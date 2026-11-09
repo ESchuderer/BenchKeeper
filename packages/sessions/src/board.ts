@@ -59,7 +59,8 @@ export const boardOf = (
   const own = project === null ? all : all.filter((s) => s.project === project);
   const oldest = own.at(-1);
   const from = days === null && oldest !== undefined ? dayOf(oldest.start) : plusDays(today, 1 - (days ?? 1));
-  const start = [from, plusDays(today, 1 - LONGEST)].reduce((a, b) => (a > b ? a : b));
+  const floor = plusDays(today, 1 - LONGEST);
+  const start = from > floor ? from : floor;
   const span: string[] = [];
   for (let day = start <= today ? start : today; day <= today; day = plusDays(day, 1)) span.push(day);
   const sessions = own.filter((s) => dayOf(s.start) >= (span[0] ?? today));

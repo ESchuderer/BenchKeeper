@@ -319,16 +319,17 @@ export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async
     tz: z
       .string()
       .max(64)
-      .refine(isZone)
       .optional()
-      .describe("The IANA time zone the days are counted in, such as Europe/Berlin; absent: UTC"),
+      .describe("The IANA time zone the days are counted in, such as Europe/Berlin; absent or unknown: UTC"),
   });
   app.get(
     "/api/sessions",
     { schema: { querystring: query, response: answers({ 200: SessionsBoard }) } },
     async (req, _reply) => {
       const { days, project, tz } = req.query;
-      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone: tz ?? "UTC" });
+      // The answer names the zone it counted in.
+      const zone = tz !== undefined && isZone(tz) ? tz : "UTC";
+      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone });
     },
   );
 };

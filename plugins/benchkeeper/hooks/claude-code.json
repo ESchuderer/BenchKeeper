@@ -9,7 +9,7 @@
     ],
     "UserPromptExpansion": [
       {
-        "matcher": "^benchkeeper:ask$",
+        "matcher": "^benchkeeper:(ask|questions)$",
         "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/ask/ask.mjs"] }]
       }
     ],

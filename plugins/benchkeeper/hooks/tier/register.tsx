@@ -2,14 +2,14 @@
 // plugin is on), a row with the last test run, the last lint or type check and whether the tier's checks passed since the
 // last edit, a row with the tier line of the last answer and buttons for /benchkeeper:tier, the sessions board and the
 // doctor, and the session's override kept in the system prompt and the plugin's store, so it outlasts compaction and resume.
-// It also shows ASK while /benchkeeper:ask allows terminal questions.
+// It also shows ASK while /benchkeeper:ask or /benchkeeper:questions allows terminal questions.
 // It reads the working folder, git, one flag file of Ponytail and the commands and edits of the main loop; it writes only
 // that override to the plugin's store and sends nothing.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Check, TierLine, Where } from '../../types'
-import { askUntil, clock } from '../ask/window.mjs'
+import { askUntil, lasting } from '../ask/window.mjs'
 
 export const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm
 const CHOICES = ['quick', 'standard', 'full', 'research']
@@ -27,7 +27,7 @@ const commands = (list: string) => ({
 const TEST = commands('(?:(?:npm|pnpm|yarn|bun) (?:run )?test(?::\\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)')
 const LINT = commands('(?:eslint|npm run lint|tsc|ruff|mypy|pyright|go vet|cargo clippy|biome)')
 const EDITS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
-// The window /benchkeeper:ask opened, as the plugin's hook (ask/ask.mjs) keeps it per process: a module variable outlives /clear too.
+// The window /benchkeeper:ask or /benchkeeper:questions opened, as the plugin's hook (ask/ask.mjs) keeps it per process: a module variable outlives /clear too.
 let asking: number | null = null
 
 // The commands of a chain joined by && only, else none: with ||, ;, | or & the exit code can come from another command, and a
@@ -116,7 +116,7 @@ async function openBoard($: EngineInterface) {
   await $.process.run(windows ? ['explorer.exe', file.replaceAll('/', '\\')] : [mac ? 'open' : 'xdg-open', file])
 }
 
-const HELP = 'BenchKeeper band. Top row: project, branch, Ponytail level. Second row: last test run and lint or type check, stale after an edit, and ready when the checks the tier asks for passed since the last edit. quick, standard, full set the tier of this session, auto lets each task choose. board opens the sessions board. doctor asks the agent to run benchkeeper doctor. ASK until a time: terminal questions are allowed until then (/benchkeeper:ask). Nothing leaves this machine. Turn off: set Tier band to false in the plugin options.'
+const HELP = 'BenchKeeper band. Top row: project, branch, Ponytail level. Second row: last test run and lint or type check, stale after an edit, and ready when the checks the tier asks for passed since the last edit. quick, standard, full set the tier of this session, auto lets each task choose. board opens the sessions board. doctor asks the agent to run benchkeeper doctor. ASK until a time or for this session: terminal questions are allowed until then (/benchkeeper:ask, /benchkeeper:questions). Nothing leaves this machine. Turn off: set Tier band to false in the plugin options.'
 
 export const register: Register = (on, options) => {
   const on_ = options.tierBand === true
@@ -172,6 +172,7 @@ export const register: Register = (on, options) => {
       const end = askUntil(e.command.args, await $.clock.now())
       if (end !== undefined) asking = end
     }
+    if (on_ && e.command?.name === 'benchkeeper:questions') asking = Infinity
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -194,7 +195,7 @@ export const register: Register = (on, options) => {
     const lintRun = await read($, lint)
     const ready = verdict(v ?? line?.tier ?? null, testRun, lintRun)
     const now = asking === null ? null : await $.clock.now()
-    const ask = asking !== null && now !== null && asking > now ? `ASK until ${clock(asking, now)}` : null
+    const ask = asking !== null && now !== null && asking > now ? `ASK ${lasting(asking, now)}` : null
     const pick = async (level: string) => {
       await $.command.run({ command: 'benchkeeper:tier', args: level })
       await setOverride($, level)

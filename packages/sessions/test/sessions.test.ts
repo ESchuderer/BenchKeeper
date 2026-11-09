@@ -104,6 +104,7 @@ test.each([
   ['git commit -m "fix; npm test"', null],
   ["npm test &", null],
   ["git commit -F - <<'EOF'\nnpm test passes now\nEOF", null],
+  ["cat <<'EOF' > notes.md && npm test\nnotes\nEOF", "fail"],
 ])(
   "a failed command's exit code is the test result only when the command ends with a test run: %s",
   async (command, tests) => {
@@ -118,6 +119,7 @@ test.each([
   ["Tests  1 failed | 31 passed (32)", "fail"],
   ["Tests  1 passed (1)\n     Errors  1 error", "fail"],
   ["31 passed, 2 errors in 1.2s", "fail"],
+  ["Found 3 errors in 2 files.\n 2 passed", "pass"],
 ])("a piped run's result is its summary line, whatever the pipe's exit code: %s", async (summary, tests) => {
   const output = JSON.stringify(`\n\n${summary}`).slice(1, -1);
   expect(await testsAfter(SHOP, "-work-shop", String.raw`\n\n2 passed`, output)).toBe(tests);

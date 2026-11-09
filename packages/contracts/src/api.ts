@@ -152,3 +152,44 @@ export const DraftSaved = z
   .strictObject({ id: WorkflowId, savedAt, hash: Sha256, bytes: z.int().min(0), overwrote: z.boolean() })
   .register(contracts, { id: "DraftSaved" });
 export type DraftSaved = z.infer<typeof DraftSaved>;
+
+/**
+ * A usage window of a claude-swap account: the share used in percent, when it resets, and when claude-swap read it
+ * (null: claude-swap no longer trusts that share, so it is the last one it trusted, or none).
+ */
+const SwapWindow = z.strictObject({
+  window: z.string().describe("fiveHour, sevenDay, or sevenDay:<model> for a model's own weekly window"),
+  usedPercent: z.number().min(0).max(100),
+  resetsAt: z.string().nullable(),
+  readAt: z.string().nullable(),
+});
+
+/**
+ * An account of the user's claude-swap by its number, as the claude-swap extension's list action gives it, without its
+ * email; `held`: claude-swap starts nothing on it until the user logs in again; `threshold`: its own switch line in
+ * percent (null: claude-swap's global line).
+ */
+export const SwapAccount = z
+  .strictObject({
+    number: z.int().min(1),
+    alias: z.string().optional(),
+    active: z.boolean(),
+    disabled: z.boolean(),
+    held: z.boolean(),
+    threshold: z.number().min(0).max(100).nullable(),
+    windows: z.array(SwapWindow),
+  })
+  .register(contracts, { id: "SwapAccount" });
+
+/** claude-swap's accounts and its auto mode settings (`autoswitch.*`), read through its extension; CedarLoom keeps none. */
+export const SwapAccounts = z
+  .strictObject({
+    accounts: z.array(SwapAccount),
+    settings: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+  })
+  .register(contracts, { id: "SwapAccounts" });
+
+/** A claude-swap command that runs only once the user approves it: the command, and the CLI line that approves it. */
+export const SwapApproval = z
+  .strictObject({ runs: z.string(), approve: z.string() })
+  .register(contracts, { id: "SwapApproval" });

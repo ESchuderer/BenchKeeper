@@ -1,5 +1,43 @@
 {
   "messages": {
+    "accounts.account": ["Account"],
+    "accounts.action": ["Action"],
+    "accounts.active": ["Active"],
+    "accounts.approve": ["claude-swap runs this command once you approve it"],
+    "accounts.cancel": ["Cancel"],
+    "accounts.cancelled": ["Nothing ran."],
+    "accounts.caption": ["claude-swap's accounts"],
+    "accounts.change": ["Change"],
+    "accounts.disabled": ["Disabled"],
+    "accounts.globalLine": ["claude-swap's global line"],
+    "accounts.held": ["Needs a new login"],
+    "accounts.line": ["Switch line"],
+    "accounts.lines": ["Switch lines of claude-swap's auto mode"],
+    "accounts.name": [["number"], " (", ["alias"], ")"],
+    "accounts.percent": [["percent"], "%"],
+    "accounts.reading": ["Reading claude-swap's accounts and their usage."],
+    "accounts.resets": ["resets ", ["when"]],
+    "accounts.run": ["Run it"],
+    "accounts.set": ["claude-swap set ", ["key"], " to ", ["value"], "."],
+    "accounts.stale": ["not current"],
+    "accounts.state": ["State"],
+    "accounts.switch": ["Switch to ", ["name"]],
+    "accounts.switched": ["claude-swap's active account is now ", ["account"], "."],
+    "accounts.threshold": [
+      ["window", "select", { "fiveHour": ["5-hour window"], "other": ["7-day and model windows"] }],
+      " (",
+      ["setting"],
+      ")"
+    ],
+    "accounts.unset": ["Unset: claude-swap applies the 5-hour line"],
+    "accounts.usage": ["Usage"],
+    "accounts.window": [
+      ["span", "select", { "fiveHour": ["5 hours"], "sevenDay": ["7 days"], "other": [["span"]] }],
+      ["model", "select", { "none": [], "other": [" (", ["model"], ")"] }],
+      ": ",
+      ["percent"],
+      "%"
+    ],
     "app.licenses": ["Third-party licenses"],
     "app.title": ["CedarLoom"],
     "draft.discard": ["Discard"],
@@ -127,7 +165,6 @@
     "nav.runs": ["Runs"],
     "nav.sessions": ["Sessions"],
     "nav.toggle": ["Show the views"],
-    "nav.usage": ["Usage"],
     "nav.workItems": ["Work items"],
     "nav.workflows": ["Workflows"],
     "problem.approvalNeeded": [
@@ -229,6 +266,15 @@
       ["node"],
       " is always skipped; give each branch a node of its own."
     ],
+    "problem.extensionFailed": ["The extension ", ["extension"], " failed: ", ["error"]],
+    "problem.extensionRefused": [
+      "The extension ",
+      ["extension"],
+      " ",
+      ["reason", "select", { "off": ["is switched off"], "other": ["does not run here (", ["reason"], ")"] }],
+      "."
+    ],
+    "problem.extensionUnknown": ["The extension ", ["extension"], " is not found."],
     "problem.extra": [
       ["item"],
       " is not named by the profile. Remove it if you want: cedarloom profiles apply --remove ",

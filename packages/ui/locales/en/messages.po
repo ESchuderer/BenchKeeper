@@ -40,10 +40,6 @@ msgid "nav.workItems"
 msgstr "Work items"
 
 #. js-lingui-explicit-id
-msgid "nav.usage"
-msgstr "Usage"
-
-#. js-lingui-explicit-id
 msgid "view.notBuilt"
 msgstr "This view is not built yet."
 
@@ -650,3 +646,123 @@ msgstr "Run {runId} stopped before its end; its earlier changes stay, and Runs o
 #. js-lingui-explicit-id
 msgid "problem.storeMoved"
 msgstr "The workflow store changed since the review; nothing moved. Review the import again."
+
+#. js-lingui-explicit-id
+msgid "accounts.reading"
+msgstr "Reading claude-swap's accounts and their usage."
+
+#. js-lingui-explicit-id
+msgid "accounts.caption"
+msgstr "claude-swap's accounts"
+
+#. js-lingui-explicit-id
+msgid "accounts.account"
+msgstr "Account"
+
+#. js-lingui-explicit-id
+msgid "accounts.state"
+msgstr "State"
+
+#. js-lingui-explicit-id
+msgid "accounts.usage"
+msgstr "Usage"
+
+#. js-lingui-explicit-id
+msgid "accounts.line"
+msgstr "Switch line"
+
+#. js-lingui-explicit-id
+msgid "accounts.action"
+msgstr "Action"
+
+#. js-lingui-explicit-id
+msgid "accounts.name"
+msgstr "{number} ({alias})"
+
+#. js-lingui-explicit-id
+msgid "accounts.active"
+msgstr "Active"
+
+#. js-lingui-explicit-id
+msgid "accounts.disabled"
+msgstr "Disabled"
+
+#. js-lingui-explicit-id
+msgid "accounts.held"
+msgstr "Needs a new login"
+
+#. js-lingui-explicit-id
+msgid "accounts.window"
+msgstr "{span, select, fiveHour {5 hours} sevenDay {7 days} other {{span}}}{model, select, none {} other { ({model})}}: {percent}%"
+
+#. js-lingui-explicit-id
+msgid "accounts.resets"
+msgstr "resets {when}"
+
+#. js-lingui-explicit-id
+msgid "accounts.stale"
+msgstr "not current"
+
+#. js-lingui-explicit-id
+msgid "accounts.globalLine"
+msgstr "claude-swap's global line"
+
+#. js-lingui-explicit-id
+msgid "accounts.percent"
+msgstr "{percent}%"
+
+#. js-lingui-explicit-id
+msgid "accounts.switch"
+msgstr "Switch to {name}"
+
+#. js-lingui-explicit-id
+msgid "accounts.lines"
+msgstr "Switch lines of claude-swap's auto mode"
+
+#. js-lingui-explicit-id
+msgid "accounts.threshold"
+msgstr "{window, select, fiveHour {5-hour window} other {7-day and model windows}} ({setting})"
+
+#. js-lingui-explicit-id
+msgid "accounts.unset"
+msgstr "Unset: claude-swap applies the 5-hour line"
+
+#. js-lingui-explicit-id
+msgid "accounts.change"
+msgstr "Change"
+
+#. js-lingui-explicit-id
+msgid "accounts.approve"
+msgstr "claude-swap runs this command once you approve it"
+
+#. js-lingui-explicit-id
+msgid "accounts.run"
+msgstr "Run it"
+
+#. js-lingui-explicit-id
+msgid "accounts.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "accounts.cancelled"
+msgstr "Nothing ran."
+
+#. js-lingui-explicit-id
+msgid "accounts.switched"
+msgstr "claude-swap's active account is now {account}."
+
+#. js-lingui-explicit-id
+msgid "accounts.set"
+msgstr "claude-swap set {key} to {value}."
+
+#. js-lingui-explicit-id
+msgid "problem.extensionFailed"
+msgstr "The extension {extension} failed: {error}"
+
+#. js-lingui-explicit-id
+msgid "problem.extensionRefused"
+msgstr "The extension {extension} {reason, select, off {is switched off} other {does not run here ({reason})}}."
+
+#. js-lingui-explicit-id
+msgid "problem.extensionUnknown"
+msgstr "The extension {extension} is not found."

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SwapApproval.schema.json",
+  "type": "object",
+  "properties": {
+    "runs": {
+      "type": "string"
+    },
+    "approve": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "runs",
+    "approve"
+  ],
+  "additionalProperties": false
+}

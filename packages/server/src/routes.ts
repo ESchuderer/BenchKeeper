@@ -9,10 +9,13 @@ import {
   type Plan,
   ProfileView,
   Refusal,
+  type Result,
   Run,
   RunResult,
   Sha256,
   Step,
+  SwapAccounts,
+  SwapApproval,
   UndoPreview,
   WorkflowId,
   WorkflowJson,
@@ -241,6 +244,63 @@ export const importRoutes: FastifyPluginAsyncZod<{ state: string; fetch: useCase
       if (applied.value.status !== "applied") return reply.code(409).send(applied.value);
       planned.delete(req.params.importId);
       return applied.value;
+    },
+  );
+};
+
+const SWAP = "cedarloom.claude-swap";
+const approved = z.boolean().describe("true once the user approved the command the answer without it named");
+const Switched = z.union([
+  SwapApproval,
+  z.strictObject({ switched: z.boolean(), from: z.int().optional(), to: z.int() }),
+]);
+const SettingsSet = z.union([SwapApproval, SwapAccounts.pick({ settings: true })]);
+const SwitchBody = z.strictObject({ account: z.int().min(1).max(999_999), allow: approved });
+// claude-swap checks the value itself; these bounds keep the command the page shows one plain line.
+const SettingsBody = z.strictObject({
+  key: z
+    .string()
+    .regex(/^autoswitch\.[A-Za-z]{1,40}$/)
+    .describe("Such as autoswitch.threshold"),
+  value: z.string().regex(/^[\w.+-]{1,32}$/),
+  allow: approved,
+});
+
+// Accounts belong to claude-swap: these routes run its extension's actions and keep nothing. A change runs only with
+// `allow`, so the page shows claude-swap's command first and sends `allow` only on the user's word.
+export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: string; app: string | undefined }> = async (
+  server,
+  { state, config, app },
+) => {
+  const swap = (action: string, allow = false, inputs: Record<string, string> = {}): Promise<Result<object>> =>
+    app === undefined
+      ? Promise.resolve({ ok: false, finding: { code: "extension.unknown", params: { extension: SWAP } } })
+      : useCases.runBundled({ state, config, app }, SWAP, action, { allow: allow ? ["cswap"] : [], inputs });
+  server.get(
+    "/api/accounts",
+    { schema: { response: answers({ 200: SwapAccounts, 409: Refusal }) } },
+    async (_req, reply) => {
+      const [listed, settings] = await Promise.all([swap("list"), swap("settings")]);
+      if (!listed.ok) return reply.code(409).send(refusal(listed.finding));
+      if (!settings.ok) return reply.code(409).send(refusal(settings.finding));
+      return SwapAccounts.parse({ ...listed.value, ...settings.value });
+    },
+  );
+  server.post(
+    "/api/accounts/switch",
+    { schema: { body: SwitchBody, response: answers({ 200: Switched, 409: Refusal }) } },
+    async (req, reply) => {
+      const ran = await swap("switch", req.body.allow, { account: String(req.body.account) });
+      return ran.ok ? Switched.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+  server.post(
+    "/api/accounts/settings",
+    { schema: { body: SettingsBody, response: answers({ 200: SettingsSet, 409: Refusal }) } },
+    async (req, reply) => {
+      const { key, value, allow } = req.body;
+      const ran = await swap("settings", allow, { key, value });
+      return ran.ok ? SettingsSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
     },
   );
 };

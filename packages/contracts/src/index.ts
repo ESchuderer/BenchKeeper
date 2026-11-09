@@ -18,6 +18,9 @@ export {
   RunResult,
   RunsEvent,
   Step,
+  SwapAccount,
+  SwapAccounts,
+  SwapApproval,
   UndoPreview,
   WorkflowJson,
 } from "./api.ts";

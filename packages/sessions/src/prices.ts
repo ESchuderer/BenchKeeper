@@ -33,7 +33,7 @@ export const PRICES: {
   },
 };
 
-// Input includes the cached and the written tokens.
+// Input includes the cached and the written tokens (Codex's test parses_cache_write_token_usage).
 const usd = ({ input, cached, written, output }: Counts, [rate, cachedRate, writeRate, outputRate]: Rate): number =>
   ((input - cached - written) * rate + cached * cachedRate + written * (writeRate ?? rate) + output * outputRate) / 1e6;
 

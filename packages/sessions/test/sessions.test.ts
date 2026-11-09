@@ -144,6 +144,19 @@ test("Codex sessions: a subagent's tokens and cost on its root row at list price
       tests: null,
     },
     {
+      // A fork of the root: only what it added counts, not the history and totals it copied (with a failed test run).
+      ...codex,
+      id: "019a3d02-4e6f-7a18-b2c3-5d4e6f708a04",
+      start: "2026-11-02T10:00:00.000Z",
+      end: "2026-11-02T10:00:07.000Z",
+      busyMs: 2000,
+      tokens: 1100,
+      costUSD: expect.closeTo(0.0062, 9),
+      costEstimated: true,
+      unpriced: [],
+      tests: null,
+    },
+    {
       ...codex,
       id: "019a3b7e-5c1d-7e42-9a10-3f2c8d4e6a01",
       start: "2026-11-02T09:00:00.000Z",
@@ -155,7 +168,7 @@ test("Codex sessions: a subagent's tokens and cost on its root row at list price
       costUSD: expect.closeTo(1.139175, 9),
       costEstimated: true,
       unpriced: [],
-      // A piped run counts by its summary line, not its exit code; a quoted `npm test` is no run.
+      // A piped run counts by its summary line, not its exit code; a quoted `npm test` and a declined one are no runs.
       tests: "pass",
     },
   ]);

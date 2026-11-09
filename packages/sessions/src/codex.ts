@@ -17,27 +17,27 @@ const Meta = z
       .object({ subagent: z.object({ thread_spawn: z.object({ parent_thread_id: z.string() }) }) })
       .optional()
       .catch(undefined),
+    forked_from_id: z.string().nullish(),
     cwd: z.string().optional(),
     timestamp: z.string().optional(),
     model_provider: z.string().nullish(),
   })
-  .transform(({ parent_thread_id, source, ...meta }) => ({
+  .transform(({ parent_thread_id, source, forked_from_id, ...meta }) => ({
     ...meta,
     parent: parent_thread_id ?? source?.subagent.thread_spawn.parent_thread_id ?? null,
+    forked: forked_from_id != null,
   }));
 const Context = z.object({ model: z.string() });
-const TokenCount = z.object({
-  info: z.object({
-    total_token_usage: z.object({
-      input_tokens: count.optional(),
-      cached_input_tokens: count.default(0),
-      cache_write_input_tokens: count.default(0),
-      output_tokens: count.default(0),
-      total_tokens: count.optional(),
-    }),
-    last_token_usage: z.object({ input_tokens: count }).nullish(),
-  }),
+const Usage = z.object({
+  input_tokens: count.optional(),
+  cached_input_tokens: count.default(0),
+  cache_write_input_tokens: count.default(0),
+  output_tokens: count.default(0),
+  total_tokens: count.optional(),
 });
+const TokenCount = z.object({ info: z.object({ total_token_usage: Usage, last_token_usage: Usage.nullish() }) });
+// A copied settings line keeps its original thread's id (ThreadSettingsAppliedEvent).
+const Settings = z.object({ thread_id: z.string().nullish() });
 const Complete = z.object({ duration_ms: count.nullish() });
 // Persisted only in paginated history mode: the default legacy mode records no command results.
 const Command = z.object({
@@ -50,7 +50,7 @@ const Command = z.object({
 });
 
 // Only lines of these kinds are parsed; a compacted line, which repeats earlier ones, fails the type check after.
-const READ = /"(?:session_meta|turn_context|token_count|task_complete|CommandExecution)"/;
+const READ = /"(?:session_meta|turn_context|token_count|task_complete|CommandExecution|thread_settings_applied)"/;
 
 const less = (a: Counts, b: Counts): Counts => ({
   input: Math.max(0, a.input - b.input),
@@ -66,7 +66,7 @@ const plus = (a: Counts, b: Counts): Counts => ({
 });
 
 // Older rollouts record the total only: no counts, and so no estimate.
-const countsOf = (total: z.infer<typeof TokenCount>["info"]["total_token_usage"]): Counts | null =>
+const countsOf = (total: z.infer<typeof Usage>): Counts | null =>
   total.input_tokens === undefined
     ? null
     : {
@@ -80,7 +80,8 @@ const countsOf = (total: z.infer<typeof TokenCount>["info"]["total_token_usage"]
 const outcomeIn = ({ command, exit_code, aggregated_output }: z.infer<typeof Command>["item"]): Summary["tests"] => {
   const run = testRunIn(command);
   if (run === "output") return outcomeOf(aggregated_output ?? "");
-  if (run === null || exit_code == null) return null;
+  // A run the user declined, or one that did not start, is recorded with -1: it never ran.
+  if (run === null || exit_code == null || exit_code < 0) return null;
   return exit_code === 0 ? "pass" : "fail";
 };
 
@@ -96,8 +97,14 @@ const metaOf = (meta: z.infer<typeof Meta> | null, file: string) => ({
   folder: meta?.cwd ?? null,
 });
 
+// A fork's rollout starts with its parent's history, copied up to the fork's own settings line, and its token totals go
+// on from its parent's (codex-rs/core/src/session/mod.rs, InitialHistory::Forked).
 class Rollout {
   meta: z.infer<typeof Meta> | null = null;
+  seen = false;
+  copying = false;
+  // A fork's totals before its first own request: what it took over.
+  base: number | null = null;
   model: string | null = null;
   busyMs: number | null = null;
   tokens = 0;
@@ -107,13 +114,20 @@ class Rollout {
   // The totals are cumulative and a token_count can repeat: the model in use gets the growth since the last one.
   last: Counts = NONE;
   readonly items: Partial<Record<string, (payload: Record<string, unknown>) => void>> = {
+    // The first is the rollout's own; a fork copies its parent's after it.
     session_meta: (payload) => {
-      this.meta ??= Meta.safeParse(payload).data ?? null;
+      if (this.seen) return;
+      this.seen = true;
+      this.meta = Meta.safeParse(payload).data ?? null;
+      this.copying = this.meta?.forked === true;
     },
     turn_context: (payload) => {
       this.model = Context.safeParse(payload).data?.model ?? this.model;
     },
-    event_msg: (payload) => this.events[String(payload["type"])]?.(payload),
+    event_msg: (payload) => {
+      const type = String(payload["type"]);
+      if (!this.copying || type === "thread_settings_applied") this.events[type]?.(payload);
+    },
   };
   readonly events: Partial<Record<string, (payload: Record<string, unknown>) => void>> = {
     token_count: (payload) => this.count(payload),
@@ -122,6 +136,10 @@ class Rollout {
       if (ms != null) this.busyMs = (this.busyMs ?? 0) + ms;
     },
     item_completed: (payload) => this.command(payload),
+    thread_settings_applied: (payload) => {
+      const id = Settings.safeParse(payload).data?.thread_id;
+      if (id != null && id === this.meta?.id) this.copying = false;
+    },
   };
 
   read(line: string): void {
@@ -134,6 +152,7 @@ class Rollout {
   count(payload: unknown): void {
     const info = TokenCount.safeParse(payload).data?.info;
     if (info === undefined) return;
+    if (this.meta?.forked === true && this.base === null) this.takeOver(info);
     this.tokens = info.total_token_usage.total_tokens ?? this.tokens;
     const now = countsOf(info.total_token_usage);
     if (now === null) return;
@@ -141,6 +160,12 @@ class Rollout {
     this.last = now;
     // The long-context rate goes by the last request's input, not by the growth, which can span several requests.
     this.add(growth, (info.last_token_usage?.input_tokens ?? 0) > PRICES.longAbove);
+  }
+
+  // The totals before the fork's first own request, its total less that request's usage.
+  takeOver({ total_token_usage: total, last_token_usage: last }: z.infer<typeof TokenCount>["info"]): void {
+    this.last = less(countsOf(total) ?? NONE, (last && countsOf(last)) ?? NONE);
+    this.base = (total.total_tokens ?? 0) - (last?.total_tokens ?? 0);
   }
 
   // Tokens before any turn names its model are kept, so the estimate lists them as unpriced.
@@ -165,7 +190,7 @@ class Rollout {
       start: isoOf(this.meta?.timestamp ?? this.span.first),
       end: isoOf(this.span.last),
       busyMs: this.busyMs,
-      tokens: this.tokens,
+      tokens: Math.max(0, this.tokens - (this.base ?? 0)),
       costUSD: null,
       tests: this.tests,
       usage: this.usage,

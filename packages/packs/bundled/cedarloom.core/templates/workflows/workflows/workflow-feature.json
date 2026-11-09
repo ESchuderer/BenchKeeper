@@ -19,7 +19,7 @@
       "id": "implement",
       "type": "agent.run",
       "with": {
-        "task": "Implement the plan in `.cedarloom/feature/plan.md`; where it leaves an open question unanswered, take its recommendation. Work on the branch an earlier round of this task made, else on a new branch from the up-to-date default branch, named by the project's convention. When `.cedarloom/feature/test.md` or `.cedarloom/feature/review.md` list failures or Blocking or Important findings, fix those first, then delete both files, so that only this round's test report and review count. Run the existing tests of the code you touch first, add only the tests the plan and the project's test rules call for, and run the project's fast checks after each edit. Commit by the project's convention, and do not push. Return what changed and each check you ran with its result."
+        "task": "Implement the plan in `.cedarloom/feature/plan.md`; where it leaves an open question unanswered, take its recommendation. Work on the branch an earlier round of this task made, else on a new branch from the up-to-date default branch, named by the project's convention. When `.cedarloom/feature/test.md` or `.cedarloom/feature/review.md` exist, read them, fix the failures and the Blocking and Important findings they list first, then always delete both files, so that only this round's test report and review count. Run the existing tests of the code you touch first, add only the tests the plan and the project's test rules call for, and run the project's fast checks after each edit. Commit by the project's convention, and do not push. Return what changed and each check you ran with its result."
       }
     },
     {

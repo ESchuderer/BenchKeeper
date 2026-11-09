@@ -253,9 +253,10 @@ test("a workflow the level's gates cannot split, whose names clash or that Claud
   ]);
 });
 
-// A hook gets only the first 10,000 characters of a call's output (Claude Code 2.1.316), so the status line must fit.
+// A hook reads a call's output whole only while it is short: Claude Code 2.1.316 cut a failed call's middle to about
+// 10,000 characters (observed), so the output stays within that.
 test.skipIf(process.platform === "win32")(
-  "a step script ends with its own exit status, within 10,000 characters",
+  "a step script ends with its own exit status, its output within 10,000 characters",
   () => {
     const steps: Node[] = [
       ["a", "command.run", { command: "echo out\nexit 3" }],

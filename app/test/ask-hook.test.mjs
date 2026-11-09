@@ -44,3 +44,13 @@ test('ask hook: /clear keeps the window, a resumed conversation starts without i
   run(data, start('resume'));
   assert.equal(decision(data), 'deny');
 });
+
+test('ask hook: /benchkeeper:questions allows the question tool for the session, until /benchkeeper:ask off', () => {
+  const data = mkdtempSync(join(tmpdir(), 'ask-'));
+  run(data, { ...typed('cedarloom'), command_name: 'benchkeeper:questions', prompt: '/benchkeeper:questions cedarloom' });
+  assert.equal(decision(data), 'none');
+  run(data, start('compact'));
+  assert.equal(decision(data), 'none');
+  run(data, typed('off'));
+  assert.equal(decision(data), 'deny');
+});

@@ -118,6 +118,10 @@
         "question": {
           "color": "d876e3",
           "description": "Owner decision needed: tick an option or comment, then set ready-for-agent"
+        },
+        "deferred": {
+          "color": "c5def5",
+          "description": "Owner deferred: the question queue skips it until the label is removed"
         }
       },
       "projectLabel": {

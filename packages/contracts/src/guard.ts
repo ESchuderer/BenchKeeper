@@ -16,9 +16,6 @@ export const RepoName = z.string().regex(/^[A-Za-z0-9-]{1,39}\/(?!\.{1,2}$)[A-Za
 export const GuardPolicy = z
   .strictObject({
     schemaVersion: z.literal(GUARD_SCHEMA_VERSION),
-    repositories: z
-      .literal("origin")
-      .describe("The repositories of the working folder's origin, read when the hook runs, besides the hub and memory"),
     hub: RepoName.nullable(),
     memory: RepoName.nullable(),
     merge: z

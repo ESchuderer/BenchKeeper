@@ -7,11 +7,6 @@
       "type": "number",
       "const": 1
     },
-    "repositories": {
-      "type": "string",
-      "const": "origin",
-      "description": "The repositories of the working folder's origin, read when the hook runs, besides the hub and memory"
-    },
     "hub": {
       "anyOf": [
         {
@@ -50,7 +45,6 @@
   },
   "required": [
     "schemaVersion",
-    "repositories",
     "hub",
     "memory",
     "plugin"

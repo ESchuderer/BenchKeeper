@@ -12,7 +12,7 @@ const Fixtures = z.object({
   policies: z.record(
     z.string(),
     GuardPolicy.omit({ plugin: true }).extend({
-      repositories: z.array(z.string()).nullable(),
+      repositories: z.array(z.string()),
       merge: z.array(z.string()).optional(),
     }),
   ),
@@ -46,7 +46,7 @@ test.each(cases)("$name", ({ policy, cwd, command, rule }) => {
 
 const HOOK = join(import.meta.dirname, "..", "src", "guard-hook.ts");
 // A package's policy, its plugin w.
-const PACKAGE = JSON.stringify({ schemaVersion: 1, repositories: "origin", hub: null, memory: null, plugin: "w" });
+const PACKAGE = JSON.stringify({ schemaVersion: 1, hub: null, memory: null, plugin: "w" });
 // `policy` null: the hook runs without its argument.
 // The hook's verdict on one input: exit 0 and silent runs the call, exit 2 with a reason refuses it.
 const hook = (input: string, policy: string | null = PACKAGE) => {
@@ -90,7 +90,7 @@ const inProject = (fields: object, run: (project: string, policy: string) => voi
   try {
     execFileSync("git", ["init", "-q", project]);
     execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
-    const policy = { schemaVersion: 1, repositories: "origin", hub: null, memory: null, plugin: "w", ...fields };
+    const policy = { schemaVersion: 1, hub: null, memory: null, plugin: "w", ...fields };
     run(project, JSON.stringify(policy));
   } finally {
     rmSync(project, { recursive: true, force: true });

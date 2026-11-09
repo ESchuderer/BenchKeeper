@@ -99,7 +99,6 @@ const hookOf = (node: string, file: string, ...args: string[]): Record<string, u
 const hooksFile = (plugin: string, level: AutomationLevel, { node, hub, memory }: Hooks): PackageFile => {
   const policy: GuardPolicy = {
     schemaVersion: GUARD_SCHEMA_VERSION,
-    repositories: "origin",
     hub: heldRepo(hub),
     memory: heldRepo(memory),
     merge: level === "auto" ? "workflow" : "refuse",

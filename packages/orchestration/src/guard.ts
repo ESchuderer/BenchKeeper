@@ -31,11 +31,11 @@ export type Remotes = (folder: string, url?: string) => ReadonlyMap<string, read
 export const TYPED_REMOTE = "cedarloom-typed-url";
 
 /**
- * A policy as one call meets it: the repositories read, and those it may merge pull requests in, none but where the hook
- * found an agent of a workflow script at Auto.
+ * A policy as one call meets it: the repositories it may reach, and those it may merge pull requests in, none but where
+ * the hook found an agent of a workflow script at Auto.
  */
-export type CallPolicy = Omit<GuardPolicy, "repositories" | "merge" | "plugin"> & {
-  readonly repositories: readonly string[] | null;
+export type CallPolicy = Omit<GuardPolicy, "merge" | "plugin"> & {
+  readonly repositories: readonly string[];
   readonly merge: readonly string[];
 };
 
@@ -473,15 +473,10 @@ const checkGitCommand = (sub: string, rest: readonly Word[], context: Context): 
   networkCheck(sub, rest, context);
 
 const networkCheck = (sub: string, rest: readonly Word[], context: Context): Denial | null => {
-  if (sub === "push")
-    return checkPush(rest) ?? submodules(sub, rest, context) ?? checkTargets(sub, pushTargets(rest), context);
+  if (sub === "push") return checkPush(rest) ?? submodules(sub, rest) ?? checkTargets(sub, pushTargets(rest), context);
   if (sub === "clone")
-    return (
-      checkClone(rest) ??
-      submodules(sub, rest, context) ??
-      checkTargets(sub, positionals(sub, rest).slice(0, 1), context)
-    );
-  if (sub === "fetch" || sub === "pull") return submodules(sub, rest, context) ?? fetchTargets(sub, rest, context);
+    return checkClone(rest) ?? submodules(sub, rest) ?? checkTargets(sub, positionals(sub, rest).slice(0, 1), context);
+  if (sub === "fetch" || sub === "pull") return submodules(sub, rest) ?? fetchTargets(sub, rest, context);
   return otherTargets(sub, rest, context);
 };
 
@@ -499,7 +494,7 @@ const otherTargets = (sub: string, rest: readonly Word[], context: Context): Den
   if (sub === "maintenance") return checkTargets("fetch", [], context);
   if (sub === "remote") return remoteTargets(rest, context);
   if (sub === "archive") return archiveTargets(rest, context);
-  return sub === "submodule" ? submoduleCheck(rest, context) : null;
+  return sub === "submodule" ? submoduleCheck(rest) : null;
 };
 
 // git remote update reaches every remote; show and prune reach the remote they name, unless -n keeps them local.
@@ -522,19 +517,16 @@ const archiveTargets = (rest: readonly Word[], context: Context): Denial | null 
 };
 
 // git submodule add, update and sync reach repositories the guard does not look up; status and summary stay local.
-const submoduleCheck = (rest: readonly Word[], context: Context): Denial | null =>
-  context.policy.repositories !== null && !["", "status", "summary"].includes(verbOf(rest))
+const submoduleCheck = (rest: readonly Word[]): Denial | null =>
+  !["", "status", "summary"].includes(verbOf(rest))
     ? unreadable("git submodule reaches repositories the guard does not look up")
     : null;
 
 // --recurse-submodules (other than =no or =check) makes a push, fetch or clone reach the submodules' own repositories.
-const submodules = (sub: string, rest: readonly Word[], context: Context): Denial | null => {
+const submodules = (sub: string, rest: readonly Word[]): Denial | null => {
   const recurse = rest.find((word) => abbreviates(word, "--recurse-submodules", 5));
   const reaches = recurse !== undefined && !/=(?:no|check)$/.test(recurse.text ?? "");
-  const limited = context.policy.repositories !== null || (sub === "push" && context.policy.memory !== null);
-  return reaches && limited
-    ? unreadable(`git ${sub} --recurse-submodules reaches repositories the guard does not look up`)
-    : null;
+  return reaches ? unreadable(`git ${sub} --recurse-submodules reaches repositories the guard does not look up`) : null;
 };
 
 // Whether `word`'s option name abbreviates the long option `option` to at least `min` characters, as git accepts; a word
@@ -851,7 +843,7 @@ const proposals = (refspecs: readonly Word[]): boolean =>
 
 const checkUrl = (sub: string, url: string, refspecs: readonly Word[], policy: CallPolicy): Denial | null => {
   const repo = githubRepo(url);
-  if (policy.repositories !== null && !policy.repositories.some((allowed) => sameRepo(allowed, repo))) {
+  if (!policy.repositories.some((allowed) => sameRepo(allowed, repo))) {
     return deny("outside-profiles", `git ${sub} reaches ${repo ?? url}, outside this session's repositories`);
   }
   return sub === "push" && policy.memory !== null ? memoryPush(url, repo, refspecs, policy.memory) : null;
@@ -871,8 +863,6 @@ const memoryPush = (url: string, repo: string | null, refspecs: readonly Word[],
 };
 
 const checkTargets = (sub: string, words: readonly Word[], context: Context): Denial | null => {
-  const { repositories, memory } = context.policy;
-  if (repositories === null && (sub !== "push" || memory === null)) return null;
   const urls = urlsOf(words[0], context, sub === "push");
   if (urls === null) return unreadable(`git ${sub} reaches a repository the guard cannot tell`);
   return (
@@ -924,7 +914,6 @@ const implicitRepos = (context: Context): (string | null)[] | null => {
 // A call that reaches `repos` (null: unknown) while the session is limited to its repositories.
 const checkRepos = (repos: readonly (string | null)[] | null, context: Context, what: string): Denial | null => {
   const { repositories } = context.policy;
-  if (repositories === null) return null;
   if (repos === null) return unreadable(`${what} reaches a repository the guard cannot tell`);
   const outside = repos.find((repo) => !repositories.some((allowed) => sameRepo(allowed, repo)));
   return outside === undefined
@@ -1138,8 +1127,7 @@ const eventOf = ({ fields, hidden }: ApiCall): string | null => {
 const checkGhApi = (rest: readonly Word[], context: Context): Denial | null => {
   const api = readApi(rest);
   if (api === null) return unreadable("gh api calls an endpoint, method or host the guard cannot read");
-  if (api.endpoint === "graphql" || /^\/graphql\/?$/.test(apiPath(api.endpoint) ?? ""))
-    return checkGraphql(api.call, context);
+  if (api.endpoint === "graphql" || /^\/graphql\/?$/.test(apiPath(api.endpoint) ?? "")) return checkGraphql(api.call);
   return checkApiPath(api.call.method, api.endpoint, eventOf(api.call), context);
 };
 
@@ -1230,12 +1218,9 @@ const checkRestPath = (
     : unreadable(`${what} is a GitHub write the guard does not know`);
 };
 
-// The GraphQL mutations a session may send: replies to review threads and their resolution.
-const GRAPHQL_WRITES = new Set(["resolveReviewThread", "unresolveReviewThread", "addPullRequestReviewThreadReply"]);
-
-// gh api graphql: a merge or a review refuses, as does any other mutation the guard does not know, and any document while
-// the session is limited to repositories, as the guard cannot tell what a document reaches.
-const checkGraphql = ({ fields, hidden }: ApiCall, context: Context): Denial | null => {
+// gh api graphql: a merge or a review refuses by its rule, and any other document as unreadable, as the guard cannot tell
+// what a document reaches.
+const checkGraphql = ({ fields, hidden }: ApiCall): Denial | null => {
   const query = fields.get("query");
   if (hidden || typeof query !== "string") return unreadable("gh api graphql sends a document the guard cannot read");
   if (/\b(?:mergePullRequest|enablePullRequestAutoMerge|mergeBranch|enqueuePullRequest)\b/.test(query)) {
@@ -1244,16 +1229,7 @@ const checkGraphql = ({ fields, hidden }: ApiCall, context: Context): Denial | n
   if (/\b(?:addPullRequestReview|submitPullRequestReview)\b/.test(query)) {
     return deny("approval", "a review through GraphQL, which may approve");
   }
-  // GraphQL skips commas between a field and its arguments; a comment in a mutation refuses, as one may hide a call.
-  const text = query.replaceAll(",", " ");
-  const body = text.replace(/\bmutation\b\s*\w*\s*(?:\([^)]*\))?/, "");
-  const calls = [...body.matchAll(/\b(\w+)\s*\(/g)];
-  if (body !== text && (query.includes("#") || calls.some(([, name = ""]) => !GRAPHQL_WRITES.has(name)))) {
-    return unreadable("gh api graphql sends a mutation the guard does not know");
-  }
-  return context.policy.repositories === null
-    ? null
-    : unreadable("gh api graphql reaches repositories the guard cannot tell");
+  return unreadable("gh api graphql reaches repositories the guard cannot tell");
 };
 
 const CURL = options(

@@ -36,15 +36,22 @@ export interface BoardQuery {
   readonly project: string | null;
 }
 
+// All time is at most the longest period, so one log with a reset clock does not make a span of decades.
+const LONGEST = 3650;
+
 /** The board of a period and a project, from every session of the machine, newest first; `now` decides today. */
 export const boardOf = (all: readonly AgentSession[], { days, project }: BoardQuery, now: Date): SessionsBoard => {
   const today = Date.parse(dayOf(now.getTime()));
-  const oldest = all.at(-1)?.start.slice(0, 10);
-  const from = days === null ? Math.min(Date.parse(oldest ?? dayOf(today)), today) : today - (days - 1) * DAY;
+  const own = project === null ? all : all.filter((s) => s.project === project);
+  const oldest = Date.parse(own.at(-1)?.start.slice(0, 10) ?? dayOf(today));
+  const from = Math.max(
+    days === null ? Math.min(oldest, today) : today - (days - 1) * DAY,
+    today - (LONGEST - 1) * DAY,
+  );
   const span: string[] = [];
   for (let time = from; time <= today; time += DAY) span.push(dayOf(time));
   const first = span[0] ?? "";
-  const sessions = all.filter((s) => s.start.slice(0, 10) >= first && (project === null || s.project === project));
+  const sessions = own.filter((s) => s.start.slice(0, 10) >= first);
   const counts = Map.groupBy(
     all.flatMap((s) => (s.project === null ? [] : [s.project])),
     (name) => name,

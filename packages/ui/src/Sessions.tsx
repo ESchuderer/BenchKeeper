@@ -84,12 +84,9 @@ const seriesOf = (board: Board) => {
 const W = 720;
 const H = 160;
 
-const Legend = ({ names, other }: { names: string[]; other: boolean }) => (
+const LegendKeys = ({ keys }: { keys: (readonly [string, string])[] }) => (
   <Group gap="md">
-    {[
-      ...names.map((name, at) => [name, SERIES[at] ?? OTHER] as const),
-      ...(other ? [[t("sessions.other"), OTHER] as const] : []),
-    ].map(([name, color]) => (
+    {keys.map(([name, color]) => (
       <Group key={name} gap={6}>
         <svg width={12} height={12} aria-hidden="true">
           <rect width={12} height={12} rx={3} fill={color} />
@@ -101,6 +98,17 @@ const Legend = ({ names, other }: { names: string[]; other: boolean }) => (
     ))}
   </Group>
 );
+
+// A project keeps the color of its rank; the legend names only those the period shows.
+const Legend = ({ named, rows, stacks }: { named: string[]; rows: Row[]; stacks: number[][] }) => {
+  const shown = new Set(rows.map((row) => row.project));
+  const other = stacks.some((column) => (column.at(-1) ?? 0) > 0);
+  const keys = [
+    ...named.flatMap((name, at) => (shown.has(name) ? [[name, SERIES[at] ?? OTHER] as const] : [])),
+    ...(other ? [[t("sessions.other"), OTHER] as const] : []),
+  ];
+  return <LegendKeys keys={keys} />;
+};
 
 // Each day's values per series, the last one Other.
 const stacksOf = (board: Board, metric: Metric): { named: string[]; stacks: number[][] } => {
@@ -118,12 +126,15 @@ type BarsProps = { stacks: number[][]; days: string[]; at: number | null; series
 // One stacked column per day, 2 px of surface between segments; the day in focus stands out.
 const Bars = ({ stacks, days, at, series }: BarsProps) => {
   const peak = Math.max(...stacks.map(sum), 0) || 1;
+  // The gaps between segments take room too, so the tallest stack stays inside the top line.
+  const gaps = 2 * Math.max(0, ...stacks.map((column) => column.filter((value) => value > 0).length - 1));
+  const scale = (H - 8 - gaps) / peak;
   const step = W / Math.max(days.length, 1);
   const width = Math.max(1, Math.min(18, step - 2));
   return stacks.map((column, i) => {
     let top = H;
     return column.map((value, k) => {
-      const height = (value / peak) * (H - 8);
+      const height = value * scale;
       if (height <= 0) return null;
       top -= height;
       const y = top;
@@ -191,10 +202,7 @@ const Chart = ({ board, metric }: { board: Board; metric: Metric }): ReactNode =
       <Text size="sm" role="status">
         {day === undefined ? t("sessions.hint") : `${date.format(Date.parse(day))}: ${readout.join(", ") || "0"}`}
       </Text>
-      <Legend
-        names={named.filter((name) => board.sessions.some((row) => row.project === name))}
-        other={stacks.some((column) => (column.at(-1) ?? 0) > 0)}
-      />
+      <Legend named={named} rows={board.sessions} stacks={stacks} />
     </Stack>
   );
 };
@@ -291,9 +299,9 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
     // A later choice's answer replaces this one; an answer that arrives after it is dropped.
     return () => void (current = false);
   }, [api, days, project]);
-  if (problem !== "") return <Alert color="red">{problem}</Alert>;
   return (
     <Stack>
+      {problem !== "" && <Alert color="red">{problem}</Alert>}
       <Filters
         board={board}
         days={days}
@@ -314,7 +322,7 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
             onChange={(value) => setMetric(METRICS.find((m) => m === value) ?? "sessions")}
             data={METRICS.map((value) => ({ value, label: t("sessions.metricName", { metric: value }) }))}
           />
-          <Chart board={board} metric={metric} />
+          <Chart key={`${board.days}-${board.project}`} board={board} metric={metric} />
           {board.sessions.length === 0 ? <Text>{t("sessions.empty")}</Text> : <SessionTable rows={board.sessions} />}
         </>
       )}

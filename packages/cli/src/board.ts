@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { shown } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import { type Context, EXIT, emit } from "./output.ts";
@@ -26,7 +27,7 @@ const figures = ({ span, project, figures: f }: Board): string[] => [
 
 const line = (s: Board["sessions"][number]): string =>
   [
-    s.start.slice(0, 16).replace("T", " "),
+    `${s.start.slice(0, 16).replace("T", " ")}Z`,
     s.agent.padEnd(11),
     time(s.busyMs).padStart(7),
     compact.format(s.tokens).padStart(6),
@@ -42,7 +43,9 @@ export const board = async (
   options: { days?: number; all?: true; project?: string },
 ): Promise<number> => {
   const days = options.all === true ? null : (options.days ?? 30);
-  const value = await useCases.sessionsBoard(logsOf(ctx), { days, project: options.project ?? null });
+  // A folder names its repository's project, as the sessions count it: `--project .` in a worktree too.
+  const project = options.project === undefined ? null : useCases.projectOf(resolve(options.project));
+  const value = await useCases.sessionsBoard(logsOf(ctx), { days, project });
   emit(ctx, "board", { board: value }, [...figures(value), ...value.sessions.map(line)].join("\n"));
   return EXIT.ok;
 };

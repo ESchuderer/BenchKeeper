@@ -51,9 +51,9 @@ test("a period: its UTC days up to today, its sessions, and figures with days wo
   expect(board.projects).toEqual(["/work/lab", "/work/shop"]);
 });
 
-test("one project over all time, from the first session's day", () => {
+test("one project over all time, from its first session's day", () => {
   const board = boardOf(all, { days: null, project: "/work/lab" }, now);
-  expect(board.span[0]).toBe("2026-10-01");
-  expect(board.span).toHaveLength(36);
+  expect(board.span[0]).toBe("2026-10-18");
+  expect(board.span).toHaveLength(19);
   expect(board.figures).toMatchObject({ sessions: 4, daysWorked: 4, streak: 3, costUSD: 3, tested: 1, testsPassed: 0 });
 });

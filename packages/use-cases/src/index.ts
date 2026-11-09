@@ -79,4 +79,4 @@ export {
   undoEntry,
 } from "./work-items.ts";
 export { managedPolicyDoctor } from "./managed-policy.ts";
-export { type BoardQuery, type Logs, sessionLogs, sessionsBoard } from "./sessions.ts";
+export { type BoardQuery, type Logs, projectOf, sessionLogs, sessionsBoard } from "./sessions.ts";

@@ -34,6 +34,7 @@ const accounts = () =>
 const settings = { "autoswitch.threshold": 90 };
 // claude-swap here or not, and whether its menu bar switches accounts.
 let installed = true;
+let uv = true;
 let autoSwitch = false;
 const missing = {
   findings: [
@@ -62,6 +63,13 @@ const auto = async (route: Route): Promise<void> => {
 
 // The install as the extension answers: uv's command first, run only with uv and that very command approved.
 const install = async (route: Route): Promise<void> => {
+  if (!uv) {
+    const error = "uv is not installed: install uv first";
+    return route.fulfill({
+      status: 409,
+      json: { findings: [{ ...missing.findings[0], params: { ...missing.findings[0]?.params, error } }] },
+    });
+  }
   const { allow } = route.request().postDataJSON();
   const runs = "uv tool install --no-config --default-index https://pypi.org/simple 'claude-swap[menubar]==1.0.0'";
   if (allow?.installer !== "uv" || allow.runs !== runs) {
@@ -125,10 +133,16 @@ test("claude-swap's accounts show with their usage, and a switch shows claude-sw
 });
 
 test("without claude-swap the page offers its install, which shows the command, its source and release first and runs only on the user's word; auto switching likewise", async () => {
-  installed = false;
+  [installed, uv] = [false, false];
   await page.reload();
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Accounts" }).click();
   const main = page.getByRole("main");
+  // Without uv, the page says so instead of offering an install that cannot run.
+  await expect(main.getByRole("alert")).toContainText("uv is not installed");
+  await expect(main.getByRole("button", { name: "Install claude-swap" })).toHaveCount(0);
+  uv = true;
+  await page.reload();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Accounts" }).click();
   await main.getByRole("button", { name: "Install claude-swap" }).click();
   await expect(main.getByText("'claude-swap[menubar]==1.0.0'", { exact: false })).toBeVisible();
   await expect(main.getByText(SOURCE, { exact: false })).toBeVisible();

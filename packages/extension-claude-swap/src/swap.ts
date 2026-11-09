@@ -361,8 +361,7 @@ const unchangeable = async (context: Exec, platform: string, on: boolean): Promi
   if (platform !== "darwin") return elsewhere(platform);
   if (!(await probeOf(context)).installed) return MISSING;
   if (!(await menuBarOf(context))) return NO_MENU_BAR;
-  const installed = (await serviceOf(context, ["--service-status"])).autoSwitch !== undefined;
-  return on || installed ? null : NO_SERVICE;
+  return on || (await serviceOf(context, ["--service-status"])).autoSwitch !== undefined ? null : NO_SERVICE;
 };
 
 /**

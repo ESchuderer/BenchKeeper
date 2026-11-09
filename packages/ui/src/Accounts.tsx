@@ -172,10 +172,11 @@ const Approve = ({
 /** `auto`: claude-swap's auto mode, or why it cannot be read; `install`: claude-swap is not installed. */
 type Read = { swap: Swap | null; auto: Service | string | null; problem: string; install: boolean };
 
-// Asked only after the extension failed to read the accounts; without an approval the install runs nothing.
-const missing = async (api: Api): Promise<boolean> => {
+// Asked only after the extension failed to read the accounts, which runs nothing without an approval: whether to offer
+// Install, or why it cannot, as when uv is missing.
+const installable = async (api: Api): Promise<boolean | string> => {
   const asked = await call(() => api.POST("/api/accounts/install", { body: { allow: null } }));
-  return "data" in asked && !asked.data.installed;
+  return "data" in asked ? !asked.data.installed : asked.problem;
 };
 
 /** claude-swap's accounts, settings and auto mode as its extension reads them now, read again on each `version`. */
@@ -186,12 +187,15 @@ const useSwap = (api: Api, version: number): Read => {
     const show = async (): Promise<void> => {
       const answers = [call(() => api.GET("/api/accounts")), call(() => api.GET("/api/accounts/auto"))] as const;
       const [listed, auto] = await Promise.all(answers);
-      const install = "codes" in listed && listed.codes.includes("extension.failed") && (await missing(api));
+      const failed = "codes" in listed && listed.codes.includes("extension.failed");
+      const install = failed ? await installable(api) : false;
+      // Without uv, the install's own reason names what to install first.
+      const why = typeof install === "string" ? ` ${install}` : "";
       if (!current) return;
       setRead({
-        ...("data" in listed ? { swap: listed.data, problem: "" } : { swap: null, problem: listed.problem }),
+        ...("data" in listed ? { swap: listed.data, problem: "" } : { swap: null, problem: `${listed.problem}${why}` }),
         auto: "data" in auto ? auto.data : auto.problem,
-        install,
+        install: install === true,
       });
     };
     void show();

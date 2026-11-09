@@ -292,7 +292,7 @@ test("the package's guard lets an agent of a workflow script merge at Auto only,
         tool_name: "Bash",
         tool_input: { command: "gh pr merge 12 --squash" },
         cwd: project,
-        agent_type: agent,
+        ...(agent === undefined ? {} : { agent_type: agent, agent_id: "a1" }),
       });
     const verdicts = (["supervised", "checkpoint", "auto"] as const).map((level) => {
       const hooks = JSON.parse(fileOf(built(read("valid-build-and-review.json"), level), "hooks/claude-code.json"));

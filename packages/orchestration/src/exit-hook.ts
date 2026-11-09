@@ -5,6 +5,9 @@ import { text } from "node:stream/consumers";
 // A step script's last line, which the emitter writes: the script's own exit status, whatever the agent adds around it.
 const MARKER = /^cedarloom-exit (\d+)$/gm;
 const STEP_SCRIPT = /(?:^|[\s/'"])steps\/[a-z0-9-]+\/scripts\/run\.sh/;
+// A run of a step script as the runner writes it, `sh`, `bash` or `.` before its path, which a `cat` or `ls` of it is not.
+const STEP_RUN =
+  /(?:^|[\s;&|(/])(?:sh|bash|\.)\s+(?:'(?:[^']|'\\'')*\/|"[^"]*\/|[^\s'"]*\/|['"]?)steps\/[a-z0-9-]+\/scripts\/run\.sh/;
 // The stage runner's report field, which no other workflow's report shares.
 const REPORTED = "cedarloomExitCode";
 
@@ -32,7 +35,7 @@ const record = (call: unknown, data: string | undefined): void => {
   const status = [...output.join("\n").matchAll(MARKER)].at(-1)?.[1];
   // A run without its status line, cut short or in the background, leaves no earlier run's status behind.
   if (status === undefined) {
-    rmSync(fileOf(call, data), { force: true });
+    if (STEP_RUN.test(command)) rmSync(fileOf(call, data), { force: true });
   } else {
     mkdirSync(join(data, "exits"), { recursive: true });
     writeFileSync(fileOf(call, data), status);

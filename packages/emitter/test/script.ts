@@ -56,4 +56,4 @@ export const report = (done: string[], failed: string[] = [], skipped: string[] 
   ...more,
 });
 
-export const passing = { exitCode: 0, output: "ok" };
+export const passing = { cedarloomExitCode: 0, output: "ok" };

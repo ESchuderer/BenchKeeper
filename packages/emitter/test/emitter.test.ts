@@ -199,7 +199,7 @@ test("a failing check sends its agent step back, and the level decides where a s
   const answer = ({ options }: Call): unknown => {
     if (options?.["schema"] === undefined) return "written";
     tests += 1;
-    return tests === 1 ? { exitCode: 1, output: "1 failed" } : passing;
+    return tests === 1 ? { cedarloomExitCode: 1, output: "1 failed" } : passing;
   };
   const checkpoint = built(definition, "checkpoint");
   const [stopped, calls] = await runScript(fileOf(checkpoint, "workflows/run-start.js"), answer, { topic: "parser" });

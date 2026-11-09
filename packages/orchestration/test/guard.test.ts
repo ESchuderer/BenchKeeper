@@ -177,7 +177,11 @@ test("the exit hook keeps a step script's own exit code whatever the agent adds,
     // The agent appended an echo: Bash exits 0, and the script's own last line says 3.
     const ran = { tool_name: "Bash", tool_input: { command: `${script}; echo "EXIT=$?"` } };
     const report = (exitCode: number, agent = "a1") =>
-      run("verify", { tool_name: "StructuredOutput", tool_input: { exitCode, output: "" }, agent_id: agent });
+      run("verify", {
+        tool_name: "StructuredOutput",
+        tool_input: { cedarloomExitCode: exitCode, output: "" },
+        agent_id: agent,
+      });
     expect([
       report(3),
       run("record", { ...ran, tool_response: { stdout: "shipping\ncedarloom-exit 3\nEXIT=0", stderr: "" } }),
@@ -187,8 +191,14 @@ test("the exit hook keeps a step script's own exit code whatever the agent adds,
       report(-1, "a2"),
       run("record", { ...ran, error: "Exit code 1\ncedarloom-exit 1" }),
       report(1),
+      // A run again whose output lost the status line (cut short, in the background) leaves no status to report.
+      run("record", { ...ran, tool_response: { stdout: "Command running in background", stderr: "" } }),
+      report(1),
+      report(-1),
+      // Another workflow's report, and an agent step's verdict, are not the runner's.
+      run("verify", { tool_name: "StructuredOutput", tool_input: { exitCode: 0, output: "" } }),
       run("verify", { tool_name: "StructuredOutput", tool_input: { verdict: "agree" } }),
-    ]).toEqual(["exit 2", "runs", "exit 2", "runs", "exit 2", "runs", "runs", "runs", "runs"]);
+    ]).toEqual("exit 2,runs,exit 2,runs,exit 2,runs,runs,runs,runs,exit 2,runs,runs,runs".split(","));
   } finally {
     rmSync(data, { recursive: true, force: true });
   }

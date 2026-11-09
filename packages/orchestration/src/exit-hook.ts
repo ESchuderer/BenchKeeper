@@ -1,10 +1,12 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { text } from "node:stream/consumers";
 
 // A step script's last line, which the emitter writes: the script's own exit status, whatever the agent adds around it.
 const MARKER = /^cedarloom-exit (\d+)$/gm;
-const STEP_SCRIPT = /\/steps\/[a-z0-9-]+\/scripts\/run\.sh/;
+const STEP_SCRIPT = /(?:^|[\s/'"])steps\/[a-z0-9-]+\/scripts\/run\.sh/;
+// The stage runner's report field, which no other workflow's report shares.
+const REPORTED = "cedarloomExitCode";
 
 const field = (object: unknown, key: string): unknown =>
   typeof object === "object" && object !== null ? Reflect.get(object, key) : undefined;
@@ -28,9 +30,13 @@ const record = (call: unknown, data: string | undefined): void => {
     (part) => typeof part === "string",
   );
   const status = [...output.join("\n").matchAll(MARKER)].at(-1)?.[1];
-  if (status === undefined) return;
-  mkdirSync(join(data, "exits"), { recursive: true });
-  writeFileSync(fileOf(call, data), status);
+  // A run without its status line, cut short or in the background, leaves no earlier run's status behind.
+  if (status === undefined) {
+    rmSync(fileOf(call, data), { force: true });
+  } else {
+    mkdirSync(join(data, "exits"), { recursive: true });
+    writeFileSync(fileOf(call, data), status);
+  }
 };
 
 /**
@@ -38,7 +44,7 @@ const record = (call: unknown, data: string | undefined): void => {
  * and the report is no -1, which the stage runner's prompt asks for when the command did not run.
  */
 const verify = (call: unknown, data: string | undefined): string | null => {
-  const reported = field(field(call, "tool_input"), "exitCode");
+  const reported = field(field(call, "tool_input"), REPORTED);
   if (field(call, "tool_name") !== "StructuredOutput" || typeof reported !== "number") return null;
   if (data === undefined || data === "") return "it has no plugin data folder (CLAUDE_PLUGIN_DATA)";
   let status: number;

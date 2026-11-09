@@ -28,11 +28,11 @@ const stageOf = (steps: Step[], more: Partial<StageScript> = {}): StageScript =>
 const isCommand = ({ options }: Call): boolean => options?.["schema"] !== undefined;
 
 // Every check fails; every agent answers.
-const never = (call: Call): unknown => (isCommand(call) ? { exitCode: 1, output: "1 failed" } : "written");
+const never = (call: Call): unknown => (isCommand(call) ? { cedarloomExitCode: 1, output: "1 failed" } : "written");
 
 // Step a's command fails; every other command passes and every agent answers.
 const failingA = (call: Call): unknown => {
-  if (call.prompt.includes("/plugin/a'")) return { exitCode: 1, output: "no" };
+  if (call.prompt.includes("/plugin/a'")) return { cedarloomExitCode: 1, output: "no" };
   return isCommand(call) ? passing : "ok";
 };
 
@@ -88,7 +88,7 @@ test("a failing check sends its agent step back with what it said, and a check s
   const once = (call: Call): unknown => {
     if (!isCommand(call)) return "written";
     checked += 1;
-    return checked === 1 ? { exitCode: 1, output: "1 failed" } : passing;
+    return checked === 1 ? { cedarloomExitCode: 1, output: "1 failed" } : passing;
   };
   const [passed, calls] = await runScript(stageOf(steps), once);
   expect(passed).toEqual(report(["start", "impl", "c"]));

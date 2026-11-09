@@ -756,6 +756,34 @@ msgid "accounts.set"
 msgstr "claude-swap set {key} to {value}."
 
 #. js-lingui-explicit-id
+msgid "accounts.auto"
+msgstr "claude-swap's auto switching"
+
+#. js-lingui-explicit-id
+msgid "accounts.autoOn"
+msgstr "Turn auto switching on"
+
+#. js-lingui-explicit-id
+msgid "accounts.autoOff"
+msgstr "Turn auto switching off"
+
+#. js-lingui-explicit-id
+msgid "accounts.install"
+msgstr "Install claude-swap"
+
+#. js-lingui-explicit-id
+msgid "accounts.approveInstall"
+msgstr "This command installs claude-swap once you approve it"
+
+#. js-lingui-explicit-id
+msgid "accounts.source"
+msgstr "claude-swap {release}, downloaded from {source}"
+
+#. js-lingui-explicit-id
+msgid "accounts.installed"
+msgstr "claude-swap {version} is installed."
+
+#. js-lingui-explicit-id
 msgid "problem.extensionFailed"
 msgstr "The extension {extension} failed: {error}"
 

@@ -208,10 +208,14 @@ const machine = (installers: string[]) => {
   return { exec, ran };
 };
 
-test("install shows what it runs and runs it only with its program allowed, with the menu bar on macOS; with claude-swap there it does nothing", async () => {
+test("install shows what it runs and runs it only with its program allowed and the command approved, with the menu bar on macOS; with claude-swap there it does nothing", async () => {
   const [shown, linux, none] = [machine(["uv", "pipx"]), machine(["pipx"]), machine([])];
+  const stale = { approved: "uv tool install 'claude-swap[menubar]==0.29.0'" };
   expect([
     await install({ exec: shown.exec, config: { allow: [] } }, "darwin"),
+    // With uv there, pipx's approval runs nothing; nor does a command other than the one approved.
+    keys(await install({ exec: shown.exec, config: { allow: ["pipx"] } }, "darwin")),
+    keys(await install({ exec: shown.exec, config: { allow: ["uv"] }, inputs: stale }, "darwin")),
     shown.ran,
     await install({ exec: linux.exec, config: { allow: ["pipx"] } }, "linux"),
     linux.ran,
@@ -220,12 +224,18 @@ test("install shows what it runs and runs it only with its program allowed, with
   ]).toEqual([
     {
       installed: false,
-      runs: "uv tool install --python '>=3.12' --exclude-newer 2026-11-07T00:00:00Z 'claude-swap[menubar]==0.30.0'",
+      runs: "uv tool install --no-config --default-index https://pypi.org/simple --python '>=3.12' --exclude-newer 2026-11-07T00:00:00Z 'claude-swap[menubar]==0.30.0'",
       approve: "cedarloom claude-swap install --allow uv",
+      installer: "uv",
+      source: "https://pypi.org/project/claude-swap/0.30.0/",
+      release: "0.30.0",
+      hint: expect.any(String),
     },
+    ["approve", "hint", "installed", "installer", "release", "runs", "source"],
+    ["approve", "hint", "installed", "installer", "release", "runs", "source"],
     [],
     { installed: true, version: "0.30.0" },
-    [["pipx", "install", "claude-swap==0.30.0"]],
+    [["pipx", "install", "--index-url", "https://pypi.org/simple", "claude-swap==0.30.0"]],
     "failed",
     { installed: true, version: "0.30.0" },
   ]);

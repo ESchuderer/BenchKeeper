@@ -270,38 +270,63 @@ const lineOf = (words: string[]): string => words.map((word) => (/[[>]/.test(wor
 // The claude-swap release an install pins, the one this extension reads (coordinator, 2026-11-07); on macOS with the
 // menu bar, which runs claude-swap's own auto mode as a service (switching plan 14.3).
 const specOf = (platform: string): string => `claude-swap${platform === "darwin" ? "[menubar]" : ""}==${OBSERVED}`;
-// The installers the host may run, in this order, and their install arguments. claude-swap needs Python 3.12 or newer,
-// which uv finds or downloads when asked (the first python3 on the path can be older: macOS ships 3.9), and uv takes
-// its dependencies as they were the day after the pin's release; pipx has no such option.
-const INSTALLERS: [string, string[]][] = [
-  ["uv", ["tool", "install", "--python", ">=3.12", "--exclude-newer", "2026-11-07T00:00:00Z"]],
-  ["pipx", ["install"]],
+// Where an install downloads claude-swap from: PyPI, named in the command; the host passes no UV_ or PIP_ variable.
+const INDEX = "https://pypi.org/simple";
+const SOURCE = `https://pypi.org/project/claude-swap/${OBSERVED}/`;
+// The installers the host may run, in this order, their install arguments, and what else they fetch, which the approval
+// shows. claude-swap needs Python 3.12 or newer, which uv finds or downloads when asked (the first python3 on the path
+// can be older: macOS ships 3.9); uv reads no uv.toml, whose indexes would come before PyPI, and takes the dependencies
+// as they were the day after the pin's release. pipx has no such options.
+const INSTALLERS: [string, string[], string][] = [
+  [
+    "uv",
+    [
+      ..."tool install --no-config --default-index".split(" "),
+      INDEX,
+      ..."--python >=3.12 --exclude-newer 2026-11-07T00:00:00Z".split(" "),
+    ],
+    "uv takes claude-swap's dependencies from PyPI as they were on 2026-11-07, and downloads a Python 3.12 or newer build from releases.astral.sh (python-build-standalone) when none is installed.",
+  ],
+  [
+    "pipx",
+    ["install", "--index-url", INDEX],
+    "pipx takes the newest releases of claude-swap's dependencies, and pip's own configuration files on this machine can add an index besides PyPI.",
+  ],
 ];
 // Below the minute a CLI verb's action has; claude-swap and the menu bar's packages download once.
 const VERB_MS = 55_000;
 
+// Runs an approved install, and reads claude-swap's version after it.
+const installWith = async ({ exec }: Exec, program: string, args: string[], runs: string) => {
+  const ran = await exec({ program, args, timeoutMs: VERB_MS });
+  if (ran.code !== 0) throw new Error(`${runs} exited with ${ran.code}: ${ran.stderr.trim().slice(-500)}`);
+  const now = await probeOf({ exec });
+  if (!now.installed) throw new Error(`${runs} ran, and cswap is still not found: ${now.reason}`);
+  return { installed: true, version: now.version };
+};
+
 /**
- * The install action: nothing to do while claude-swap is here; otherwise the command it runs, which it runs only once
- * the user names its program with `--allow` (an approval line; nothing installs unnamed).
+ * The install action: nothing to do while claude-swap is here; otherwise the command it runs, with its installer, the
+ * release it pins, where it downloads it from and what else it fetches. It runs it only once the user names its
+ * installer with `--allow` (an approval line; nothing installs unnamed) and, given `approved`, only that very command.
  */
 export const install = async (
-  { exec, config }: Pick<ActionContext, "exec" | "config">,
+  { exec, config, inputs = {} }: Pick<ActionContext, "exec" | "config"> & Partial<Pick<ActionContext, "inputs">>,
   platform: string = process.platform,
 ): Promise<Record<string, unknown>> => {
   const found = await probeOf({ exec });
   if (found.installed) return { installed: true, version: found.version };
-  for (const [program, args] of INSTALLERS) {
+  for (const [program, args, hint] of INSTALLERS) {
     if (!(await programVersion(exec, program, MS)).installed) continue;
     const spec = specOf(platform);
     const runs = lineOf([program, ...args, spec]);
-    if (!allowed(config, program)) {
-      return { installed: false, runs, approve: `cedarloom claude-swap install --allow ${program}` };
+    // A command other than the approved one, as after CedarLoom's pin moved, is shown to approve again.
+    const { approved = runs } = inputs;
+    if (!allowed(config, program) || approved !== runs) {
+      const approve = `cedarloom claude-swap install --allow ${program}`;
+      return { installed: false, runs, approve, installer: program, source: SOURCE, release: OBSERVED, hint };
     }
-    const ran = await exec({ program, args: [...args, spec], timeoutMs: VERB_MS });
-    if (ran.code !== 0) throw new Error(`${runs} exited with ${ran.code}: ${ran.stderr.trim().slice(-500)}`);
-    const now = await probeOf({ exec });
-    if (!now.installed) throw new Error(`${runs} ran, and cswap is still not found: ${now.reason}`);
-    return { installed: true, version: now.version };
+    return installWith({ exec }, program, [...args, spec], runs);
   }
   throw new Error(
     "neither uv nor pipx is installed: install uv first (https://docs.astral.sh/uv/getting-started/installation/)",
@@ -314,7 +339,7 @@ const elsewhere = (platform: string): string =>
     ? "run cswap auto in a terminal; claude-swap has no service on Windows"
     : "run cswap auto in a terminal, or from cron: */5 * * * * cswap auto --once --json >> ~/.cswap-auto.log";
 const TOGGLE = "turn on Settings, Auto-switch accounts in the menu bar once; CedarLoom never writes that setting";
-const [UV, UV_ARGS] = INSTALLERS[0] ?? ["uv", []];
+const [UV, UV_ARGS] = INSTALLERS[0] ?? ["uv", [], ""];
 // claude-swap's service starts its menu bar at each login, which needs its menubar extra; without it, it exits and
 // launchd restarts it again and again.
 const NO_MENU_BAR = `claude-swap's menu bar (claude-swap[menubar]) is not confirmed: add it with ${lineOf([UV, ...UV_ARGS, "--force", specOf("darwin")])}, or ${elsewhere("darwin")}`;

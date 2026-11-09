@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SwapInstall.schema.json",
+  "type": "object",
+  "properties": {
+    "runs": {
+      "type": "string"
+    },
+    "approve": {
+      "type": "string"
+    },
+    "hint": {
+      "type": "string"
+    },
+    "installed": {
+      "type": "boolean",
+      "const": false
+    },
+    "installer": {
+      "type": "string",
+      "enum": [
+        "uv",
+        "pipx"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "format": "uri"
+    },
+    "release": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "runs",
+    "approve",
+    "installed",
+    "installer",
+    "source",
+    "release"
+  ],
+  "additionalProperties": false
+}

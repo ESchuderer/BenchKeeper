@@ -17,6 +17,9 @@ import {
   Step,
   SwapAccounts,
   SwapApproval,
+  SwapInstall,
+  SwapInstalled,
+  SwapService,
   UndoPreview,
   WorkflowId,
   WorkflowJson,
@@ -263,16 +266,59 @@ const SettingsBody = z.strictObject({
   value: z.number().min(0).max(100).describe("The switch line in percent; claude-swap checks its own range"),
   allow: approved,
 });
+const AutoSet = z.union([SwapApproval, SwapService]);
+const AutoBody = z.strictObject({ on: z.boolean().describe("true: auto-on, false: auto-off"), allow: approved });
+const Installed = z.union([SwapInstall, SwapInstalled]);
+// The installer, not cswap, and the command the user approved: the extension runs no other one.
+const InstallBody = z.strictObject({
+  allow: SwapInstall.pick({ installer: true, runs: true })
+    .nullable()
+    .describe("The installer and command of the approval the user gave; null asks for it"),
+});
 
-// Accounts belong to claude-swap: these routes keep nothing, and a change runs only once the request says `allow`.
-export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: string; app: string | undefined }> = async (
-  server,
-  { state, config, app },
-) => {
-  const swap = (action: string, allow = false, inputs: Record<string, string> = {}): Promise<Result<object>> =>
+type SwapPaths = { state: string; config: string; app: string | undefined };
+// An action of the app's claude-swap extension, with the programs the user allowed.
+const swapIn =
+  ({ state, config, app }: SwapPaths) =>
+  (action: string, allow: string[] = [], inputs: Record<string, string> = {}): Promise<Result<object>> =>
     app === undefined
       ? Promise.resolve({ ok: false, finding: { code: "extension.unknown", params: { extension: SWAP } } })
-      : useCases.runBundled({ state, config, app }, SWAP, action, { allow: allow ? ["cswap"] : [], inputs });
+      : useCases.runBundled({ state, config, app }, SWAP, action, { allow, inputs });
+const cswap = (allow: boolean): string[] => (allow ? ["cswap"] : []);
+
+// claude-swap's auto mode and its install, each run only once the request allows the command it showed.
+const swapRoutes: FastifyPluginAsyncZod<SwapPaths> = async (server, paths) => {
+  const swap = swapIn(paths);
+  server.get(
+    "/api/accounts/auto",
+    { schema: { response: answers({ 200: SwapService, 409: Refusal }) } },
+    async (_req, reply) => {
+      const ran = await swap("auto");
+      return ran.ok ? SwapService.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+  server.post(
+    "/api/accounts/auto",
+    { schema: { body: AutoBody, response: answers({ 200: AutoSet, 409: Refusal }) } },
+    async (req, reply) => {
+      const ran = await swap(req.body.on ? "auto-on" : "auto-off", cswap(req.body.allow));
+      return ran.ok ? AutoSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+  server.post(
+    "/api/accounts/install",
+    { schema: { body: InstallBody, response: answers({ 200: Installed, 409: Refusal }) } },
+    async (req, reply) => {
+      const { allow } = req.body;
+      const ran = await swap("install", allow === null ? [] : [allow.installer], allow ? { approved: allow.runs } : {});
+      return ran.ok ? Installed.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+};
+
+// Accounts belong to claude-swap: these routes keep nothing, and a change runs only once the request says `allow`.
+export const accountRoutes: FastifyPluginAsyncZod<SwapPaths> = async (server, paths) => {
+  const swap = swapIn(paths);
   server.get(
     "/api/accounts",
     { schema: { response: answers({ 200: SwapAccounts, 409: Refusal }) } },
@@ -287,7 +333,7 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
     "/api/accounts/switch",
     { schema: { body: SwitchBody, response: answers({ 200: Switched, 409: Refusal }) } },
     async (req, reply) => {
-      const ran = await swap("switch", req.body.allow, { account: String(req.body.account) });
+      const ran = await swap("switch", cswap(req.body.allow), { account: String(req.body.account) });
       return ran.ok ? Switched.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
     },
   );
@@ -296,10 +342,11 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
     { schema: { body: SettingsBody, response: answers({ 200: SettingsSet, 409: Refusal }) } },
     async (req, reply) => {
       const { key, value, allow } = req.body;
-      const ran = await swap("settings", allow, { key, value: String(value) });
+      const ran = await swap("settings", cswap(allow), { key, value: String(value) });
       return ran.ok ? SettingsSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
     },
   );
+  await server.register(swapRoutes, paths);
 };
 
 // Reads the session logs (a first read of a large history takes seconds), never writes but the cache.

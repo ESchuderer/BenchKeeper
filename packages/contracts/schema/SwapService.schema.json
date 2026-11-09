@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "SwapService.schema.json",
+  "type": "object",
+  "properties": {
+    "service": {
+      "type": "string"
+    },
+    "hint": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hint"
+  ],
+  "additionalProperties": false
+}

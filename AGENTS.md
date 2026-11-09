@@ -21,7 +21,7 @@ The changed-files check, for each area the change touches:
 - `app/`: `npm run check:imports && npm run check:baselines && npm test`
 - `web/`: `npm run build && npm test`
 - `plugins/` and `.github/`: the scripts of the `checks-core` job in [checks.yml](.github/workflows/checks.yml) that cover the changed files.
-- CI also runs lychee over the Markdown files ([links.yml](.github/workflows/links.yml)) and typos over the CedarLoom files ([cedarloom.yml](.github/workflows/cedarloom.yml)); neither is installed in the container.
+- CI also runs typos over the CedarLoom files ([cedarloom.yml](.github/workflows/cedarloom.yml)); it is not installed in the container.
 
 ## Before you push
 

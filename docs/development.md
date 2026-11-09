@@ -4,17 +4,13 @@ How the checks, the workflows and the local agent setup of this repository work.
 
 ## Workflows
 
-- `checks.yml` runs `checks-core`, `app-ui-tests` and `plugin-checks` in parallel; the job `checks` gates all three. `links.yml` gates its `link-check` job the same way with `lychee`.
+- `checks.yml` runs `checks-core`, `app-ui-tests` and `plugin-checks` in parallel; the job `checks` gates all three.
 - Every workflow has `permissions: {}` at the top and per job, `timeout-minutes` on every job and a `concurrency` group that cancels superseded pull request runs.
 - Every required check runs on pull requests into `main` and on pushes to `main`, except `conventional` (the pull request title) and `dependency-review`, which run on pull requests only.
-- The rulesets name the required checks: `checks`, `app (ubuntu-latest)`, `app (macos-latest)`, `app-windows-smoke`, `build`, `lychee`, `conventional`, `dependency-review`. A job change keeps these names.
+- The rulesets name the required checks: `checks`, `app (ubuntu-latest)`, `app (macos-latest)`, `app-windows-smoke`, `build`, `conventional`, `dependency-review`. A job change keeps these names.
 - `checks-core`: `actionlint`, `zizmor` (a checkout keeps its credentials only with a `zizmor: ignore[artipacked]` reason), no em dash or emoji in text files outside the `.agents/` and `.claude/` folders, the `.github/scripts/` tests and checks (skill lint, generated docs, version pins, claims).
 - Actions are pinned to commit SHAs with a version comment. Dependabot (`.github/dependabot.yml`) updates the `uses:` pins and the npm packages of the site, the app and `.github/pnpm` (the pnpm of the CedarLoom CI) weekly. By hand: the actionlint image digest, `node-version` in every workflow, the dev container image and its pnpm (they follow the Node 26 line of `cedarloom.yml` and the pnpm of `.github/pnpm`, and the CI step `Version pins` fails when the Node or the pnpm differs; bump the image's tag and digest together, since the step reads the tag; BenchKeeper's own workflows stay on Node 22), and the Claude Code pin of the `plugin-checks` job (`.github/claude-code/package.json` and its lockfile, the npm `stable` tag).
 - The Chromium headless shell version of `@playwright/test` in `web/package.json` and `app/package.json` is also set in `.devcontainer/Dockerfile`; the CI step `Version pins` fails when they differ.
-
-## Links
-
-The job `link-check` (pull requests and pushes) runs lychee offline over the Markdown files (relative links and anchors) and the link checker test (`node --test .github/scripts/github-links.test.mjs`). External links are checked by the jobs `external-links` (lychee for all hosts, `.github/scripts/github-links.mjs` and the GitHub API for github.com) and `external-site-links` on the weekly cron and on `workflow_dispatch` only, so a broken external link shows as a red scheduled run.
 
 ## App quality gates
 
@@ -33,7 +29,7 @@ In the dev container, 3 app tests fail because of the container, not the code or
 
 ## Site
 
-`.github/workflows/pages.yml` runs the README sync check, the build, axe in light and dark, and lychee offline on the built HTML (its external links are the weekly `external-site-links`). It deploys on pushes to `main`, on a published release and by hand ([releasing](releasing.md#site)); a failing `build` job fails the run and the previous deployment stays. Pushes share one concurrency group, so deployments are ordered.
+`.github/workflows/pages.yml` runs the README sync check, the build, and axe in light and dark. It deploys on pushes to `main`, on a published release and by hand ([releasing](releasing.md#site)); a failing `build` job fails the run and the previous deployment stays. Pushes share one concurrency group, so deployments are ordered.
 
 Preview: `npm run preview` in `web/` in the dev container serves the site under `/BenchKeeper/` on a free host port: `podman port $(podman ps -q --filter label=devcontainer.local_folder="$PWD") 4321`.
 

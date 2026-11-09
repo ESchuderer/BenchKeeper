@@ -186,7 +186,7 @@ const planOf = (operations: Operation[]): Plan | null =>
 /** Where an install or an uninstall writes: CedarLoom's config and state folders, and the user's Claude Code home. */
 export type Folders = { readonly config: string; readonly state: string; readonly home: string };
 
-// This machine's hub and memory repositories, which the guard lets a session reach.
+// This machine's hub and memory repositories, which the guard lets a workflow's agent reach.
 const bindingsOf = (config: string): Result<{ hub: string | null; memory: string | null }> => {
   const selection = readSelection(config);
   if (!selection.ok) return selection;
@@ -268,7 +268,7 @@ const installedPackages = (marketplace: string) =>
     return { plugin, folder, id, level, version };
   });
 
-// Every package's guard runs in every session, so one below Auto refuses the merges of one at Auto.
+// Every package's guard binds every workflow script's agents, so one below Auto refuses the merges of one at Auto.
 const levelsMixed = ({ plugin, marketplace }: Place, id: string, level: AutomationLevel): Finding[] =>
   installedPackages(marketplace).flatMap(({ plugin: name, id: other, level: otherLevel }): Finding[] =>
     name !== plugin && other !== null && otherLevel !== null && (otherLevel === "auto") !== (level === "auto")

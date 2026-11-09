@@ -7,29 +7,6 @@
       "type": "number",
       "const": 1
     },
-    "repositories": {
-      "anyOf": [
-        {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9-]{1,39}\\/(?!\\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
-              }
-            },
-            {
-              "type": "string",
-              "const": "origin"
-            }
-          ]
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "description": "origin: the repositories of the working folder's origin, read when the hook runs"
-    },
     "hub": {
       "anyOf": [
         {
@@ -59,13 +36,18 @@
         "refuse",
         "workflow"
       ]
+    },
+    "plugin": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "The package's plugin, whose steps' own subagents (<plugin>:<step>) meet the guard"
     }
   },
   "required": [
     "schemaVersion",
-    "repositories",
     "hub",
-    "memory"
+    "memory",
+    "plugin"
   ],
   "additionalProperties": false
 }

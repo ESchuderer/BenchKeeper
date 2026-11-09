@@ -146,7 +146,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "package.plugin-taken": (p) =>
     `The plugin ${p.plugin} holds the package of the workflow ${p.id}, whose id folds to the same name; uninstall that one first, or give one of the two workflows another id.`,
   "package.levels-mixed": (p) =>
-    `The workflow ${p.other} is installed at ${p.otherLevel}, and ${p.id} at ${p.level}. Each package's guard runs in every Claude Code session, so for merges the strictest installed level holds: no merge passes while one package is below Auto. Install them at one level: cedarloom workflows install ${p.other} --level ${p.level}, or this one at ${p.otherLevel}.`,
+    `The workflow ${p.other} is installed at ${p.otherLevel}, and ${p.id} at ${p.level}. Each package's guard binds the agents of every workflow script, so for their merges the strictest installed level holds: no workflow agent's merge passes while one package is below Auto. Install them at one level: cedarloom workflows install ${p.other} --level ${p.level}, or this one at ${p.otherLevel}.`,
   "package.codex-missing": (p) =>
     `Codex holds CedarLoom's packages but not ${p.plugin}, the workflow ${p.id}: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
   "package.codex-stale": (p) =>

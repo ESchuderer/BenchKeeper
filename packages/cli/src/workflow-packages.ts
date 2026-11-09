@@ -22,7 +22,7 @@ const codexAdd = (plugin: string, marketplace: string): string =>
 
 // In every plan, approved or not: the approval's finding, which says the hooks run in every session, goes with --allow.
 const hooksNote = (node: string): string =>
-  `\n  Its hooks run in every Claude Code session while the package is on: there the guard refuses the merges, approvals, force pushes, gh configuration changes and owner's writes it reads; a workflow's agents also meet its repository limit and its refusal of what it cannot read, such as a subshell ( … ), a group { …; } or PowerShell. They run with ${folderArgument(node)}; should that file go, as a versioned one does when its Node.js version is removed (Homebrew's Cellar, a version manager's), Claude Code refuses every call they guard in those sessions until you install again, which cedarloom doctor reports.`;
+  `\n  Its hooks run in every Claude Code session while the package is on, but the guard binds only a workflow's own agents: it refuses their merges below Auto, their approvals, force pushes, gh configuration changes and owner's writes, calls outside its repositories, and what it cannot read, such as a subshell ( … ), a group { …; }, PowerShell or an agent it does not bind; any other caller runs untouched, merges included. They run with ${folderArgument(node)}; should that file go, as a versioned one does when its Node.js version is removed (Homebrew's Cellar, a version manager's), Claude Code refuses every call they guard in those sessions until you install again, which cedarloom doctor reports.`;
 
 type Install = { level?: AutomationLevel; allow?: string; yes?: true };
 

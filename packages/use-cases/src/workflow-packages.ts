@@ -1,5 +1,5 @@
-import { accessSync, constants, readdirSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { accessSync, constants, readdirSync, realpathSync, rmdirSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   type AutomationLevel,
   type Finding,
@@ -241,19 +241,32 @@ const installedIn = (folder: string): ReturnType<typeof builtFrom> => {
   return read.ok ? builtFrom(read.value?.json) : null;
 };
 
-// Every installed package: its plugin, folder, and the workflow and level its manifest names.
-const installedPackages = (marketplace: string) => {
+// The names of a folder's subfolders; none when it is missing.
+const foldersIn = (folder: string): string[] => {
   try {
-    return readdirSync(marketplace, { withFileTypes: true }).flatMap((entry) => {
-      if (!entry.isDirectory()) return [];
-      const folder = join(marketplace, entry.name);
-      const { id = null, level = null } = installedIn(folder) ?? {};
-      return [{ plugin: entry.name, folder, id, level }];
-    });
+    return readdirSync(folder, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? [entry.name] : []));
   } catch {
     return [];
   }
 };
+
+/** Removes the empty folders under `folder`, and `folder` once empty: a plan deletes files, never their folders. */
+export const removeEmptyFolders = (folder: string): void => {
+  for (const name of foldersIn(folder)) removeEmptyFolders(join(folder, name));
+  try {
+    rmdirSync(folder);
+  } catch {
+    // Not empty, or gone.
+  }
+};
+
+// Every installed package: its plugin, folder, and the workflow, version and level its manifest names.
+const installedPackages = (marketplace: string) =>
+  foldersIn(marketplace).map((plugin) => {
+    const folder = join(marketplace, plugin);
+    const { id = null, level = null, version = null } = installedIn(folder) ?? {};
+    return { plugin, folder, id, level, version };
+  });
 
 // Every package's guard runs in every session, so one below Auto refuses the merges of one at Auto.
 const levelsMixed = ({ plugin, marketplace }: Place, id: string, level: AutomationLevel): Finding[] =>
@@ -348,10 +361,46 @@ const runnable = (path: string): boolean => {
   }
 };
 
-/** The doctor's findings on the installed packages: hooks whose Node.js is gone, which refuse every call they guard. */
-export const packageDoctor = (state: string): Finding[] =>
-  installedPackages(marketplaceFolder(state)).flatMap(({ plugin, folder, id, level }) =>
+// Whether a folder's copy holds the same files, byte for byte, and no others; a copy it cannot read differs.
+const sameFiles = (folder: string, copy: string): boolean => {
+  const files = filesIn(folder);
+  const same = (path: string): boolean => hashFile(path) === hashFile(join(copy, relative(folder, path)));
+  try {
+    return files.length === filesIn(copy).length && files.every(same);
+  } catch {
+    return false;
+  }
+};
+
+// Codex runs its copy of a package (`codex plugin add`), which a later install leaves behind; nothing while it has none.
+const codexDoctor = (installed: ReturnType<typeof installedPackages>, codex: string): Finding[] => {
+  const cache = join(codex, "plugins", "cache", WORKFLOW_MARKETPLACE);
+  const copied = foldersIn(cache);
+  if (copied.length === 0) return [];
+  return [
+    ...installed.flatMap(({ plugin, folder, id, version }): Finding[] => {
+      if (id === null || version === null) return [];
+      if (!copied.includes(plugin)) return [{ code: "package.codex-missing", params: { plugin, id } }];
+      return sameFiles(folder, join(cache, plugin, version))
+        ? []
+        : [{ code: "package.codex-stale", params: { plugin, id } }];
+    }),
+    ...copied
+      .filter((plugin) => !installed.some((other) => other.plugin === plugin))
+      .map((plugin): Finding => ({ code: "package.codex-left", params: { plugin } })),
+  ];
+};
+
+/**
+ * The doctor's findings on the installed packages: hooks whose Node.js is gone, which refuse every call they guard, and
+ * Codex's copies (`codex`: its home) that are missing, stale or left over.
+ */
+export const packageDoctor = (state: string, codex: string): Finding[] => {
+  const installed = installedPackages(marketplaceFolder(state));
+  const nodes = installed.flatMap(({ plugin, folder, id, level }) =>
     hookPrograms(folder)
       .filter((path) => !runnable(path))
       .map((path): Finding => ({ code: "package.node-missing", params: { plugin, path, id, level } })),
   );
+  return [...nodes, ...codexDoctor(installed, codex)];
+};

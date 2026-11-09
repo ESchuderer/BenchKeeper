@@ -1497,6 +1497,26 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.codex-missing";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-stale";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-left";
+            params: {
+                plugin: string;
+            };
+        } | {
+            /** @constant */
             code: "package.node-missing";
             params: {
                 plugin: string;
@@ -2665,6 +2685,26 @@ export interface components {
                 other: string;
                 /** @enum {string} */
                 otherLevel: "supervised" | "checkpoint" | "auto";
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-missing";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-stale";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-left";
+            params: {
+                plugin: string;
             };
         } | {
             /** @constant */

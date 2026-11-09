@@ -1960,6 +1960,92 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "package.codex-missing"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "plugin": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "plugin",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "package.codex-stale"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "plugin": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "plugin",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "package.codex-left"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "plugin": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "plugin"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "package.node-missing"
         },
         "params": {

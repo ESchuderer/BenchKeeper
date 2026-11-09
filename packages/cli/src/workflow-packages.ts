@@ -18,7 +18,7 @@ const bundlesIn = (folder: string): { guard: string; exits: string } | null => {
 
 // Codex loads the same folder from its own copy (`codex plugin add`), which CedarLoom shows and never writes.
 const codexAdd = (plugin: string, marketplace: string): string =>
-  `\n  Codex: codex plugin marketplace add ${folderArgument(marketplace)} (once), then codex plugin add ${plugin}@${WORKFLOW_MARKETPLACE}; Codex runs its own copy, so add it again after every install, a rebuild at another level too.`;
+  `\n  Codex: codex plugin marketplace add ${folderArgument(marketplace)} (once), then codex plugin add ${plugin}@${WORKFLOW_MARKETPLACE}; Codex runs its own copy, so add it again after every install, a rebuild at another level too; cedarloom doctor reports a copy that differs.`;
 
 // In every plan, approved or not: the approval's finding, which says the hooks run in every session, goes with --allow.
 const hooksNote = (node: string): string =>
@@ -60,5 +60,8 @@ export const workflowsUninstall = (ctx: Context, id: string, { yes }: { yes?: tr
   const { plan, plugin, marketplace } = planned.value;
   const note = `\n  Codex: codex plugin remove ${plugin}@${WORKFLOW_MARKETPLACE}`;
   if (plan === null) return refused(ctx, "plan", { code: "package.not-installed", params: { id } });
-  return change(ctx, plan, { note, data: { plugin, marketplace }, findings: [] }, yes);
+  const code = change(ctx, plan, { note, data: { plugin, marketplace }, findings: [] }, yes);
+  // Its emptied folders would still count as an installed package, Codex's copy then never as left over.
+  if (yes === true && code === EXIT.ok) useCases.removeEmptyFolders(marketplace);
+  return code;
 };

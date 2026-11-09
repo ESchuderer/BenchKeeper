@@ -37,7 +37,7 @@ env:
     packages pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json tsconfig.base.json vitest.config.ts
     .oxlintrc.json biome.json knip.json .jscpd.json _typos.toml .gitattributes scripts/*.ts
     release-please-config.cedarloom.json .release-please-manifest.cedarloom.json .github/workflows/cedarloom.yml
-    .github/pnpm .github/schemathesis
+    .github/pnpm .github/codex .github/schemathesis
 
 jobs:
   # base: a merge group's base, or the tip of a pull request's base branch. git's `<base>...` and pnpm's `[<base>]` both
@@ -232,6 +232,37 @@ jobs:
           if call "sudo ls" 2> /dev/null; then exit 1; fi
           files=$(cd packages/cli && npm pack --dry-run --json --ignore-scripts)
           for name in guard exits; do grep -q "\"path\": \"hooks/$name.mjs\"" <<< "$files"; done
+      # Codex loads an installed package from its own copy, the skills of both folders its manifest lists, each kept off
+      # the model's list by its policy file; the doctor sees a copy that differs. Codex pinned by .github/codex.
+      - if: runner.os == 'Linux'
+        name: A workflow package in Codex
+        env:
+          CEDARLOOM_STATE_DIR: ${{ runner.temp }}/state
+          CEDARLOOM_CONFIG_DIR: ${{ runner.temp }}/config
+          CLAUDE_CONFIG_DIR: ${{ runner.temp }}/claude
+          CODEX_HOME: ${{ runner.temp }}/codex
+        run: |
+          npm ci --prefix .github/codex --ignore-scripts --no-audit --no-fund
+          codex() { .github/codex/node_modules/.bin/codex "$@"; }
+          cli() { node packages/cli/src/bin.ts "$@"; }
+          git config --global user.name CI && git config --global user.email ci@example.org
+          mkdir -p "$CEDARLOOM_STATE_DIR/drafts" "$CODEX_HOME"
+          jq '.metadata.id = "cedarloom-ci"' packages/contracts/corpus/WorkflowDefinition/1/valid-build-and-review.json \
+            > "$CEDARLOOM_STATE_DIR/drafts/workflow-cedarloom-ci.json"
+          cli workflows save cedarloom-ci --yes
+          cli workflows install cedarloom-ci --allow cedarloom-ci --yes
+          codex plugin marketplace add "$CEDARLOOM_STATE_DIR/workflow-packages"
+          codex plugin add cedarloom-ci@cedarloom-workflows
+          codex debug prompt-input > /dev/null
+          listed() { codex debug prompt-input | grep -oE 'cedarloom-ci:[a-z0-9-]+' | sort -u | tr '\n' ' '; }
+          copies() { cli doctor --json | jq -c '[.findings[] | select(.code | startswith("package.codex"))]'; }
+          test -z "$(listed)"
+          test "$(copies)" = '[]'
+          for skill in steps/lint codex/start; do
+            rm "$CODEX_HOME/plugins/cache/cedarloom-workflows/cedarloom-ci/1.0.0/$skill/agents/openai.yaml"
+          done
+          test "$(listed)" = 'cedarloom-ci:lint cedarloom-ci:start '
+          test "$(copies)" = '[{"code":"package.codex-stale","params":{"plugin":"cedarloom-ci","id":"cedarloom-ci"}}]'
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed
   # OpenAPI document. oasdiff, the other API contract gate, follows once a released document exists to compare against.

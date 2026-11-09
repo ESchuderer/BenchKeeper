@@ -1,4 +1,4 @@
-import { type Finding, type FindingCode, shown } from "@cedarloom/contracts";
+import { type Finding, type FindingCode, shown, WORKFLOW_MARKETPLACE } from "@cedarloom/contracts";
 
 type Params = { [F in Finding as F["code"]]: F["params"] };
 
@@ -147,6 +147,12 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The plugin ${p.plugin} holds the package of the workflow ${p.id}, whose id folds to the same name; uninstall that one first, or give one of the two workflows another id.`,
   "package.levels-mixed": (p) =>
     `The workflow ${p.other} is installed at ${p.otherLevel}, and ${p.id} at ${p.level}. Each package's guard runs in every Claude Code session, so for merges the strictest installed level holds: no merge passes while one package is below Auto. Install them at one level: cedarloom workflows install ${p.other} --level ${p.level}, or this one at ${p.otherLevel}.`,
+  "package.codex-missing": (p) =>
+    `Codex holds CedarLoom's packages but not ${p.plugin}, the workflow ${p.id}: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
+  "package.codex-stale": (p) =>
+    `Codex runs a copy of ${p.plugin}, the workflow ${p.id}, that differs from the one CedarLoom installed; add it again: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
+  "package.codex-left": (p) =>
+    `Codex still runs ${p.plugin}, which CedarLoom no longer installs: codex plugin remove ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
   "package.node-missing": (p) =>
     `The hooks of ${p.plugin} run with ${p.path}, which is gone, so Claude Code refuses every shell call and agent they guard, in every session. Install its workflow again: cedarloom workflows install ${p.id ?? "<id>"}${p.level === null ? "" : ` --level ${p.level}`} --allow ${p.plugin} --yes`,
   "package.reserved-name": (p) =>

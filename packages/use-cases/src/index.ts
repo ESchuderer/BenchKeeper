@@ -37,6 +37,7 @@ export {
   packageDoctor,
   planPackageInstall,
   planPackageUninstall,
+  removeEmptyFolders,
   stableNode,
 } from "./workflow-packages.ts";
 export {
@@ -54,6 +55,7 @@ export {
   type Choice,
   checkProfile,
   claudeHome,
+  codexHome,
   heldBack,
   type Machine,
   type PlanOptions,

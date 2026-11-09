@@ -1,0 +1,8 @@
+{
+  "name": "codex-ci",
+  "private": true,
+  "description": "The Codex CLI of .github/workflows/cedarloom.yml, pinned with its lockfile; Dependabot updates it.",
+  "dependencies": {
+    "@openai/codex": "0.166.0"
+  }
+}

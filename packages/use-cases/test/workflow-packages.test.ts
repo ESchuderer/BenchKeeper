@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plan, RunResult } from "@cedarloom/contracts";
 import {
@@ -156,11 +156,36 @@ test("the doctor reports a package whose hooks' Node.js is gone, and none once i
   const folders = machine();
   const gone = join(root, "gone", "node");
   applied(folders, install(folders, "w", { node: gone }));
-  const reported = packageDoctor(folders.state);
+  const reported = packageDoctor(folders.state, join(root, "no-codex"));
   applied(folders, install(folders, "w", { node: process.execPath }));
-  expect([reported, packageDoctor(folders.state)]).toEqual([
+  expect([reported, packageDoctor(folders.state, join(root, "no-codex"))]).toEqual([
     [{ code: "package.node-missing", params: { plugin: "w", path: gone, id: "w", level: "supervised" } }],
     [],
+  ]);
+});
+
+test("the doctor reports a package Codex has no copy of, a copy older than the package, and one CedarLoom no longer installs", () => {
+  const folders = machine();
+  const codex = join(folders.state, "..", "codex");
+  const cache = join(codex, "plugins", "cache", "cedarloom-workflows");
+  const marketplace = join(folders.state, "workflow-packages");
+  for (const id of ["w", "v"]) applied(folders, install(folders, id, { node: process.execPath }));
+  // What `codex plugin add` leaves: w copied whole under its version, and a plugin since uninstalled from CedarLoom.
+  cpSync(join(marketplace, "w"), join(cache, "w", "1.0.0"), { recursive: true });
+  mkdirSync(join(cache, "gone", "1.0.0"), { recursive: true });
+  const copies = (): unknown => packageDoctor(folders.state, codex);
+  const before = copies();
+  applied(folders, install(folders, "w", { node: process.execPath, level: "auto" }));
+  expect([before, copies()]).toEqual([
+    [
+      { code: "package.codex-missing", params: { plugin: "v", id: "v" } },
+      { code: "package.codex-left", params: { plugin: "gone" } },
+    ],
+    [
+      { code: "package.codex-missing", params: { plugin: "v", id: "v" } },
+      { code: "package.codex-stale", params: { plugin: "w", id: "w" } },
+      { code: "package.codex-left", params: { plugin: "gone" } },
+    ],
   ]);
 });
 

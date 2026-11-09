@@ -38,6 +38,7 @@ const setup = (
         CEDARLOOM_STATE_DIR: state,
         CEDARLOOM_CONFIG_DIR: join(root, "config"),
         CLAUDE_CONFIG_DIR: join(root, "claude"),
+        CODEX_HOME: join(root, "codex"),
       },
       untilStopped: () => new Promise<void>(() => undefined),
       // The app's own extensions and the hooks' bundles: none unless a test puts them there.
@@ -601,6 +602,14 @@ test("workflows install refuses without the hooks' bundles, and installs only on
   writeFileSync(join(other, "plugin.json"), JSON.stringify({ name: "v", description }));
   const mixed = await cli("workflows", "install", "w", "--level", "auto", "--allow", "w", "--yes", "--json");
   expect([mixed.code, codes(mixed.out)]).toEqual([EXIT.ok, ["package.levels-mixed"]]);
+  // Codex's copy outlives an uninstall, which leaves no folder of the package behind.
+  mkdirSync(join(root, "codex", "plugins", "cache", "cedarloom-workflows", "w", "1.0.0"), { recursive: true });
+  await cli("workflows", "uninstall", "w", "--yes");
+  const doctor = await cli("doctor", "--json");
+  expect([existsSync(join(state, "workflow-packages", "w")), codes(doctor.out)]).toEqual([
+    false,
+    ["package.codex-left"],
+  ]);
 });
 
 test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none, --yes from Git at a moving ref and --ref with a folder exit 64", async () => {

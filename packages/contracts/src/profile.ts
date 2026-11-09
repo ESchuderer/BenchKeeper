@@ -458,6 +458,11 @@ const ENV = [
   "BASH_DEFAULT_TIMEOUT_MS",
   "BASH_MAX_TIMEOUT_MS",
 ];
+const PERMISSIONS: { [key: string]: Rule } = {
+  deny: true,
+  ask: true,
+  blockWritesOutsideWorkingDirectories: only(true),
+};
 const ALLOWED: { [key: string]: Rule } = {
   autoUpdatesChannel: true,
   showClearContextOnPlanAccept: true,
@@ -465,7 +470,8 @@ const ALLOWED: { [key: string]: Rule } = {
   autoMemoryEnabled: true,
   feedbackDrafts: true,
   model: true,
-  permissions: { deny: true, ask: true },
+  permissions: PERMISSIONS,
+  enableAllProjectMcpServers: only(false),
   sandbox: {
     enabled: only(true),
     failIfUnavailable: only(true),
@@ -474,7 +480,12 @@ const ALLOWED: { [key: string]: Rule } = {
     filesystem: { denyRead: true, denyWrite: true },
     network: { deniedDomains: true },
   },
-  env: Object.fromEntries(ENV.map((name) => [name, true])),
+  env: { ...Object.fromEntries(ENV.map((name) => [name, true])), CLAUDE_CODE_MCP_ALLOWLIST_ENV: only("1") },
+};
+// Bypass mode goes off per project only: Orca starts its workers with --dangerously-skip-permissions, which it rejects.
+const PROJECT_ALLOWED: { [key: string]: Rule } = {
+  ...ALLOWED,
+  permissions: { ...PERMISSIONS, disableBypassPermissionsMode: only("disable") },
 };
 // The first path of a value the rule does not allow; an object's keys each need a rule of their own.
 const disallowed = (value: Json | undefined, rule: Rule, path: string[]): string | undefined => {
@@ -491,7 +502,8 @@ const disallowed = (value: Json | undefined, rule: Rule, path: string[]): string
 const forbiddenSetting = (file: ProfileFile): string | undefined => {
   for (const name of ["machine", "project"] as const) {
     for (const [id, each] of Object.entries(file[name] ?? {})) {
-      const key = each.type === "settings" && each.set !== undefined ? disallowed(each.set, ALLOWED, []) : undefined;
+      const allowed = name === "project" ? PROJECT_ALLOWED : ALLOWED;
+      const key = each.type === "settings" && each.set !== undefined ? disallowed(each.set, allowed, []) : undefined;
       if (key !== undefined) return `${name}.${id}.set.${key}`;
     }
   }

@@ -82,14 +82,57 @@
           "commit": "",
           "pr": ""
         },
-        "autoMemoryEnabled": false,
         "feedbackDrafts": "off",
         "env": {
-          "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
           "DISABLE_ERROR_REPORTING": "1",
           "DISABLE_FEEDBACK_COMMAND": "1",
           "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"
         }
+      }
+    },
+    "settings.auto-memory": {
+      "type": "settings",
+      "title": "Auto memory off",
+      "description": "Claude Code neither writes nor reads its own notes from your sessions, so each session works only from the rules and files you can review; what should last goes into the memory repository (https://code.claude.com/docs/en/memory#auto-memory).",
+      "default": "on",
+      "set": {
+        "autoMemoryEnabled": false,
+        "env": { "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1" }
+      }
+    },
+    "settings.secret-reads": {
+      "type": "settings",
+      "title": "No reads of .env files and login files",
+      "description": "Claude's file tools, and file commands it recognizes in Bash such as cat, refuse .env files (not .env.example) and the SSH, GitHub CLI and Claude Code login files, so their values stay out of the conversation. A command that reads files without naming them, such as grep -r, still can; the sandbox closes that (https://code.claude.com/docs/en/permissions#read-and-edit).",
+      "default": "on",
+      "set": {
+        "permissions": {
+          "deny": [
+            "Read(.env)",
+            "Read(.env.*)",
+            "Read(!.env.example)",
+            "Read(~/.ssh/**)",
+            "Read(~/.config/gh/**)",
+            "Read(~/.claude/.credentials.json)"
+          ]
+        }
+      }
+    },
+    "settings.workflow-writes": {
+      "type": "settings",
+      "title": "Ask before writing .github/workflows",
+      "description": "Edits to GitHub Actions workflows prompt in every permission mode, bypass included, as a workflow decides what CI runs with the repository's secrets; an unattended session stops at that prompt (https://code.claude.com/docs/en/permission-modes#actions-no-mode-auto-approves).",
+      "default": "on",
+      "set": { "permissions": { "ask": ["Edit(.github/workflows/**)"] } }
+    },
+    "settings.mcp-servers": {
+      "type": "settings",
+      "title": "MCP servers: a repository's only with your approval, none with your shell's tokens",
+      "description": "Keeps the servers of a repository's .mcp.json at the approval prompt, and starts local MCP servers with a safe baseline environment plus their own env entry instead of your shell's, so a server gets no token you did not give it. A server that read a token from your shell needs it in its env entry (https://code.claude.com/docs/en/mcp#project-server-approvals-and-workspace-trust, https://code.claude.com/docs/en/env-vars).",
+      "default": "on",
+      "set": {
+        "enableAllProjectMcpServers": false,
+        "env": { "CLAUDE_CODE_MCP_ALLOWLIST_ENV": "1" }
       }
     }
   },
@@ -251,6 +294,22 @@
       "default": "off",
       "commit": false,
       "set": { "sandbox": { "enabled": true, "autoAllowBashIfSandboxed": false } }
+    },
+    "bypass-off": {
+      "type": "settings",
+      "title": "Bypass permissions mode disabled in this project, on this machine",
+      "description": "Claude Code then refuses bypassPermissions mode here and rejects --dangerously-skip-permissions, so every session keeps its prompts. Off by default and per project only: Orca starts its Claude Code workers with that flag, so they cannot run in a project with this on (https://code.claude.com/docs/en/settings-reference#permissions-disablebypasspermissionsmode).",
+      "default": "off",
+      "commit": false,
+      "set": { "permissions": { "disableBypassPermissionsMode": "disable" } }
+    },
+    "outside-writes": {
+      "type": "settings",
+      "title": "No file writes outside this project, on this machine",
+      "description": "Claude's Write, Edit and NotebookEdit tools refuse paths outside the working directories in every permission mode, apart from Claude Code's own files such as the scratchpad. Shell commands are not limited (the sandbox does that), the EnterWorktree and ExitWorktree tools go, and it needs Claude Code 2.1.314 or later, so it is off by default (https://code.claude.com/docs/en/settings-reference#permissions-blockwritesoutsideworkingdirectories).",
+      "default": "off",
+      "commit": false,
+      "set": { "permissions": { "blockWritesOutsideWorkingDirectories": true } }
     },
     "tier": {
       "type": "tier",

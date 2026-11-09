@@ -23,6 +23,7 @@ import {
   planSwitch,
   profileDoctor,
   showProfile,
+  undoRun,
 } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
@@ -87,6 +88,27 @@ test("a part switched off takes away the file CedarLoom wrote for it, never anot
     "path" in rest ? rest.path : null,
   ]);
   expect(operations).toEqual([["delete", join(home, "rules", "00-global.md")]]);
+});
+
+test("the session defaults merge into the owner's settings, a skipped one adds none of its keys, and undo brings the file back", async () => {
+  const { config, state, home, plan } = machine();
+  applied(state, ok(planChoice(config, { part: "machine.settings.mcp-servers", on: false })));
+  const settings = join(home, "settings.json");
+  writeFileSync(settings, '{ "model": "opus" }\n');
+  const planned = (await plan()).plan;
+  if (planned === null) throw new Error("no plan");
+  const { runId } = ok(applyPlan(state, planned, { yes: true }));
+  const written = JSON.parse(readFileSync(settings, "utf8"));
+  if (runId === null) throw new Error("no run");
+  ok(undoRun(state, runId, { yes: true }));
+  expect([
+    written.model,
+    written.autoMemoryEnabled,
+    written.permissions.ask,
+    written.enableAllProjectMcpServers,
+    written.env.CLAUDE_CODE_MCP_ALLOWLIST_ENV,
+    readFileSync(settings, "utf8"),
+  ]).toEqual(["opus", false, ["Edit(.github/workflows/**)"], undefined, undefined, '{ "model": "opus" }\n']);
 });
 
 test("a rules file the owner changed is left as it is and reported", async () => {

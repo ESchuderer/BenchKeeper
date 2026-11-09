@@ -69,6 +69,8 @@ test("the settings merge into the owner's file and keep every key of theirs", ()
   const home = folder();
   writeFileSync(join(home, "settings.json"), JSON.stringify({ model: "opus", env: { FOO: "x" } }));
   const planned = planOf((profile) => {
+    for (const [id, part] of Object.entries(profile.machine))
+      if (part["type"] === "settings" && id !== "settings.claude-code") delete profile.machine[id];
     if (profile.machine["settings.claude-code"] !== undefined) {
       profile.machine["settings.claude-code"]["set"] = {
         autoUpdatesChannel: "latest",

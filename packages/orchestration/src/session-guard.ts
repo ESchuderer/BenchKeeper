@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GUARD_SCHEMA_VERSION, type GuardPolicy, RepoName } from "@cedarloom/contracts";
+import { GUARD_SCHEMA_VERSION, type GuardPolicy, heldRepo } from "@cedarloom/contracts";
 import { githubRepo, type Remotes, TYPED_REMOTE } from "./guard.ts";
 import { programPath } from "./program.ts";
 
@@ -35,15 +35,11 @@ export const gitRemotes: Remotes = (folder, typedUrl) => {
 };
 
 /** The GitHub repositories of a folder's `origin` remote, its fetch and push URLs; none when git cannot read it. */
-export const originRepos = (folder: string): string[] => {
+export const originRepos = (folder: string, remotes: Remotes = gitRemotes): string[] => {
   // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
-  const urls = gitRemotes(folder)?.get("origin") ?? [];
+  const urls = remotes(folder)?.get("origin") ?? [];
   return [...new Set(urls.map(githubRepo).filter((repo) => repo !== null))];
 };
-
-// A binding the policy cannot hold, such as owner/., counts as none.
-const held = (repo: string | undefined): string | null =>
-  repo !== undefined && RepoName.safeParse(repo).success ? repo : null;
 
 /**
  * A worker's guard policy: the GitHub repositories of its project's origin, the hub and the memory repository, both from
@@ -53,7 +49,7 @@ export const workerPolicy = (
   project: string,
   bindings: { readonly hub?: string | undefined; readonly memory?: string | undefined },
 ): GuardPolicy => {
-  const [hub, memory] = [held(bindings.hub), held(bindings.memory)];
+  const [hub, memory] = [heldRepo(bindings.hub), heldRepo(bindings.memory)];
   const named = [...originRepos(project), hub, memory].filter((repo) => repo !== null);
   return { schemaVersion: GUARD_SCHEMA_VERSION, repositories: [...new Set(named)], hub, memory };
 };

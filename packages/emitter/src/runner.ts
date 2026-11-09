@@ -99,18 +99,19 @@ const valueOf = (state: State, source: Source | undefined): unknown => {
 /** A command or check step: an agent runs the step's script and reports; null when it could not. */
 const runCommand = async (step: Step, state: State, rt: Runtime): Promise<Ran | null> => {
   if (state.root === "") return null;
+  // A field no other workflow's report shares: the package's exit hook checks it in every session.
   const schema = {
     type: "object",
-    required: ["exitCode", "output"],
-    properties: { exitCode: { type: "integer" }, output: { type: "string" } },
+    required: ["cedarloomExitCode", "output"],
+    properties: { cedarloomExitCode: { type: "integer" }, output: { type: "string" } },
   };
   // A model reports the result: the prompt leaves it nothing to add (a low effort reported a failed check as passed).
   const path = `'${`${state.root}/${step.script ?? ""}`.replaceAll("'", `'\\''`)}'`;
   const prompt = `From the project folder, run this command with Bash exactly as written, once, with no redirect, pipe or other command added:\nsh ${path}\nThen return the exit code Bash printed for it, and the last 100 lines of its output, empty when it printed nothing. If the command did not run, return -1.`;
   // A thrown call (the agent stalled on every attempt) is a failed try, as null is.
   const ran: unknown = await rt.agent(prompt, { label: step.id, schema }).catch(() => null);
-  return typeof ran === "object" && ran !== null && "exitCode" in ran && "output" in ran
-    ? { exitCode: Number(ran.exitCode), output: String(ran.output) }
+  return typeof ran === "object" && ran !== null && "cedarloomExitCode" in ran && "output" in ran
+    ? { exitCode: Number(ran.cedarloomExitCode), output: String(ran.output) }
     : null;
 };
 

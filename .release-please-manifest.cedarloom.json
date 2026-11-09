@@ -15,6 +15,7 @@
   "packages/packs": "0.0.0",
   "packages/profiles": "0.0.0",
   "packages/server": "0.0.0",
+  "packages/sessions": "0.0.0",
   "packages/ui": "0.0.0",
   "packages/use-cases": "0.0.0",
   "packages/work-items": "0.0.0"

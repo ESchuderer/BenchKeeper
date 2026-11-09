@@ -54,7 +54,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Settings
 
-`profile.ts` (`Rule` and the settings rules). The settings a profile may set (owner, 2026-11-07, hub issue 126): the default profile's keys, the model, deny and ask rules, sandbox keys that only tighten it, and named environment variables of the kinds Claude Code applies at startup (feature toggles, limits and timeouts; https://code.claude.com/docs/en/settings-reference). Anything else, a hook, a status line, a plugin, a login or a base URL among them, is refused. `true` allows any value there.
+`profile.ts` (`Rule` and the settings rules). The settings a profile may set (owner, 2026-11-07, hub issue 126): the default profile's keys, the model, deny and ask rules, sandbox keys that only tighten it, and named environment variables of the kinds Claude Code applies at startup (feature toggles, limits and timeouts; https://code.claude.com/docs/en/settings-reference). Anything else, a hook, a status line, a plugin, a login or a base URL among them, is refused. `true` allows any value there. The session defaults (owner, 2026-11-08, hub issue 263) add only values that tighten: `enableAllProjectMcpServers` false, `CLAUDE_CODE_MCP_ALLOWLIST_ENV` 1, `blockWritesOutsideWorkingDirectories` true, and `disableBypassPermissionsMode` "disable" in a project part only, as Orca starts its workers with `--dangerously-skip-permissions`, which that key rejects (https://code.claude.com/docs/en/settings-reference#permissions-disablebypasspermissionsmode).
 
 ### Profile merge
 

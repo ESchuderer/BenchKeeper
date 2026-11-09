@@ -10,7 +10,7 @@ Standard and full tier. The order per tier is the checklist in [SKILL.md](SKILL.
 
 ## Phases
 
-Standard and full tier, except a change that only deletes: this session is the phase orchestrator. It runs each phase as a subagent with a fresh context and keeps the decision after each phase and the questions to the user, which a subagent cannot ask ([Claude Code withholds the question tool from subagents](https://code.claude.com/docs/en/sub-agents#available-tools)). An agent without subagents runs the phases itself, in order.
+Standard and full tier, except a change that only deletes: this session is the phase orchestrator. It runs each phase as a subagent with a fresh context and keeps the decision after each phase and the questions to the user, which a subagent cannot ask ([Claude Code withholds the question tool from subagents](https://code.claude.com/docs/en/sub-agents#available-tools)).
 
 1. **Plan**: the read-only exploration of step 2 of [SKILL.md](SKILL.md). It returns the plan with an acceptance table as step 1 of [full-tier.md](full-tier.md) defines it (full tier: that whole spec) and the open questions, each with a recommendation. The session saves the plan outside the repository and names its path in every later phase.
 2. **Implement**: the existing tests of the touched code, the change with the tests the [test rule](SKILL.md#verify) calls for, fast checks after each edit, commits.

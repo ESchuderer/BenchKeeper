@@ -313,7 +313,7 @@
       "title": "`rules/global.md`",
       "href": "https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/rules/global.md",
       "scope": "Global, every session, full level",
-      "text": "Secrets kept out, confirmation before hard-to-reverse actions or actions visible to others, when and how to ask the user, best practice with a source, writing without filler, sources for claims. The repository rules (ask before assuming, checks never weakened, load the workflow skill) are in `rules/project.md`, part of each project's block.",
+      "text": "Secrets kept out, confirmation before hard-to-reverse actions or actions visible to others, assumptions stated, the minimum change and the check that proves it done. The repository rules (when and how to ask, best practice with a source, writing without filler, sources for claims, checks never weakened, load the workflow skill) are in `rules/project.md`, part of each project's block.",
       "evidence": ["plugins/benchkeeper/rules/global.md", "plugins/benchkeeper/rules/project.md", "docs/stack.md#contents"]
     },
     {

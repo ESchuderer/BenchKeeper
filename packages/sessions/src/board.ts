@@ -7,13 +7,10 @@ const sum = (values: number[]): number => values.reduce((total, value) => total 
 const plusDays = (day: string, count: number): string =>
   new Date(Date.parse(day) + count * DAY).toISOString().slice(0, 10);
 
-/** The calendar day an instant falls on in a time zone (an IANA name such as `Europe/Berlin`). */
+/** The calendar day an instant falls on in a time zone (an IANA name such as `Europe/Berlin`); Canada writes YYYY-MM-DD. */
 const dayIn = (zone: string): ((iso: string) => string) => {
-  const format = new Intl.DateTimeFormat("en", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" });
-  return (iso) => {
-    const part = new Map(format.formatToParts(Date.parse(iso)).map(({ type, value }) => [type, value]));
-    return `${part.get("year")}-${part.get("month")}-${part.get("day")}`;
-  };
+  const format = new Intl.DateTimeFormat("en-CA", { timeZone: zone });
+  return (iso) => format.format(Date.parse(iso));
 };
 
 /** The figures of a period: `days` are its sessions' days, `span` the period's days, oldest first. */

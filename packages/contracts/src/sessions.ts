@@ -27,8 +27,8 @@ export type AgentSession = z.infer<typeof AgentSession>;
 
 /**
  * The figures of a period's sessions: `costUSD` is null when no session has a cost and `uncosted` counts those without;
- * `daysWorked` of `days` are the board's days with a session start, `streak` the longest run of them; `testsPassed` is the share
- * of the `tested` sessions whose last test run passed.
+ * `daysWorked` of `days` have a session start, `streak` is their longest run; `testsPassed` is the share of the `tested`
+ * sessions whose last test run passed.
  */
 export const SessionFigures = z
   .strictObject({

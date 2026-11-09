@@ -54,42 +54,37 @@ const Figures = ({ board }: { board: Board }) => {
   const { figures: f, prices, first } = board;
   const since =
     before(board) && first !== null ? t("sessions.dataFrom", { first: date.format(Date.parse(first)) }) : "";
-  return <FigureGrid f={f} prices={prices} since={since} />;
+  return (
+    <SimpleGrid cols={{ base: 2, sm: 3 }}>
+      <Figure label={t("sessions.count")} value={String(f.sessions)} note={null} />
+      <Figure label={t("sessions.time")} value={time(f.busyMs)} note={t("sessions.timeNote")} />
+      <Figure
+        label={t("sessions.cost")}
+        value={usd(f.costUSD)}
+        note={t("sessions.costNote", { date: prices.date, uncosted: f.uncosted })}
+      />
+      <Figure label={t("sessions.tokens")} value={compact.format(f.tokens)} note={t("sessions.tokensNote")} />
+      <Figure
+        label={t("sessions.daysWorked")}
+        value={t("sessions.daysOf", { worked: f.daysWorked, days: f.days })}
+        note={[t("sessions.streak", { streak: f.streak }), since].filter(Boolean).join(". ")}
+      />
+      <Figure
+        label={t("sessions.testsPassed")}
+        value={f.testsPassed === null ? t("sessions.none") : `${Math.round(f.testsPassed * 100)}%`}
+        note={t("sessions.tested", { tested: f.tested })}
+      />
+    </SimpleGrid>
+  );
 };
 
-const FigureGrid = ({ f, prices, since }: { f: Board["figures"]; prices: Board["prices"]; since: string }) => (
-  <SimpleGrid cols={{ base: 2, sm: 3 }}>
-    <Figure label={t("sessions.count")} value={String(f.sessions)} note={null} />
-    <Figure label={t("sessions.time")} value={time(f.busyMs)} note={t("sessions.timeNote")} />
-    <Figure
-      label={t("sessions.cost")}
-      value={usd(f.costUSD)}
-      note={t("sessions.costNote", { date: prices.date, uncosted: f.uncosted })}
-    />
-    <Figure label={t("sessions.tokens")} value={compact.format(f.tokens)} note={t("sessions.tokensNote")} />
-    <Figure
-      label={t("sessions.daysWorked")}
-      value={t("sessions.daysOf", { worked: f.daysWorked, days: f.days })}
-      note={[t("sessions.streak", { streak: f.streak }), since].filter(Boolean).join(". ")}
-    />
-    <Figure
-      label={t("sessions.testsPassed")}
-      value={f.testsPassed === null ? t("sessions.none") : `${Math.round(f.testsPassed * 100)}%`}
-      note={t("sessions.tested", { tested: f.tested })}
-    />
-  </SimpleGrid>
-);
+// The calendar day a session started on in the board's time zone, as the server counts it; Canada writes YYYY-MM-DD.
+const dayIn = (zone: string): ((iso: string) => string) => {
+  const format = new Intl.DateTimeFormat("en-CA", { timeZone: zone });
+  return (iso) => format.format(Date.parse(iso));
+};
 
 /** The board's series: its busiest projects by rank over all time, so a project keeps its color, then Other. */
-// The calendar day a session started on in the board's time zone, as the server counts it.
-const dayIn = (zone: string): ((iso: string) => string) => {
-  const format = new Intl.DateTimeFormat("en", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" });
-  return (iso) => {
-    const part = new Map(format.formatToParts(Date.parse(iso)).map(({ type, value }) => [type, value]));
-    return `${part.get("year")}-${part.get("month")}-${part.get("day")}`;
-  };
-};
-
 const seriesOf = (board: Board) => {
   const top = board.projects.slice(0, SERIES.length);
   // A chosen project outside the busiest is named too, in Other's color.
@@ -105,21 +100,6 @@ const seriesOf = (board: Board) => {
 const W = 720;
 const H = 160;
 
-const LegendKeys = ({ keys }: { keys: (readonly [string, string])[] }) => (
-  <Group gap="md">
-    {keys.map(([name, color]) => (
-      <Group key={name} gap={6}>
-        <svg width={12} height={12} aria-hidden="true">
-          <rect width={12} height={12} rx={3} fill={color} />
-        </svg>
-        <Text size="sm" title={name}>
-          {folder(name)}
-        </Text>
-      </Group>
-    ))}
-  </Group>
-);
-
 // A project keeps the color of its rank; the legend names only those the period shows.
 const Legend = ({ named, rows, stacks }: { named: string[]; rows: Row[]; stacks: number[][] }) => {
   const shown = new Set(rows.map((row) => row.project));
@@ -128,7 +108,20 @@ const Legend = ({ named, rows, stacks }: { named: string[]; rows: Row[]; stacks:
     ...named.flatMap((name, at) => (shown.has(name) ? [[name, SERIES[at] ?? OTHER] as const] : [])),
     ...(other ? [[t("sessions.other"), OTHER] as const] : []),
   ];
-  return <LegendKeys keys={keys} />;
+  return (
+    <Group gap="md">
+      {keys.map(([name, color]) => (
+        <Group key={name} gap={6}>
+          <svg width={12} height={12} aria-hidden="true">
+            <rect width={12} height={12} rx={3} fill={color} />
+          </svg>
+          <Text size="sm" title={name}>
+            {folder(name)}
+          </Text>
+        </Group>
+      ))}
+    </Group>
+  );
 };
 
 // Each day's values per series, the last one Other.
@@ -161,20 +154,8 @@ const Bars = ({ stacks, days, at, series }: BarsProps) => {
       const y = top;
       top -= 2;
       const fill = k < series ? (SERIES[k] ?? OTHER) : OTHER;
-      const x = i * step + (step - width) / 2;
-      const dim = at !== null && at !== i;
-      return (
-        <rect
-          key={`${days[i]}-${k}`}
-          x={x}
-          y={y}
-          width={width}
-          height={Math.max(1, height)}
-          rx={2}
-          fill={fill}
-          opacity={dim ? 0.55 : 1}
-        />
-      );
+      const box = { x: i * step + (step - width) / 2, y, width, height: Math.max(1, height), rx: 2 };
+      return <rect key={`${days[i]}-${k}`} {...box} fill={fill} opacity={at !== null && at !== i ? 0.55 : 1} />;
     });
   });
 };

@@ -1,5 +1,5 @@
 import { globSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { AgentSession } from "@cedarloom/contracts";
 import { z } from "zod";
 import { readClaude } from "./claude.ts";
@@ -41,8 +41,11 @@ const writeCache = (file: string, files: Entries): void => {
   }
 };
 
+// A session id has no dot: `<session>.orphaned-<time>-<suffix>.jsonl` is an earlier copy Claude Code set aside.
 const logsOf = ({ claude }: Logs): string[] =>
-  globSync("projects/*/*.jsonl", { cwd: claude }).map((path) => join(claude, path));
+  globSync("projects/*/*.jsonl", { cwd: claude })
+    .filter((path) => !basename(path, ".jsonl").includes("."))
+    .map((path) => join(claude, path));
 
 const keyOf = (file: string): string | null => {
   const stat = statSync(file, { throwIfNoEntry: false });

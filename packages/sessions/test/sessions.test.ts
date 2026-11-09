@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSession } from "@cedarloom/contracts";
@@ -54,7 +54,9 @@ const shop = {
 
 test("Claude Code sessions: cost, agent time and tokens from the last cost-state line, the last test run, the repository", async () => {
   const { put, repository, logs } = machine();
-  put(SHOP, "-work-shop");
+  const file = put(SHOP, "-work-shop");
+  // A copy Claude Code set aside is no session of its own.
+  copyFileSync(file, file.replace(/\.jsonl$/, ".orphaned-1794213859000-ab12.jsonl"));
   put(LAB, "-work-lab");
   expect(await readSessions({ ...logs, cache: null })).toEqual([
     {
@@ -84,19 +86,39 @@ test("the cache holds only logs that are there, reads a grown one again and keep
   expect(await readSessions(logs)).toEqual([]);
 });
 
+// One recorded session with one edit in its JSON, read alone: its test result.
+const testsAfter = async (
+  id: string,
+  folder: string,
+  from: string,
+  to: string,
+): Promise<AgentSession["tests"] | undefined> => {
+  const { put, logs } = machine();
+  const file = put(id, folder);
+  writeFileSync(file, readFileSync(file, "utf8").replace(from, to));
+  return (await readSessions({ ...logs, cache: null }))[0]?.tests;
+};
+
 test.each([
   ['pnpm --filter "...[origin/main]" run test', "fail"],
   ['git commit -m "fix; npm test"', null],
   ["npm test &", null],
+  ["git commit -F - <<'EOF'\nnpm test passes now\nEOF", null],
 ])(
   "a failed command's exit code is the test result only when the command ends with a test run: %s",
   async (command, tests) => {
-    const { put, logs } = machine();
-    const file = put(LAB, "-work-lab");
-    writeFileSync(
-      file,
-      readFileSync(file, "utf8").replace('"command":"npm test"', `"command":${JSON.stringify(command)}`),
+    expect(await testsAfter(LAB, "-work-lab", '"command":"npm test"', `"command":${JSON.stringify(command)}`)).toBe(
+      tests,
     );
-    expect((await readSessions({ ...logs, cache: null }))[0]?.tests).toBe(tests);
   },
 );
+
+// The shop session's piped run, `npm test 2>&1 | tail -30`, which exited 0, with another summary line in its output.
+test.each([
+  ["Tests  1 failed | 31 passed (32)", "fail"],
+  ["Tests  1 passed (1)\n     Errors  1 error", "fail"],
+  ["31 passed, 2 errors in 1.2s", "fail"],
+])("a piped run's result is its summary line, whatever the pipe's exit code: %s", async (summary, tests) => {
+  const output = JSON.stringify(`\n\n${summary}`).slice(1, -1);
+  expect(await testsAfter(SHOP, "-work-shop", String.raw`\n\n2 passed`, output)).toBe(tests);
+});

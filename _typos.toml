@@ -9,4 +9,4 @@ Axe = "Axe"
 
 # Recorded session logs: ids, not words.
 [files]
-extend-exclude = ["packages/*/test/fixtures/"]
+extend-exclude = ["packages/sessions/test/fixtures/"]

@@ -42,10 +42,14 @@ const lineCommands = (line: string): string[][] => {
   return commands;
 };
 
+// A heredoc's body is text, not commands: `git commit -F - <<'EOF'` with `npm test passes` in it.
+const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?^\s*\2\s*$/gm;
+
 // The simple commands of a script, line by line; null for one the tokenizer refuses (a ${name%%...} expansion).
 const commandsOf = (script: string): string[][] | null => {
   try {
     return script
+      .replaceAll(HEREDOC, "")
       .split("\n")
       .flatMap(lineCommands)
       .filter((words) => words.length > 0);
@@ -63,7 +67,9 @@ export const testRunOf = (script: string): TestRun => {
   return runs.some((run) => run !== null) ? "output" : null;
 };
 
-const FAILED = /\b[1-9]\d* (?:failed|failing)\b|^\s*FAIL\b|\btest result: FAILED\b|^(?:ℹ|#) fail [1-9]/m;
+// pytest ends with the error count (`31 passed, 2 errors in 1.2s`), vitest prints `Errors  1 error` beside its tests.
+const FAILED =
+  /\b[1-9]\d* (?:failed|failing)\b|^\s*FAIL\b|\btest result: FAILED\b|^(?:ℹ|#) fail [1-9]|\b[1-9]\d* errors? in \d|^\s*(?:Type )?Errors\s+[1-9]/m;
 const PASSED = /\b[1-9]\d* (?:passed|passing)\b|^ok\s|\btest result: ok\b|^(?:ℹ|#) pass [1-9]/m;
 
 /** A test run's result from the runner's summary line: a count of failures fails it, a count of passes alone passes it. */

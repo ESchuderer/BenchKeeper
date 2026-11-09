@@ -1,18 +1,10 @@
+import { AgentSession } from "@cedarloom/contracts";
 import { z } from "zod";
 
-const count = z.number().min(0);
-
-// What the cache keeps of a log.
-export const Summary = z.strictObject({
-  id: z.string(),
+// What the cache keeps of a log: the row as the contract has it, with the folder, and the times as read.
+export const Summary = AgentSession.omit({ agent: true }).extend({
   folder: z.string().nullable(),
-  project: z.string().nullable(),
-  title: z.string().nullable(),
   start: z.string().nullable(),
   end: z.string().nullable(),
-  busyMs: count.nullable(),
-  tokens: count,
-  costUSD: count.nullable(),
-  tests: z.enum(["pass", "fail"]).nullable(),
 });
 export type Summary = z.infer<typeof Summary>;

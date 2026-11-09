@@ -12747,7 +12747,7 @@
           {
             "schema": {
               "type": "string",
-              "maxLength": 4096
+              "maxLength": 1024
             },
             "in": "query",
             "name": "project",

@@ -306,7 +306,8 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
 export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
   const query = z.strictObject({
     days: z.coerce.number().int().min(1).max(3650).optional().describe("The period's length in days; absent: all time"),
-    project: z.string().max(4096).optional().describe("The project's folder; absent: every project"),
+    // 1,025 characters at 12 escaped bytes each fit the 16 KiB a request line may take, so a 400 answers, not a 431.
+    project: z.string().max(1024).optional().describe("The project's folder; absent: every project"),
   });
   app.get(
     "/api/sessions",

@@ -6,7 +6,7 @@ export const OFF = 'Terminal questions are off: the question tool (AskUserQuesti
 const pad = (n) => String(n).padStart(2, '0');
 
 // A local time as HH:MM, with its date when that is not today.
-export function clock(at, now) {
+function clock(at, now) {
   const a = new Date(at);
   const time = `${pad(a.getHours())}:${pad(a.getMinutes())}`;
   return a.toDateString() === new Date(now).toDateString() ? time : `${a.getFullYear()}-${pad(a.getMonth() + 1)}-${pad(a.getDate())} ${time}`;

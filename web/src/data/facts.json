@@ -386,8 +386,8 @@
         "name": "Understand",
         "phase": "define",
         "sub": "request, questions, on-ramps",
-        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: questions in rounds, then plan mode.",
-        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent asks the open questions in rounds, each with a recommendation, then explores in plan mode.",
+        "tip": "Reads the request, AGENTS.md and the code it touches, and picks the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills: triage, diagnosing-bugs, wayfinder. Standard and full: open questions go with recommendations into one issue, and the agent goes on (in rounds, then plan mode, while you allow terminal questions).",
+        "text": "Read the request, `AGENTS.md` and the code the change touches, and pick the kind (software change, docs pass, research) and the tier. With Matt Pocock's skills installed, his on-ramps start here: `/triage` for issues you did not write, `diagnosing-bugs` for a broken behavior, `/wayfinder` for work too big to see the way yet. Standard and full tiers: the agent writes the open questions, each with a recommendation, into one issue in the tracker the project names, takes the safe and reversible ones and goes on. Only while you allow terminal questions does it ask them in rounds and explore in plan mode.",
         "evidence": [
           "plugins/benchkeeper/skills/workflow/SKILL.md",
           "plugins/benchkeeper/skills/workflow/software.md#steps"

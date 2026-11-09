@@ -5,9 +5,9 @@ import { text } from "node:stream/consumers";
 // A step script's last line, which the emitter writes: the script's own exit status, whatever the agent adds around it.
 const MARKER = /^cedarloom-exit (\d+)$/gm;
 const STEP_SCRIPT = /(?:^|[\s/'"])steps\/[a-z0-9-]+\/scripts\/run\.sh/;
-// A run of a step script as the runner writes it, `sh`, `bash` or `.` before its path, which a `cat` or `ls` of it is not.
+// A run of a step script, `sh`, `bash` or `.` (with options) before its path, which a `cat` or `ls` of it is not.
 const STEP_RUN =
-  /(?:^|[\s;&|(/])(?:sh|bash|\.)\s+(?:'(?:[^']|'\\'')*\/|"[^"]*\/|[^\s'"]*\/|['"]?)steps\/[a-z0-9-]+\/scripts\/run\.sh/;
+  /(?:^|[\s;&|(/])(?:sh|bash|\.)(?:\s+-[A-Za-z]+)*\s+(?:'(?:[^']|'\\'')*\/|"[^"]*\/|[^\s'"]*\/|['"]?)steps\/[a-z0-9-]+\/scripts\/run\.sh/;
 // The stage runner's report field, which no other workflow's report shares.
 const REPORTED = "cedarloomExitCode";
 

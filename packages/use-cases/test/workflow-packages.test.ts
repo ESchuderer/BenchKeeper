@@ -147,7 +147,19 @@ test("the doctor reports a package whose hooks' Node.js is gone, and none once i
   const reported = packageDoctor(folders.state);
   applied(folders, install(folders, "w", { node: process.execPath }));
   expect([reported, packageDoctor(folders.state)]).toEqual([
-    [{ code: "package.node-missing", params: { plugin: "w", path: gone } }],
+    [{ code: "package.node-missing", params: { plugin: "w", path: gone, id: "w", level: "supervised" } }],
     [],
   ]);
+});
+
+test("two workflow ids that fold to one plugin name never share its package", () => {
+  const folders = machine();
+  for (const id of ["a_b", "a-b"]) {
+    ok(saveDraft(folders.state, id, workflow(id), null));
+    ok(applyPlan(folders.state, ok(planSave(folders.state, id)).plan, { yes: true }));
+  }
+  applied(folders, ok(planPackageInstall(folders, "a_b", { bundles: BUNDLES, node: "/usr/bin/node" })).plan);
+  const taken = { ok: false, finding: { code: "package.plugin-taken", params: { plugin: "a-b", id: "a_b" } } };
+  const options = { bundles: BUNDLES, node: "/usr/bin/node" };
+  expect([planPackageInstall(folders, "a-b", options), planPackageUninstall(folders, "a-b")]).toEqual([taken, taken]);
 });

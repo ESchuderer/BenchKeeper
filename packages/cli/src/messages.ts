@@ -143,8 +143,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "package.hooks-missing": (p) =>
     `The guard's and the exit hook's bundles are missing from ${p.path}, where the CLI package ships them; in a checkout, build them with pnpm --filter @cedarloom/orchestration run build.`,
   "package.not-installed": (p) => `No package of the workflow ${p.id} is installed.`,
+  "package.plugin-taken": (p) =>
+    `The plugin ${p.plugin} holds the package of the workflow ${p.id}, whose id folds to the same name; uninstall that one first, or give one of the two workflows another id.`,
   "package.node-missing": (p) =>
-    `The hooks of ${p.plugin} run with ${p.path}, which is gone, so Claude Code refuses every shell call and agent they guard, in every session. Install its workflow again: cedarloom workflows install <id> --allow ${p.plugin} --yes`,
+    `The hooks of ${p.plugin} run with ${p.path}, which is gone, so Claude Code refuses every shell call and agent they guard, in every session. Install its workflow again: cedarloom workflows install ${p.id ?? "<id>"}${p.level === null ? "" : ` --level ${p.level}`} --allow ${p.plugin} --yes`,
   "package.reserved-name": (p) =>
     `The package would be named ${p.name}, which Claude Code keeps for Anthropic's own plugins; give the workflow another id.`,
   "automation.unknown-folder": (p) => `No folder at ${p.path}; a project's level is set for a folder that exists.`,

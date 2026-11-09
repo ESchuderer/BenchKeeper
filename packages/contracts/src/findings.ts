@@ -94,8 +94,16 @@ export const Finding = z
     /** The guard's or the exit hook's bundle, which every package carries, is missing from the CLI's hooks folder. */
     finding("package.hooks-missing", { path: z.string() }),
     finding("package.not-installed", { id: z.string() }),
+    /** Two workflow ids fold to one plugin name: `id` is the workflow whose package the plugin holds. */
+    finding("package.plugin-taken", { plugin: z.string(), id: z.string() }),
     /** An installed package's hooks run with a Node.js that is gone, so Claude Code refuses every call they guard. */
-    finding("package.node-missing", { plugin: z.string(), path: z.string() }),
+    finding("package.node-missing", {
+      plugin: z.string(),
+      path: z.string(),
+      /** The workflow and level it was built from, as its manifest names them; null when it names none. */
+      id: z.string().nullable(),
+      level: AutomationLevel.nullable(),
+    }),
     /** A project's level is set for a folder that exists, by its real path. */
     finding("automation.unknown-folder", { path: z.string() }),
     /**
@@ -361,6 +369,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "package.approval-needed": { severity: "warning", effort: "command" },
   "package.hooks-missing": { severity: "error", effort: "command" },
   "package.not-installed": { severity: "error", effort: "manual" },
+  "package.plugin-taken": { severity: "error", effort: "manual" },
   "package.node-missing": { severity: "error", effort: "command" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },

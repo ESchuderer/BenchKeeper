@@ -2036,6 +2036,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "package.plugin-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "package.node-missing"
               },
               "params": {
@@ -2046,11 +2076,34 @@
                   },
                   "path": {
                     "type": "string"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "level": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "supervised",
+                          "checkpoint",
+                          "auto"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
                   "plugin",
-                  "path"
+                  "path",
+                  "id",
+                  "level"
                 ],
                 "additionalProperties": false
               }
@@ -7252,6 +7305,36 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "package.plugin-taken"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "package.node-missing"
               },
               "params": {
@@ -7262,11 +7345,34 @@
                   },
                   "path": {
                     "type": "string"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "level": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "supervised",
+                          "checkpoint",
+                          "auto"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
                   "plugin",
-                  "path"
+                  "path",
+                  "id",
+                  "level"
                 ],
                 "additionalProperties": false
               }

@@ -1290,10 +1290,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.plugin-taken";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
             code: "package.node-missing";
             params: {
                 plugin: string;
                 path: string;
+                id: string | null;
+                level: ("supervised" | "checkpoint" | "auto") | null;
             };
         } | {
             /** @constant */
@@ -2402,10 +2411,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.plugin-taken";
+            params: {
+                plugin: string;
+                id: string;
+            };
+        } | {
+            /** @constant */
             code: "package.node-missing";
             params: {
                 plugin: string;
                 path: string;
+                id: string | null;
+                level: ("supervised" | "checkpoint" | "auto") | null;
             };
         } | {
             /** @constant */

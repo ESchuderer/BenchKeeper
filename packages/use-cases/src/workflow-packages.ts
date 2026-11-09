@@ -12,7 +12,7 @@ import {
   WORKFLOW_MARKETPLACE,
   type WorkflowDefinition,
 } from "@cedarloom/contracts";
-import { buildPackage, type PackageFile, pluginOf } from "@cedarloom/emitter";
+import { buildPackage, builtFrom, type PackageFile, pluginOf } from "@cedarloom/emitter";
 import { hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { programPath } from "@cedarloom/orchestration";
@@ -63,8 +63,8 @@ const dataOf = (home: string, plugin: string): string =>
 // The precheck's inline command as the start skill runs it, its plugin folder filled in by Claude Code.
 const precheckRule = (folder: string): string => `Bash(sh "${folder}/scripts/precheck.sh")`;
 // A step's script as the stage runner's agent runs it, quoted as the runner quotes it.
-const stepRule = (folder: string, script: string): string =>
-  `Bash(sh '${`${folder}/${script}`.replaceAll("'", `'\\''`)}')`;
+const quoted = (text: string): string => text.replaceAll("'", `'\\''`);
+const stepRule = (folder: string, script: string): string => `Bash(sh '${quoted(`${folder}/${script}`)}')`;
 
 // The rule of a script the package runs: the precheck, or a step's.
 const scriptRule = (folder: string, path: string): string[] => {
@@ -72,12 +72,7 @@ const scriptRule = (folder: string, path: string): string[] => {
   return /^steps\/[^/]+\/scripts\/run\.sh$/.test(path) ? [stepRule(folder, path)] : [];
 };
 
-/**
- * The rules a package needs in the user's settings, where a plugin's own settings cannot hold them
- * (https://code.claude.com/docs/en/plugins-reference#plugin-settings): its first stage, its precheck and its steps'
- * scripts run unasked, as the approval at install listed their commands and a workflow's agent cannot ask; each later
- * stage asks, so that a stage past a gate never starts unseen.
- */
+// A plugin's own settings hold no rules: the approved scripts run unasked (a workflow's agent cannot ask), later stages ask.
 const rulesOf = (plugin: string, folder: string, files: readonly PackageFile[]): Json => {
   const stages = files.flatMap(({ path }) => /^workflows\/(run-[a-z0-9-]+)\.js$/.exec(path)?.slice(1) ?? []);
   const later = stages.filter((stage) => stage !== "run-start").map((stage) => `Workflow(${plugin}:${stage})`);
@@ -106,7 +101,7 @@ const without = (json: Json, plugin: string, folder: string, last: boolean): Jso
     typeof rule === "string" &&
     (rule.startsWith(`Workflow(${plugin}:`) ||
       rule.startsWith(`Bash(sh "${folder}/`) ||
-      rule.startsWith(`Bash(sh '${folder}/`));
+      rule.startsWith(`Bash(sh '${quoted(folder)}/`));
   return {
     ...json,
     enabledPlugins: filtered(json["enabledPlugins"], (id, on) => (id === idOf(plugin) ? undefined : on)),
@@ -142,8 +137,12 @@ const filesIn = (folder: string): string[] => {
   }
 };
 
-// The marketplace's file with `plugin` added (`description`) or taken out (null); none left removes the file.
-const manifestOps = (marketplace: string, plugin: string, description: string | null): Result<Operation[]> => {
+// The marketplace's file with `plugin` added (`description`) or taken out (null), and how many packages it then lists.
+const manifestOps = (
+  marketplace: string,
+  plugin: string,
+  description: string | null,
+): Result<{ operations: Operation[]; left: number }> => {
   const path = join(marketplace, ".claude-plugin", "marketplace.json");
   const read = readOptionalJson(path);
   if (!read.ok) return read;
@@ -155,10 +154,13 @@ const manifestOps = (marketplace: string, plugin: string, description: string | 
       : [];
   });
   const plugins = [...others, ...(description === null ? [] : [{ name: plugin, source: `./${plugin}`, description }])];
-  if (plugins.length === 0) return { ok: true, value: deletesOf([path]) };
+  if (plugins.length === 0) return { ok: true, value: { operations: deletesOf([path]), left: 0 } };
   const sorted = plugins.toSorted((a, b) => (a.name < b.name ? -1 : 1));
   const manifest = { name: WORKFLOW_MARKETPLACE, owner: { name: "CedarLoom" }, plugins: sorted };
-  return { ok: true, value: writeOf(path, `${JSON.stringify(manifest, null, 2)}\n`) };
+  return {
+    ok: true,
+    value: { operations: writeOf(path, `${JSON.stringify(manifest, null, 2)}\n`), left: plugins.length },
+  };
 };
 
 // What a package runs, as its approval lists it: the precheck, then each command step's command.
@@ -226,11 +228,22 @@ const placeOf = (state: string, id: string): Place => {
   return { plugin, folder: join(marketplace, plugin), marketplace };
 };
 
+// The workflow and level whose package a plugin folder holds, as its manifest names them.
+const installedIn = (folder: string): ReturnType<typeof builtFrom> => {
+  const read = readOptionalJson(join(folder, ".claude-plugin", "plugin.json"));
+  return read.ok ? builtFrom(read.value?.json) : null;
+};
+
+// Ids that fold to one plugin name (`a_b`, `a-b`) would share its folder and rules: the one installed keeps them.
+const takenBy = ({ plugin, folder }: Place, id: string): Result<never> | null => {
+  const other = installedIn(folder)?.id;
+  if (other === undefined || other.toLowerCase() === id.toLowerCase()) return null;
+  return { ok: false, finding: { code: "package.plugin-taken", params: { plugin, id: other } } };
+};
+
 /**
- * Plans installing the stored workflow `id` as a package at a level (default: the default automation level): its files
- * into CedarLoom's marketplace, files an earlier build left removed, and the user's Claude Code settings with the
- * marketplace, the plugin switched on and the rules its stages need. It waits for approval by the plugin's name, as its
- * hooks run in every session. Installing again at another level rebuilds it; the run's undo takes either back.
+ * Plans installing a stored workflow as a package into CedarLoom's marketplace and the user's Claude Code settings, at
+ * `level` or the default level; it waits for approval by the plugin's name, as its hooks run in every session.
  */
 export const planPackageInstall = (
   { config, state, home }: Folders,
@@ -245,48 +258,53 @@ export const planPackageInstall = (
   const { level, files } = built.value;
   const place = placeOf(state, workflow.metadata.id);
   const { plugin, folder, marketplace } = place;
+  const taken = takenBy(place, workflow.metadata.id);
+  if (taken !== null) return taken;
   const manifest = manifestOps(marketplace, plugin, descriptionOf(files));
   if (!manifest.ok) return manifest;
   const user = fileWrite(join(home, "settings.json"), (json) => withPackage(json, place, files));
   if (!user.ok) return user;
-  const operations = [...filesOps(folder, files), ...manifest.value, ...user.value.operations];
+  const operations = [...filesOps(folder, files), ...manifest.value.operations, ...user.value.operations];
   const params = { id: workflow.metadata.id, plugin, level, commands: commandsOf(workflow) };
   const approved = options.allow?.includes(plugin) === true;
   const findings: Finding[] = approved ? [] : [{ code: "package.approval-needed", params }];
   return { ok: true, value: { plan: planOf(operations), findings, plugin, level, marketplace } };
 };
 
-/**
- * Plans removing the installed package of the workflow `id`: its files, its entry in the marketplace, its switch and
- * rules in the user's settings, and its data folder, which holds what its hooks kept.
- */
+/** Plans removing an installed package: its files and data folder, its marketplace entry, its settings entries. */
 export const planPackageUninstall = ({ state, home }: Omit<Folders, "config">, id: string): Result<PackagePlan> => {
-  const { plugin, folder, marketplace } = placeOf(state, id);
+  const place = placeOf(state, id);
+  const { plugin, folder, marketplace } = place;
   const installed = filesIn(folder);
   if (installed.length === 0) return { ok: false, finding: { code: "package.not-installed", params: { id } } };
+  const taken = takenBy(place, id);
+  if (taken !== null) return taken;
   const manifest = manifestOps(marketplace, plugin, null);
   if (!manifest.ok) return manifest;
-  const last = manifest.value.some(({ kind }) => kind === "delete");
+  const last = manifest.value.left === 0;
   const user = fileWrite(join(home, "settings.json"), (json) => without(json, plugin, folder, last));
   if (!user.ok) return user;
   const operations = [
     ...deletesOf([...installed, ...filesIn(dataOf(home, plugin))]),
-    ...manifest.value,
+    ...manifest.value.operations,
     ...user.value.operations,
   ];
   return { ok: true, value: { plan: planOf(operations), findings: [], plugin, level: null, marketplace } };
 };
 
-// The programs a package's hooks file starts, by its `command` fields; none when there is no such file.
+// Every `command` field in a JSON value, at any depth.
+const commandsIn = (json: unknown): string[] => {
+  if (Array.isArray(json)) return json.flatMap(commandsIn);
+  if (typeof json !== "object" || json === null) return [];
+  return Object.entries(json).flatMap(([key, value]) =>
+    key === "command" && typeof value === "string" ? [value] : commandsIn(value),
+  );
+};
+
+// The programs a package's hooks file starts; none when there is no such file.
 const hookPrograms = (folder: string): string[] => {
   const read = readOptionalJson(join(folder, "hooks", "claude-code.json"));
-  if (!read.ok || read.value === null) return [];
-  const programs = new Set<string>();
-  JSON.parse(read.value.text, (key, value: unknown) => {
-    if (key === "command" && typeof value === "string") programs.add(value);
-    return value;
-  });
-  return [...programs];
+  return read.ok ? [...new Set(commandsIn(read.value?.json))] : [];
 };
 
 const runnable = (path: string): boolean => {
@@ -309,9 +327,11 @@ export const packageDoctor = (state: string): Finding[] => {
   } catch {
     return [];
   }
-  return plugins.flatMap((plugin) =>
-    hookPrograms(join(marketplace, plugin))
+  return plugins.flatMap((plugin) => {
+    const folder = join(marketplace, plugin);
+    const { id = null, level = null } = installedIn(folder) ?? {};
+    return hookPrograms(folder)
       .filter((path) => !runnable(path))
-      .map((path): Finding => ({ code: "package.node-missing", params: { plugin, path } })),
-  );
+      .map((path): Finding => ({ code: "package.node-missing", params: { plugin, path, id, level } }));
+  });
 };

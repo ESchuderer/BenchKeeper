@@ -10,7 +10,7 @@
   "repository": "https://github.com/ESchuderer/BenchKeeper",
   "license": "MIT",
   "skills": "./skills/",
-  "hooks": "./hooks/claude-tier.json",
+  "hooks": "./hooks/claude-code.json",
   "types": "./types/index.d.ts",
   "userConfig": {
     "tierBand": {

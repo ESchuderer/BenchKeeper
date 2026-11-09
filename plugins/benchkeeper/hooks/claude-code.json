@@ -1,0 +1,23 @@
+{
+  "modules": ["./tier/register.tsx"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/ask/ask.mjs"] }]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "^benchkeeper:ask$",
+        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/ask/ask.mjs"] }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion|EnterPlanMode",
+        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/ask/ask.mjs"], "onFailure": "block" }]
+      }
+    ]
+  }
+}

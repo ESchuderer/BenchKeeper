@@ -1,11 +1,8 @@
-// The question tool's switch for three hooks: UserPromptSubmit sets the /benchkeeper:ask window, PreToolUse refuses outside it, SessionStart says the mode.
+// The question tool's switch for three hooks: UserPromptExpansion sets the /benchkeeper:ask window, PreToolUse refuses outside it, SessionStart says the mode.
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import { OFF, allowed, askUntil } from './window.mjs';
-
-// The name as typed: Claude Code 2.1.316 runs the skill for a bare /ask too, not for /BenchKeeper:ask (trial).
-const COMMAND = /^\s*\/(?:benchkeeper:)?ask(?:\s+([\s\S]*))?$/;
 
 // One file per Claude Code process (CLAUDE_PID, which it sets for hook commands): /clear and compaction keep the window.
 const dir = process.env.CLAUDE_PLUGIN_DATA ? join(process.env.CLAUDE_PLUGIN_DATA, 'ask') : null;
@@ -41,20 +38,19 @@ if (event === 'PreToolUse') {
     for (const name of names) if (openUntil(join(dir, name), now) === null) rmSync(join(dir, name), { force: true });
   }
   say(event, { additionalContext: line(now) });
-} else if (event === 'UserPromptSubmit') {
-  const command = COMMAND.exec(String(input.prompt ?? ''));
-  if (command) {
-    if (!file) throw new Error('the plugin has no data folder (CLAUDE_PLUGIN_DATA), so /benchkeeper:ask cannot keep its window');
-    const end = askUntil(command[1] ?? '', now);
-    if (end === undefined) {
-      say(event, { additionalContext: `/benchkeeper:ask read no window in "${command[1]}", so nothing changed: use it alone (30 minutes), for 30m, for 2h, until 14:30 or off. ${line(now)}` });
-    } else if (end === null || end <= now) {
-      rmSync(file, { force: true });
-      say(event, { additionalContext: OFF });
-    } else {
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(file, `${JSON.stringify({ askUntil: new Date(end).toISOString() })}\n`);
-      say(event, { additionalContext: allowed(end, now) });
-    }
+} else if (event === 'UserPromptExpansion' && input.command_name === 'benchkeeper:ask') {
+  // Only a typed command expands; a scheduled or delivered prompt with the same text does not (trial, Claude Code 2.1.316).
+  if (!file) throw new Error('the plugin has no data folder (CLAUDE_PLUGIN_DATA), so /benchkeeper:ask cannot keep its window');
+  const args = String(input.command_args ?? '');
+  const end = askUntil(args, now);
+  if (end === undefined) {
+    say(event, { additionalContext: `/benchkeeper:ask read no window in "${args}", so nothing changed: use it alone (30 minutes), for 30m, for 2h, until 14:30 or off. ${line(now)}` });
+  } else if (end === null || end <= now) {
+    rmSync(file, { force: true });
+    say(event, { additionalContext: OFF });
+  } else {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(file, `${JSON.stringify({ askUntil: new Date(end).toISOString() })}\n`);
+    say(event, { additionalContext: allowed(end, now) });
   }
 }

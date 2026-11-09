@@ -1,7 +1,7 @@
 // The window of terminal questions that /benchkeeper:ask opens, read alike by the plugin's hook (ask.mjs) and its band.
 
-// The line a session reads while the window is closed, and the reason the hook gives when it refuses the question tool.
-export const OFF = 'Terminal questions are off: the question tool (AskUserQuestion) is refused. Put the open questions with your recommendations into one issue per task in the issue tracker the project names, else the report; take each recommendation that is safe and reversible (an item without one waits), and go on. Only the user can allow terminal questions, with /benchkeeper:ask.';
+// The line a session reads while the window is closed, and the reason the hook gives when it refuses the question tool or plan mode.
+export const OFF = 'Terminal questions are off: the question tool (AskUserQuestion) and plan mode (EnterPlanMode) are refused. Put the open questions with your recommendations into one issue per task in the issue tracker the project names, else the report; take each recommendation that is safe and reversible (an item without one waits), and go on. Only the user can allow terminal questions, with /benchkeeper:ask.';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -12,7 +12,7 @@ export function clock(at, now) {
   return a.toDateString() === new Date(now).toDateString() ? time : `${a.getFullYear()}-${pad(a.getMonth() + 1)}-${pad(a.getDate())} ${time}`;
 }
 
-export const allowed = (until, now) => `Terminal questions are allowed until ${clock(until, now)}: the user opened them with /benchkeeper:ask, and the question tool is refused again after that.`;
+export const allowed = (until, now) => `Terminal questions are allowed until ${clock(until, now)}: the user opened them with /benchkeeper:ask, and the question tool and plan mode are refused again after that.`;
 
 // The window's end in epoch ms: none 30 minutes, `for <n>m|h`, `until HH:MM` (next such local time); null off, undefined unread.
 export function askUntil(args, now) {

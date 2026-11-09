@@ -160,6 +160,8 @@ export const register: Register = (on, options) => {
 
   // /clear, /resume and /branch reset the band's atoms and do not fire session.start again.
   on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
+    // A resumed conversation starts with questions off, as the hook drops the window then.
+    if (e.source === 'resume') asking = null
     if (on_) await refresh($).catch(() => undefined)
     return next(e)
   }).catch(($, e, next) => next(e))

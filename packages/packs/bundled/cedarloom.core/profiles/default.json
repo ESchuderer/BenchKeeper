@@ -113,7 +113,8 @@
             "Read(!.env.example)",
             "Read(~/.ssh/**)",
             "Read(~/.config/gh/**)",
-            "Read(~/.claude/.credentials.json)"
+            "Read(~/AppData/Roaming/GitHub CLI/**)",
+            "Read(/.credentials.json)"
           ]
         }
       }
@@ -298,7 +299,7 @@
     "bypass-off": {
       "type": "settings",
       "title": "Bypass permissions mode disabled in this project, on this machine",
-      "description": "Claude Code then refuses bypassPermissions mode here and rejects --dangerously-skip-permissions, so every session keeps its prompts. Off by default and per project only: Orca starts its Claude Code workers with that flag, so they cannot run in a project with this on (https://code.claude.com/docs/en/settings-reference#permissions-disablebypasspermissionsmode).",
+      "description": "Claude Code then refuses bypassPermissions mode here and rejects --dangerously-skip-permissions, so every session keeps its prompts. Off by default and per project only: Orca starts its Claude Code workers with that flag, so they cannot run in a project with this on. Switching it off leaves the setting in place: undo the run that wrote it (https://code.claude.com/docs/en/settings-reference#permissions-disablebypasspermissionsmode).",
       "default": "off",
       "commit": false,
       "set": { "permissions": { "disableBypassPermissionsMode": "disable" } }
@@ -306,7 +307,7 @@
     "outside-writes": {
       "type": "settings",
       "title": "No file writes outside this project, on this machine",
-      "description": "Claude's Write, Edit and NotebookEdit tools refuse paths outside the working directories in every permission mode, apart from Claude Code's own files such as the scratchpad. Shell commands are not limited (the sandbox does that), the EnterWorktree and ExitWorktree tools go, and it needs Claude Code 2.1.314 or later, so it is off by default (https://code.claude.com/docs/en/settings-reference#permissions-blockwritesoutsideworkingdirectories).",
+      "description": "Claude's Write, Edit and NotebookEdit tools refuse paths outside the working directories in every permission mode, apart from Claude Code's own files such as the scratchpad. Shell commands are not limited (the sandbox does that), the EnterWorktree and ExitWorktree tools go, and it needs Claude Code 2.1.314 or later, so it is off by default. Switching it off leaves the setting in place: undo the run that wrote it (https://code.claude.com/docs/en/settings-reference#permissions-blockwritesoutsideworkingdirectories).",
       "default": "off",
       "commit": false,
       "set": { "permissions": { "blockWritesOutsideWorkingDirectories": true } }

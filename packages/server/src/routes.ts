@@ -256,13 +256,10 @@ const Switched = z.union([
 ]);
 const SettingsSet = z.union([SwapApproval, SwapAccounts.pick({ settings: true })]);
 const SwitchBody = z.strictObject({ account: z.int().min(1).max(999_999), allow: approved });
-// claude-swap checks the value itself; these bounds keep the command the page shows one plain line.
+// claude-swap's two switch lines only, the 5-hour and the weekly one; the other auto mode settings stay with the CLI.
 const SettingsBody = z.strictObject({
-  key: z
-    .string()
-    .regex(/^autoswitch\.[A-Za-z]{1,40}$/)
-    .describe("Such as autoswitch.threshold"),
-  value: z.string().regex(/^[\w.+-]{1,32}$/),
+  key: z.enum(["autoswitch.threshold", "autoswitch.weeklyThreshold"]),
+  value: z.number().min(0).max(100).describe("The switch line in percent; claude-swap checks its own range"),
   allow: approved,
 });
 
@@ -298,7 +295,7 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
     { schema: { body: SettingsBody, response: answers({ 200: SettingsSet, 409: Refusal }) } },
     async (req, reply) => {
       const { key, value, allow } = req.body;
-      const ran = await swap("settings", allow, { key, value });
+      const ran = await swap("settings", allow, { key, value: String(value) });
       return ran.ok ? SettingsSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
     },
   );

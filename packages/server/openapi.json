@@ -11494,11 +11494,15 @@
                 "properties": {
                   "key": {
                     "type": "string",
-                    "pattern": "^autoswitch\\.[A-Za-z]{1,40}$"
+                    "enum": [
+                      "autoswitch.threshold",
+                      "autoswitch.weeklyThreshold"
+                    ]
                   },
                   "value": {
-                    "type": "string",
-                    "pattern": "^[\\w.+-]{1,32}$"
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
                   },
                   "allow": {
                     "type": "boolean"

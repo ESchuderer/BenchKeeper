@@ -2,6 +2,7 @@ import {
   type ActionContext,
   allowed,
   type DoctorFinding,
+  HOST_MISSING,
   jsonAnswer,
   olderRelease,
   type ProgramVersion,
@@ -25,6 +26,9 @@ const held = (row: unknown): boolean => HELD.has(String(at(row, "usageStatus")))
 // change how claude-swap runs Claude Code itself (switching plan 14.3).
 const AUTO_SETTINGS = "autoswitch.";
 
+// Not installed is a starting state, not a failure: every action that needs claude-swap names its install.
+const MISSING = "claude-swap is not installed: cedarloom claude-swap install";
+
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 const textOr = (value: unknown, otherwise: string | null): string | null =>
   typeof value === "string" ? value : otherwise;
@@ -45,7 +49,9 @@ const withoutEmails = (text: string): string =>
 /** claude-swap's JSON answer to a command: one object of schemaVersion 1; its error envelope or another version throws. */
 const cswap = async ({ exec }: Exec, args: string[], timeoutMs = FETCH_MS): Promise<unknown> => {
   const command = `cswap ${args.join(" ")}`;
-  const ran = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs });
+  const ran = await exec({ program: "cswap", args: [...args, "--json"], timeoutMs }).catch((error: unknown) => {
+    throw at(error, "code") === HOST_MISSING ? new Error(MISSING) : error;
+  });
   const answer = jsonAnswer(command, ran);
   const message = at(answer, "error", "message");
   if (typeof message === "string") throw new Error(`${command}: ${withoutEmails(message)}`);
@@ -304,7 +310,6 @@ const elsewhere = (platform: string): string =>
     ? "run cswap auto in a terminal; claude-swap has no service on Windows"
     : "run cswap auto in a terminal, or from cron: */5 * * * * cswap auto --once --json >> ~/.cswap-auto.log";
 const TOGGLE = "turn on Settings, Auto-switch accounts in the menu bar once; CedarLoom never writes that setting";
-const MISSING = "claude-swap is not installed: cedarloom claude-swap install";
 const [UV, UV_ARGS] = INSTALLERS[0] ?? ["uv", []];
 // claude-swap's service starts its menu bar at each login, which needs its menubar extra; without it, it exits and
 // launchd restarts it again and again.

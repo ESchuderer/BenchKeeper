@@ -943,8 +943,9 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        key: string;
-                        value: string;
+                        /** @enum {string} */
+                        key: "autoswitch.threshold" | "autoswitch.weeklyThreshold";
+                        value: number;
                         allow: boolean;
                     };
                 };

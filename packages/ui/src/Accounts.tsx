@@ -1,5 +1,5 @@
 import type { Api, components } from "@cedarloom/client";
-import { Alert, Button, Code, Group, NumberInput, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Button, Code, Group, NumberInput, Stack, Table, Text, Title, VisuallyHidden } from "@mantine/core";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { call } from "./call.ts";
 import { t, when } from "./i18n.ts";
@@ -8,7 +8,7 @@ type Swap = components["schemas"]["SwapAccounts"];
 type Account = Swap["accounts"][number];
 type Approval = components["schemas"]["SwapApproval"];
 /** A change of claude-swap's: a switch to one of its accounts, or one of its settings set. */
-type Change = { account: number } | { key: string; value: string };
+type Change = { account: number } | { key: Setting; value: number };
 
 const nameOf = ({ number, alias }: Account): string =>
   alias === undefined ? String(number) : t("accounts.name", { number, alias });
@@ -83,6 +83,7 @@ const LINES = [
   ["autoswitch.threshold", "fiveHour"],
   ["autoswitch.weeklyThreshold", "sevenDay"],
 ] as const;
+type Setting = (typeof LINES)[number][0];
 
 /** One of claude-swap's switch lines in percent, which claude-swap itself checks once it is set. */
 const Line = ({
@@ -92,7 +93,7 @@ const Line = ({
   busy,
   onSet,
 }: {
-  setting: string;
+  setting: Setting;
   window: string;
   value: unknown;
   busy: boolean;
@@ -101,13 +102,14 @@ const Line = ({
   const [given, setGiven] = useState<string | number>(typeof value === "number" ? value : "");
   const submit = (event: FormEvent): void => {
     event.preventDefault();
-    onSet({ key: setting, value: String(given) });
+    onSet({ key: setting, value: Number(given) });
   };
+  const label = t("accounts.threshold", { window, setting });
   return (
     <form onSubmit={submit}>
       <Group align="end">
         <NumberInput
-          label={t("accounts.threshold", { window, setting })}
+          label={label}
           placeholder={t("accounts.unset")}
           suffix="%"
           min={0}
@@ -117,8 +119,10 @@ const Line = ({
           value={given}
           onChange={setGiven}
         />
+        {/* Named after its line too, so a screen reader's list of buttons tells the two apart. */}
         <Button type="submit" loading={busy}>
           {t("accounts.change")}
+          <VisuallyHidden> {label}</VisuallyHidden>
         </Button>
       </Group>
     </form>

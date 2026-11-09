@@ -255,12 +255,13 @@ jobs:
           codex plugin add cedarloom-ci@cedarloom-workflows
           listed() { codex debug prompt-input | grep -oE 'cedarloom-ci:[a-z0-9-]+' | sort -u | tr '\n' ' '; }
           copies() { cli doctor --json | jq -c '[.findings[] | select(.code | startswith("package.codex"))]'; }
-          test -z "$(listed)" && test "$(copies)" = '[]'
+          test -z "$(listed)"
+          test "$(copies)" = '[]'
           for skill in steps/lint codex/start; do
             rm "$CODEX_HOME/plugins/cache/cedarloom-workflows/cedarloom-ci/1.0.0/$skill/agents/openai.yaml"
           done
           test "$(listed)" = 'cedarloom-ci:lint cedarloom-ci:start '
-          test "$(copies)" = '[{"code":"package.codex-outdated","params":{"plugin":"cedarloom-ci","id":"cedarloom-ci","copy":"stale"}}]'
+          test "$(copies)" = '[{"code":"package.codex-stale","params":{"plugin":"cedarloom-ci","id":"cedarloom-ci"}}]'
 
   # Schemathesis against a started server with a live session: every answer it provokes must match the committed
   # OpenAPI document. oasdiff, the other API contract gate, follows once a released document exists to compare against.

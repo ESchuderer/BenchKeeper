@@ -45,8 +45,16 @@ import { readOptionalJson, withView } from "./use-cases.ts";
  * The Claude Code home the machine level writes: `CLAUDE_CONFIG_DIR`, else `~/.claude`
  * (https://code.claude.com/docs/en/env-vars).
  */
+// A tool's home: the folder its variable names, else its dot folder in the user's home.
+const homeOf = (env: Readonly<Record<string, string | undefined>>, variable: string, folder: string): string =>
+  onDisk(resolve(env[variable] || join(homedir(), folder)));
+
 export const claudeHome = (env: Readonly<Record<string, string | undefined>>): string =>
-  onDisk(resolve(env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude")));
+  homeOf(env, "CLAUDE_CONFIG_DIR", ".claude");
+
+/** Codex's home, where it keeps its copies of the plugins it added: CODEX_HOME, else ~/.codex. */
+export const codexHome = (env: Readonly<Record<string, string | undefined>>): string =>
+  homeOf(env, "CODEX_HOME", ".codex");
 
 export const selectionPath = (config: string): string => join(config, "profile.json");
 

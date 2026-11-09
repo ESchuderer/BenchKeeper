@@ -1,6 +1,5 @@
-import { accessSync, constants, existsSync, readdirSync, realpathSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, relative, resolve, sep } from "node:path";
+import { accessSync, constants, readdirSync, realpathSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   type AutomationLevel,
   type Finding,
@@ -352,34 +351,33 @@ const runnable = (path: string): boolean => {
   }
 };
 
-/** Codex's home, where it keeps its copies of the plugins it added: CODEX_HOME, else ~/.codex. */
-export const codexHome = (env: Readonly<Record<string, string | undefined>>): string =>
-  resolve(env["CODEX_HOME"] || join(homedir(), ".codex"));
-
-// Whether a folder's copy holds the same files, byte for byte, and no others.
+// Whether a folder's copy holds the same files, byte for byte, and no others; a copy it cannot read differs.
 const sameFiles = (folder: string, copy: string): boolean => {
   const files = filesIn(folder);
   const same = (path: string): boolean => hashFile(path) === hashFile(join(copy, relative(folder, path)));
-  return files.length === filesIn(copy).length && files.every(same);
+  try {
+    return files.length === filesIn(copy).length && files.every(same);
+  } catch {
+    return false;
+  }
 };
 
 // Codex runs its copy of a package (`codex plugin add`), which a later install leaves behind; nothing while it has none.
 const codexDoctor = (installed: ReturnType<typeof installedPackages>, codex: string): Finding[] => {
   const cache = join(codex, "plugins", "cache", WORKFLOW_MARKETPLACE);
-  if (!existsSync(cache)) return [];
   const copied = foldersIn(cache);
-  const own = installed.flatMap(({ plugin, folder, id, version }) =>
-    id === null || version === null ? [] : [{ plugin, folder, id, version }],
-  );
+  if (copied.length === 0) return [];
   return [
-    ...own.flatMap(({ plugin, folder, id, version }): Finding[] => {
+    ...installed.flatMap(({ plugin, folder, id, version }): Finding[] => {
+      if (id === null || version === null) return [];
       if (!copied.includes(plugin)) return [{ code: "package.codex-missing", params: { plugin, id } }];
-      if (sameFiles(folder, join(cache, plugin, version))) return [];
-      return [{ code: "package.codex-outdated", params: { plugin, id, copy: "stale" } }];
+      return sameFiles(folder, join(cache, plugin, version))
+        ? []
+        : [{ code: "package.codex-stale", params: { plugin, id } }];
     }),
     ...copied
-      .filter((plugin) => !own.some((other) => other.plugin === plugin))
-      .map((plugin): Finding => ({ code: "package.codex-outdated", params: { plugin, id: null, copy: "left" } })),
+      .filter((plugin) => !installed.some((other) => other.plugin === plugin))
+      .map((plugin): Finding => ({ code: "package.codex-left", params: { plugin } })),
   ];
 };
 

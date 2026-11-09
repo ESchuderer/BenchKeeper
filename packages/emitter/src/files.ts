@@ -71,12 +71,12 @@ export const stepFiles = (workflow: WorkflowDefinition, node: Node): PackageFile
 const DESCRIBED = /^The CedarLoom workflow (\S+), at the automation level (supervised|checkpoint|auto)\.$/;
 
 /** The workflow, version and level a package's manifest was built from; null for any other manifest. */
-export const builtFrom = (manifest: unknown): { id: string; level: AutomationLevel; version: string } | null => {
+export const builtFrom = (manifest: unknown): { id: string; level: AutomationLevel; version: string | null } | null => {
   const [description, version]: unknown[] = ["description", "version"].map((key) => Reflect.get(Object(manifest), key));
   const [, id, level] = (typeof description === "string" ? DESCRIBED.exec(description) : null) ?? [];
   return id === undefined || (level !== "supervised" && level !== "checkpoint" && level !== "auto")
     ? null
-    : { id, level, version: String(version) };
+    : { id, level, version: typeof version === "string" ? version : null };
 };
 
 /** A tool's plugin manifest: the step skills and that tool's stage skills, and its hooks file if it has one. */

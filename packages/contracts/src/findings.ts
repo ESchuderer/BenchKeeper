@@ -108,12 +108,10 @@ export const Finding = z
     }),
     /** Codex holds copies of CedarLoom's packages (`codex plugin add`), but none of this one. */
     finding("package.codex-missing", { plugin: z.string(), id: z.string() }),
-    /** Codex runs a copy that differs from the installed package (stale), or one CedarLoom no longer installs (left). */
-    finding("package.codex-outdated", {
-      plugin: z.string(),
-      id: z.string().nullable(),
-      copy: z.enum(["stale", "left"]),
-    }),
+    /** Codex runs a copy that differs from the installed package, as after a rebuild. */
+    finding("package.codex-stale", { plugin: z.string(), id: z.string() }),
+    /** Codex holds a copy of a package CedarLoom no longer installs. */
+    finding("package.codex-left", { plugin: z.string() }),
     /** An installed package's hooks run with a Node.js that is gone, so Claude Code refuses every call they guard. */
     finding("package.node-missing", {
       plugin: z.string(),
@@ -390,7 +388,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "package.plugin-taken": { severity: "error", effort: "manual" },
   "package.levels-mixed": { severity: "warning", effort: "command" },
   "package.codex-missing": { severity: "info", effort: "command" },
-  "package.codex-outdated": { severity: "warning", effort: "command" },
+  "package.codex-stale": { severity: "warning", effort: "command" },
+  "package.codex-left": { severity: "warning", effort: "command" },
   "package.node-missing": { severity: "error", effort: "command" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },

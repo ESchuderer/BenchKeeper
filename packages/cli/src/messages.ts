@@ -149,10 +149,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `The workflow ${p.other} is installed at ${p.otherLevel}, and ${p.id} at ${p.level}. Each package's guard runs in every Claude Code session, so for merges the strictest installed level holds: no merge passes while one package is below Auto. Install them at one level: cedarloom workflows install ${p.other} --level ${p.level}, or this one at ${p.otherLevel}.`,
   "package.codex-missing": (p) =>
     `Codex holds CedarLoom's packages but not ${p.plugin}, the workflow ${p.id}: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
-  "package.codex-outdated": (p) =>
-    p.copy === "stale"
-      ? `Codex runs an older copy of ${p.plugin}, the workflow ${p.id ?? p.plugin}, than CedarLoom installed; add it again: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`
-      : `Codex still runs ${p.plugin}, which CedarLoom no longer installs: codex plugin remove ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
+  "package.codex-stale": (p) =>
+    `Codex runs an older copy of ${p.plugin}, the workflow ${p.id}, than CedarLoom installed; add it again: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
+  "package.codex-left": (p) =>
+    `Codex still runs ${p.plugin}, which CedarLoom no longer installs: codex plugin remove ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
   "package.node-missing": (p) =>
     `The hooks of ${p.plugin} run with ${p.path}, which is gone, so Claude Code refuses every shell call and agent they guard, in every session. Install its workflow again: cedarloom workflows install ${p.id ?? "<id>"}${p.level === null ? "" : ` --level ${p.level}`} --allow ${p.plugin} --yes`,
   "package.reserved-name": (p) =>

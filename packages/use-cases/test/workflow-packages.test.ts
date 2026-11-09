@@ -179,12 +179,12 @@ test("the doctor reports a package Codex has no copy of, a copy older than the p
   expect([before, copies()]).toEqual([
     [
       { code: "package.codex-missing", params: { plugin: "v", id: "v" } },
-      { code: "package.codex-outdated", params: { plugin: "gone", id: null, copy: "left" } },
+      { code: "package.codex-left", params: { plugin: "gone" } },
     ],
     [
       { code: "package.codex-missing", params: { plugin: "v", id: "v" } },
-      { code: "package.codex-outdated", params: { plugin: "w", id: "w", copy: "stale" } },
-      { code: "package.codex-outdated", params: { plugin: "gone", id: null, copy: "left" } },
+      { code: "package.codex-stale", params: { plugin: "w", id: "w" } },
+      { code: "package.codex-left", params: { plugin: "gone" } },
     ],
   ]);
 });

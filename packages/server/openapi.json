@@ -2144,7 +2144,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "package.codex-outdated"
+                "const": "package.codex-stale"
               },
               "params": {
                 "type": "object",
@@ -2153,23 +2153,38 @@
                     "type": "string"
                   },
                   "id": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "copy": {
-                    "type": "string",
-                    "enum": [
-                      "stale",
-                      "left"
-                    ]
+                    "type": "string"
                   }
                 },
                 "required": [
                   "plugin",
-                  "id",
-                  "copy"
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "package.codex-left"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin"
                 ],
                 "additionalProperties": false
               }
@@ -7532,7 +7547,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "const": "package.codex-outdated"
+                "const": "package.codex-stale"
               },
               "params": {
                 "type": "object",
@@ -7541,23 +7556,38 @@
                     "type": "string"
                   },
                   "id": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "copy": {
-                    "type": "string",
-                    "enum": [
-                      "stale",
-                      "left"
-                    ]
+                    "type": "string"
                   }
                 },
                 "required": [
                   "plugin",
-                  "id",
-                  "copy"
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "package.codex-left"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "plugin"
                 ],
                 "additionalProperties": false
               }

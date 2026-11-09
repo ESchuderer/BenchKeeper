@@ -41,12 +41,12 @@ Both stop an agent's mistakes, not a hostile agent: the guard does not read a sc
 
 ## Running in Codex
 
-Codex 0.166.0 runs a package from its copy in `<CODEX_HOME>/plugins/cache/cedarloom-workflows/<plugin>/<version>/` (`CODEX_HOME` defaults to `~/.codex`):
+Codex (0.166.0 here, and the version `.github/codex` pins in CI) runs a package from its copy in `<CODEX_HOME>/plugins/cache/cedarloom-workflows/<plugin>/<version>/` (`CODEX_HOME` defaults to `~/.codex`):
 
 - It loads the skills of both folders the manifest lists, `steps/` and `codex/`, and each skill's `agents/openai.yaml` keeps it off the model's list, so only the user starts one. CI's test job checks both with the pinned Codex (`.github/codex`): an installed package lists none of its skills, and lists a step's and a stage's once their policy files are gone from the copy.
 - `codex plugin add` again replaces the copy, a rebuild at the same version too, and `codex plugin remove` deletes it. The doctor compares each package with its copy, file by file.
 
-A stage runs in Codex, signed in (`codex login`), with this command from the project folder. It is the owner's check, not yet run, as no Codex account was signed in on the machine that built this:
+A stage runs in Codex, signed in (`codex login`), with this command from the project folder (unverified: the owner's signed-in check):
 
 ```sh
 codex exec --sandbox workspace-write '$<plugin>:start'

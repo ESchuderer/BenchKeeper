@@ -1315,12 +1315,16 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "package.codex-outdated";
+            code: "package.codex-stale";
             params: {
                 plugin: string;
-                id: string | null;
-                /** @enum {string} */
-                copy: "stale" | "left";
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-left";
+            params: {
+                plugin: string;
             };
         } | {
             /** @constant */
@@ -2463,12 +2467,16 @@ export interface components {
             };
         } | {
             /** @constant */
-            code: "package.codex-outdated";
+            code: "package.codex-stale";
             params: {
                 plugin: string;
-                id: string | null;
-                /** @enum {string} */
-                copy: "stale" | "left";
+                id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.codex-left";
+            params: {
+                plugin: string;
             };
         } | {
             /** @constant */

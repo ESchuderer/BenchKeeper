@@ -8,6 +8,16 @@
     "accounts.auto": ["claude-swap's auto switching"],
     "accounts.autoOff": ["Turn auto switching off"],
     "accounts.autoOn": ["Turn auto switching on"],
+    "accounts.autoSwitch": [
+      [
+        "on",
+        "select",
+        {
+          "true": ["Auto switching is on: the menu bar switches accounts."],
+          "other": ["Auto switching is off: the menu bar shows usage and switches no account."]
+        }
+      ]
+    ],
     "accounts.cancel": ["Cancel"],
     "accounts.cancelled": ["Nothing ran."],
     "accounts.caption": ["claude-swap's accounts"],

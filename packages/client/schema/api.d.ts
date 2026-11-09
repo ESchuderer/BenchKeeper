@@ -1114,7 +1114,7 @@ export interface paths {
                     "application/json": {
                         allow: {
                             /** @enum {string} */
-                            installer: "uv" | "pipx";
+                            installer: "uv";
                             runs: string;
                         } | null;
                     };
@@ -2425,7 +2425,8 @@ export interface components {
         };
         SwapServiceInput: {
             service?: string;
-            hint: string;
+            autoSwitch?: boolean;
+            hint?: string;
         };
         SwapInstallInput: {
             runs: string;
@@ -2433,8 +2434,8 @@ export interface components {
             hint?: string;
             /** @constant */
             installed: false;
-            /** @enum {string} */
-            installer: "uv" | "pipx";
+            /** @constant */
+            installer: "uv";
             /** Format: uri */
             source: string;
             release: string;
@@ -3666,7 +3667,8 @@ export interface components {
         };
         SwapService: {
             service?: string;
-            hint: string;
+            autoSwitch?: boolean;
+            hint?: string;
         };
         SwapInstall: {
             runs: string;
@@ -3674,8 +3676,8 @@ export interface components {
             hint?: string;
             /** @constant */
             installed: false;
-            /** @enum {string} */
-            installer: "uv" | "pipx";
+            /** @constant */
+            installer: "uv";
             /** Format: uri */
             source: string;
             release: string;

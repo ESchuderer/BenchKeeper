@@ -768,6 +768,10 @@ msgid "accounts.autoOff"
 msgstr "Turn auto switching off"
 
 #. js-lingui-explicit-id
+msgid "accounts.autoSwitch"
+msgstr "{on, select, true {Auto switching is on: the menu bar switches accounts.} other {Auto switching is off: the menu bar shows usage and switches no account.}}"
+
+#. js-lingui-explicit-id
 msgid "accounts.install"
 msgstr "Install claude-swap"
 

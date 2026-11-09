@@ -5542,13 +5542,13 @@
           "service": {
             "type": "string"
           },
+          "autoSwitch": {
+            "type": "boolean"
+          },
           "hint": {
             "type": "string"
           }
         },
-        "required": [
-          "hint"
-        ],
         "additionalProperties": false
       },
       "SwapInstallInput": {
@@ -5569,10 +5569,7 @@
           },
           "installer": {
             "type": "string",
-            "enum": [
-              "uv",
-              "pipx"
-            ]
+            "const": "uv"
           },
           "source": {
             "type": "string",
@@ -11385,13 +11382,13 @@
           "service": {
             "type": "string"
           },
+          "autoSwitch": {
+            "type": "boolean"
+          },
           "hint": {
             "type": "string"
           }
         },
-        "required": [
-          "hint"
-        ],
         "additionalProperties": false
       },
       "SwapInstall": {
@@ -11412,10 +11409,7 @@
           },
           "installer": {
             "type": "string",
-            "enum": [
-              "uv",
-              "pipx"
-            ]
+            "const": "uv"
           },
           "source": {
             "type": "string",
@@ -13052,8 +13046,7 @@
                           "installer": {
                             "type": "string",
                             "enum": [
-                              "uv",
-                              "pipx"
+                              "uv"
                             ]
                           },
                           "runs": {

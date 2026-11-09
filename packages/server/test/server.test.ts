@@ -647,6 +647,7 @@ const withSwap = async () => {
       actions: {
         switch: { title: "Switch", inputs: { account } },
         "auto-on": { title: "On" },
+        "auto-off": { title: "Off" },
         install: { title: "In" },
       },
     },
@@ -671,29 +672,33 @@ test("a claude-swap switch runs only once the request allows it; before that, th
   ]);
 });
 
-test("claude-swap's install runs only with the installer and command its approval named, and auto mode only once allowed", async () => {
+test("claude-swap's install runs only with the installer and command its approval named, and auto mode on or off only once allowed", async () => {
   const client = await withSwap();
   const install = (allow: object | null) =>
     client.api({ method: "POST", path: "/api/accounts/install", body: { allow } });
-  const autoOn = (allow: boolean) =>
-    client.api({ method: "POST", path: "/api/accounts/auto", body: { on: true, allow } });
+  const auto = (on: boolean, allow: boolean) =>
+    client.api({ method: "POST", path: "/api/accounts/auto", body: { on, allow } });
   const shown = {
     installed: false,
-    runs: "uv tool install --default-index https://pypi.org/simple 'claude-swap[menubar]==0.30.0'",
+    runs: "uv tool install --no-config --default-index https://pypi.org/simple 'claude-swap[menubar]==1.0.0'",
     approve: "cedarloom claude-swap install --allow uv",
     installer: "uv",
-    source: "https://pypi.org/project/claude-swap/0.30.0/",
-    release: "0.30.0",
+    source: "https://pypi.org/project/claude-swap/1.0.0/",
+    release: "1.0.0",
   };
   expect([
     (await install(null)).body,
     (await install({ installer: "uv", runs: shown.runs })).body,
-    (await autoOn(false)).body,
-    (await autoOn(true)).body,
+    (await auto(true, false)).body,
+    (await auto(true, true)).body,
+    (await auto(false, false)).body,
+    (await auto(false, true)).body,
   ]).toEqual([
     shown,
-    { installed: true, version: "0.30.0" },
-    { runs: "cswap menubar --install-service", approve: "cedarloom claude-swap auto-on --allow cswap" },
-    { service: "Menu bar service installed (com.cswap.menubar).", hint: "turn on Auto-switch accounts" },
+    { installed: true, version: "1.0.0" },
+    { runs: "cswap menubar --install-service --auto-switch", approve: "cedarloom claude-swap auto-on --allow cswap" },
+    { service: "Menu bar service installed (com.cswap.menubar).", autoSwitch: true },
+    { runs: "cswap menubar --no-auto-switch", approve: "cedarloom claude-swap auto-off --allow cswap" },
+    { service: "Menu bar restarted (pid 4243) to apply the auto-switch setting.", autoSwitch: false },
   ]);
 });

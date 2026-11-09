@@ -197,15 +197,18 @@ export const SwapApproval = z
   .strictObject({ runs: z.string(), approve: z.string(), hint: z.string().optional() })
   .register(contracts, { id: "SwapApproval" });
 
-/** claude-swap's auto mode: its menu bar service's first line (macOS only), and what to do next for auto mode. */
+/**
+ * claude-swap's auto mode: its menu bar service's first line and whether that menu bar switches accounts (macOS only;
+ * absent while no service is installed), and what to do next for auto mode.
+ */
 export const SwapService = z
-  .strictObject({ service: z.string().optional(), hint: z.string() })
+  .strictObject({ service: z.string().optional(), autoSwitch: z.boolean().optional(), hint: z.string().optional() })
   .register(contracts, { id: "SwapService" });
 
 /** claude-swap's install, which runs only once the user approves it: also its installer, source and pinned release. */
 export const SwapInstall = SwapApproval.extend({
   installed: z.literal(false),
-  installer: z.enum(["uv", "pipx"]),
+  installer: z.literal("uv"),
   source: z.url(),
   release: z.string(),
 }).register(contracts, { id: "SwapInstall" });

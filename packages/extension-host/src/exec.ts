@@ -38,9 +38,6 @@ const Request = z.strictObject({
 const XDG = ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR"];
 const PROXIES = ["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy"];
 const KEPT = ["USER", "LOGNAME", "TMPDIR", ...XDG, ...PROXIES];
-// No pip or uv configuration file loads (pip skips all at Python's os.devnull; uv's --no-config), and no index variable
-// is kept, so an installer reaches only the index its command names; pipx runs either (pip docs, configuration).
-const NO_INSTALLER_CONFIG = { PIP_CONFIG_FILE: process.platform === "win32" ? "nul" : "/dev/null", UV_NO_CONFIG: "1" };
 const PLATFORMS = new Set(["darwin", "linux", "win32"] as const);
 
 // Where a candidate is: `~/` and a path in the user's home folder, or a file name in an absolute PATH folder.
@@ -130,7 +127,7 @@ export const executor = (broker: Broker) => {
   return async (params: unknown, token: CancellationToken): Promise<Answer> => {
     const parsed = Request.safeParse(params);
     if (!parsed.success) return refused("invalid request");
-    const env = { ...cleanEnv(process.env, process.platform, KEPT), ...NO_INSTALLER_CONFIG };
+    const env = cleanEnv(process.env, process.platform, KEPT);
     const file = resolve(broker.manifest, parsed.data.program, env);
     if (file instanceof ResponseError) return file;
     if (running >= broker.limits.execs) return refused(`more than ${broker.limits.execs} programs at once`);

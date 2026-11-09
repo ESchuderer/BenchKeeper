@@ -15,6 +15,7 @@ export interface MessageValues {
   "accounts.auto": Record<never, never>;
   "accounts.autoOff": Record<never, never>;
   "accounts.autoOn": Record<never, never>;
+  "accounts.autoSwitch": { on: string };
   "accounts.cancel": Record<never, never>;
   "accounts.cancelled": Record<never, never>;
   "accounts.caption": Record<never, never>;

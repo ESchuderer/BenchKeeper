@@ -590,21 +590,6 @@ test("host/exec runs a program its manifest names, found by the host, without a 
   });
 });
 
-test("host/exec lets no program read pip's or uv's configuration or index variables, so no configured index stands in for one a command names", async () => {
-  vi.stubEnv("PIP_INDEX_URL", "https://mirror.example.org/simple");
-  vi.stubEnv("PIP_EXTRA_INDEX_URL", "https://mirror.example.org/extra");
-  vi.stubEnv("PIP_CONFIG_FILE", "/home/me/pip.conf");
-  const fixture = await extension({ manifest: withPrograms({ node: ["node"] }) });
-  const names = ["PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_CONFIG_FILE", "UV_NO_CONFIG"];
-  const script = `process.stdout.write(JSON.stringify(${JSON.stringify(names)}.map((name) => process.env[name] ?? null)))`;
-  const answers = await execs(fixture, [{ program: "node", args: ["-e", script] }]);
-  vi.unstubAllEnvs();
-  const devnull = process.platform === "win32" ? "nul" : "/dev/null";
-  expect(answers).toEqual({
-    answers: [{ result: { code: 0, stdout: JSON.stringify([null, null, devnull, "1"]), stderr: "" } }],
-  });
-});
-
 test("host/exec stops a program at its time limit and at its output cap, and says when a program is not installed", async () => {
   const fixture = await extension({
     manifest: withPrograms({ node: ["node"], absent: ["cedarloom-no-such-program"] }),

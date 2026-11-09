@@ -169,8 +169,14 @@ const Approve = ({
   );
 };
 
-/** `auto`: claude-swap's auto mode, or why it cannot be read; `install`: claude-swap's extension failed to read it. */
+/** `auto`: claude-swap's auto mode, or why it cannot be read; `install`: claude-swap is not installed. */
 type Read = { swap: Swap | null; auto: Service | string | null; problem: string; install: boolean };
+
+// Asked only after the extension failed to read the accounts; without an approval the install runs nothing.
+const missing = async (api: Api): Promise<boolean> => {
+  const asked = await call(() => api.POST("/api/accounts/install", { body: { allow: null } }));
+  return "data" in asked && !asked.data.installed;
+};
 
 /** claude-swap's accounts, settings and auto mode as its extension reads them now, read again on each `version`. */
 const useSwap = (api: Api, version: number): Read => {
@@ -180,11 +186,12 @@ const useSwap = (api: Api, version: number): Read => {
     const show = async (): Promise<void> => {
       const answers = [call(() => api.GET("/api/accounts")), call(() => api.GET("/api/accounts/auto"))] as const;
       const [listed, auto] = await Promise.all(answers);
+      const install = "codes" in listed && listed.codes.includes("extension.failed") && (await missing(api));
       if (!current) return;
       setRead({
         ...("data" in listed ? { swap: listed.data, problem: "" } : { swap: null, problem: listed.problem }),
         auto: "data" in auto ? auto.data : auto.problem,
-        install: "codes" in listed && listed.codes.includes("extension.failed"),
+        install,
       });
     };
     void show();
@@ -213,6 +220,23 @@ const Shown = ({ swap, busy, onAsk }: { swap: Swap; busy: boolean; onAsk: Ask })
   </>
 );
 
+// The menu bar service's state and whether it switches; on while it does not, off only while it does, as off
+// needs a service.
+const MenuBar = ({ auto, busy, onAsk }: { auto: Service; busy: boolean; onAsk: Ask }) => (
+  <>
+    {auto.service !== undefined && <Text>{auto.service}</Text>}
+    {auto.autoSwitch !== undefined && <Text>{t("accounts.autoSwitch", { on: String(auto.autoSwitch) })}</Text>}
+    {auto.hint !== undefined && <Text>{auto.hint}</Text>}
+    {auto.service !== undefined && (
+      <Group>
+        <Button variant="default" loading={busy} onClick={() => onAsk({ auto: auto.autoSwitch !== true })}>
+          {auto.autoSwitch === true ? t("accounts.autoOff") : t("accounts.autoOn")}
+        </Button>
+      </Group>
+    )}
+  </>
+);
+
 /**
  * claude-swap's auto mode, which its menu bar service runs on macOS, on or off there through claude-swap's command; or
  * why it cannot be read, which leaves the accounts above as they are.
@@ -222,24 +246,7 @@ const AutoMode = ({ auto, busy, onAsk }: { auto: Service | string; busy: boolean
     <Title order={3} size="h5">
       {t("accounts.auto")}
     </Title>
-    {typeof auto === "string" ? (
-      <Text>{auto}</Text>
-    ) : (
-      <>
-        {auto.service !== undefined && <Text>{auto.service}</Text>}
-        <Text>{auto.hint}</Text>
-      </>
-    )}
-    {typeof auto !== "string" && auto.service !== undefined && (
-      <Group>
-        <Button variant="default" loading={busy} onClick={() => onAsk({ auto: true })}>
-          {t("accounts.autoOn")}
-        </Button>
-        <Button variant="default" loading={busy} onClick={() => onAsk({ auto: false })}>
-          {t("accounts.autoOff")}
-        </Button>
-      </Group>
-    )}
+    {typeof auto === "string" ? <Text>{auto}</Text> : <MenuBar auto={auto} busy={busy} onAsk={onAsk} />}
   </>
 );
 

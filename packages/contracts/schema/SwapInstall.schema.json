@@ -18,10 +18,7 @@
     },
     "installer": {
       "type": "string",
-      "enum": [
-        "uv",
-        "pipx"
-      ]
+      "const": "uv"
     },
     "source": {
       "type": "string",

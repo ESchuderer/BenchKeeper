@@ -6,12 +6,12 @@
     "service": {
       "type": "string"
     },
+    "autoSwitch": {
+      "type": "boolean"
+    },
     "hint": {
       "type": "string"
     }
   },
-  "required": [
-    "hint"
-  ],
   "additionalProperties": false
 }

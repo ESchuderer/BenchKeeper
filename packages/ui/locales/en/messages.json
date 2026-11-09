@@ -275,7 +275,7 @@
         "reason",
         "select",
         {
-          "off": ["is switched off: cedarloom components switch ", ["extension"], " auto turns it back on"],
+          "off": ["is switched off: cedarloom components switch ", ["extension"], " auto --yes turns it back on"],
           "other": ["does not run here (", ["reason"], ")"]
         }
       ],

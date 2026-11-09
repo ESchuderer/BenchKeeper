@@ -114,6 +114,8 @@ const Line = ({
           suffix="%"
           min={0}
           max={100}
+          clampBehavior="strict"
+          allowNegative={false}
           decimalScale={1}
           required
           value={given}

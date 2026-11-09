@@ -761,7 +761,7 @@ msgstr "The extension {extension} failed: {error}"
 
 #. js-lingui-explicit-id
 msgid "problem.extensionRefused"
-msgstr "The extension {extension} {reason, select, off {is switched off: cedarloom components switch {extension} auto turns it back on} other {does not run here ({reason})}}."
+msgstr "The extension {extension} {reason, select, off {is switched off: cedarloom components switch {extension} auto --yes turns it back on} other {does not run here ({reason})}}."
 
 #. js-lingui-explicit-id
 msgid "problem.extensionUnknown"

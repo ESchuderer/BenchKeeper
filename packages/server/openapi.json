@@ -2066,6 +2066,54 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "package.levels-mixed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "supervised",
+                      "checkpoint",
+                      "auto"
+                    ]
+                  },
+                  "other": {
+                    "type": "string"
+                  },
+                  "otherLevel": {
+                    "type": "string",
+                    "enum": [
+                      "supervised",
+                      "checkpoint",
+                      "auto"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "level",
+                  "other",
+                  "otherLevel"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "package.node-missing"
               },
               "params": {
@@ -7320,6 +7368,54 @@
                 "required": [
                   "plugin",
                   "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "package.levels-mixed"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "supervised",
+                      "checkpoint",
+                      "auto"
+                    ]
+                  },
+                  "other": {
+                    "type": "string"
+                  },
+                  "otherLevel": {
+                    "type": "string",
+                    "enum": [
+                      "supervised",
+                      "checkpoint",
+                      "auto"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "level",
+                  "other",
+                  "otherLevel"
                 ],
                 "additionalProperties": false
               }

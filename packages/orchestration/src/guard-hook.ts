@@ -60,10 +60,18 @@ const readCall = (input: string): Call | null => {
 // The agent type Claude Code gives a workflow script's agents, which may merge at Auto.
 const WORKFLOW_AGENT = "workflow-subagent";
 
+// A workflow script's agent: that type with an agent id, which a session started as that type (`claude --agent`) lacks
+// (https://code.claude.com/docs/en/hooks).
+const ofWorkflow = (call: Call | null): boolean =>
+  call?.agent === WORKFLOW_AGENT && typeof call.agentId === "string" && call.agentId !== "";
+
+// Who calls: merges at Auto, and whether the guard limits the caller to what it reads (a workflow's agents).
+type Reach = { readonly merges: boolean; readonly limited: boolean };
+
 // Why the guard refuses to start an agent, or null.
-const agentRefusal = ({ isolation, subagent }: Call, merges: boolean): string | null => {
+const agentRefusal = ({ isolation, subagent }: Call, { merges, limited }: Reach): string | null => {
   // A remote subagent runs in the cloud, where no hook of this session reads its commands.
-  if (isolation === "remote") return "a remote agent runs where the guard reads nothing";
+  if (limited && isolation === "remote") return "a remote agent runs where the guard reads nothing";
   // Where workflow agents may merge, a project's agent of that name would merge as one.
   return merges && subagent === WORKFLOW_AGENT ? `the agent type ${WORKFLOW_AGENT} is kept for workflow scripts` : null;
 };
@@ -75,44 +83,46 @@ const located = (command: unknown, cwd: unknown): { command: string; cwd: string
   typeof command === "string" && typeof cwd === "string" && isAbsolute(cwd) ? { command, cwd } : UNREADABLE;
 
 // The command a call runs in its folder, null for a call that runs no shell command, or why the guard cannot read it.
-const commandOf = (call: Call | null, merges: boolean): { command: string; cwd: string } | string | null => {
+const commandOf = (call: Call | null, reach: Reach): { command: string; cwd: string } | string | null => {
   if (call === null || typeof call.tool !== "string") return UNREADABLE;
   const { tool, command, cwd } = call;
-  if (tool === "Agent") return agentRefusal(call, merges);
+  if (tool === "Agent") return agentRefusal(call, reach);
   // A Monitor call without a command watches a WebSocket and runs nothing.
   if (!SHELL_TOOLS.has(tool) || (tool === "Monitor" && command === undefined)) return null;
-  // A worker's shell is Bash; PowerShell, which the guard does not read, refuses.
-  return tool === "PowerShell"
-    ? "the guard reads no PowerShell; run the command with the Bash tool"
-    : located(command, cwd);
+  if (tool !== "PowerShell") return located(command, cwd);
+  // A workflow agent's shell is Bash; PowerShell, which the guard does not read, refuses it.
+  return reach.limited ? "the guard reads no PowerShell; run the command with the Bash tool" : null;
 };
 
 /**
- * The policy as this call meets it: `origin` read from the working folder, with the hub and the memory repository; a
- * merge only for an agent of a workflow script, which a stage reaches after its reviewer agreed (Auto, owner 2026-11-08),
- * and only in the origin's own repositories: never the hub's, nor the memory repository's, whose `main` no agent updates.
- * A session started as that agent type (`claude --agent`) has no agent id (https://code.claude.com/docs/en/hooks).
+ * The policy as this call meets it. A workflow's agent: `origin` read from the working folder, with the hub and the
+ * memory repository; a merge only at Auto, which a stage reaches after its reviewer agreed (owner 2026-11-08), and only
+ * in the origin's own repositories: never the hub's, nor the memory repository's, whose `main` no agent updates. Any
+ * other caller, as the package's hooks run in every session: no repository limit, and what the guard cannot read runs;
+ * merges, approvals and the other rules hold (Q5, option b until the owner answers).
  */
-const callPolicy = (policy: GuardPolicy, cwd: string, call: Call | null, remotes: Remotes): CallPolicy => {
-  const workflowAgent = call?.agent === WORKFLOW_AGENT && typeof call.agentId === "string" && call.agentId !== "";
-  const merges = policy.merge === "workflow" && workflowAgent;
-  const origin = policy.repositories === "origin" || merges ? originRepos(cwd, remotes) : [];
+const callPolicy = (policy: GuardPolicy, cwd: string, limited: boolean, remotes: Remotes): CallPolicy => {
+  const merges = policy.merge === "workflow" && limited;
+  const origin = limited && (policy.repositories === "origin" || merges) ? originRepos(cwd, remotes) : [];
   const bound = [policy.hub, policy.memory].filter((repo) => repo !== null);
+  const repositories = policy.repositories === "origin" ? [...new Set([...origin, ...bound])] : policy.repositories;
   return {
     ...policy,
-    repositories: policy.repositories === "origin" ? [...new Set([...origin, ...bound])] : policy.repositories,
+    repositories: limited ? repositories : null,
     merge: merges ? origin.filter((repo) => !bound.some((other) => other.toLowerCase() === repo.toLowerCase())) : [],
+    lenient: !limited,
   };
 };
 
-// Why the guard refuses one PreToolUse input, or null; what it cannot read refuses (A79).
+// Why the guard refuses one PreToolUse input, or null; what it cannot read refuses a workflow's agents (A79).
 const guardHook = (input: string, policyJson: string | null, remotes: Remotes): string | null => {
   const policy = policyJson === null ? null : readPolicy(policyJson);
   if (policy === null) return "its policy is missing or invalid";
   const read = readCall(input);
-  const call = commandOf(read, policy.merge === "workflow");
+  const limited = ofWorkflow(read);
+  const call = commandOf(read, { merges: policy.merge === "workflow", limited });
   if (call === null || typeof call === "string") return call;
-  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, read, remotes), remotes);
+  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, limited, remotes), remotes);
   return denial === null ? null : `${denial.detail} (${denial.rule})`;
 };
 

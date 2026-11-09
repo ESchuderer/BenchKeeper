@@ -1297,6 +1297,17 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.levels-mixed";
+            params: {
+                id: string;
+                /** @enum {string} */
+                level: "supervised" | "checkpoint" | "auto";
+                other: string;
+                /** @enum {string} */
+                otherLevel: "supervised" | "checkpoint" | "auto";
+            };
+        } | {
+            /** @constant */
             code: "package.node-missing";
             params: {
                 plugin: string;
@@ -2415,6 +2426,17 @@ export interface components {
             params: {
                 plugin: string;
                 id: string;
+            };
+        } | {
+            /** @constant */
+            code: "package.levels-mixed";
+            params: {
+                id: string;
+                /** @enum {string} */
+                level: "supervised" | "checkpoint" | "auto";
+                other: string;
+                /** @enum {string} */
+                otherLevel: "supervised" | "checkpoint" | "auto";
             };
         } | {
             /** @constant */

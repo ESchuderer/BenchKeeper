@@ -572,7 +572,7 @@ const codes = (out: string): unknown =>
     .parse(json(out)["findings"])
     .map(({ code }) => code);
 
-test("workflows install refuses without the hooks' bundles, and installs only once approved by the plugin's name", async () => {
+test("workflows install refuses without the hooks' bundles, and installs only once approved by the plugin's name, which a warning does not hold back", async () => {
   const { root, state, cli } = setup();
   drafted(root, state, "valid-build-and-review.json");
   await cli("workflows", "save", "w", "--yes");
@@ -594,6 +594,13 @@ test("workflows install refuses without the hooks' bundles, and installs only on
     EXIT.ok,
     { "w@cedarloom-workflows": true },
   ]);
+  // Another package below Auto: its warning leaves an approved install to go ahead.
+  const other = join(state, "workflow-packages", "v", ".claude-plugin");
+  mkdirSync(other, { recursive: true });
+  const description = "The CedarLoom workflow v, at the automation level supervised.";
+  writeFileSync(join(other, "plugin.json"), JSON.stringify({ name: "v", description }));
+  const mixed = await cli("workflows", "install", "w", "--level", "auto", "--allow", "w", "--yes", "--json");
+  expect([mixed.code, codes(mixed.out)]).toEqual([EXIT.ok, ["package.levels-mixed"]]);
 });
 
 test("workflows save stores a draft as a version, history lists it, export writes it, import stores it elsewhere, and an id that is none, --yes from Git at a moving ref and --ref with a folder exit 64", async () => {

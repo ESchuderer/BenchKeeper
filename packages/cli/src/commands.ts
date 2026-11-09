@@ -154,10 +154,11 @@ export const refused = (
 };
 
 // Shows a plan with `note`, or with --yes applies it as one run; every output form carries the findings.
-export const change = (ctx: Context, plan: Plan, { note, data, findings }: Change, yes?: true): number => {
+export const change = (ctx: Context, plan: Plan, { note, data, findings, held }: Change, yes?: true): number => {
   const preview = useCases.previewPlan(plan);
   if (yes === true) return applyShown(ctx, plan, { shown: `${showPlan(preview)}${note}`, findings, data }, { yes });
-  const human = `${showPlan(preview)}${note}\nNothing changed. Run the command again with --yes.`;
+  // A held-back plan's findings name the command that applies it, which --yes alone is not.
+  const human = `${showPlan(preview)}${note}\nNothing changed.${held === true ? "" : " Run the command again with --yes."}`;
   emit(ctx, "plan", { ...preview, ...data, findings }, human);
   report(ctx, findings);
   return EXIT.ok;
@@ -167,6 +168,7 @@ interface Change {
   readonly note: string;
   readonly data: object;
   readonly findings: Finding[];
+  readonly held?: boolean;
 }
 
 type Pin = useCases.InstallPlan["pin"];

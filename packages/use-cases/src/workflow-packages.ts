@@ -1,5 +1,5 @@
 import { accessSync, constants, readdirSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import {
   type AutomationLevel,
   type Finding,
@@ -60,11 +60,17 @@ const idOf = (plugin: string): string => `${plugin}@${WORKFLOW_MARKETPLACE}`;
 const dataOf = (home: string, plugin: string): string =>
   join(home, "plugins", "data", `${plugin}-${WORKFLOW_MARKETPLACE}`);
 
+// The plugin folder as Claude Code fills it into a skill, with forward slashes on Windows too (C:/Users/...).
+const slashed = (folder: string): string => folder.replaceAll(sep, "/");
 // The precheck's inline command as the start skill runs it, its plugin folder filled in by Claude Code.
-const precheckRule = (folder: string): string => `Bash(sh "${folder}/scripts/precheck.sh")`;
+const precheckRule = (folder: string): string => `Bash(sh "${slashed(folder)}/scripts/precheck.sh")`;
 // A step's script as the stage runner's agent runs it, quoted as the runner quotes it.
 const quoted = (text: string): string => text.replaceAll("'", `'\\''`);
-const stepRule = (folder: string, script: string): string => `Bash(sh '${quoted(`${folder}/${script}`)}')`;
+const stepRule = (folder: string, script: string): string => `Bash(sh '${quoted(`${slashed(folder)}/${script}`)}')`;
+// Reads of the package, which a step's agent may do outside the project: an absolute path after `//`, and on Windows in
+// POSIX form, C:\x as /c/x (https://code.claude.com/docs/en/permissions).
+const readRule = (folder: string): string =>
+  `Read(/${slashed(folder).replace(/^([A-Za-z]):/, (_drive, letter: string) => `/${letter.toLowerCase()}`)}/**)`;
 
 // The rule of a script the package runs: the precheck, or a step's.
 const scriptRule = (folder: string, path: string): string[] => {
@@ -72,12 +78,14 @@ const scriptRule = (folder: string, path: string): string[] => {
   return /^steps\/[^/]+\/scripts\/run\.sh$/.test(path) ? [stepRule(folder, path)] : [];
 };
 
-// A plugin's own settings hold no rules: the approved scripts run unasked (a workflow's agent cannot ask), later stages ask.
+// A plugin's own settings hold no rules: the approved scripts run unasked (a workflow's agent cannot ask in `claude -p`),
+// later stages ask.
 const rulesOf = (plugin: string, folder: string, files: readonly PackageFile[]): Json => {
   const stages = files.flatMap(({ path }) => /^workflows\/(run-[a-z0-9-]+)\.js$/.exec(path)?.slice(1) ?? []);
   const later = stages.filter((stage) => stage !== "run-start").map((stage) => `Workflow(${plugin}:${stage})`);
   const scripts = files.flatMap(({ path }) => scriptRule(folder, path));
-  return { allow: [`Workflow(${plugin}:run-start)`, ...scripts], ...(later.length > 0 ? { ask: later } : {}) };
+  const allow = [`Workflow(${plugin}:run-start)`, readRule(folder), ...scripts];
+  return { allow, ...(later.length > 0 ? { ask: later } : {}) };
 };
 
 // An object or a list that holds nothing counts as absent, so that taking a package out leaves no empty key behind.
@@ -100,8 +108,9 @@ const without = (json: Json, plugin: string, folder: string, last: boolean): Jso
   const owned = (rule: Json): boolean =>
     typeof rule === "string" &&
     (rule.startsWith(`Workflow(${plugin}:`) ||
-      rule.startsWith(`Bash(sh "${folder}/`) ||
-      rule.startsWith(`Bash(sh '${quoted(folder)}/`));
+      rule === readRule(folder) ||
+      rule.startsWith(`Bash(sh "${slashed(folder)}/`) ||
+      rule.startsWith(`Bash(sh '${quoted(slashed(folder))}/`));
   return {
     ...json,
     enabledPlugins: filtered(json["enabledPlugins"], (id, on) => (id === idOf(plugin) ? undefined : on)),
@@ -234,6 +243,29 @@ const installedIn = (folder: string): ReturnType<typeof builtFrom> => {
   return read.ok ? builtFrom(read.value?.json) : null;
 };
 
+// Every installed package: its plugin, folder, and the workflow and level its manifest names.
+const installedPackages = (marketplace: string) => {
+  try {
+    return readdirSync(marketplace, { withFileTypes: true }).flatMap((entry) => {
+      if (!entry.isDirectory()) return [];
+      const folder = join(marketplace, entry.name);
+      const { id = null, level = null } = installedIn(folder) ?? {};
+      return [{ plugin: entry.name, folder, id, level }];
+    });
+  } catch {
+    return [];
+  }
+};
+
+// Each other package on the other side of Auto: every package's guard runs in every session, so one below Auto refuses
+// the merges of one at Auto.
+const levelsMixed = ({ plugin, marketplace }: Place, id: string, level: AutomationLevel): Finding[] =>
+  installedPackages(marketplace).flatMap(({ plugin: name, id: other, level: otherLevel }): Finding[] =>
+    name !== plugin && other !== null && otherLevel !== null && (otherLevel === "auto") !== (level === "auto")
+      ? [{ code: "package.levels-mixed", params: { id, level, other, otherLevel } }]
+      : [],
+  );
+
 // Ids that fold to one plugin name (`a_b`, `a-b`) would share its folder and rules: the one installed keeps them.
 const takenBy = ({ plugin, folder }: Place, id: string): Result<never> | null => {
   const other = installedIn(folder)?.id;
@@ -267,7 +299,10 @@ export const planPackageInstall = (
   const operations = [...filesOps(folder, files), ...manifest.value.operations, ...user.value.operations];
   const params = { id: workflow.metadata.id, plugin, level, commands: commandsOf(workflow) };
   const approved = options.allow?.includes(plugin) === true;
-  const findings: Finding[] = approved ? [] : [{ code: "package.approval-needed", params }];
+  const findings: Finding[] = [
+    ...(approved ? [] : [{ code: "package.approval-needed" as const, params }]),
+    ...levelsMixed(place, workflow.metadata.id, level),
+  ];
   return { ok: true, value: { plan: planOf(operations), findings, plugin, level, marketplace } };
 };
 
@@ -317,21 +352,9 @@ const runnable = (path: string): boolean => {
 };
 
 /** The doctor's findings on the installed packages: hooks whose Node.js is gone, which refuse every call they guard. */
-export const packageDoctor = (state: string): Finding[] => {
-  const marketplace = marketplaceFolder(state);
-  let plugins: string[];
-  try {
-    plugins = readdirSync(marketplace, { withFileTypes: true }).flatMap((entry) =>
-      entry.isDirectory() ? [entry.name] : [],
-    );
-  } catch {
-    return [];
-  }
-  return plugins.flatMap((plugin) => {
-    const folder = join(marketplace, plugin);
-    const { id = null, level = null } = installedIn(folder) ?? {};
-    return hookPrograms(folder)
+export const packageDoctor = (state: string): Finding[] =>
+  installedPackages(marketplaceFolder(state)).flatMap(({ plugin, folder, id, level }) =>
+    hookPrograms(folder)
       .filter((path) => !runnable(path))
-      .map((path): Finding => ({ code: "package.node-missing", params: { plugin, path, id, level } }));
-  });
-};
+      .map((path): Finding => ({ code: "package.node-missing", params: { plugin, path, id, level } })),
+  );

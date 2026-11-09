@@ -96,6 +96,16 @@ export const Finding = z
     finding("package.not-installed", { id: z.string() }),
     /** Two workflow ids fold to one plugin name: `id` is the workflow whose package the plugin holds. */
     finding("package.plugin-taken", { plugin: z.string(), id: z.string() }),
+    /**
+     * Another installed package is built at a level on the other side of Auto: each package's guard runs in every session,
+     * so a merge passes only while every installed package is at Auto.
+     */
+    finding("package.levels-mixed", {
+      id: z.string(),
+      level: AutomationLevel,
+      other: z.string(),
+      otherLevel: AutomationLevel,
+    }),
     /** An installed package's hooks run with a Node.js that is gone, so Claude Code refuses every call they guard. */
     finding("package.node-missing", {
       plugin: z.string(),
@@ -370,6 +380,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "package.hooks-missing": { severity: "error", effort: "command" },
   "package.not-installed": { severity: "error", effort: "manual" },
   "package.plugin-taken": { severity: "error", effort: "manual" },
+  "package.levels-mixed": { severity: "warning", effort: "command" },
   "package.node-missing": { severity: "error", effort: "command" },
   "automation.unknown-folder": { severity: "error", effort: "manual" },
   "extension.refused": { severity: "error", effort: "manual" },

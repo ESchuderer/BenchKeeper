@@ -74,15 +74,20 @@ test("an install waits for approval by the plugin's name, listing what it runs; 
   const run = applied(folders, install(folders, "w"));
   const marketplace = join(folders.state, "workflow-packages");
   const folder = join(marketplace, "w");
+  // Claude Code fills the plugin folder into a skill with forward slashes on Windows (C:/x), and matches a Read rule's
+  // absolute path in POSIX form (/c/x).
+  const slashed = `${marketplace.replaceAll("\\", "/")}/w`;
+  const posix = slashed.replace(/^([A-Za-z]):/, (_drive, letter: string) => `/${letter.toLowerCase()}`);
   expect(settings(folders)).toEqual({
     model: "opus",
     permissions: {
       allow: [
         "Bash(ls)",
         "Workflow(w:run-start)",
-        `Bash(sh "${folder}/scripts/precheck.sh")`,
-        `Bash(sh '${folder}/steps/build/scripts/run.sh')`,
-        `Bash(sh '${folder}/steps/ship/scripts/run.sh')`,
+        `Read(/${posix}/**)`,
+        `Bash(sh "${slashed}/scripts/precheck.sh")`,
+        `Bash(sh '${slashed}/steps/build/scripts/run.sh')`,
+        `Bash(sh '${slashed}/steps/ship/scripts/run.sh')`,
       ],
       ask: ["Workflow(w:run-g-approved)"],
     },
@@ -94,14 +99,19 @@ test("an install waits for approval by the plugin's name, listing what it runs; 
   expect([settings(folders), existsSync(join(folder, "hooks", "guard.mjs"))]).toEqual([OWN, false]);
 });
 
-test("installing at another level rebuilds the package in place; uninstalling takes out its files, data and rules, and the marketplace with the last package", () => {
+test("installing at another level rebuilds the package in place, naming a package on the other side of Auto; uninstalling takes out its files, data and rules, and the marketplace with the last package", () => {
   const folders = machine();
   const marketplace = join(folders.state, "workflow-packages");
   const listed = (): unknown =>
     JSON.parse(readFileSync(join(marketplace, ".claude-plugin", "marketplace.json"), "utf8"));
   applied(folders, install(folders, "w"));
   applied(folders, install(folders, "v"));
-  applied(folders, install(folders, "w", { level: "auto" }));
+  const rebuild = ok(planPackageInstall(folders, "w", { bundles: BUNDLES, node: "/usr/bin/node", allow: ["w"], level: "auto" }));
+  // v's guard, at Supervised, refuses the merges of w's stages in every session.
+  expect(rebuild.findings).toEqual([
+    { code: "package.levels-mixed", params: { id: "w", level: "auto", other: "v", otherLevel: "supervised" } },
+  ]);
+  applied(folders, rebuild.plan);
   // At Auto the merge gate passes, so the stage after it and the rule that asked before it go.
   expect(existsSync(join(marketplace, "w", "workflows", "run-g-approved.js"))).toBe(false);
   expect(Reflect.get(Object(settings(folders)), "permissions")).toMatchObject({ ask: ["Workflow(v:run-g-approved)"] });

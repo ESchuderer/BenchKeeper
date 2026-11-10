@@ -1,4 +1,14 @@
 export declare const RUNS: string;
 export declare const FILE: string;
+export declare const STATUS: [string, string];
+export declare const STATUS_ARGS: string[];
+export declare const TOP_ARGS: string[];
 export declare function mine(text: string, terminal: string | undefined): boolean;
-export declare function restored(text: string): string;
+export declare function statusBlock(text: string): [number, number] | null;
+export declare function fingerprint(text: string): string;
+export declare function stamped(text: string): { edited: number; text: string } | null;
+export declare function editedAt(text: string): number | null;
+export declare function commitArgs(sinceMs: number): string[];
+export declare function changedPaths(stdout: string): string[];
+export declare function drift(sinceMs: number, commits: string[], paths: string[]): string;
+export declare function restored(text: string, drifted?: string): string;

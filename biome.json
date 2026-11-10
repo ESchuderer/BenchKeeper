@@ -6,6 +6,8 @@
       "packages/**",
       "!packages/*/schema",
       "!packages/*/openapi.json",
+      "!packages/packs/bundled/*/skills/*/SKILL.md",
+      "!packages/packs/bundled/cedarloom.mantine/skills/mantine-form",
       "*.json",
       "*.ts",
       "!.release-please-manifest.json",

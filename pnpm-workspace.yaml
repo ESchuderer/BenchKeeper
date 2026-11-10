@@ -24,10 +24,11 @@ catalog:
 #
 # shortcut: @mantine/mcp-server 9.7.4 pins @modelcontextprotocol/server 2.1.0, which dependency review refuses for
 # GHSA-46jr-4wx8-v453 and GHSA-jm63-cq47-j5jp (HTTP transport; the server here runs on stdio). 9.8.0 pins 2.3.1, the
-# fix. Drop the override when the lockfile moves @mantine/mcp-server to 9.8.0 or later.
+# fix. The selector covers releases before 9.8.0 only, so the override goes inert once Dependabot moves the server to
+# 9.8.0 or later; delete it then.
 overrides:
   "@anthropic-ai/sandbox-runtime>zod": "catalog:"
-  "@mantine/mcp-server>@modelcontextprotocol/server": "2.3.1"
+  "@mantine/mcp-server@<9.8.0>@modelcontextprotocol/server": "2.3.1"
 
 # shortcut: thread-stream 4.2.0 (pino, through fastify) names a worker_threads type that @types/node 26 removed, which
 # tsc reports with skipLibCheck off; 4.2.1 has the same one-line fix. Drop the patch when the lockfile moves to 4.2.1.

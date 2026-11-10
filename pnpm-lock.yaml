@@ -15,7 +15,7 @@ catalogs:
 
 overrides:
   '@anthropic-ai/sandbox-runtime>zod': 4.6.7
-  '@mantine/mcp-server>@modelcontextprotocol/server': 2.3.1
+  '@mantine/mcp-server@<9.8.0>@modelcontextprotocol/server': 2.3.1
 
 patchedDependencies:
   thread-stream@4.2.0: 4ce497b8c4dc193cac4f5654035df6ee6af7e5fb5f7f1cf264c452371d785641

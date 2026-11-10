@@ -3654,6 +3654,12 @@
                   },
                   "unpinned": {
                     "type": "boolean"
+                  },
+                  "installed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
@@ -3666,7 +3672,8 @@
                   "variables",
                   "entries",
                   "codex",
-                  "unpinned"
+                  "unpinned",
+                  "installed"
                 ],
                 "additionalProperties": false
               }
@@ -3798,6 +3805,36 @@
               "code": {
                 "type": "string",
                 "const": "profile.mcp-dependency"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-outside-git"
               },
               "params": {
                 "type": "object",
@@ -9805,6 +9842,12 @@
                   },
                   "unpinned": {
                     "type": "boolean"
+                  },
+                  "installed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
@@ -9817,7 +9860,8 @@
                   "variables",
                   "entries",
                   "codex",
-                  "unpinned"
+                  "unpinned",
+                  "installed"
                 ],
                 "additionalProperties": false
               }
@@ -9949,6 +9993,36 @@
               "code": {
                 "type": "string",
                 "const": "profile.mcp-dependency"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-outside-git"
               },
               "params": {
                 "type": "object",

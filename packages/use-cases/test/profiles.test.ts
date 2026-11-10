@@ -598,6 +598,7 @@ test("an MCP server waits for its approval by name with the parts that require i
           ],
           codex: true,
           unpinned: false,
+          installed: null,
         },
       },
     ],
@@ -654,7 +655,7 @@ test("each kind of MCP source runs its exact package, a devDependency only from 
   ]);
 });
 
-test("a devDependency server started in a workspace member folder runs the install of the project that lists it", async () => {
+test("a devDependency server started in a workspace member folder runs the install of the project that lists it, never one past a repository's root", async () => {
   const box = custom({ srv: mcpPart("srv", { devDependency: "@acme/srv" }) });
   const project = projectWith({
     "package.json": JSON.stringify({ devDependencies: { "@acme/srv": "1.2.3" } }),
@@ -668,11 +669,31 @@ test("a devDependency server started in a workspace member folder runs the insta
       '#!/usr/bin/env node\nif (require.main === module) process.stdout.write("srv started\\n");\n',
     // A member that lists it too, with the install hoisted to the root, as npm workspaces do.
     "packages/ui/package.json": JSON.stringify({ name: "ui", devDependencies: { "@acme/srv": "1.2.3" } }),
+    // A repository of its own inside the project, whose sessions must not reach the outer install.
+    "vendor/lib/.git/HEAD": "ref: refs/heads/main\n",
+    "vendor/lib/src/.keep": "",
   });
   applied(box.state, (await projectPlan(box, project, ["project.srv"])).plan);
   const { command, args } = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf8")).mcpServers.srv;
-  const run = spawnSync(command, args, { cwd: join(project, "packages", "ui"), encoding: "utf8" });
-  expect([run.status, run.stdout]).toEqual([0, "srv started\n"]);
+  const from = (...folder: string[]) => {
+    const run = spawnSync(command, args, { cwd: join(project, ...folder), encoding: "utf8" });
+    return [run.status, run.stdout];
+  };
+  expect([from("packages", "ui"), from("vendor", "lib", "src")]).toEqual([
+    [0, "srv started\n"],
+    [1, ""],
+  ]);
+});
+
+test("a devDependency MCP part in a project outside Git adds nothing, as its install's walk up would have no end", async () => {
+  const box = custom({ srv: mcpPart("srv", { devDependency: "@acme/srv" }) });
+  const project = mkdtempSync(join(root, "plain-"));
+  writeFileSync(join(project, "package.json"), JSON.stringify({ devDependencies: { "@acme/srv": "1.2.3" } }));
+  const { plan, findings } = await projectPlan(box, project, ["project.srv"]);
+  expect([findings, contentOf(plan, join(project, ".mcp.json"))]).toEqual([
+    [{ code: "profile.mcp-outside-git", params: { part: "project.srv", package: "@acme/srv" } }],
+    null,
+  ]);
 });
 
 test("an MCP server whose name the owner's file holds with another entry is written to no file", async () => {

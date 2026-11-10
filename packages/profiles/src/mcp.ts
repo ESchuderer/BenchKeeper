@@ -10,6 +10,7 @@ import {
   type Result,
   semver,
 } from "@cedarloom/contracts";
+import { repositoryOf } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
 import { tomlEntryOf, tomlOf, tomlState, tomlTable, withoutTable, withTable } from "./codex-config.ts";
 import { onDisk, readSettings } from "./machine.ts";
@@ -165,6 +166,7 @@ type Context = {
   project: string;
   codex: boolean;
   manifest: Json;
+  repository: boolean;
 };
 
 // A `.codex` the plan cannot read, such as a link loop or one without access, is no folder.
@@ -196,7 +198,8 @@ const contextOf = (
   const installed = on.some(([, part]) => "devDependency" in part.source);
   const manifest = installed ? readSettings(join(project, "package.json")) : { ok: true as const, value: { json: {} } };
   if (!manifest.ok) return manifest;
-  return { ok: true, value: { documents, approved, project, codex, manifest: manifest.value.json } };
+  const repository = installed && repositoryOf(project) !== null;
+  return { ok: true, value: { documents, approved, project, codex, manifest: manifest.value.json, repository } };
 };
 
 // Only an exact version: a range, Git or file spec runs whatever it resolves to.
@@ -220,6 +223,7 @@ const approvalOf = ({ project, codex }: Context, { key, part, launch, entries }:
     entries,
     codex,
     unpinned: ("npm" in part.source || "pypi" in part.source) && part.source.version === undefined,
+    installed: "devDependency" in part.source ? part.source.devDependency : null,
   },
 });
 
@@ -234,6 +238,11 @@ type Outcome = { findings: Finding[]; held: boolean };
 // entry of its name holds the part. A replace waits unheld, as the entry it replaces runs meanwhile.
 const onPart = (context: Context, [id, part]: [string, Part]): Outcome => {
   const [key, { server, source }] = [`project.${id}`, part];
+  // The launcher's walk up stops at the repository's root; outside Git it could reach a parent folder's install.
+  if ("devDependency" in source && !context.repository) {
+    const params = { part: key, package: source.devDependency };
+    return { held: true, findings: [{ code: "profile.mcp-outside-git", params }] };
+  }
   if ("devDependency" in source && !listed(context.manifest, source.devDependency)) {
     const params = { part: key, package: source.devDependency };
     return { held: true, findings: [{ code: "profile.mcp-dependency", params }] };

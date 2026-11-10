@@ -204,7 +204,7 @@ test('--paths gives a user skill with a block-scalar description valid front mat
   const plan = (skill) => projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host', skills: [skill], setPaths: { [skill]: 'docs/**' } }, plugins: {} });
   const skillMd = preview(plan('release-notes').changes).find((c) => c.path === join(dir, '.claude/skills/release-notes/SKILL.md'));
   assert.deepEqual(parseYaml(skillMd.after.match(/^---\n([\s\S]*?)\n---/)[1]), { paths: 'docs/**', name: 'release-notes', description: 'Checks release notes. Use when a release is cut.' });
-  assert.throws(() => plan('changelog'), /^Error: paths for changelog: its SKILL.md sets paths itself$/);
+  assert.throws(() => plan('changelog'), /sets paths itself/);
 });
 
 test('a link to nothing or to a folder in a user skill is not copied and the project plan warns; the views keep working (#914)', () => {

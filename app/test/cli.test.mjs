@@ -66,20 +66,21 @@ test('projects plan refuses a --paths without =, with an empty glob, for an unkn
   const c = cli();
   const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
   execFileSync('git', ['-C', dir, 'init', '-q']);
-  const usage = (arg) => `--paths ${arg}: use <skill>=<glob>,<glob> (an empty value clears the skill's paths)`;
+  // A fragment per refusal tells them apart without pinning the wording.
+  const usage = 'use <skill>=<glob>,<glob>';
   const cases = [
-    [[], 'app/**', usage('app/**')],
-    [[], '=app/**', usage('=app/**')],
-    [['designing-technical-uis'], 'designing-technical-uis=app/**,', usage('designing-technical-uis=app/**,')],
-    [[], 'nosuch=app/**', 'unknown skill nosuch, see benchkeeper skills list --library'],
-    [['designing-technical-uis'], 'accessibility=app/**', 'paths for accessibility: not a skill of this project (add it first: benchkeeper skills add accessibility)'],
-    [['frontend-design'], 'frontend-design=app/**', 'paths for frontend-design: only own and your skills take paths, frontend-design is installed from anthropics/skills'],
+    [[], 'app/**', usage],
+    [[], '=app/**', usage],
+    [['designing-technical-uis'], 'designing-technical-uis=app/**,', usage],
+    [[], 'nosuch=app/**', 'unknown skill nosuch'],
+    [['designing-technical-uis'], 'accessibility=app/**', 'not a skill of this project'],
+    [['frontend-design'], 'frontend-design=app/**', 'installed from anthropics/skills'],
   ];
-  for (const [skills, value, message] of cases) {
-    await assert.rejects(c.exec(['projects', 'plan', dir, '--agents', 'claude', ...skills.flatMap((s) => ['--skill', s]), '--paths', value]), (e) => e.message === message, value);
+  for (const [skills, value, fragment] of cases) {
+    await assert.rejects(c.exec(['projects', 'plan', dir, '--agents', 'claude', ...skills.flatMap((s) => ['--skill', s]), '--paths', value]), (e) => e.message.includes(fragment), value);
   }
   assert.equal(await c.exec(['projects', 'plan', dir, '--agents', 'claude', '--paths', 'app/**', '--json']), 2);
-  assert.equal(JSON.parse(c.text()).error, usage('app/**'));
+  assert.ok(JSON.parse(c.text()).error.includes(usage));
   assert.equal(existsSync(join(dir, '.benchkeeper')), false);
 });
 

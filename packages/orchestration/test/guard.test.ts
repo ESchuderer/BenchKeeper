@@ -190,6 +190,8 @@ test("an SSH host alias origin names the GitHub repository only with a resolver 
     named("https://github-work/acme/app.git", hostOf),
     named("git@github-work:acme/app.git"),
   ]).toEqual([["acme/app"], ["acme/app"], ["acme/app"], [], [], []]);
+  // A Windows drive is no host, whatever a resolver would answer for it.
+  expect(named("C:/acme/app.git", () => "github.com")).toEqual([]);
 });
 
 test.skipIf(process.platform === "win32")(

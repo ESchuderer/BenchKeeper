@@ -88,10 +88,13 @@ const aliasedRepo = (url: string, hostOf: (alias: string) => string | undefined)
     host = parsed.hostname;
     path = parsed.pathname;
   } else {
-    const scp = /^(?:[^\s/@:]+@)?([^\s/@:]+):(.*)$/.exec(url);
+    // A lone letter before the colon is a Windows drive (C:/repo), not a host.
+    const scp = /^(?:[^\s/@:]+@)?([^\s/@:]{2,}):(.*)$/.exec(url);
     if (scp === null) return null;
     [, host = "", path = ""] = scp;
   }
+  // GitHub's own hosts need no lookup: githubRepo refused this URL for its path.
+  if (/^(?:www\.|ssh\.)?github\.com$/i.test(host)) return null;
   const name = hostOf(host);
   if (name === undefined) return null;
   return githubRepo(`git@${/^ssh\.github\.com$/i.test(name) ? "github.com" : name}:${path}`);

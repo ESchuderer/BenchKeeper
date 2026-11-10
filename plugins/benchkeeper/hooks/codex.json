@@ -3,7 +3,13 @@
     "SessionStart": [
       {
         "matcher": "clear|compact",
-        "hooks": [{ "type": "command", "command": "node \"$PLUGIN_ROOT/hooks/rotation/restore.mjs\"" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_ROOT/hooks/rotation/restore.mjs\"",
+            "additionalContextLimit": 0
+          }
+        ]
       }
     ]
   }

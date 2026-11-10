@@ -22,7 +22,7 @@ const folder = ({ text = OWNED, git = true } = {}) => {
 const restore = (root, { terminal = 'term-a', input = JSON.stringify({ hook_event_name: 'SessionStart', source: 'clear', cwd: root }) } = {}) => {
   const r = spawnSync(process.execPath, [HOOK], { input, env: { ...process.env, ORCA_TERMINAL_HANDLE: terminal }, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
-  return r.stdout;
+  return r.stdout === '' ? '' : JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
 };
 
 test('restore hook: hands back the file its terminal owns, cut to stay below 10,000 characters', () => {

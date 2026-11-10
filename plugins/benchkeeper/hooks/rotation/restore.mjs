@@ -43,5 +43,6 @@ try {
 } catch {
   process.exit(0);
 }
-// Plain stdout is added as developer context.
-process.stdout.write(restored(handoff));
+// As additionalContext, which codex.json lets through whole (additionalContextLimit 0): restored() caps it below 10,000
+// characters, while Codex would cut plain stdout past about 2,500 tokens to a preview.
+process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: restored(handoff) } }));

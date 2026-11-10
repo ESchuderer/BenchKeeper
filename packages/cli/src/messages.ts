@@ -267,7 +267,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     const unpinned = p.unpinned ? " Unpinned: it runs the newest release at each start." : "";
     const runs = http
       ? `Your agents connect to ${p.runs} themselves, outside their sandboxes, and send it what their sessions give its tools${bearer}.`
-      : `It runs ${p.runs} on this machine, outside the agents' sandboxes${env}.${unpinned}`;
+      : `It runs ${p.installed === null ? p.runs : `the bin of ${p.installed}, the locally installed package from the nearest folder that installs it, inside this repository,`} on this machine, outside the agents' sandboxes${env}.${unpinned}`;
     const written = p.entries
       .map(({ file, change, entry }) => {
         const label = change === "replace" ? `${file}, in place of the entry it wrote before:` : `${file}:`;
@@ -289,6 +289,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.part} is switched off, but its MCP server ${p.server} stays in ${p.file}, as that entry changed since CedarLoom wrote it or sits in a form the plan cannot take out alone; from this plan on, CedarLoom leaves it to you. Remove it by hand if the server should go.`,
   "profile.mcp-dependency": (p) =>
     `${p.part} starts ${p.package} from this project's own install, but package.json does not list ${p.package} as a devDependency at an exact version, so it adds nothing. Add it pinned, so Dependabot updates it: npm install --save-dev --save-exact ${p.package}`,
+  "profile.mcp-outside-git": (p) =>
+    `${p.part} starts ${p.package} from this project's own install, found by walking up to the repository's root, but this project is in no Git repository, so the walk could reach a parent folder's install; it adds nothing. Put the project under Git (git init) to take it.`,
   "profile.project-is-home": (p) =>
     `${p.project} is your home folder, so its .claude/settings.json and .codex/config.toml are Claude Code's and Codex's user config, which no profile writes. Plan a project folder of its own.`,
   "profile.target-linked": (p) =>

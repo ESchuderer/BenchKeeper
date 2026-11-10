@@ -268,6 +268,8 @@ export const Finding = z
       entries: z.array(z.strictObject({ file: z.string(), change: z.enum(["add", "replace"]), entry: z.string() })),
       codex: z.boolean(),
       unpinned: z.boolean(),
+      /** The package whose local install runs, for a devDependency source, which the line names in place of `runs`. */
+      installed: z.string().nullable(),
     }),
     /**
      * An MCP server entry the plan adds to a file, puts in place of the one CedarLoom wrote, or takes out as its part is
@@ -295,6 +297,8 @@ export const Finding = z
      * exact version.
      */
     finding("profile.mcp-dependency", { part: z.string(), package: z.string() }),
+    /** An MCP part runs a package from the project's install, which the walk up finds only inside a Git repository. */
+    finding("profile.mcp-outside-git", { part: z.string(), package: z.string() }),
     /** The project folder is the user's home, whose `.claude/` and `.codex/` files are the tools' user config. */
     finding("profile.project-is-home", { project: z.string() }),
     /** The Dev Containers CLI did not apply a part's Template, which then writes nothing. */
@@ -484,6 +488,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.mcp-conflict": { severity: "warning", effort: "manual" },
   "profile.mcp-kept": { severity: "warning", effort: "manual" },
   "profile.mcp-dependency": { severity: "warning", effort: "manual" },
+  "profile.mcp-outside-git": { severity: "warning", effort: "manual" },
   "profile.project-is-home": { severity: "error", effort: "manual" },
   "profile.target-linked": { severity: "error", effort: "manual" },
   "profile.skill-twice": { severity: "error", effort: "manual" },

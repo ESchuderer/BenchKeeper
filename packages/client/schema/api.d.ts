@@ -2099,6 +2099,7 @@ export interface components {
                 }[];
                 codex: boolean;
                 unpinned: boolean;
+                installed: string | null;
             };
         } | {
             /** @constant */
@@ -2130,6 +2131,13 @@ export interface components {
         } | {
             /** @constant */
             code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-outside-git";
             params: {
                 part: string;
                 package: string;
@@ -3405,6 +3413,7 @@ export interface components {
                 }[];
                 codex: boolean;
                 unpinned: boolean;
+                installed: string | null;
             };
         } | {
             /** @constant */
@@ -3436,6 +3445,13 @@ export interface components {
         } | {
             /** @constant */
             code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-outside-git";
             params: {
                 part: string;
                 package: string;

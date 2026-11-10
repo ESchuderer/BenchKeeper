@@ -9,9 +9,9 @@ const HANDOFF = '# Handoff\nrun r1\nTerminal: term-a\n\n## Next\nwatch #12\n'
 const IDLE = { stop_hook_active: false, background_tasks: [] }
 // Each test loads the plugin afresh, so its module state (running, lastEnd, noted) starts empty.
 
-type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true }
+type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true; git?: number; slow?: Promise<void>; drop?: string }
 
-function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link }: Setup = {}) {
+function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link, git = 0, slow, drop }: Setup = {}) {
   const clock = mock.clock(on, { now: 3_600_000 })
   const session = mock.session(on)
   const files: Record<string, string> = file === null ? {} : { [PATH]: file }
@@ -23,7 +23,10 @@ function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-
     if (!(e.path in files)) throw new Error('ENOENT')
     return { value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false, realPath: link ? '/home/me/notes.md' : e.path } }
   })
-  on('process.run', () => ({ value: { exitCode: 0, stdout: tracked ? '.benchkeeper/runs/handoff.md\n' : '', stderr: '' } }) as never)
+  on('process.run', async () => {
+    await slow
+    return { value: { exitCode: git, stdout: tracked ? '.benchkeeper/runs/handoff.md\n' : '', stderr: '' } } as never
+  })
   on('fs.read', (_, e) => {
     if (!(e.path in files)) throw new Error('ENOENT')
     return { value: files[e.path] ?? '' }
@@ -40,7 +43,7 @@ function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-
   })
   on('prompt.submit', (_, e) => {
     ran.push(e.text)
-    return { text: e.text }
+    return drop === undefined ? { text: e.text } : { text: e.text, drop }
   })
   on('classic.Stop', () => stop)
   on('classic.SessionStart', () => ({ additionalContext: ['other'] }))
@@ -117,6 +120,25 @@ test('a second Stop while the clear still runs does not clear again', async ($, 
   expect(e.ran.length).toBe(2)
 })
 
+test('a Stop while another Stop still checks does not schedule a second clear', async ($, on) => {
+  let release = () => {}
+  const e = engine(on, { slow: new Promise<void>((done) => (release = done)) })
+  const first = $.classic.Stop(IDLE)
+  const second = $.classic.Stop(IDLE)
+  release()
+  await Promise.all([first, second])
+  await e.clock.settle()
+  expect(e.ran.filter((step) => step === '/clear')).toEqual(['/clear'])
+})
+
+test('a dropped resume prompt is noted in the transcript', async ($, on) => {
+  const e = engine(on, { drop: 'queue full' })
+  await $.classic.Stop(IDLE)
+  await e.clock.settle()
+  expect(e.ran[0]).toBe('/clear')
+  expect(e.session.appended().map((row) => row.message.type)).toEqual(['system'])
+})
+
 test('both options at 0 turn the clear off', { options: { rotateAtTokens: 0, rotateAtPercent: 0 } }, async ($, on) => {
   const e = engine(on)
   await $.classic.Stop(IDLE)
@@ -129,6 +151,7 @@ const refused: [string, Setup][] = [
   ['names another terminal', { terminal: 'term-b' }],
   ['is tracked by git', { tracked: true }],
   ['is reached through a link', { link: true }],
+  ['sits where git fails', { git: 128 }],
 ]
 for (const [name, setup] of refused) {
   test(`a file that ${name} is not restored, stamped or cleared for`, async ($, on) => {

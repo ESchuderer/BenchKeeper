@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import { FILE, RUNS, mine, restored } from './handoff.mjs';
 
-// Whether git tracks anything under the runs folder; exit 128 is a folder outside git.
+// Whether git tracks anything under the runs folder; any git failure counts as tracked, as in the Claude Code module.
 const tracked = (cwd) => {
   try {
     return execFileSync('git', ['-c', 'core.fsmonitor=false', 'ls-files', '--', RUNS], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) !== '';
-  } catch (error) {
-    return error.status !== 128;
+  } catch {
+    return true;
   }
 };
 

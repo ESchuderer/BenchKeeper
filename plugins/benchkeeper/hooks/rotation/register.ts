@@ -14,6 +14,8 @@ const resume = (size: string) => `BenchKeeper cleared this coordinator's context
 
 // Per Claude Code process: the module stays loaded across /clear.
 let running = false
+// Set while a Stop awaits its checks, so a second Stop meanwhile cannot schedule a second clear.
+let deciding = false
 let lastEnd: number | null = null
 let noted = false
 
@@ -36,14 +38,15 @@ async function own($: EngineInterface) {
 const slashes = (path?: string) => path?.replaceAll('\\', '/')
 
 // Whether the file is the coordinator's own, not one a repository commits or a link leads to: a regular file reached
-// through no link, in a folder whose .benchkeeper/runs git tracks nothing in (a folder outside git counts as untracked).
+// through no link, in a git work tree whose .benchkeeper/runs git tracks nothing in. Any git failure refuses, so a broken
+// repository or one git distrusts (another owner) never counts as untracked.
 async function safe($: EngineInterface) {
   try {
     const root = await $.session.root()
     const [folder, file] = await Promise.all([$.fs.stat(root, { resolve: true }), $.fs.stat(await handoff($), { resolve: true })])
     if (file.kind !== 'file' || file.isLink || slashes(file.realPath) !== `${slashes(folder.realPath)}/${FILE}`) return false
     const git = await $.process.run(['git', '-c', 'core.fsmonitor=false', 'ls-files', '--', RUNS], { cwd: root })
-    return git.exitCode === 128 || (git.exitCode === 0 && git.stdout === '')
+    return git.exitCode === 0 && git.stdout === ''
   } catch {
     return false
   }
@@ -77,6 +80,32 @@ async function rotate($: EngineInterface, size: string, now: number) {
   }
 }
 
+// The checks that need the engine, once the turn is known to be idle; schedules the clear when it is due.
+async function decide($: EngineInterface, atTokens: number, atPercent: number) {
+  const now = await $.clock.now()
+  if (lastEnd !== null && now - lastEnd < GAP_MS) return
+  const text = await own($)
+  if (text === null) return
+  const { context } = await $.session.usage()
+  const figure = atPercent > 0 ? context.percent : context.tokens
+  if (figure === undefined) {
+    if (!noted) {
+      noted = true
+      await note($, 'BenchKeeper cannot read the context size of this session, so it will not clear this coordinator at its threshold.')
+      if (await safe($)) await status($, text, 'usage unread', context.tokens).catch(() => undefined)
+    }
+    return
+  }
+  if (figure < (atPercent > 0 ? atPercent : atTokens)) return
+  if (!(await safe($))) return
+  const size = atPercent > 0 ? `${figure}% of its context window` : `${figure} tokens`
+  await status($, text, `clearing at ${size}`, context.tokens).catch(() => undefined)
+  // The gap starts now, so a timer that never fires cannot let a second clear through.
+  lastEnd = now
+  // A command run from the Stop hook would wait on the turn the hook holds: a timer runs it once the hook has returned.
+  $.clock.after(0, () => void rotate($, size, now))
+}
+
 export const register: Register = (on, options) => {
   const atTokens = typeof options.rotateAtTokens === 'number' ? options.rotateAtTokens : 200000
   const atPercent = typeof options.rotateAtPercent === 'number' ? options.rotateAtPercent : 0
@@ -101,31 +130,15 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     // A background task, a Stop hook's re-prompt or a hook that blocked the stop means the turn is not idle. Session crons
     // (e.session_crons) are future wakes that survive /clear, not work in flight, so they do not hold rotation back.
-    if (e.agent_id || e.stop_hook_active || !Array.isArray(e.background_tasks) || e.background_tasks.length || running) return result
+    if (e.agent_id || e.stop_hook_active || !Array.isArray(e.background_tasks) || e.background_tasks.length || running || deciding) return result
     if (result.block !== undefined || result.preventContinuation) return result
     if (atPercent <= 0 && atTokens <= 0) return result
-    const now = await $.clock.now()
-    if (lastEnd !== null && now - lastEnd < GAP_MS) return result
-    const text = await own($)
-    if (text === null) return result
-    const { context } = await $.session.usage()
-    const figure = atPercent > 0 ? context.percent : context.tokens
-    if (figure === undefined) {
-      if (!noted) {
-        noted = true
-        await note($, 'BenchKeeper cannot read the context size of this session, so it will not clear this coordinator at its threshold.')
-        if (await safe($)) await status($, text, 'usage unread', context.tokens).catch(() => undefined)
-      }
-      return result
+    deciding = true
+    try {
+      await decide($, atTokens, atPercent)
+    } finally {
+      deciding = false
     }
-    if (figure < (atPercent > 0 ? atPercent : atTokens)) return result
-    if (!(await safe($))) return result
-    const size = atPercent > 0 ? `${figure}% of its context window` : `${figure} tokens`
-    await status($, text, `clearing at ${size}`, context.tokens).catch(() => undefined)
-    // The gap starts now, so a timer that never fires cannot let a second clear through.
-    lastEnd = now
-    // A command run from the Stop hook would wait on the turn the hook holds: a timer runs it once the hook has returned.
-    $.clock.after(0, () => void rotate($, size, now))
     return result
   }).catch(($, e, next) => next(e))
 }

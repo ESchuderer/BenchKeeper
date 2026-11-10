@@ -102,11 +102,14 @@ export class WorkItemStore {
     }
   }
 
-  /** Keeps whether the issue already was as a label intent asks, read before its first write; a later read keeps it. */
+  /**
+   * Keeps whether the issue or hub already was as a label intent asks, read before its first write; a later read keeps
+   * it, except that already as asked wins, so an undo never takes back what the send may not have made.
+   */
   observe(id: string, unchanged: boolean): void {
     this.#db
-      .prepare("UPDATE outbox SET unchanged = ? WHERE id = ? AND status = 'sending' AND unchanged IS NULL")
-      .run(unchanged ? 1 : 0, id);
+      .prepare("UPDATE outbox SET unchanged = ? WHERE id = ? AND status = 'sending' AND (unchanged IS NULL OR ? = 1)")
+      .run(unchanged ? 1 : 0, id, unchanged ? 1 : 0);
   }
 
   /** Ends the send of a claimed entry, checked on write so a bad value never breaks a later read; the entry as it ended. */

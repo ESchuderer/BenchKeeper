@@ -149,6 +149,10 @@ importers:
       '@cedarloom/engine':
         specifier: workspace:*
         version: link:../engine
+    devDependencies:
+      '@cedarloom/packs':
+        specifier: workspace:*
+        version: link:../packs
 
   packages/engine:
     dependencies:
@@ -261,6 +265,9 @@ importers:
       '@cedarloom/packs':
         specifier: workspace:*
         version: link:../packs
+      smol-toml:
+        specifier: 1.9.1
+        version: 1.9.1
 
   packages/server:
     dependencies:

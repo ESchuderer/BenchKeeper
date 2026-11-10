@@ -251,6 +251,56 @@ export const Finding = z
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
+    /**
+     * An MCP part waits for approval by name: what it runs (a command line) or connects to (a URL), the variables it
+     * gets by name, each entry the plan would add or put in place of the one CedarLoom wrote before with its file's own
+     * text, whether the project has `.codex/`, and whether an npm or PyPI package runs without a version, the newest
+     * release at each start.
+     */
+    finding("profile.mcp-approval", {
+      part: z.string(),
+      title: z.string(),
+      project: z.string(),
+      server: z.string(),
+      transport: z.enum(["stdio", "http"]),
+      runs: z.string(),
+      variables: z.array(z.string()),
+      entries: z.array(z.strictObject({ file: z.string(), change: z.enum(["add", "replace"]), entry: z.string() })),
+      codex: z.boolean(),
+      unpinned: z.boolean(),
+      /** The package whose local install runs, for a devDependency source, which the line names in place of `runs`. */
+      installed: z.string().nullable(),
+    }),
+    /**
+     * An MCP server entry the plan adds to a file, puts in place of the one CedarLoom wrote, or takes out as its part is
+     * switched off, in the file's own text.
+     */
+    finding("profile.mcp-entry", {
+      part: z.string(),
+      server: z.string(),
+      change: z.enum(["add", "replace", "remove"]),
+      file: z.string(),
+      entry: z.string(),
+    }),
+    /**
+     * A file holds the server's name with an entry CedarLoom did not write, or changed since, or its servers in a form
+     * the plan cannot change alone, so the plan writes that server to no file.
+     */
+    finding("profile.mcp-conflict", { part: z.string(), server: z.string(), file: z.string() }),
+    /**
+     * A switched-off part's MCP server entry stays, as it changed since CedarLoom wrote it or sits in a form the plan
+     * cannot take out alone; CedarLoom leaves it to the owner from then on.
+     */
+    finding("profile.mcp-kept", { part: z.string(), server: z.string(), file: z.string() }),
+    /**
+     * An MCP part runs a package from the project's install, which package.json does not list as a devDependency at an
+     * exact version.
+     */
+    finding("profile.mcp-dependency", { part: z.string(), package: z.string() }),
+    /** An MCP part runs a package from the project's install, which the walk up finds only inside a Git repository. */
+    finding("profile.mcp-outside-git", { part: z.string(), package: z.string() }),
+    /** The project folder is the user's home, whose `.claude/` and `.codex/` files are the tools' user config. */
+    finding("profile.project-is-home", { project: z.string() }),
     /** The Dev Containers CLI did not apply a part's Template, which then writes nothing. */
     finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
     /** A target two parts write, such as the Dependabot file of two gates parts: the later part and the target. */
@@ -308,6 +358,10 @@ export const Finding = z
     finding("work-items.no-hub", {}),
     /** An issue outside this machine's hub (A3 b): nothing is queued or linked. */
     finding("work-items.not-hub", { repo: z.string(), hub: z.string() }),
+    /** A project in which git finds no origin naming exactly one GitHub repository (no such folder, no repository there, git refuses it, or two repositories), or whose name has no letter or digit: its hub label has no name and nothing is queued. */
+    finding("work-items.no-project-name", { project: z.string() }),
+    /** A project label longer than GitHub takes: nothing is queued. */
+    finding("work-items.label-too-long", { label: z.string(), limit: z.int() }),
     /** Nothing is stored under the name in the OS credential store (service `cedarloom`). */
     finding("secret.missing", { name: z.string() }),
     /** The OS credential store could not be reached, such as a locked keychain or no Secret Service on Linux. */
@@ -433,6 +487,13 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },
+  "profile.mcp-approval": { severity: "warning", effort: "command" },
+  "profile.mcp-entry": { severity: "info", effort: "command" },
+  "profile.mcp-conflict": { severity: "warning", effort: "manual" },
+  "profile.mcp-kept": { severity: "warning", effort: "manual" },
+  "profile.mcp-dependency": { severity: "warning", effort: "manual" },
+  "profile.mcp-outside-git": { severity: "warning", effort: "manual" },
+  "profile.project-is-home": { severity: "error", effort: "manual" },
   "profile.target-linked": { severity: "error", effort: "manual" },
   "profile.skill-twice": { severity: "error", effort: "manual" },
   "profile.template-failed": { severity: "warning", effort: "manual" },
@@ -456,6 +517,8 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "managed.unreadable": { severity: "warning", effort: "manual" },
   "work-items.no-hub": { severity: "error", effort: "command" },
   "work-items.not-hub": { severity: "error", effort: "manual" },
+  "work-items.no-project-name": { severity: "error", effort: "manual" },
+  "work-items.label-too-long": { severity: "error", effort: "manual" },
   "secret.missing": { severity: "error", effort: "command" },
   "secret.unavailable": { severity: "error", effort: "manual" },
   "secret.not-fine-grained": { severity: "error", effort: "manual" },

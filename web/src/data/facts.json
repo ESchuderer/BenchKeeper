@@ -4,7 +4,7 @@
   "levels": [
     {
       "name": "Lite",
-      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `ask`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills",
+      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `ask`, `questions`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
       "command": "npx benchkeeper@6.26.0 apply --level lite",
       "evidence": "app/test/level.test.mjs"
@@ -354,7 +354,7 @@
       "href": "https://code.visualstudio.com/docs/devcontainers/devcontainer-cli",
       "scope": "Per repository",
       "text": "Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the [BenchKeeper library](https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/library/README.md), stack skills from [find-skills](https://github.com/vercel-labs/skills), at most two per technology.",
-      "evidence": ["docs/stack.md#components", "plugins/benchkeeper/skills/setting-up-projects/SKILL.md"]
+      "evidence": ["docs/stack.md#components", "plugins/benchkeeper/skills/setting-up-projects/SKILL.md", "plugins/benchkeeper/skills/setting-up-projects/devcontainer.md"]
     }
   ],
   "sdlc": {

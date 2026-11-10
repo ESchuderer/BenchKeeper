@@ -3589,6 +3589,307 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.mcp-approval"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "transport": {
+                    "type": "string",
+                    "enum": [
+                      "stdio",
+                      "http"
+                    ]
+                  },
+                  "runs": {
+                    "type": "string"
+                  },
+                  "variables": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "string"
+                        },
+                        "change": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "replace"
+                          ]
+                        },
+                        "entry": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "file",
+                        "change",
+                        "entry"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "codex": {
+                    "type": "boolean"
+                  },
+                  "unpinned": {
+                    "type": "boolean"
+                  },
+                  "installed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "part",
+                  "title",
+                  "project",
+                  "server",
+                  "transport",
+                  "runs",
+                  "variables",
+                  "entries",
+                  "codex",
+                  "unpinned",
+                  "installed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "change": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "replace",
+                      "remove"
+                    ]
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "entry": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "change",
+                  "file",
+                  "entry"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-kept"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-dependency"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-outside-git"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.project-is-home"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "profile.template-failed"
               },
               "params": {
@@ -4329,6 +4630,64 @@
                 "required": [
                   "repo",
                   "hub"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.no-project-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.label-too-long"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "label",
+                  "limit"
                 ],
                 "additionalProperties": false
               }
@@ -5451,9 +5810,16 @@
                   "type": "string"
                 },
                 "usedPercent": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 100
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "resetsAt": {
                   "type": [
@@ -5865,6 +6231,12 @@
               "source"
             ],
             "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5876,7 +6248,8 @@
           "projects",
           "figures",
           "sessions",
-          "prices"
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       },
@@ -9462,6 +9835,307 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.mcp-approval"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "transport": {
+                    "type": "string",
+                    "enum": [
+                      "stdio",
+                      "http"
+                    ]
+                  },
+                  "runs": {
+                    "type": "string"
+                  },
+                  "variables": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "string"
+                        },
+                        "change": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "replace"
+                          ]
+                        },
+                        "entry": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "file",
+                        "change",
+                        "entry"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "codex": {
+                    "type": "boolean"
+                  },
+                  "unpinned": {
+                    "type": "boolean"
+                  },
+                  "installed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "part",
+                  "title",
+                  "project",
+                  "server",
+                  "transport",
+                  "runs",
+                  "variables",
+                  "entries",
+                  "codex",
+                  "unpinned",
+                  "installed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "change": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "replace",
+                      "remove"
+                    ]
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "entry": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "change",
+                  "file",
+                  "entry"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-kept"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-dependency"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-outside-git"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.project-is-home"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "profile.template-failed"
               },
               "params": {
@@ -10202,6 +10876,64 @@
                 "required": [
                   "repo",
                   "hub"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.no-project-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.label-too-long"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "label",
+                  "limit"
                 ],
                 "additionalProperties": false
               }
@@ -11291,9 +12023,16 @@
                   "type": "string"
                 },
                 "usedPercent": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 100
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "resetsAt": {
                   "type": [
@@ -11705,6 +12444,12 @@
               "source"
             ],
             "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -11716,7 +12461,8 @@
           "projects",
           "figures",
           "sessions",
-          "prices"
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       }
@@ -12608,7 +13354,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
             },
             "in": "path",
             "name": "part",
@@ -13166,6 +13913,34 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/history": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Default Response"
           },
           "default": {
             "description": "Default Response",

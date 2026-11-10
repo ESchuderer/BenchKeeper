@@ -4,7 +4,7 @@
   "id": "cedarloom.default",
   "version": "0.1.0",
   "name": "The CedarLoom way",
-  "description": "Claude Code with the CedarLoom, Ponytail and Matt Pocock plugins and CedarLoom's rules; a hub repository for issues and owner questions; a memory repository; project rules, gates and the dev container command.",
+  "description": "Claude Code with the CedarLoom, Ponytail and Matt Pocock plugins and CedarLoom's rules; a hub repository for issues and owner questions; project rules, gates and the dev container command.",
   "license": "MIT",
   "minApp": "0.1.0",
   "agents": ["claude-code"],
@@ -51,10 +51,24 @@
       "default": "on",
       "plugin": "mattpocock-skills@claude-plugins-official"
     },
+    "plugin.typescript-lsp": {
+      "type": "plugin",
+      "title": "TypeScript and JavaScript language server",
+      "description": "Claude sees type errors after its edits and finds definitions and references by symbol. The plugin starts typescript-language-server from your PATH and installs nothing: install it first, such as with npm install -g typescript-language-server typescript (https://code.claude.com/docs/en/plugins/code-intelligence).",
+      "default": "off",
+      "plugin": "typescript-lsp@claude-plugins-official"
+    },
+    "plugin.rust-analyzer-lsp": {
+      "type": "plugin",
+      "title": "Rust language server (rust-analyzer)",
+      "description": "Claude sees compile errors after its edits to .rs files and finds definitions and references by symbol. The plugin starts rust-analyzer from your PATH and installs nothing: install it first, such as with rustup component add rust-analyzer (https://code.claude.com/docs/en/plugins/code-intelligence).",
+      "default": "off",
+      "plugin": "rust-analyzer-lsp@claude-plugins-official"
+    },
     "skill.find-skills": {
       "type": "skill",
       "title": "find-skills",
-      "default": "on",
+      "default": "off",
       "source": {
         "git": "https://github.com/vercel-labs/skills.git",
         "ref": "main",
@@ -82,14 +96,57 @@
           "commit": "",
           "pr": ""
         },
-        "autoMemoryEnabled": false,
         "feedbackDrafts": "off",
         "env": {
-          "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
           "DISABLE_ERROR_REPORTING": "1",
           "DISABLE_FEEDBACK_COMMAND": "1",
           "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1"
         }
+      }
+    },
+    "settings.auto-memory": {
+      "type": "settings",
+      "title": "Auto memory off",
+      "description": "Claude Code neither writes nor reads its own notes from your sessions, so each session works only from the rules and files you can review; what should last goes into those rules or the project's docs (https://code.claude.com/docs/en/memory#auto-memory). Switched off after an apply, its keys stay in your Claude Code settings.json until you remove them.",
+      "default": "on",
+      "set": {
+        "autoMemoryEnabled": false,
+        "env": { "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1" }
+      }
+    },
+    "settings.secret-reads": {
+      "type": "settings",
+      "title": "No reads of .env files and login files",
+      "description": "Claude's file tools, and file commands it recognizes in Bash such as cat, refuse .env files (.env.example too) and the SSH, GitHub CLI and Claude Code login files, so their values stay out of the conversation. A command that reads files without naming them, such as grep -r, still can; the sandbox closes that (https://code.claude.com/docs/en/permissions#read-and-edit). Switched off after an apply, its keys stay in your Claude Code settings.json until you remove them.",
+      "default": "on",
+      "set": {
+        "permissions": {
+          "deny": [
+            "Read(.env)",
+            "Read(.env.*)",
+            "Read(~/.ssh/**)",
+            "Read(~/.config/gh/**)",
+            "Read(~/AppData/Roaming/GitHub CLI/**)",
+            "Read(/.credentials.json)"
+          ]
+        }
+      }
+    },
+    "settings.workflow-writes": {
+      "type": "settings",
+      "title": "Ask before Claude's file tools write .github/workflows",
+      "description": "Claude's file edits to GitHub Actions workflows prompt in every permission mode, bypass included, as a workflow decides what CI runs with the repository's secrets; an unattended session stops at that prompt. Shell commands such as cp or a redirect are not covered (https://code.claude.com/docs/en/permission-modes#actions-no-mode-auto-approves). Switched off after an apply, its keys stay in your Claude Code settings.json until you remove them.",
+      "default": "on",
+      "set": { "permissions": { "ask": ["Edit(.github/workflows/**)"] } }
+    },
+    "settings.mcp-servers": {
+      "type": "settings",
+      "title": "MCP servers: none approved wholesale by your settings, none with your shell's tokens",
+      "description": "Your own settings no longer approve every server of a repository's .mcp.json at once, so each waits for your approval unless a repository you trusted approves it in its own settings. Local MCP servers start with a safe baseline environment plus their own env entry instead of your shell's, so a server gets no token you did not give it; a server that read a token from your shell needs it in its env entry (https://code.claude.com/docs/en/mcp#project-server-approvals-and-workspace-trust, https://code.claude.com/docs/en/env-vars). Switched off after an apply, its keys stay in your Claude Code settings.json until you remove them.",
+      "default": "on",
+      "set": {
+        "enableAllProjectMcpServers": false,
+        "env": { "CLAUDE_CODE_MCP_ALLOWLIST_ENV": "1" }
       }
     }
   },
@@ -118,6 +175,10 @@
         "question": {
           "color": "d876e3",
           "description": "Owner decision needed: tick an option or comment, then set ready-for-agent"
+        },
+        "deferred": {
+          "color": "c5def5",
+          "description": "Owner deferred: the question queue skips it until the label is removed"
         }
       },
       "projectLabel": {
@@ -132,7 +193,7 @@
     "memory": {
       "type": "memory",
       "title": "Memory repository and its loader",
-      "default": "on",
+      "default": "off",
       "scaffold": {
         "pack": "cedarloom.core",
         "path": "templates/memory"
@@ -251,6 +312,22 @@
       "default": "off",
       "commit": false,
       "set": { "sandbox": { "enabled": true, "autoAllowBashIfSandboxed": false } }
+    },
+    "bypass-off": {
+      "type": "settings",
+      "title": "Bypass permissions mode disabled in the projects you apply",
+      "description": "Claude Code then refuses bypassPermissions mode and rejects --dangerously-skip-permissions in each project you apply the profile to, so every session there keeps its prompts. The switch is this machine's: once on, it goes into every project applied afterwards, Orca's included, and Orca starts its Claude Code workers with that flag, so they cannot run there; it is off by default (https://code.claude.com/docs/en/settings-reference#permissions-disablebypasspermissionsmode). Switched off after an apply, the setting stays: remove permissions.disableBypassPermissionsMode from the project's .claude/settings.local.json by hand, as undo of the run stops working once Claude Code itself writes that file.",
+      "default": "off",
+      "commit": false,
+      "set": { "permissions": { "disableBypassPermissionsMode": "disable" } }
+    },
+    "outside-writes": {
+      "type": "settings",
+      "title": "No file writes outside the project, in the projects you apply",
+      "description": "Claude's Write, Edit and NotebookEdit tools refuse paths outside the working directories in every permission mode, apart from Claude Code's own files such as the scratchpad. Shell commands are not limited (the sandbox does that), the EnterWorktree and ExitWorktree tools go, and it needs Claude Code 2.1.314 or later, so it is off by default. The switch is this machine's: once on, it goes into every project applied afterwards (https://code.claude.com/docs/en/settings-reference#permissions-blockwritesoutsideworkingdirectories). Switched off after an apply, the setting stays: remove permissions.blockWritesOutsideWorkingDirectories from the project's .claude/settings.local.json by hand, as undo of the run stops working once Claude Code itself writes that file.",
+      "default": "off",
+      "commit": false,
+      "set": { "permissions": { "blockWritesOutsideWorkingDirectories": true } }
     },
     "tier": {
       "type": "tier",

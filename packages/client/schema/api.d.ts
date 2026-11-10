@@ -1208,6 +1208,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -2037,6 +2081,75 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.mcp-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                server: string;
+                /** @enum {string} */
+                transport: "stdio" | "http";
+                runs: string;
+                variables: string[];
+                entries: {
+                    file: string;
+                    /** @enum {string} */
+                    change: "add" | "replace";
+                    entry: string;
+                }[];
+                codex: boolean;
+                unpinned: boolean;
+                installed: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-entry";
+            params: {
+                part: string;
+                server: string;
+                /** @enum {string} */
+                change: "add" | "replace" | "remove";
+                file: string;
+                entry: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-kept";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-outside-git";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.template-failed";
             params: {
                 part: string;
@@ -2206,6 +2319,19 @@ export interface components {
             params: {
                 repo: string;
                 hub: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.no-project-name";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                limit: number;
             };
         } | {
             /** @constant */
@@ -2407,7 +2533,7 @@ export interface components {
             threshold: number | null;
             windows: {
                 window: string;
-                usedPercent: number;
+                usedPercent: number | null;
                 resetsAt: string | null;
                 readAt: string | null;
             }[];
@@ -2489,6 +2615,7 @@ export interface components {
                 /** Format: uri */
                 source: string;
             };
+            historyMoved: string | null;
         };
         SchemaVersion: number;
         Sha256: string;
@@ -3281,6 +3408,75 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.mcp-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                server: string;
+                /** @enum {string} */
+                transport: "stdio" | "http";
+                runs: string;
+                variables: string[];
+                entries: {
+                    file: string;
+                    /** @enum {string} */
+                    change: "add" | "replace";
+                    entry: string;
+                }[];
+                codex: boolean;
+                unpinned: boolean;
+                installed: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-entry";
+            params: {
+                part: string;
+                server: string;
+                /** @enum {string} */
+                change: "add" | "replace" | "remove";
+                file: string;
+                entry: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-kept";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-outside-git";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.template-failed";
             params: {
                 part: string;
@@ -3450,6 +3646,19 @@ export interface components {
             params: {
                 repo: string;
                 hub: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.no-project-name";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                limit: number;
             };
         } | {
             /** @constant */
@@ -3649,7 +3858,7 @@ export interface components {
             threshold: number | null;
             windows: {
                 window: string;
-                usedPercent: number;
+                usedPercent: number | null;
                 resetsAt: string | null;
                 readAt: string | null;
             }[];
@@ -3731,6 +3940,7 @@ export interface components {
                 /** Format: uri */
                 source: string;
             };
+            historyMoved: string | null;
         };
     };
     responses: never;

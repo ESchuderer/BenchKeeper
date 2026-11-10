@@ -14,14 +14,19 @@ type Change = { account: number } | { key: Setting; value: number } | { auto: bo
 const nameOf = ({ number, alias }: Account): string =>
   alias === undefined ? String(number) : t("accounts.name", { number, alias });
 
-/** A window's share, when it resets, and whether claude-swap still trusts the share. */
+/** A window's share (unknown when unread), when it resets, and whether claude-swap still trusts the share. */
 const windowOf = ({ window, usedPercent, resetsAt, readAt }: Account["windows"][number]): string => {
   const [span = window, model = "none"] = window.split(":");
-  const parts = [t("accounts.window", { span, model, percent: usedPercent })];
+  const parts = [
+    usedPercent === null
+      ? t("accounts.windowUnknown", { span, model })
+      : t("accounts.window", { span, model, percent: usedPercent }),
+  ];
   // claude-swap's own text: a date the browser cannot read is left out, not thrown.
   if (resetsAt !== null && !Number.isNaN(Date.parse(resetsAt)))
     parts.push(t("accounts.resets", { when: when(resetsAt) }));
-  if (readAt === null) parts.push(t("accounts.stale"));
+  // No share was read, so none is stale.
+  if (readAt === null && usedPercent !== null) parts.push(t("accounts.stale"));
   return parts.join(", ");
 };
 
@@ -286,21 +291,35 @@ const outcomeOf = (change: Change, done: Done): string => {
 };
 
 /**
- * claude-swap's accounts with their usage, its switch, switch lines and auto mode, and its install: CedarLoom keeps none
- * of it. A change asks claude-swap's extension for the command first and runs it only on the user's word; the outcome
- * takes the focus.
+ * The view's changes, kept by the shell: a view left during a change is mounted anew, and must show it running, its
+ * outcome once it ends, and claude-swap read again.
  */
-export const Accounts = ({ api }: { api: Api }): ReactNode => {
+export const useChanges = () => {
   const [version, setVersion] = useState(0);
-  const { swap, auto, problem, install } = useSwap(api, version);
-  const [pending, setPending] = useState<{ change: Change; approval: Approval } | null>(null);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState("");
+  // Attached by whichever view is open, null while none is: an outcome that ends away takes no focus.
   const announced = useRef<HTMLParagraphElement>(null);
   const announce = (text: string): void => {
     setOutcome(text);
     announced.current?.focus();
   };
+  const changed = (): void => setVersion((value) => value + 1);
+  return { version, changed, busy, setBusy, outcome, setOutcome, announced, announce };
+};
+export type Changes = ReturnType<typeof useChanges>;
+
+type Props = { api: Api } & Changes;
+
+/**
+ * claude-swap's accounts with their usage, its switch, switch lines and auto mode, and its install: CedarLoom keeps none
+ * of it. A change asks claude-swap's extension for the command first and runs it only on the user's word; the outcome
+ * takes the focus.
+ */
+export const Accounts = ({ api, ...changes }: Props): ReactNode => {
+  const { version, changed, busy, setBusy, outcome, setOutcome, announced, announce } = changes;
+  const { swap, auto, problem, install } = useSwap(api, version);
+  const [pending, setPending] = useState<{ change: Change; approval: Approval } | null>(null);
   // Without an approval it shows the command to approve; with one it runs it, shows a command that changed since to
   // approve again, and reads claude-swap anew.
   const ask = async (change: Change, approval?: Approval): Promise<void> => {
@@ -313,7 +332,7 @@ export const Accounts = ({ api }: { api: Api }): ReactNode => {
     if ("problem" in answer) announce(answer.problem);
     else if ("runs" in answer.data) setPending({ change, approval: answer.data });
     else announce(outcomeOf(change, answer.data));
-    if (approval !== undefined) setVersion((value) => value + 1);
+    if (approval !== undefined) changed();
   };
   const cancel = (): void => {
     setPending(null);

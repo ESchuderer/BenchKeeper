@@ -15,6 +15,8 @@ Builds a CedarLoom workflow, at the automation level chosen at install, into one
 
 ## Install
 
+CedarLoom's default workflow, `feature`, ships as an export folder in the core pack: plan, implement, test and review, each step its own agent, then the pull request, which an agent merges at Auto only. From a clone of this repository, `cedarloom import packages/packs/bundled/cedarloom.core/templates/workflows` shows it and stores it with `--yes`; then `cedarloom workflows install feature --level <level>`.
+
 `cedarloom workflows install <id>` shows the plan for a stored workflow; with `--allow <plugin> --yes` it installs the package as one run, which `cedarloom runs undo` takes back. The approval names the plugin because its hooks run in every Claude Code session, and the plan lists every command the package runs.
 
 - **The package** goes into `workflow-packages/<plugin>/` in CedarLoom's state folder: a directory marketplace, `cedarloom-workflows`, from which Claude Code loads it in place.

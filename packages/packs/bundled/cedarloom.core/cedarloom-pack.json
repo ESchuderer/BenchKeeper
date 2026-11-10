@@ -56,6 +56,10 @@
       "kind": "template",
       "description": "The memory repository's first files: README.md, INDEX.md, the pull request template"
     },
+    "templates/workflows": {
+      "kind": "template",
+      "description": "An export folder with the default workflow feature: cedarloom import it, then cedarloom workflows install feature"
+    },
     "profiles/default.json": {
       "kind": "profile",
       "description": "The CedarLoom way: every part on three levels"

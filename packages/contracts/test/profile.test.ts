@@ -93,6 +93,12 @@ test.for<[string, (string | number)[], unknown, unknown]>([
     secret("machine.settings.claude-code.set.env.ANTHROPIC_API_KEY"),
   ],
   [
+    "a token in an MCP server's URL",
+    ["project", "docs", "source", "url"],
+    "https://mcp.example.com/ghp_0123456789abcdefghij0123456789abcdef",
+    secret("project.docs.source.url"),
+  ],
+  [
     "a pack the file does not name",
     ["machine", "rules.global", "text", "pack"],
     "acme.rules",
@@ -172,6 +178,8 @@ test.for([
   "claude.local.md",
   ".cedarloom/profile-files.json",
   "sub/.CedarLoom/profile-files.json",
+  ".codex/config.toml",
+  "sub/.Codex/config.toml",
 ])("a files part may not write %s", (target) => {
   const changed = set(defaults, ["project", "agent-docs", "files", target], { inline: "{}" });
   expect(outcome(readProfile(changed))).toEqual([`project.agent-docs.files.${target}`]);
@@ -182,8 +190,31 @@ test.for<[string, (string | number)[], unknown]>([
   ["npm settings named in text", ["project", "agent-docs", "files", "x.md"], { inline: "Set npm_config_registry." }],
   ["a sandbox that only tightens", [...claude, "sandbox"], { enabled: true, filesystem: { denyRead: ["~/.ssh"] } }],
   ["a packs part that requires a part", ["project", "packs", "requires"], ["workspace.hub"]],
+  [
+    "an MCP server's credentials by name",
+    ["project", "context7", "source", "env"],
+    ["CONTEXT7_API_KEY", "GITHUB_TOKEN"],
+  ],
+  ["an MCP server on this machine over plain HTTP", ["project", "docs", "source", "url"], "http://127.0.0.1:3845/mcp"],
 ])("a profile file with %s is read", ([, path, value]) => {
   expect(outcome(readProfile(set(defaults, path, value)))).toBe("ok");
+});
+
+// What an MCP part may start or reach: docs/agents/cedarloom-rationale.md#mcp-servers
+test.for<[string, string[], unknown, string]>([
+  ["an npm option as its package", ["context7", "source"], { npm: "-y" }, "context7.source.npm"],
+  ["a package from Git", ["context7", "source"], { npm: "github:acme/x" }, "context7.source.npm"],
+  ["a package from a tarball URL", ["context7", "source"], { npm: "https://x.example/x.tgz" }, "context7.source.npm"],
+  ["a local tarball as an npm package", ["context7", "source"], { npm: "x.tgz" }, "context7.source.npm"],
+  ["a local wheel as a PyPI package", ["fetch", "source", "pypi"], "x.whl", "fetch.source.pypi"],
+  ["a version range", ["context7", "source", "version"], "^1.0.0", "context7.source.version"],
+  ["a PyPI package with extras", ["fetch", "source", "pypi"], "x[cli]", "fetch.source.pypi"],
+  ["plain HTTP to another host", ["docs", "source", "url"], "http://mcp.example.com/mcp", "docs.source.url"],
+  ["a URL with a user", ["docs", "source", "url"], "https://me@mcp.example.com/mcp", "docs.source.url"],
+  ["a URL with a query", ["docs", "source", "url"], "https://mcp.example.com/mcp?key=1", "docs.source.url"],
+  ["a server name that is no portable key", ["docs", "server"], "My.Server", "docs.server"],
+])("an MCP part with %s is refused", ([, path, value, issue]) => {
+  expect(outcome(readProfile(set(defaults, ["project", ...path], value)))).toEqual([`project.${issue}`]);
 });
 
 test.for<[string, (string | number)[], unknown]>([
@@ -433,6 +464,14 @@ const hub = (id: string, label: string) => ({
   title: id,
   default: "on",
   labels: { [label]: { color: "ffffff" } },
+});
+
+test("a projectNames key is a repository in lower case", () => {
+  const at = ["workspace", "hub", "projectNames"];
+  expect(outcome(readProfile(set(defaults, at, { "acme/widgets.v2": "widgets-app" })))).toBe("ok");
+  expect(outcome(readProfile(set(defaults, at, { "ACME/Widgets": "widgets-app" })))).toEqual([
+    "workspace.hub.projectNames.ACME/Widgets",
+  ]);
 });
 
 test("a label named like a source field merges as a label", () => {

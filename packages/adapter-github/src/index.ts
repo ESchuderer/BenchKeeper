@@ -12,6 +12,7 @@ const VERSION = { headers: { "x-github-api-version": "2026-03-10" } };
 
 // The parts of GitHub's list answers that are read, checked as GitHub's text is untrusted.
 const Labels = z.array(z.object({ name: z.string() }));
+const Created = z.object({ id: z.number(), url: z.string() });
 const Comment = z.object({ id: z.number(), html_url: z.string(), body: z.string().nullish() });
 const Comments = z.array(Comment);
 const CommentIssue = z.object({ issue_url: z.string() });
@@ -36,7 +37,7 @@ class Refused extends Error {
 }
 
 // Octokit's RequestError, known by its name: an instanceof check fails once two copies of Octokit are installed.
-type HttpError = Error & { status: number; response?: { headers: Record<string, unknown> } };
+type HttpError = Error & { status: number; response?: { headers: Record<string, unknown>; data?: unknown } };
 const httpError = (error: unknown): error is HttpError =>
   error instanceof Error && error.name === "HttpError" && "status" in error && typeof error.status === "number";
 
@@ -80,11 +81,18 @@ const call = async <T>(work: () => Promise<T>): Promise<Result<T>> => {
   }
 };
 
-const repoOf = ({ repo }: IssueRef): { owner: string; repo: string } => {
+const repoOf = ({ repo }: { repo: string }): { owner: string; repo: string } => {
   const [owner = "", name = ""] = repo.split("/");
   return { owner, repo: name };
 };
 const issueOf = (issue: IssueRef) => ({ ...repoOf(issue), issue_number: issue.number, ...VERSION });
+
+// GitHub's answer to a label that exists already (https://docs.github.com/en/rest/issues/labels#create-a-label).
+const AlreadyExists = z.object({ errors: z.array(z.object({ code: z.string() })) });
+const exists = (error: unknown): boolean =>
+  httpError(error) &&
+  error.status === 422 &&
+  AlreadyExists.safeParse(error.response?.data).data?.errors.some(({ code }) => code === "already_exists") === true;
 
 // null on GitHub's 404 while the issue answers: nothing left to delete; a hidden repository's 404 refuses at the issue.
 const orGone = async <T>(github: Client, issue: IssueRef, work: () => Promise<T>): Promise<T | null> => {
@@ -111,6 +119,45 @@ const deleteComment = async (github: Client, issue: IssueRef, comment: number): 
     github.request("DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}", params),
   );
   return null;
+};
+
+const hubLabels = (github: Client, hub: string): Pick<Tracker, "labels" | "createLabel" | "deleteLabel"> => {
+  const at = { ...repoOf({ repo: hub }), ...VERSION };
+  return {
+    labels: () =>
+      call(async () => {
+        const labels = Labels.parse(
+          await github.paginate("GET /repos/{owner}/{repo}/labels", { ...at, per_page: 100 }),
+        );
+        return labels.map(({ name }) => name);
+      }),
+    createLabel: (name, color, description) => {
+      const label = { ...at, name, color, ...(description === undefined ? {} : { description }) };
+      return call(async () => {
+        try {
+          const { id, url } = Created.parse((await github.request("POST /repos/{owner}/{repo}/labels", label)).data);
+          return RemoteComment.parse({ id, url });
+        } catch (error) {
+          if (exists(error)) return null;
+          throw error;
+        }
+      });
+    },
+    // A 404 is a label gone only while the hub answers; a hub the token cannot see refuses at its read.
+    deleteLabel: (name, id) =>
+      call(async () => {
+        try {
+          const found = await github.request("GET /repos/{owner}/{repo}/labels/{name}", { ...at, name });
+          // A label of that name made since the send is another's: deleting it would take it off their issues.
+          if (Created.parse(found.data).id !== id) throw new Refused(409, `label ${name} is not the one the send made`);
+          await github.request("DELETE /repos/{owner}/{repo}/labels/{name}", { ...at, name });
+        } catch (error) {
+          if (!(httpError(error) && error.status === 404)) throw error;
+          await github.request("GET /repos/{owner}/{repo}", at);
+        }
+        return null;
+      }),
+  };
 };
 
 /**
@@ -162,5 +209,6 @@ export const githubTracker = (
         });
         return null;
       }),
+    ...hubLabels(github, hub),
   };
 };

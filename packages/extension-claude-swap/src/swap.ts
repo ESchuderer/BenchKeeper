@@ -71,13 +71,17 @@ const scopedName = (name: unknown): string | undefined =>
 
 /**
  * A window of an account: a share in percent, when it resets, and when claude-swap read it (null: it no longer trusts
- * that share).
+ * that share); `usedPercent` is null when claude-swap has no share for the window.
  */
-type Window = { window: string; usedPercent: number; resetsAt: string | null; readAt: string | null };
+type Window = { window: string; usedPercent: number | null; resetsAt: string | null; readAt: string | null };
+
+// The 5-hour and 7-day windows, which every account has.
+const STANDARD = ["fiveHour", "sevenDay"];
 
 /**
  * An account's windows. claude-swap trusts a row's usage only while its `usageStatus` is `ok`: a row it no longer
- * trusts gives its last good windows without a read time.
+ * trusts gives its last good windows without a read time. The 5-hour and 7-day windows are always there, unknown
+ * without a share; a model's window is there only with one.
  */
 const windowsOf = (row: unknown): Window[] => {
   const trusted = at(row, "usageStatus") === "ok";
@@ -85,8 +89,7 @@ const windowsOf = (row: unknown): Window[] => {
   const readAt = trusted ? textOr(at(row, "usageFetchedAt"), null) : null;
   const scoped = at(usage, "scoped");
   const named: [string | undefined, unknown][] = [
-    ["fiveHour", at(usage, "fiveHour")],
-    ["sevenDay", at(usage, "sevenDay")],
+    ...STANDARD.map((window): [string, unknown] => [window, at(usage, window)]),
     ...(Array.isArray(scoped) ? scoped : []).map((entry): [string | undefined, unknown] => [
       scopedName(at(entry, "name")),
       entry,
@@ -94,13 +97,12 @@ const windowsOf = (row: unknown): Window[] => {
   ];
   const windows = named.flatMap(([window, entry]) => {
     const pct = at(entry, "pct");
-    if (window === undefined || typeof pct !== "number") return [];
+    if (window === undefined || (typeof pct !== "number" && !STANDARD.includes(window))) return [];
     const resetsAt = textOr(at(entry, "resetsAt"), null);
-    return [{ window, usedPercent: Math.min(100, Math.max(0, pct)), resetsAt, readAt }];
+    const usedPercent = typeof pct === "number" ? Math.min(100, Math.max(0, pct)) : null;
+    return [{ window, usedPercent, resetsAt, readAt }];
   });
-  // Without last good windows, the two every account has, unread.
-  const unread = ["fiveHour", "sevenDay"].map((window) => ({ window, usedPercent: 0, resetsAt: null, readAt: null }));
-  return trusted || windows.length > 0 ? windows.slice(0, 16) : unread;
+  return windows.slice(0, 16);
 };
 
 // A short plain alias only: claude-swap's aliases are the user's own text.

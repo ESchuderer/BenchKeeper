@@ -1,2 +1,2 @@
-export { compensate, drain, inverse, send } from "./outbox.ts";
+export { compensate, drain, inverse, repoOf, send } from "./outbox.ts";
 export type { Tracker } from "./tracker.ts";

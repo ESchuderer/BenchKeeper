@@ -55,6 +55,11 @@
       ["percent"],
       "%"
     ],
+    "accounts.windowUnknown": [
+      ["span", "select", { "fiveHour": ["5 hours"], "sevenDay": ["7 days"], "other": [["span"]] }],
+      ["model", "select", { "none": [], "other": [" (", ["model"], ")"] }],
+      ": unknown"
+    ],
     "app.licenses": ["Third-party licenses"],
     "app.title": ["CedarLoom"],
     "draft.discard": ["Discard"],
@@ -496,6 +501,7 @@
     "sessions.agentColumn": ["Agent"],
     "sessions.allProjects": ["All projects"],
     "sessions.allTime": ["All time"],
+    "sessions.cancel": ["Cancel"],
     "sessions.caption": ["Sessions, newest first"],
     "sessions.chart": [
       [
@@ -523,15 +529,29 @@
     ],
     "sessions.count": ["Sessions"],
     "sessions.dataFrom": [
-      "Claude Code's transcripts start on ",
+      "Claude Code data starts on ",
       ["first"],
-      ": it deletes older ones, so earlier days show less work than there was."
+      ": Claude Code deletes older transcripts, so earlier days show less work than there was."
     ],
     "sessions.days": ["Last ", ["days"], " days"],
     "sessions.daysOf": [["worked"], " of ", ["days"]],
     "sessions.daysWorked": ["Days worked"],
+    "sessions.deleteBody": [
+      "Sessions whose logs are gone leave the board for good, and the .bad copy of a damaged history is deleted too. Sessions whose logs still exist stay, and the history records them again."
+    ],
+    "sessions.deleteHistory": ["Delete history"],
+    "sessions.deleteTitle": ["Delete the sessions history?"],
     "sessions.empty": ["No session in this period."],
     "sessions.hint": ["Point at a day, or focus the chart and use the arrow keys, to read its values."],
+    "sessions.historyDeleted": ["The history is deleted."],
+    "sessions.historyMoved": [
+      "The sessions history could not be read, so it was moved to ",
+      ["file"],
+      ". A new history starts with the sessions whose logs still exist."
+    ],
+    "sessions.historyNote": [
+      "The history keeps each session's project, start, agent time, tokens, cost and test result on this computer, so the board still counts it after the agent tools delete its log. It keeps no title or other text of a session."
+    ],
     "sessions.metric": ["Per day"],
     "sessions.metricName": [
       [
@@ -540,13 +560,13 @@
         { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
       ]
     ],
-    "sessions.noData": ["before the oldest Claude Code transcript"],
+    "sessions.noData": ["before the first Claude Code data"],
     "sessions.none": ["None"],
     "sessions.other": ["Other"],
     "sessions.peak": ["Top line: ", ["value"], " a day"],
     "sessions.period": ["Period"],
     "sessions.project": ["Project"],
-    "sessions.reading": ["Reading the session logs. A first read of a long history takes a few seconds."],
+    "sessions.reading": ["Reading the session logs. A first read of many logs takes a few seconds."],
     "sessions.result": [["tests", "select", { "pass": ["Passed"], "fail": ["Failed"], "other": ["None"] }]],
     "sessions.started": ["Started"],
     "sessions.streak": ["Longest run ", ["streak", "plural", { "one": ["#", " day"], "other": ["#", " days"] }]],

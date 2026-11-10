@@ -696,6 +696,10 @@ msgid "accounts.window"
 msgstr "{span, select, fiveHour {5 hours} sevenDay {7 days} other {{span}}}{model, select, none {} other { ({model})}}: {percent}%"
 
 #. js-lingui-explicit-id
+msgid "accounts.windowUnknown"
+msgstr "{span, select, fiveHour {5 hours} sevenDay {7 days} other {{span}}}{model, select, none {} other { ({model})}}: unknown"
+
+#. js-lingui-explicit-id
 msgid "accounts.resets"
 msgstr "resets {when}"
 
@@ -801,7 +805,7 @@ msgstr "The extension {extension} is not found."
 
 #. js-lingui-explicit-id
 msgid "sessions.reading"
-msgstr "Reading the session logs. A first read of a long history takes a few seconds."
+msgstr "Reading the session logs. A first read of many logs takes a few seconds."
 
 #. js-lingui-explicit-id
 msgid "sessions.period"
@@ -937,8 +941,36 @@ msgstr "Top line: {value} a day"
 
 #. js-lingui-explicit-id
 msgid "sessions.dataFrom"
-msgstr "Claude Code's transcripts start on {first}: it deletes older ones, so earlier days show less work than there was."
+msgstr "Claude Code data starts on {first}: Claude Code deletes older transcripts, so earlier days show less work than there was."
 
 #. js-lingui-explicit-id
 msgid "sessions.noData"
-msgstr "before the oldest Claude Code transcript"
+msgstr "before the first Claude Code data"
+
+#. js-lingui-explicit-id
+msgid "sessions.historyNote"
+msgstr "The history keeps each session's project, start, agent time, tokens, cost and test result on this computer, so the board still counts it after the agent tools delete its log. It keeps no title or other text of a session."
+
+#. js-lingui-explicit-id
+msgid "sessions.deleteHistory"
+msgstr "Delete history"
+
+#. js-lingui-explicit-id
+msgid "sessions.deleteTitle"
+msgstr "Delete the sessions history?"
+
+#. js-lingui-explicit-id
+msgid "sessions.deleteBody"
+msgstr "Sessions whose logs are gone leave the board for good, and the .bad copy of a damaged history is deleted too. Sessions whose logs still exist stay, and the history records them again."
+
+#. js-lingui-explicit-id
+msgid "sessions.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "sessions.historyDeleted"
+msgstr "The history is deleted."
+
+#. js-lingui-explicit-id
+msgid "sessions.historyMoved"
+msgstr "The sessions history could not be read, so it was moved to {file}. A new history starts with the sessions whose logs still exist."

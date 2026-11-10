@@ -155,11 +155,12 @@ export type DraftSaved = z.infer<typeof DraftSaved>;
 
 /**
  * A usage window of a claude-swap account: the share used in percent, when it resets, and when claude-swap read it
- * (null: claude-swap no longer trusts that share, so it is the last one it trusted, or none).
+ * (null: claude-swap no longer trusts that share, so it is the last one it trusted, or none); `usedPercent` is null when
+ * claude-swap has no share for that window.
  */
 const SwapWindow = z.strictObject({
   window: z.string().describe("fiveHour, sevenDay, or sevenDay:<model> for a model's own weekly window"),
-  usedPercent: z.number().min(0).max(100),
+  usedPercent: z.number().min(0).max(100).nullable(),
   resetsAt: z.string().nullable(),
   readAt: z.string().nullable(),
 });

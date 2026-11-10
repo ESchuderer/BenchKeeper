@@ -42,6 +42,7 @@ export interface MessageValues {
   "accounts.unset": Record<never, never>;
   "accounts.usage": Record<never, never>;
   "accounts.window": { span: string; model: string; percent: string | number };
+  "accounts.windowUnknown": { span: string; model: string };
   "app.licenses": Record<never, never>;
   "app.title": Record<never, never>;
   "draft.discard": Record<never, never>;
@@ -209,6 +210,7 @@ export interface MessageValues {
   "sessions.agentColumn": Record<never, never>;
   "sessions.allProjects": Record<never, never>;
   "sessions.allTime": Record<never, never>;
+  "sessions.cancel": Record<never, never>;
   "sessions.caption": Record<never, never>;
   "sessions.chart": { metric: string; from: string | number; to: string | number };
   "sessions.cost": Record<never, never>;
@@ -219,8 +221,14 @@ export interface MessageValues {
   "sessions.days": { days: string | number };
   "sessions.daysOf": { worked: string | number; days: string | number };
   "sessions.daysWorked": Record<never, never>;
+  "sessions.deleteBody": Record<never, never>;
+  "sessions.deleteHistory": Record<never, never>;
+  "sessions.deleteTitle": Record<never, never>;
   "sessions.empty": Record<never, never>;
   "sessions.hint": Record<never, never>;
+  "sessions.historyDeleted": Record<never, never>;
+  "sessions.historyMoved": { file: string | number };
+  "sessions.historyNote": Record<never, never>;
   "sessions.metric": Record<never, never>;
   "sessions.metricName": { metric: string };
   "sessions.noData": Record<never, never>;

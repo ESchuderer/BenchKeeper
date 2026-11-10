@@ -27,6 +27,15 @@ In the dev container, 3 app tests fail because of the container, not the code or
 - `machine setup` and `machine session variables` need `ssh-keygen`, which the image lacks ([#979](https://github.com/ESchuderer/BenchKeeper/issues/979)).
 - `sandbox: srt confines a real command ...` runs because `.devcontainer/compose.yaml` sets `BENCHKEEPER_SANDBOX_TEST=1` (CI does not, so it skips the test there), and srt does not start in the rootless podman container ([#1019](https://github.com/ESchuderer/BenchKeeper/issues/1019)).
 
+## Plugin mod types
+
+The plugin's mod (`plugins/benchkeeper/hooks/`: the tier band and the coordinator rotation) is type-checked by hand, not in CI: Claude Code writes the types it imports (`claude-code`, `claude-code/testing`) only when a logged-in session loads the mod, into `plugins/benchkeeper/.claude-plugin/types/` (git-ignored), and no `claude plugin` command writes them.
+
+1. Load the mod once: `claude --plugin-dir plugins/benchkeeper`, then quit the session.
+2. In the dev container: `node_modules/.bin/tsc -p plugins/benchkeeper` (the options are the ones the types file names for a hooks module).
+
+The types are those of the Claude Code that loaded the mod, which can be newer than the `plugin-checks` pin.
+
 ## Site
 
 `.github/workflows/pages.yml` runs the README sync check, the build, and axe in light and dark. It deploys on pushes to `main`, on a published release and by hand ([releasing](releasing.md#site)); a failing `build` job fails the run and the previous deployment stays. Pushes share one concurrency group, so deployments are ordered.

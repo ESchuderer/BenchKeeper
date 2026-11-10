@@ -57,6 +57,11 @@ test('a plugin agent needs a name and description, a model alias, and no key plu
   assert.match(agent('name: a\ndescription: "x"\nmodel: claude-opus-5-5'), /model "claude-opus-5-5" is not one of/);
   assert.match(agent('name: a\ndescription: "x"\npermissionMode: acceptEdits'), /permissionMode is ignored/);
   assert.match(agent('name: a\ndescription: "x"\nhooks:\n  Stop:\n    - x'), /hooks is ignored/);
+  // Values are compared as YAML reads them, and what the lint cannot read fails.
+  assert.equal(agent("name: 'a'\ndescription: \"x: y\"\nmodel: \"opus\""), '');
+  assert.match(agent('name: ""\ndescription: "x"'), /name missing/);
+  assert.match(agent('name: a\ndescription: "x'), /front matter/);
+  assert.match(agent('name: a\ndescription: x: y'), /front matter/);
 });
 test('a Tier line naming the Default tier line ahead of the workflow skill fails', () => {
   assert.match(lintSkill(skill('a', { body: '```text\nTier: <issue tier, else the Default tier line of AGENTS.md, else the workflow skill decides>\n```' })).join(), /Default tier line ahead/);

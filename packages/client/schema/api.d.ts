@@ -2407,7 +2407,7 @@ export interface components {
             threshold: number | null;
             windows: {
                 window: string;
-                usedPercent: number;
+                usedPercent: number | null;
                 resetsAt: string | null;
                 readAt: string | null;
             }[];
@@ -3649,7 +3649,7 @@ export interface components {
             threshold: number | null;
             windows: {
                 window: string;
-                usedPercent: number;
+                usedPercent: number | null;
                 resetsAt: string | null;
                 readAt: string | null;
             }[];

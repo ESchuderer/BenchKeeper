@@ -162,8 +162,8 @@ test("a row without a number is left out, an alias that is no short plain name i
       [
         true,
         [
-          { window: "fiveHour", usedPercent: 0, resetsAt: null, readAt: null },
-          { window: "sevenDay", usedPercent: 0, resetsAt: null, readAt: null },
+          { window: "fiveHour", usedPercent: null, resetsAt: null, readAt: null },
+          { window: "sevenDay", usedPercent: null, resetsAt: null, readAt: null },
         ],
       ],
     ],

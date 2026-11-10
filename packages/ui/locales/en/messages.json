@@ -55,6 +55,11 @@
       ["percent"],
       "%"
     ],
+    "accounts.windowUnknown": [
+      ["span", "select", { "fiveHour": ["5 hours"], "sevenDay": ["7 days"], "other": [["span"]] }],
+      ["model", "select", { "none": [], "other": [" (", ["model"], ")"] }],
+      ": unknown"
+    ],
     "app.licenses": ["Third-party licenses"],
     "app.title": ["CedarLoom"],
     "draft.discard": ["Discard"],

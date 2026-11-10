@@ -5451,9 +5451,16 @@
                   "type": "string"
                 },
                 "usedPercent": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 100
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "resetsAt": {
                   "type": [
@@ -11291,9 +11298,16 @@
                   "type": "string"
                 },
                 "usedPercent": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 100
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "resetsAt": {
                   "type": [

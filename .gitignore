@@ -11,5 +11,7 @@ packages/*/test-results/
 packages/*/playwright-report/
 coverage/
 *.tsbuildinfo
+# The Claude Code types a session lays beside a loaded mod (docs/development.md#plugin-mod-types)
+plugins/benchkeeper/.claude-plugin/types/
 # Schemathesis reports (packages/server/scripts/schemathesis.ts)
 .schemathesis/

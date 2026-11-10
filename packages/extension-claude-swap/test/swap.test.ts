@@ -170,6 +170,43 @@ test("a row without a number is left out, an alias that is no short plain name i
   ]);
 });
 
+test("the 5-hour and 7-day windows always show, as unknown without a share and with claude-swap's reset time if any; a model's window needs a share", async () => {
+  const partial = firstRow(({ usage, ...row }) => {
+    const { sevenDay: _sevenDay, ...rest } = Object(usage);
+    return { ...row, usage: { ...rest, fiveHour: { pct: null, resetsAt: "2026-11-07T12:50:00.157763+00:00" } } };
+  });
+  const lastGood = firstRow(({ usage: _usage, ...row }) => ({
+    ...row,
+    usageStatus: "token_expired",
+    usage: null,
+    lastGoodUsage: { sevenDay: { pct: 63, resetsAt: "2026-11-07T15:00:00.157784+00:00" } },
+  }));
+  expect([
+    (await accounts(cswap({ list: partial })))?.[0]?.windows,
+    (await accounts(cswap({ list: lastGood })))?.[0]?.windows,
+  ]).toEqual([
+    [
+      {
+        window: "fiveHour",
+        usedPercent: null,
+        resetsAt: "2026-11-07T12:50:00.157763+00:00",
+        readAt: "2026-11-07T11:14:00Z",
+      },
+      { window: "sevenDay", usedPercent: null, resetsAt: null, readAt: "2026-11-07T11:14:00Z" },
+      {
+        window: "sevenDay:fable",
+        usedPercent: 3,
+        resetsAt: "2026-11-07T15:00:00.157924+00:00",
+        readAt: "2026-11-07T11:14:00Z",
+      },
+    ],
+    [
+      { window: "fiveHour", usedPercent: null, resetsAt: null, readAt: null },
+      { window: "sevenDay", usedPercent: 63, resetsAt: "2026-11-07T15:00:00.157784+00:00", readAt: null },
+    ],
+  ]);
+});
+
 // claude-swap's answer to switch --json, in the shape its switcher builds (_switch_result_from_op, alike in 1.0.0).
 const SWITCHED = JSON.stringify({
   schemaVersion: 1,

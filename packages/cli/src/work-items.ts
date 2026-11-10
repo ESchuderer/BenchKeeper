@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { githubTracker } from "@cedarloom/adapter-github";
 import { type Intent, IssueRef, type OutboxEntry, type Result, shown } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
@@ -98,10 +99,10 @@ const send = async (ctx: Context): Promise<number> => {
 };
 
 // The labels of the profile's hub parts that the hub lacks: shown, or with --yes each queued as the owner approved it.
-const labels = async (ctx: Context, yes?: true): Promise<number> => {
+const labels = async (ctx: Context, yes?: true, project?: string): Promise<number> => {
   const tracker = await hubTracker(ctx);
   if (!tracker.ok) return refused(ctx, "outbox", tracker.finding);
-  const missing = await useCases.previewHubLabels(ctx.config, tracker.value);
+  const missing = await useCases.previewHubLabels(ctx.config, tracker.value, { app: ctx.app, project });
   if (!missing.ok) return refused(ctx, "intent", missing.finding);
   if (missing.value.length === 0 || yes !== true) {
     const lines = missing.value.map(({ intent }) => `Would queue: ${what(intent)}.`);
@@ -161,8 +162,11 @@ const writes = (group: Command, ctx: () => Context, done: Done): void => {
   group
     .command("labels")
     .description("queue creating the labels the profile's hub parts name that the hub lacks; with --yes, queue them")
+    .option("--project <folder>", "also the label of this project, named after its origin's GitHub repository")
     .option("--yes", "queue them as shown now")
-    .action(async ({ yes }) => done(await labels(ctx(), yes)));
+    .action(async ({ yes, project }) =>
+      done(await labels(ctx(), yes, project === undefined ? undefined : resolve(project))),
+    );
   group
     .command("undo")
     .description("queue what takes a sent entry back; with --yes, queue it")

@@ -13,6 +13,7 @@ import { readJson } from "@cedarloom/engine";
 import { repositoryOf } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
+import { mcpWrites } from "./mcp.ts";
 import { type LevelPlan, ownedFiles, type Wanted } from "./owned.ts";
 import {
   type FilesRecord,
@@ -21,6 +22,7 @@ import {
   ownerChanged,
   recordOf,
   recordWrite,
+  type ServersRecord,
   withRecord,
 } from "./record.ts";
 import { type Folder, packVersion, type Resolved, textFile } from "./resolve.ts";
@@ -138,6 +140,7 @@ type Given = {
   fetched: Fetched;
   templates: ReadonlyMap<string, Folder>;
   approved: ReadonlySet<string>;
+  recorded: ServersRecord;
 };
 
 // The parts that write whole files, and how each keeps them: committed or ignored by Git, an existing file left as is.
@@ -470,12 +473,16 @@ const unlinked = ({ project, claude }: Given, plan: LevelPlan): Result<LevelPlan
   return refuse({ code: "profile.target-linked", params: { part: "project", target, path: onDisk(linked) } });
 };
 
-// The settings writes, then the manual's.
-const settingsAndManual = (given: Given) => {
+// The settings writes, the manual's, then the MCP servers'.
+const configWrites = (given: Given) => {
   const settings = settingsWrites(given);
   if (!settings.ok) return settings;
   const manual = manualWrites({ resolved: given.resolved, fetched: given.fetched }, given.project);
-  return manual.ok ? { ok: true as const, value: { settings: settings.value, manual: manual.value } } : manual;
+  if (!manual.ok) return manual;
+  const mcp = mcpWrites(given);
+  return mcp.ok
+    ? { ok: true as const, value: { settings: settings.value, manual: manual.value, mcp: mcp.value } }
+    : mcp;
 };
 
 // The manual's blocks and the CLAUDE.md to make, and the Git exclude block with these machine-local files.
@@ -502,23 +509,25 @@ const unheld = (resolved: Resolved, held: ReadonlySet<string>): Resolved => {
   return { ...resolved, on: new Set([...on, ...held]) };
 };
 
-// The input with the parts held for approval (risky targets, plugins) holding back each part that needs them.
+// The input with the parts held for approval (risky targets, plugins, MCP servers) holding back each part that needs them.
 const heldOf = (given: Given, written: Written): Result<Given> => {
   const files = filesOf(given, written);
   if (!files.ok) return files;
   const settings = settingsWrites(given);
   if (!settings.ok) return settings;
-  const held = new Set([...files.value.held, ...settings.value.held]);
+  const mcp = mcpWrites(given);
+  if (!mcp.ok) return mcp;
+  const held = new Set([...files.value.held, ...settings.value.held, ...mcp.value.held]);
   return { ok: true, value: { ...given, resolved: unheld(given.resolved, held) } };
 };
 
-// The project's record of the files CedarLoom wrote: docs/agents/cedarloom-rationale.md#project-links
-const recordAt = (project: string): Result<{ path: string; record: FilesRecord }> => {
+// The project's record of the files and MCP server entries CedarLoom wrote: docs/agents/cedarloom-rationale.md#project-links
+const recordAt = (project: string): Result<{ path: string; record: FilesRecord; servers: ServersRecord }> => {
   const path = onDisk(join(project, ...FILES_RECORD.split("/")));
   if (outside(project, path))
     return refuse({ code: "profile.target-linked", params: { part: "project", target: FILES_RECORD, path } });
   const record = recordOf(project, path);
-  return record.ok ? { ok: true, value: { path, record: record.value } } : record;
+  return record.ok ? { ok: true, value: { path, record: record.value.files, servers: record.value.servers } } : record;
 };
 
 /** What CedarLoom last left at each path of a project: the run store's `written` with the project's committed record. */
@@ -530,9 +539,10 @@ export const projectWritten = (project: string, written: Written): Result<Writte
 /**
  * The project level for one folder: the manual's marked blocks; each files, gates and dev container part's targets (an
  * executable or configuration one only when `approved` names its part, so CI files never come with `--yes` alone); the
- * settings and the approved plugins merged into the project's settings files; the packs' skills; and the Git exclude
- * block for the machine-local files. `templates` holds what each dev container part's Template wrote, and `written`
- * what CedarLoom last left at each path of the project (the run store's `written`).
+ * settings and the approved plugins merged into the project's settings files; the approved MCP parts' servers in
+ * `.mcp.json` and the Codex config; the packs' skills; and the Git exclude block for the machine-local files.
+ * `templates` holds what each dev container part's Template wrote, and `written` what CedarLoom last left at each path
+ * of the project (the run store's `written`).
  */
 export const planProject = (
   resolved: Resolved,
@@ -546,21 +556,22 @@ export const planProject = (
     templates: new Map(),
     ...options,
   };
-  const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin", "gates", "devcontainer"]);
+  const unknown = unknownApprovals(resolved, approved, "project", ["files", "plugin", "gates", "devcontainer", "mcp"]);
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
   const at = recordAt(project);
   if (!at.ok) return at;
+  const recorded = at.value.servers;
   const held = heldOf(
-    { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved },
+    { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved, recorded },
     written,
   );
   if (!held.ok) return held;
   const given = held.value;
   const files = filesOf(given, written);
   if (!files.ok) return files;
-  const writes = settingsAndManual(given);
+  const writes = configWrites(given);
   if (!writes.ok) return writes;
-  const { settings, manual } = writes.value;
+  const { settings, manual, mcp } = writes.value;
   const owned = ownedOf(given, files.value, { written, record: at.value.record });
   if (!owned.ok) return owned;
   const local = { manual: manual.local, settings: settings.local };
@@ -568,11 +579,15 @@ export const planProject = (
   if (!blocks.ok) return blocks;
   const excluded = new Set(files.value.excluded);
   const committed = new Map([...owned.value.wanted].filter(([path]) => !excluded.has(path)));
-  const record = recordWrite({ project, path: at.value.path }, at.value.record, { committed, plan: owned.value });
-  const operations = [...blocks.value, ...settings.operations, ...owned.value.operations, ...record];
+  const record = recordWrite(
+    { project, path: at.value.path },
+    { files: at.value.record, servers: recorded },
+    { committed, plan: owned.value, servers: mcp.recorded },
+  );
+  const operations = [...blocks.value, ...settings.operations, ...mcp.operations, ...owned.value.operations, ...record];
   const unbound = resolved.unbound
     .filter((part) => part.startsWith("project."))
     .map((part): Finding => ({ code: "profile.binding-waiting", params: { part, binding: "gates" } }));
-  const findings = [...unbound, ...[files.value, manual, settings, owned.value].flatMap((each) => each.findings)];
+  const findings = [...unbound, ...[files.value, manual, settings, mcp, owned.value].flatMap((each) => each.findings)];
   return unlinked(given, { operations, findings });
 };

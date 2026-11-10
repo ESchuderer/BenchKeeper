@@ -135,7 +135,7 @@ test('an own pack this library cannot take is skipped with its reason; the other
   assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
 });
 
-test('a round trip keeps guards, agent files and the pack scopes, which the import reports as notes; an agent file this catalog does not know is dropped', async () => {
+test('a round trip keeps guards and the pack scopes, which the import reports as notes', async () => {
   const a = machine();
   savePack(a, { id: 'ui', skills: ['accessibility'] });
   mkdirSync(a.config, { recursive: true });
@@ -143,13 +143,11 @@ test('a round trip keeps guards, agent files and the pack scopes, which the impo
   const proj = tmp('bk-prof-proj-');
   const actx = { ...a, roots: [...a.roots, proj] };
   apply(preview(projectPlan({ ctx: actx, dir: proj, answers: { agents: ['claude'], env: 'host', tier: 'quick', guards: false } }).changes), actx, { scope: proj });
-  const file = 'engineering/engineering-frontend-developer.md';
-  writeFileSync(join(proj, STATE), JSON.stringify({ ...readState(proj), agentFiles: [file, 'newer/unknown.md'] }));
   addProject(a, proj);
   const p = readProfile(exportProfile(a, { agents: ['claude'], packs: [] }));
   assert.deepEqual(p.global.scopes, { ui: 'global', 'matt-pocock': 'projects' });
   assert.deepEqual(p.global.packs, ['ui']);
-  assert.ok(p.projects[0].answers.guards === false && p.projects[0].answers.agentFiles.length === 2);
+  assert.ok(p.projects[0].answers.guards === false);
 
   rmSync(join(proj, '.benchkeeper'), { recursive: true });
   const b = machine();
@@ -160,7 +158,6 @@ test('a round trip keeps guards, agent files and the pack scopes, which the impo
   assert.equal(await main(['profile', 'import', at, '--yes'], { out: w, ctx: b, input: Readable.from(['']) }), 0, out);
   assert.ok(!existsSync(scopeFile(b)));
   assert.deepEqual(readState(proj).guards, false);
-  assert.deepEqual(readState(proj).agentFiles, [file]);
   const notes = importPlan(b, p).notes;
   assert.deepEqual(notes, [
     'pack ui: selected projects here, all projects in the profile; to change it: benchkeeper packs scope ui global',

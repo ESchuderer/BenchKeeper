@@ -30,7 +30,7 @@ export {
 } from "./api.ts";
 export { type Result, readDocument } from "./documents.ts";
 export { AgentSession, SessionFigures, SessionsBoard } from "./sessions.ts";
-export { canonicalJson, type Json } from "./json.ts";
+export { canonicalJson, type Json, sortKeys } from "./json.ts";
 export { Finding, type FindingCode, findingInfo, severityOf } from "./findings.ts";
 export {
   DeleteFile,
@@ -78,6 +78,7 @@ export {
 export {
   FILES_RECORD,
   FILES_SCHEMA_VERSION,
+  LABEL_MAX,
   PackRef,
   PartProbe,
   Profile,
@@ -86,6 +87,7 @@ export {
   ProfileFiles,
   ProfileFile,
   ProfileSelection,
+  QualifiedPartId,
   readProfile,
   SELECTION_SCHEMA_VERSION,
   sealedTarget,
@@ -109,6 +111,7 @@ export {
   JsonValue,
   MAX_WORKFLOW_EDGES,
   MAX_WORKFLOW_NODES,
+  semver,
   semverAbove,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,

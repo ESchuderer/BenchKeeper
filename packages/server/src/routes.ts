@@ -8,6 +8,7 @@ import {
   ImportPreview,
   type Plan,
   ProfileView,
+  QualifiedPartId,
   Refusal,
   type Result,
   Run,
@@ -186,7 +187,10 @@ export const profileRoutes: FastifyPluginAsyncZod<{
     "/api/profile/parts/:part",
     {
       schema: {
-        params: z.strictObject({ part: z.string().describe("The part as level.id, such as machine.rules.global") }),
+        // The pattern is ASCII only, so its 139 characters are 139 UTF-16 units, the length the router (maxParamLength) measures.
+        params: z.strictObject({
+          part: QualifiedPartId.describe("The part as level.id, such as machine.rules.global"),
+        }),
         body: z.strictObject({ on: z.boolean() }),
         // 409 with a run result: refused (the selection file changed meanwhile) or stopped midway.
         response: answers({ 200: RunResult, 409: z.union([RunResult, Refusal]) }),
@@ -351,7 +355,8 @@ export const accountRoutes: FastifyPluginAsyncZod<SwapPaths> = async (server, pa
   await server.register(swapRoutes, paths);
 };
 
-// Reads the session logs (a first read of a large history takes seconds), never writes but the cache.
+// Reads the session logs (a first read of many logs takes a few seconds); writes only the cache and the sessions
+// history with its `.bad` copy, which a DELETE removes.
 export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
   const query = z.strictObject({
     days: z.coerce.number().int().min(1).max(3650).optional().describe("The period's length in days; absent: all time"),
@@ -370,6 +375,14 @@ export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async
       const { days, project, tz } = req.query;
       // An unknown zone counts in UTC, and the answer names the zone it counted in.
       return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone: tz });
+    },
+  );
+  app.delete(
+    "/api/sessions/history",
+    { schema: { response: answers({ 204: z.null().describe("Deleted, or there was none") }) } },
+    async (_req, reply) => {
+      useCases.deleteHistory(logs);
+      return reply.code(204).send(null);
     },
   );
 };

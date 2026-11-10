@@ -57,6 +57,7 @@
       "name": "frontend-design",
       "section": "anthropic",
       "source": "anthropics/skills",
+      "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "New UI or a visual redesign"
     },
@@ -64,8 +65,17 @@
       "name": "mcp-builder",
       "section": "anthropic",
       "source": "anthropics/skills",
+      "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository builds an MCP server"
+    },
+    {
+      "name": "webapp-testing",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "The agent checks a running web app in a browser and the machine has Python (the skill drives headless Chromium from Python scripts; it needs pip and a browser download)"
     },
     {
       "name": "experimental-design",
@@ -465,19 +475,6 @@
           "marketplace": "mattpocock/skills"
         }
       },
-      "prompts": [
-        {
-          "claude": "/mattpocock-skills:setup-matt-pocock-skills",
-          "codex": "$mattpocock-skills:setup-matt-pocock-skills",
-          "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block",
-          "writes": "docs/agents",
-          "sections": [
-            "### Issue tracker",
-            "### Triage labels",
-            "### Domain docs"
-          ]
-        }
-      ],
       "pointer": "Matt Pocock's skills (`mattpocock-skills:<name>`) are installed: grilling, spec and tickets, `tdd` (the red-green loop once a test is called for), code review against the issue, pull request text.",
       "pluginSkills": {
         "version": "1.3.1",
@@ -688,56 +685,6 @@
         "compliance-check",
         "gdpr-compliant"
       ]
-    }
-  ],
-  "sources": [
-    {
-      "id": "agency-agents",
-      "title": "agency-agents",
-      "repo": "msitarzewski/agency-agents",
-      "license": "MIT",
-      "pin": "b37b5bb33b78 (no release)",
-      "evaluation": "https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md",
-      "verdict": "No outcome measurement. Offered as a pick of agent files, never the whole roster.",
-      "hooks": "None (agent files only).",
-      "install": {
-        "kind": "agents",
-        "source": "msitarzewski/agency-agents",
-        "ref": "b37b5bb33b78f2c1d6567d98e25ca818e3259219",
-        "agents": [
-          "claude",
-          "codex",
-          "copilot"
-        ],
-        "dest": "subagents",
-        "files": [
-          {
-            "path": "engineering/engineering-frontend-developer.md",
-            "pickWhen": "A web UI is built or changed"
-          },
-          {
-            "path": "engineering/engineering-backend-architect.md",
-            "pickWhen": "A service, API or data model is designed"
-          },
-          {
-            "path": "engineering/engineering-technical-writer.md",
-            "pickWhen": "The repository has user-facing docs"
-          },
-          {
-            "path": "security/security-architect.md",
-            "pickWhen": "A change needs a threat model or security design review"
-          },
-          {
-            "path": "testing/testing-accessibility-auditor.md",
-            "pickWhen": "A UI needs an accessibility check"
-          },
-          {
-            "path": "testing/testing-reality-checker.md",
-            "pickWhen": "A claim of done needs an independent check"
-          }
-        ]
-      },
-      "limits": "Claude Code, Codex (converted to TOML) and GitHub Copilot CLI: Gemini CLI agent files need the project's converter, which this setup does not run."
     }
   ]
 }

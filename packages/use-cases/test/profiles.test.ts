@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { delimiter, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import type { Finding, Plan } from "@cedarloom/contracts";
 import { createHash } from "node:crypto";
 import {
@@ -56,6 +57,8 @@ const machine = () => {
   applied(state, ok(planChoice(config, { hub: "acme/hub" })));
   // The gates, off here so a plan carries no line about their source, are switched back by the tests of them.
   applied(state, ok(planChoice(config, { part: "project.gates", on: false })));
+  // find-skills, off by default, is the machine's one Git source, which the tests of fetched sources need.
+  applied(state, ok(planChoice(config, { part: "machine.skill.find-skills", on: true })));
   return {
     config,
     state,
@@ -129,7 +132,7 @@ test("the selection names only the profile's parts, and a part goes back to its 
   applied(state, ok(planChoice(config, { part: "workspace.memory", on: null })));
   const selection = JSON.parse(readFileSync(join(config, "profile.json"), "utf8"));
   expect([selection.select, planChoice(config, { part: "machine.rules.gone", on: true })]).toEqual([
-    { "project.gates": false },
+    { "project.gates": false, "machine.skill.find-skills": true },
     {
       ok: false,
       finding: { code: "profile.part-unknown", params: { part: "machine.rules.gone", by: "The selection" } },
@@ -509,6 +512,344 @@ test("a project's plugin waits for its approval with the rules that require it, 
     "# cedarloom start /\n/CLAUDE.local.md\n/.claude/settings.local.json\n# cedarloom end /\n",
     { plan: null, findings: [] },
   ]);
+});
+
+const mcpPart = (server: string, source: object) => ({ type: "mcp", title: server, default: "on", server, source });
+const docsServer = mcpPart("docs", { url: "https://mcp.example.com/mcp", bearer: "DOCS_TOKEN" });
+const fetchServer = mcpPart("fetch", { pypi: "mcp-server-fetch", version: "2025.4.7" });
+const MINE = { mine: { type: "stdio", command: "mine" } };
+// The owner's files in formats of their own: tabs without a final line break, and CRLF lines.
+const OWNERS = {
+  ".mcp.json": JSON.stringify({ mcpServers: MINE }, null, "\t"),
+  ".codex/config.toml": 'model = "o3" # mine\r\n',
+};
+const DOCS_JSON = {
+  type: "http",
+  url: "https://mcp.example.com/mcp",
+  headers: { Authorization: "Bearer ${DOCS_TOKEN}" },
+};
+const DOCS_TOML = '[mcp_servers.docs]\nurl = "https://mcp.example.com/mcp"\nbearer_token_env_var = "DOCS_TOKEN"';
+const FETCH_NEXT = mcpPart("fetch", { pypi: "mcp-server-fetch", version: "2025.5.0" });
+const FETCH_NEXT_JSON = '"fetch": {"type":"stdio","command":"uvx","args":["mcp-server-fetch@2025.5.0"]}';
+const FETCH_NEXT_TOML = '[mcp_servers.fetch]\ncommand = "uvx"\nargs = ["mcp-server-fetch@2025.5.0"]';
+const sha = (text: string | Buffer): string => createHash("sha256").update(text).digest("hex");
+// The record's entries of the docs and the newer fetch servers: the hashes of their values' canonical JSON.
+const DOCS_RECORD = {
+  ".mcp.json": {
+    docs: {
+      sha256: sha(
+        '{"headers":{"Authorization":"Bearer ${DOCS_TOKEN}"},"type":"http","url":"https://mcp.example.com/mcp"}',
+      ),
+    },
+  },
+  ".codex/config.toml": {
+    docs: { sha256: sha('{"bearer_token_env_var":"DOCS_TOKEN","url":"https://mcp.example.com/mcp"}') },
+  },
+};
+const FETCH_NEXT_RECORD = {
+  ".mcp.json": { fetch: { sha256: sha('{"args":["mcp-server-fetch@2025.5.0"],"command":"uvx","type":"stdio"}') } },
+  ".codex/config.toml": { fetch: { sha256: sha('{"args":["mcp-server-fetch@2025.5.0"],"command":"uvx"}') } },
+};
+const fetchConflict = (file: string) => ({
+  code: "profile.mcp-conflict",
+  params: { part: "project.fetch", server: "fetch", file },
+});
+// The MCP server entries the project's record names.
+const recordedServers = (project: string) =>
+  JSON.parse(readFileSync(join(project, ".cedarloom", "profile-files.json"), "utf8")).servers;
+// The line of an MCP entry the plan adds, puts in place of CedarLoom's, or takes out, for the part named as its server.
+const entryLine = (server: string, change: string, file: string, entry: string) => ({
+  code: "profile.mcp-entry",
+  params: { part: `project.${server}`, server, change, file, entry },
+});
+
+test("an MCP server waits for its approval by name with the parts that require it, then joins the owner's servers in their files' formats", async () => {
+  const line = { inline: "- Ask the docs server.\n" };
+  const box = custom({
+    docs: docsServer,
+    "docs-line": { type: "local-manual", title: "Docs line", default: "on", requires: ["project.docs"], rules: [line] },
+  });
+  const project = projectWith(OWNERS);
+  const waiting = await projectPlan(box, project);
+  const approved = (await projectPlan(box, project, ["project.docs"])).plan;
+  applied(box.state, approved);
+  const local = join(project, "CLAUDE.local.md");
+  expect([
+    waiting.findings,
+    contentOf(waiting.plan, join(project, ".mcp.json")),
+    [waiting.plan, approved].map((plan) => contentOf(plan, local)?.includes("Ask the docs server")),
+    readFileSync(join(project, ".mcp.json"), "utf8"),
+    readFileSync(join(project, ".codex", "config.toml"), "utf8"),
+    recordedServers(project),
+    await projectPlan(box, project),
+  ]).toEqual([
+    [
+      {
+        code: "profile.mcp-approval",
+        params: {
+          part: "project.docs",
+          title: "docs",
+          project,
+          server: "docs",
+          transport: "http",
+          runs: "https://mcp.example.com/mcp",
+          variables: ["DOCS_TOKEN"],
+          entries: [
+            { file: ".mcp.json", change: "add", entry: `"docs": ${JSON.stringify(DOCS_JSON)}` },
+            { file: ".codex/config.toml", change: "add", entry: DOCS_TOML },
+          ],
+          codex: true,
+          unpinned: false,
+          installed: null,
+        },
+      },
+    ],
+    null,
+    [false, true],
+    JSON.stringify({ mcpServers: { ...MINE, docs: DOCS_JSON } }, null, "\t"),
+    'model = "o3" # mine\r\n\r\n[mcp_servers.docs]\r\nurl = "https://mcp.example.com/mcp"\r\nbearer_token_env_var = "DOCS_TOKEN"\r\n',
+    DOCS_RECORD,
+    { plan: null, findings: [] },
+  ]);
+});
+
+test("each kind of MCP source runs its exact package, a devDependency only from the project's own install at an exact version", async () => {
+  const box = custom({
+    context7: mcpPart("context7", { npm: "@upstash/context7-mcp", version: "1.0.31", env: ["CONTEXT7_API_KEY"] }),
+    mantine: mcpPart("mantine", { devDependency: "@mantine/mcp-server" }),
+    fetch: fetchServer,
+  });
+  const allow = ["project.context7", "project.mantine", "project.fetch"];
+  const project = projectWith({
+    "package.json": JSON.stringify({ devDependencies: { "@mantine/mcp-server": "1.2.0" } }),
+  });
+  mkdirSync(join(project, ".codex"));
+  const bare = projectWith({ "package.json": "{}" });
+  const ranged = projectWith({
+    "package.json": JSON.stringify({ devDependencies: { "@mantine/mcp-server": "^1.2.0" } }),
+  });
+  const [listed, unlisted] = [(await projectPlan(box, project, allow)).plan, await projectPlan(box, bare, allow)];
+  const servers = (plan: Plan | null, at: string) =>
+    JSON.parse(contentOf(plan, join(at, ".mcp.json")) ?? "{}").mcpServers;
+  expect([
+    servers(listed, project),
+    contentOf(listed, join(project, ".codex", "config.toml")),
+    Object.keys(servers(unlisted.plan, bare)),
+    unlisted.findings.filter(({ code }) => code === "profile.mcp-dependency"),
+    (await projectPlan(box, ranged, allow)).findings.filter(({ code }) => code === "profile.mcp-dependency"),
+  ]).toEqual([
+    {
+      context7: {
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@upstash/context7-mcp@1.0.31"],
+        env: { CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}" },
+      },
+      mantine: { type: "stdio", command: "node", args: ["-e", expect.stringContaining('n="@mantine/mcp-server"')] },
+      fetch: { type: "stdio", command: "uvx", args: ["mcp-server-fetch@2025.4.7"] },
+    },
+    expect.stringMatching(
+      /^\[mcp_servers\.context7\]\ncommand = "npx"\nargs = \["-y", "@upstash\/context7-mcp@1\.0\.31"\]\nenv_vars = \["CONTEXT7_API_KEY"\]\n\n\[mcp_servers\.mantine\]\ncommand = "node"\nargs = \["-e", "[^\n]*n=\\"@mantine\/mcp-server\\",[^\n]*"\]\n\n\[mcp_servers\.fetch\]\ncommand = "uvx"\nargs = \["mcp-server-fetch@2025\.4\.7"\]\n$/,
+    ),
+    ["context7", "fetch"],
+    [{ code: "profile.mcp-dependency", params: { part: "project.mantine", package: "@mantine/mcp-server" } }],
+    [{ code: "profile.mcp-dependency", params: { part: "project.mantine", package: "@mantine/mcp-server" } }],
+  ]);
+});
+
+test("a devDependency server started in a workspace member folder runs the install of the project that lists it, never one past a repository's root", async () => {
+  const box = custom({ srv: mcpPart("srv", { devDependency: "@acme/srv" }) });
+  const project = projectWith({
+    "package.json": JSON.stringify({ devDependencies: { "@acme/srv": "1.2.3" } }),
+    // Its exports hold no package.json, as @mantine/mcp-server's do not; the bin named like the package wins, and it
+    // starts only as the main module, as npx runs it.
+    "node_modules/@acme/srv/package.json": JSON.stringify({
+      exports: { ".": "./index.js" },
+      bin: { other: "bin/other.cjs", srv: "bin/srv.cjs" },
+    }),
+    "node_modules/@acme/srv/bin/srv.cjs":
+      '#!/usr/bin/env node\nif (require.main === module) process.stdout.write("srv started\\n");\n',
+    // A member that lists it too, with the install hoisted to the root, as npm workspaces do.
+    "packages/ui/package.json": JSON.stringify({ name: "ui", devDependencies: { "@acme/srv": "1.2.3" } }),
+    // A repository of its own inside the project, whose sessions must not reach the outer install.
+    "vendor/lib/.git/HEAD": "ref: refs/heads/main\n",
+    "vendor/lib/src/.keep": "",
+  });
+  applied(box.state, (await projectPlan(box, project, ["project.srv"])).plan);
+  const { command, args } = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf8")).mcpServers.srv;
+  const from = (...folder: string[]) => {
+    const run = spawnSync(command, args, { cwd: join(project, ...folder), encoding: "utf8" });
+    return [run.status, run.stdout];
+  };
+  expect([from("packages", "ui"), from("vendor", "lib", "src")]).toEqual([
+    [0, "srv started\n"],
+    [1, ""],
+  ]);
+});
+
+test("a devDependency MCP part in a project outside Git adds nothing, as its install's walk up would have no end", async () => {
+  const box = custom({ srv: mcpPart("srv", { devDependency: "@acme/srv" }) });
+  const project = mkdtempSync(join(root, "plain-"));
+  writeFileSync(join(project, "package.json"), JSON.stringify({ devDependencies: { "@acme/srv": "1.2.3" } }));
+  const { plan, findings } = await projectPlan(box, project, ["project.srv"]);
+  expect([findings, contentOf(plan, join(project, ".mcp.json"))]).toEqual([
+    [{ code: "profile.mcp-outside-git", params: { part: "project.srv", package: "@acme/srv" } }],
+    null,
+  ]);
+});
+
+test("an MCP server whose name the owner's file holds with another entry is written to no file", async () => {
+  const box = custom({ docs: docsServer });
+  const theirs = { mcpServers: { docs: { type: "http", url: "https://docs.example.org/mcp" } } };
+  const project = projectWith({ ...OWNERS, ".mcp.json": JSON.stringify(theirs) });
+  const { plan, findings } = await projectPlan(box, project, ["project.docs"]);
+  const files = [join(project, ".mcp.json"), join(project, ".codex", "config.toml")];
+  expect([findings, files.map((path) => contentOf(plan, path))]).toEqual([
+    [{ code: "profile.mcp-conflict", params: { part: "project.docs", server: "docs", file: ".mcp.json" } }],
+    [null, null],
+  ]);
+});
+
+test("a profile's new pin replaces the MCP entries CedarLoom wrote, reformatted or not, once approved by name", async () => {
+  const rules = [{ inline: "- Fetch pages.\n" }];
+  const line = { type: "local-manual", title: "Fetch line", default: "on", requires: ["project.fetch"], rules };
+  const box = custom({ fetch: fetchServer, "fetch-line": line });
+  const project = projectWith(OWNERS);
+  applied(box.state, (await projectPlan(box, project, ["project.fetch"])).plan);
+  // An editor's indent and a Windows checkout's CRLF; the Codex file has CRLF lines from the start.
+  const json = join(project, ".mcp.json");
+  writeFileSync(json, JSON.stringify(JSON.parse(readFileSync(json, "utf8")), null, 4).replaceAll("\n", "\r\n"));
+  profileFile(box.file, { fetch: FETCH_NEXT, "fetch-line": line });
+  const waiting = await projectPlan(box, project);
+  const approved = await projectPlan(box, project, ["project.fetch"]);
+  applied(box.state, approved.plan);
+  expect([
+    waiting.findings,
+    waiting.plan,
+    approved.findings,
+    JSON.parse(readFileSync(json, "utf8")).mcpServers,
+    readFileSync(join(project, ".codex", "config.toml"), "utf8"),
+    recordedServers(project),
+  ]).toEqual([
+    [
+      {
+        code: "profile.mcp-approval",
+        params: expect.objectContaining({
+          entries: [
+            { file: ".mcp.json", change: "replace", entry: FETCH_NEXT_JSON },
+            { file: ".codex/config.toml", change: "replace", entry: FETCH_NEXT_TOML },
+          ],
+        }),
+      },
+    ],
+    null,
+    [
+      entryLine("fetch", "replace", ".mcp.json", FETCH_NEXT_JSON),
+      entryLine("fetch", "replace", ".codex/config.toml", FETCH_NEXT_TOML),
+    ],
+    { ...MINE, fetch: { type: "stdio", command: "uvx", args: ["mcp-server-fetch@2025.5.0"] } },
+    'model = "o3" # mine\r\n\r\n[mcp_servers.fetch]\r\ncommand = "uvx"\r\nargs = ["mcp-server-fetch@2025.5.0"]\r\n',
+    FETCH_NEXT_RECORD,
+  ]);
+});
+
+test("an MCP entry the owner changed after CedarLoom wrote it, by a value or a comment at a line's end, stays a conflict when the pin moves", async () => {
+  const box = custom({ fetch: fetchServer });
+  const project = projectWith(OWNERS);
+  applied(box.state, (await projectPlan(box, project, ["project.fetch"])).plan);
+  const json = join(project, ".mcp.json");
+  const { mcpServers } = JSON.parse(readFileSync(json, "utf8"));
+  const changed = { ...mcpServers.fetch, env: { PROXY: "on" } };
+  writeFileSync(json, JSON.stringify({ mcpServers: { ...mcpServers, fetch: changed } }));
+  const toml = join(project, ".codex", "config.toml");
+  const pinned = 'args = ["mcp-server-fetch@2025.4.7"]';
+  writeFileSync(toml, readFileSync(toml, "utf8").replace(pinned, `${pinned} # keep until upstream fixes it`));
+  profileFile(box.file, { fetch: FETCH_NEXT });
+  const { plan, findings } = await projectPlan(box, project, ["project.fetch"]);
+  expect([findings, [json, toml].map((path) => contentOf(plan, path))]).toEqual([
+    [fetchConflict(".mcp.json"), fetchConflict(".codex/config.toml")],
+    [null, null],
+  ]);
+});
+
+test("MCP parts switched off take out the entries CedarLoom wrote, say once that one the owner changed stays, and leave the owner's own", async () => {
+  const ctx = { type: "http", url: "https://ctx.example.com/mcp" };
+  const lib = { type: "http", url: "https://lib.example.com/mcp" };
+  const box = custom({
+    docs: docsServer,
+    fetch: fetchServer,
+    ctx: mcpPart("ctx", { url: ctx.url }),
+    lib: { ...mcpPart("lib", { url: lib.url }), default: "off" },
+  });
+  // The owner's own entry, as the ctx part writes it, which no plan wrote.
+  const project = projectWith({ ...OWNERS, ".mcp.json": JSON.stringify({ mcpServers: { ...MINE, ctx } }) });
+  applied(box.state, ok(planChoice(box.config, { part: "project.ctx", on: false })));
+  applied(box.state, ok(planChoice(box.config, { part: "project.lib", on: true })));
+  applied(box.state, (await projectPlan(box, project, ["project.docs", "project.fetch", "project.lib"])).plan);
+  // Back to its default, off: no explicit off, so the entries CedarLoom wrote for it stay for the other clones.
+  applied(box.state, ok(planChoice(box.config, { part: "project.lib", on: null })));
+  const changed = { ...DOCS_JSON, url: "https://docs.example.org/mcp" };
+  const json = join(project, ".mcp.json");
+  const { mcpServers } = JSON.parse(readFileSync(json, "utf8"));
+  writeFileSync(json, JSON.stringify({ mcpServers: { ...mcpServers, docs: changed } }));
+  for (const part of ["project.docs", "project.fetch"])
+    applied(box.state, ok(planChoice(box.config, { part, on: false })));
+  const { plan, findings } = await projectPlan(box, project);
+  applied(box.state, plan);
+  const fetchJson = '"fetch": {"type":"stdio","command":"uvx","args":["mcp-server-fetch@2025.4.7"]}';
+  const fetchToml = '[mcp_servers.fetch]\ncommand = "uvx"\nargs = ["mcp-server-fetch@2025.4.7"]';
+  expect([
+    findings,
+    JSON.parse(readFileSync(json, "utf8")),
+    readFileSync(join(project, ".codex", "config.toml"), "utf8"),
+    recordedServers(project),
+    await projectPlan(box, project),
+  ]).toEqual([
+    [
+      { code: "profile.mcp-kept", params: { part: "project.docs", server: "docs", file: ".mcp.json" } },
+      entryLine("docs", "remove", ".codex/config.toml", DOCS_TOML),
+      entryLine("fetch", "remove", ".mcp.json", fetchJson),
+      entryLine("fetch", "remove", ".codex/config.toml", fetchToml),
+    ],
+    { mcpServers: { ...MINE, ctx, docs: changed, lib } },
+    'model = "o3" # mine\r\n\r\n[mcp_servers.lib]\r\nurl = "https://lib.example.com/mcp"\r\n',
+    {
+      ".mcp.json": { lib: { sha256: sha('{"type":"http","url":"https://lib.example.com/mcp"}') } },
+      ".codex/config.toml": { lib: { sha256: sha('{"url":"https://lib.example.com/mcp"}') } },
+    },
+    { plan: null, findings: [] },
+  ]);
+});
+
+test("a .mcp.json the plan cannot read stops no plan while every MCP part is off", async () => {
+  const box = custom({
+    docs: docsServer,
+    rest: { type: "local-manual", title: "Rest", default: "on", rules: [{ inline: "- Plan the rest.\n" }] },
+  });
+  applied(box.state, ok(planChoice(box.config, { part: "project.docs", on: false })));
+  const project = projectWith({ ".mcp.json": "{ nope" });
+  const { plan } = await projectPlan(box, project);
+  expect(contentOf(plan, join(project, "CLAUDE.local.md"))?.includes("- Plan the rest.")).toBe(true);
+});
+
+test("a project folder that is the user's home is refused, as its Claude Code and Codex files would be the user's", async () => {
+  const box = machine();
+  const project = projectWith();
+  const machineAt = { home: box.home, user: project };
+  expect(await planProfile(box.config, box.state, machineAt, { fetch: stock, project })).toEqual({
+    ok: false,
+    finding: { code: "profile.project-is-home", params: { project } },
+  });
+});
+
+test("a .codex folder a link leads outside the project stops the plan, as Codex's config would land there", async () => {
+  const project = projectWith();
+  const path = join(linkedAt(project, ".codex"), "config.toml");
+  const params = { part: "project", target: ".codex/config.toml", path };
+  expect(await planned(custom({ docs: docsServer }), project)).toEqual({
+    ok: false,
+    finding: { code: "profile.target-linked", params },
+  });
 });
 
 const treeFile = (path: string, content: string) => ({
@@ -921,8 +1262,6 @@ test("a project's check tells CedarLoom's older text there from a deleted file b
     ["outdated", domain],
   ]);
 });
-
-const sha = (text: string | Buffer): string => createHash("sha256").update(text).digest("hex");
 
 test("a project's record names each committed file CedarLoom wrote, and stays as it is when the owner changes one", async () => {
   const box = machine();

@@ -1,10 +1,10 @@
-// Installable units: one description of a skill, pack, plugin, rules or agent files that plan, apply, the ledger and undo
+// Installable units: one description of a skill, pack, plugin or rules that plan, apply, the ledger and undo
 // read. A plan tags each change of a unit with it (change.installUnit), apply records its id on the ledger entry and the
 // units of the run on the run, and undo can take one unit back.
 import { sep } from 'node:path';
 
-const UNIT_KINDS = ['skill', 'pack', 'plugin', 'rules', 'agent-files'];
-// library: shipped with the app; user: the user's own skill (packs.mjs); git: a repository (at a ref when the unit names one, else its default branch);
+const UNIT_KINDS = ['skill', 'pack', 'plugin', 'rules'];
+// library: shipped with the app; user: the user's own skill (packs.mjs); git: a repository (its default branch);
 // marketplace: a plugin marketplace entry.
 const UNIT_SOURCES = ['library', 'user', 'git', 'marketplace'];
 // files: removed with their backups (undo); skills-cli: the skills CLI's remove; plugin: the agent's plugin uninstall;
@@ -28,7 +28,7 @@ const overlaps = (a, b) => a === b || a.startsWith(b + sep) || b.startsWith(a + 
 
 // The source gate. Code fetched through npm (the skills CLI that adds or removes a git source's skill, a host tool) runs only
 // after npm's signature check (verify) and with npm's before date 7 days back (npm_config_before), as each step sets them.
-// A git source follows its default branch, or the ref the unit pins, with no age limit; a marketplace entry is added and updated
+// A git source follows its default branch with no age limit; a marketplace entry is added and updated
 // by the agent itself; the shipped library comes with the app's own package.
 const fetchesNpm = (argv) => Array.isArray(argv) && (argv[0] === 'npx' || (argv[0] === 'npm' && ['i', 'install'].includes(argv[1])));
 export function gate(c) {

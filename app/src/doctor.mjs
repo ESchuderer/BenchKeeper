@@ -6,7 +6,7 @@ import { automationChecks } from './automations.mjs';
 import { allowChecks } from './allow.mjs';
 import { baselineIssues } from './baseline.mjs';
 import { containerChecks, containerEngine } from './containers.mjs';
-import { appVersion, contentDir, contentRefusal, contentVersion, library } from './content.mjs';
+import { appVersion, contentDir, contentRefusal, contentVersion } from './content.mjs';
 import { guardChecks } from './guards.mjs';
 import { machineChecks } from './machine.mjs';
 import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from './instructions.mjs';
@@ -23,7 +23,7 @@ import { settingsChecks } from './settings.mjs';
 import { skillFiles, unfinishedSkills } from './skills.mjs';
 import { declineId, globalPlan, installedRefusal } from './steps/global.mjs';
 import { dismissedNotes } from './preferences.mjs';
-import { promptAgent, quote, readState, recordCommand, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { quote, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 
 const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
@@ -86,20 +86,6 @@ export function splitDismissed(ctx, list) {
 
 const description = (text) => skillDescription(text).text;
 
-// A pack whose own setup skill writes files and AGENTS.md sections: BenchKeeper does not run it, so what is still missing is named.
-// The files are checked, not a recorded flag: Doctor is quiet once they exist, however they were written.
-function packSetupChecks(dir, state, lib = library()) {
-  const text = ['AGENTS.md', 'CLAUDE.md'].map((f) => readText(join(dir, f)) ?? '').join('\n');
-  const agent = promptAgent(state?.agents ?? []);
-  return (state?.packs ?? []).flatMap((id) => (lib.packs.find((p) => p.id === id)?.prompts ?? []).flatMap((x) => {
-    const prompt = agent === 'codex' ? x.codex : x.claude;
-    const fix = `run ${prompt} once in this project: it ${x.why}`;
-    // The Doctor view shows the line to paste in a terminal next to the fix.
-    if (x.writes && !exists(join(dir, x.writes))) return [{ ...issue('warning', 'packs', `pack ${id} is on, but ${x.writes}/ does not exist`, fix), ...(agent ? { start: { agent, dir, prompt, command: recordCommand(dir, agent, prompt) } } : {}) }];
-    return x.sections?.some((h) => !text.split('\n').some((l) => l.trim() === h)) ? [issue('info', 'packs', `pack ${id} is on, but ${x.sections.join(', ')} are not all in AGENTS.md`, fix)] : [];
-  }));
-}
-
 // The user's skills a library skill of the same name hides (#945).
 export const ownSkillClashes = (ctx) => hiddenUserSkills(ctx).map((n) => issue('warning', 'skills', `your skill ${n} is hidden by the library skill of that name`, clashFix(ctx, n)));
 
@@ -122,7 +108,7 @@ export function projectChecks(ctx, dir, agents) {
   if (state && !upToDate(state)) out.push(issue('warning', 'project', `project setup: app ${state.appVersion}, content ${state.contentVersion}; this app ${appVersion}, content ${contentVersion}`, 'benchkeeper projects update, or benchkeeper projects apply in the project'));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   for (const u of unfinishedSkills(ctx, dir, state)) out.push(issue('warning', 'skills', `skill ${u.name} from ${u.source}: its install did not finish (${u.folders.join(', ')})`, `benchkeeper projects apply --project ${quote(dir)}: it installs the unfinished folders again`));
-  out.push(...packSetupChecks(dir, state), ...guardChecks(dir, state));
+  out.push(...guardChecks(dir, state));
   out.push(...settingsChecks(ctx, { agents, dir }), ...allowChecks(ctx, { agents, dir }), ...instructionChecks(ctx, { dir }));
   // The global files are reported once, by the global checks; imports that point nowhere by instructionChecks.
   out.push(...rulesChecks(ctx, { agents, dir }).filter((f) => f.scope !== 'global' && f.kind !== 'import'));

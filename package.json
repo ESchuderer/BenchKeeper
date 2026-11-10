@@ -16,14 +16,14 @@
     "test": "pnpm -r run test && node --test scripts/*.test.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
-    "@mantine/mcp-server": "9.7.4",
+    "@biomejs/biome": "2.6.6",
+    "@mantine/mcp-server": "9.7.5",
     "@types/node": "26.6.6",
     "@vitest/coverage-v8": "5.0.5",
     "jscpd": "5.4.2",
-    "knip": "6.44.1",
-    "oxlint": "1.90.0",
-    "oxlint-tsgolint": "7.0.2005",
+    "knip": "6.44.2",
+    "oxlint": "1.92.0",
+    "oxlint-tsgolint": "7.0.2006",
     "typescript": "7.0.2",
     "vitest": "5.0.5",
     "zod": "catalog:"

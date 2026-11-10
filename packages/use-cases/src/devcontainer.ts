@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import type { Finding } from "@cedarloom/contracts";
 import { cleanEnv, missing, NETWORK_SETTINGS, programPath } from "@cedarloom/orchestration";
-import { type Folder, hasContainer, type Resolved } from "@cedarloom/profiles";
+import { type Folder, filesIn, hasContainer, type Resolved } from "@cedarloom/profiles";
 
 /** A dev container part's Template with its options and Features. */
 type TemplateRequest = {
@@ -31,15 +31,6 @@ export const devcontainerCli: ApplyTemplate = (folder, { template, args, feature
       done(error === null ? null : stderr.trim().split("\n").at(-1) || error.message),
     );
   });
-
-// The files below a folder by their paths in it; a link is no file, so nothing outside it is read.
-const filesIn = (folder: string): Folder["files"] =>
-  readdirSync(folder, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => {
-      const path = join(entry.parentPath, entry.name);
-      return { path: relative(folder, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
-    });
 
 // Applies each approved part's Template in scratch unless the project has a dev container; a failure writes nothing.
 export const templatesOf = async (

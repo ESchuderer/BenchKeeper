@@ -935,6 +935,19 @@ test("a machine's plan keeps the record of a project's skill sources, even of a 
   expect([entry(), before?.commit]).toEqual([before, "1".repeat(40)]);
 });
 
+const skillMd = (project: string, name: string) => join(project, ".claude", "skills", name, "SKILL.md");
+test("a workspace package on @mantine/core brings both Mantine skills from this release's pack", async () => {
+  const box = machine();
+  const web = JSON.stringify({ dependencies: { "@mantine/core": "9.0.0" } });
+  const [mantine, plain] = [projectWith({ "packages/web/package.json": web }), projectWith({ "package.json": "{}" })];
+  const [plan, none] = [ok(await planned(box, mantine)).plan, ok(await planned(box, plain)).plan];
+  expect([
+    contentOf(plan, skillMd(mantine, "mantine-family"))?.startsWith("---\nname: mantine-family\n"),
+    contentOf(plan, skillMd(mantine, "mantine-form"))?.startsWith("---\nname: mantine-form\n"),
+    contentOf(none, skillMd(plain, "mantine-family")),
+  ]).toEqual([true, true, null]);
+});
+
 test("gates wait for their approval by name, so --yes alone never writes a CI file, and need their workflow source", async () => {
   const box = custom({
     ci: { type: "gates", title: "CI", default: "on", callers: ["lint"], dependabotCooldownDays: 5 },

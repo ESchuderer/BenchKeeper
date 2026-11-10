@@ -34,7 +34,8 @@
             "orca",
             "devcontainer",
             "no-devcontainer",
-            "gates"
+            "gates",
+            "mantine"
           ]
         },
         {

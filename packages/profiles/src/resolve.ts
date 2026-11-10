@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   type Composed,
   composeProfile,
@@ -7,6 +7,7 @@ import {
   type LoadParent,
   PACK_SCHEMA_VERSION,
   PackManifest,
+  type PartProbe,
   type Profile,
   type ProfileSelection,
   type Result,
@@ -57,6 +58,16 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
     return refuse({ code: "document.unreadable", params: { path: file, error: errorCode(error) } });
   }
 };
+
+/** The files below a folder by their paths in it; a link is no file, so nothing outside it is read. */
+// shortcut: every file gets mode 100644, as no bundled skill ships a script; read the executable bit once one does.
+export const filesIn = (folder: string): Folder["files"] =>
+  readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const path = join(entry.parentPath, entry.name);
+      return { path: relative(folder, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
+    });
 
 type Entry = PackManifest["entries"][string];
 
@@ -182,7 +193,7 @@ const problemsOf = (parts: ReadonlyMap<string, Part>, on: ReadonlySet<string>, s
 ];
 
 /** What an `auto` part is on by. */
-export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates";
+export type Probe = PartProbe;
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 

@@ -34,6 +34,7 @@ import {
   resolveProfile,
   sourceKey,
   sourcesOf,
+  usesMantine,
 } from "@cedarloom/profiles";
 import { bundledExtensions } from "./bundled.ts";
 import type { Fetch } from "./extensions.ts";
@@ -95,12 +96,15 @@ const orcaHere = (app: string | undefined, config: string): boolean => {
   return orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca");
 };
 
-// The probes, each asked once and only by a part that needs it: Orca, and whether the project has a dev container.
+// The probes, each asked once and only by a part that needs it: Orca, whether the project has a dev container and
+// whether it uses Mantine.
 const probeOf = (app: string | undefined, config: string, project: string | undefined) => {
   const container = project !== undefined && hasContainer(project);
   let orca: boolean | undefined;
+  let mantine: boolean | undefined;
   return (when: Probe): boolean => {
     if (when === "orca") return (orca ??= orcaHere(app, config));
+    if (when === "mantine") return project !== undefined && (mantine ??= usesMantine(project));
     return project !== undefined && (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
   };
 };
@@ -199,11 +203,6 @@ const levelOf = async (
     const unknown: Finding = { code: "profile.remove-unknown", params: { item: stray } };
     return { ok: false as const, finding: unknown };
   }
-  // At the user's home, the project's `.claude/` and `.codex/` files are the tools' user config, which no profile writes.
-  if (project !== undefined && project === onDisk(machine.user)) {
-    const home: Finding = { code: "profile.project-is-home", params: { project } };
-    return { ok: false as const, finding: home };
-  }
   if (project !== undefined) return projectLevel(state, project, given, given.apply ?? devcontainerCli);
   const where = targetOf(config, state, machine);
   return where.ok ? planMachine(resolved, where.value.target, where.value.written, options) : where;
@@ -242,6 +241,11 @@ export const planProfile = async (
   const where = folderOf(project);
   if (!where.ok) return where;
   const folder = where.value;
+  // At the user's home, the project's `.claude/` and `.codex/` files are the tools' user config, which no profile
+  // writes; refused before the probes, which would walk the home folder.
+  if (folder !== undefined && folder === onDisk(machine.user)) {
+    return { ok: false, finding: { code: "profile.project-is-home", params: { project: folder } } };
+  }
   const resolved = selectedProfile(config, app, folder);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {

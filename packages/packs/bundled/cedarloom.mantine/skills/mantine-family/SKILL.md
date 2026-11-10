@@ -1,23 +1,23 @@
 ---
 name: mantine-family
-description: "Mantine conventions for the family's projects (those on @open-reloading/ui and @open-reloading/design-tokens, and CedarLoom): provider setup, design tokens, control density, component traps (Modal, NumberInput, Pagination, Select, Switch, useHotkeys), forms, tables, i18n, accessibility checks and docs lookup. Use when building, changing or reviewing a screen on Mantine in such a project, or when a Mantine component misbehaves."
+description: "Mantine in any project: component traps (Modal, NumberInput, Pagination, Select, Switch, useHotkeys), forms, tables, i18n, accessibility checks and docs lookup; plus provider setup, design tokens and control density for projects on @open-reloading/ui and @open-reloading/design-tokens. Use when building, changing or reviewing a screen on Mantine, or when a Mantine component misbehaves."
 ---
 
 ## Setup
 
 - Projects on `@open-reloading/ui`: wrap the app in `UiProvider` (its `i18n` holds `uiMessages` beside the app's messages) and import `ui.css` once; it brings Mantine's styles. No `MantineProvider` or `MantineThemeProvider` of your own: their props undo `ui.css` or the tokens.
 - Server-rendered shell: spread `mantineHtmlProps` on `<html>`, give `ColorSchemeScript` and the provider the same `defaultColorScheme`, render scheme controls after mount.
-- CedarLoom's UI: an interim evergreen theme (`packages/ui/src/main.tsx`) until the generated theme lands.
+- In the CedarLoom repository: its UI has an interim evergreen theme (`packages/ui/src/main.tsx`) until the generated theme lands.
 
 ## Tokens
 
-- Tokens, never raw colors or px: `--page --surface --surface-alt --ink --muted --line --control-line --accent --accent-hover --accent-tint --on-accent --link --error-text --warn-* --select --space-xs..xl --font-size-xs..xl --font-size-field --size-target`.
+- Projects on `@open-reloading/design-tokens`: tokens, never raw colors or px: `--page --surface --surface-alt --ink --muted --line --control-line --accent --accent-hover --accent-tint --on-accent --link --error-text --warn-* --select --space-xs..xl --font-size-xs..xl --font-size-field --size-target`.
 - New styles: CSS modules with `classNames`, never Mantine's private `--_*` variables.
-- Mantine's grays still show in SegmentedControl and Switch tracks and disabled Buttons.
+- With `ui.css`, Mantine's grays still show in SegmentedControl and Switch tracks and disabled Buttons.
 
 ## Density
 
-- `size="field"` 24 px (property grids), `xs` 30 px (rows, buttons), `sm` 36 px (bars). Under a coarse pointer these become 44 px with 16 px field text; Mantine's `md` does not. Row checkboxes need an explicit 44 px hit area.
+- With `ui.css`: `size="field"` 24 px (property grids), `xs` 30 px (rows, buttons), `sm` 36 px (bars). Under a coarse pointer these become 44 px with 16 px field text; Mantine's `md` does not. Row checkboxes need an explicit 44 px hit area.
 
 ## Component traps
 
@@ -26,17 +26,17 @@ description: "Mantine conventions for the family's projects (those on @open-relo
 - `useHotkeys` skips input, textarea and select, checkboxes included: pass `tagsToIgnore` or put `getHotkeyHandler` on `onKeyDown`.
 - NumberInput: `clampBehavior="none"` to show range errors.
 - Pagination: name controls through `getControlProps` and `getItemProps`.
-- Select with `size="field"`: size its options too.
+- Select with `ui.css`'s `size="field"`: size its options too.
 - `vars` beat `styles` on the same key.
 - A Switch description becomes part of its accessible name: keep it short.
-- Filled controls: the accent, no `autoContrast` (`color="blue" autoContrast` failed contrast in dark).
+- Filled controls with `ui.css`: the accent, no `autoContrast` (`color="blue" autoContrast` failed contrast in dark).
 
 ## Forms, tables, i18n
 
 - `useForm` (`@mantine/form`; the `mantine-form` skill has its API): validators return message ids; focus the first invalid field; validate live after the first submit.
 - `@rjsf/mantine` for schema forms, never mixed with `useForm`; it builds against Mantine 8, so test its widgets early.
 - `Table` inside `Table.ScrollContainer`; `aria-sort` on each sortable `th` with a sort button inside; an indeterminate select-all. Thousands of rows: TanStack Table with TanStack Virtual.
-- Every kit string is a prop: Lingui `t` into `labels` and `aria-label`. Dates: `@mantine/dates` with dayjs locales.
+- Every kit string is a prop: pass translated text to `labels` and `aria-label` (with Lingui, `t`). Dates: `@mantine/dates` with dayjs locales.
 
 ## Done when
 
@@ -46,5 +46,5 @@ description: "Mantine conventions for the family's projects (those on @open-relo
 
 ## Docs lookup
 
-- Before reading kit source: the `mantine` MCP server (`search_docs`, `get_item_doc`, `get_item_props`, `list_items`, `get_api`), else https://mantine.dev/llms.txt; both serve the latest release.
-- Missing server: a root devDependency `@mantine/mcp-server` at the `@mantine/core` version, in the Mantine packages' Dependabot group, then `claude mcp add --scope project mantine -- sh -c 'cd "$(git rev-parse --show-toplevel)" && exec npx --no @mantine/mcp-server'`, committed in `.mcp.json`, never user-global. It starts the installed copy from any folder of a workspace whose root is the Git root (POSIX `sh`, not native Windows). With a dev container, write `devcontainer exec --workspace-folder . npx` for `npx`. Show the user the command; never run it: it executes code.
+- Before reading kit source: the `mantine` MCP server (`search_docs`, `get_item_doc`, `get_item_props`, `list_items`, `get_api`), else https://mantine.dev/llms.txt; both serve the latest release, so check a named API against the installed `@mantine/core`.
+- Missing server: an exact root devDependency `@mantine/mcp-server` at the `@mantine/core` version, in the Mantine packages' Dependabot group, then `claude mcp add --scope project mantine -- sh -c 'cd "$(git rev-parse --show-toplevel)" && exec npx --no @mantine/mcp-server'`, committed in `.mcp.json`, never user-global. It starts the installed copy from any folder of a workspace whose root is the Git root (POSIX `sh`, not native Windows). With a dev container, start it first, as `devcontainer exec` fails while it is down, and keep its output off the server's stdout: `sh -c 'root=$(git rev-parse --show-toplevel) && devcontainer up --workspace-folder "$root" < /dev/null > /dev/null 2>&1 && exec devcontainer exec --workspace-folder "$root" npx --no @mantine/mcp-server'` (CedarLoom's `.mcp.json`). Show the user the command; never run it: it executes code.

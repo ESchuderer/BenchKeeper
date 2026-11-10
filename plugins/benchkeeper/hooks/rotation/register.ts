@@ -1,10 +1,10 @@
 // Coordinator context rotation (orchestrating-projects): when the session's project root holds the coordinator's handoff
-// file and the file names no Orca terminal or this session's, an idle Stop above the plugin's threshold clears the context
+// file and the file names this session's Orca terminal, an idle Stop above the plugin's threshold clears the context
 // with /clear and submits a resume prompt, and a clear or compaction hands the file back to the model. Otherwise every hook
 // here passes. It reads and writes that one file and sends nothing.
 import type { EngineInterface, Register } from 'claude-code'
 
-import { FILE, HEADER, mine } from './handoff.mjs'
+import { FILE, RUNS, mine, restored } from './handoff.mjs'
 
 const OPEN = '<!-- benchkeeper:status -->'
 const CLOSE = '<!-- /benchkeeper:status -->'
@@ -33,12 +33,29 @@ async function own($: EngineInterface) {
   const text = await $.fs.read(await handoff($)).catch(() => null)
   return text !== null && mine(String(text), await $.env.get('ORCA_TERMINAL_HANDLE')) ? String(text) : null
 }
+const slashes = (path?: string) => path?.replaceAll('\\', '/')
+
+// Whether the file is the coordinator's own, not one a repository commits or a link leads to: a regular file reached
+// through no link, in a folder whose .benchkeeper/runs git tracks nothing in (a folder outside git counts as untracked).
+async function safe($: EngineInterface) {
+  try {
+    const root = await $.session.root()
+    const [folder, file] = await Promise.all([$.fs.stat(root, { resolve: true }), $.fs.stat(await handoff($), { resolve: true })])
+    if (file.kind !== 'file' || file.isLink || slashes(file.realPath) !== `${slashes(folder.realPath)}/${FILE}`) return false
+    const git = await $.process.run(['git', '-c', 'core.fsmonitor=false', 'ls-files', '--', RUNS], { cwd: root })
+    return git.exitCode === 128 || (git.exitCode === 0 && git.stdout === '')
+  } catch {
+    return false
+  }
+}
+const vetted = async ($: EngineInterface) => {
+  const text = await own($)
+  return text !== null && (await safe($)) ? text : null
+}
 const stamp = (ms: number) => new Date(ms).toISOString()
 
-// Rewrites the status line of this session's handoff file; without one nothing is created.
-async function status($: EngineInterface, event: string, tokens: number | undefined) {
-  const text = await own($)
-  if (text === null) return
+// Rewrites the status line of the vetted handoff text.
+async function status($: EngineInterface, text: string, event: string, tokens: number | undefined) {
   const context = tokens === undefined ? 'unread' : `${tokens} tokens`
   await $.fs.write(await handoff($), withStatus(text, `${stamp(await $.clock.now())} ${event}; context: ${context}; last clear: ${lastEnd === null ? 'none' : stamp(lastEnd)}`))
 }
@@ -47,9 +64,11 @@ async function status($: EngineInterface, event: string, tokens: number | undefi
 const note = ($: EngineInterface, text: string) => $.session.append({ message: { type: 'system', content: [{ type: 'text', text }] } })
 
 async function rotate($: EngineInterface, size: string, now: number) {
+  running = true
   try {
     await $.command.run({ command: 'clear' })
-    await $.prompt.submit({ text: resume(size) })
+    const submitted = await $.prompt.submit({ text: resume(size) })
+    if (submitted.drop !== undefined) throw new Error(`the resume prompt was dropped: ${submitted.drop}`)
   } catch (error) {
     await note($, `BenchKeeper could not clear and resume this coordinator: ${error instanceof Error ? error.message : String(error)}`).catch(() => undefined)
   } finally {
@@ -64,15 +83,16 @@ export const register: Register = (on, options) => {
 
   on('classic.SessionStart', { source: ['clear', 'compact'] }, async ($, e, next) => {
     const result = await next(e)
-    const text = await own($)
+    const text = await vetted($)
     if (text === null) return result
-    return { ...result, additionalContext: [...(result.additionalContext ?? []), `${HEADER}\n\n${text}`] }
+    return { ...result, additionalContext: [...(result.additionalContext ?? []), restored(text)] }
   }).catch(($, e, next) => next(e))
 
   on('classic.PreCompact', async ($, e, next) => {
     if (!e.agent_id) {
+      const text = await vetted($)
       const usage = await $.session.usage().catch(() => null)
-      await status($, 'compacting', usage?.context.tokens).catch(() => undefined)
+      if (text !== null) await status($, text, 'compacting', usage?.context.tokens).catch(() => undefined)
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -81,26 +101,29 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     // A background task, a Stop hook's re-prompt or a hook that blocked the stop means the turn is not idle. Session crons
     // (e.session_crons) are future wakes that survive /clear, not work in flight, so they do not hold rotation back.
-    if (e.agent_id || e.stop_hook_active || e.background_tasks?.length || running) return result
+    if (e.agent_id || e.stop_hook_active || !Array.isArray(e.background_tasks) || e.background_tasks.length || running) return result
     if (result.block !== undefined || result.preventContinuation) return result
     if (atPercent <= 0 && atTokens <= 0) return result
     const now = await $.clock.now()
     if (lastEnd !== null && now - lastEnd < GAP_MS) return result
-    if ((await own($)) === null) return result
+    const text = await own($)
+    if (text === null) return result
     const { context } = await $.session.usage()
     const figure = atPercent > 0 ? context.percent : context.tokens
     if (figure === undefined) {
       if (!noted) {
         noted = true
         await note($, 'BenchKeeper cannot read the context size of this session, so it will not clear this coordinator at its threshold.')
-        await status($, 'usage unread', context.tokens).catch(() => undefined)
+        if (await safe($)) await status($, text, 'usage unread', context.tokens).catch(() => undefined)
       }
       return result
     }
     if (figure < (atPercent > 0 ? atPercent : atTokens)) return result
-    running = true
+    if (!(await safe($))) return result
     const size = atPercent > 0 ? `${figure}% of its context window` : `${figure} tokens`
-    await status($, `clearing at ${size}`, context.tokens).catch(() => undefined)
+    await status($, text, `clearing at ${size}`, context.tokens).catch(() => undefined)
+    // The gap starts now, so a timer that never fires cannot let a second clear through.
+    lastEnd = now
     // A command run from the Stop hook would wait on the turn the hook holds: a timer runs it once the hook has returned.
     $.clock.after(0, () => void rotate($, size, now))
     return result

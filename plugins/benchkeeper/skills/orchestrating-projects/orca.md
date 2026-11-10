@@ -36,13 +36,14 @@ Orca has no separate blocked or replan message type: such a report is a `worker_
 
 ```text
 ORCA orchestration check --types "worker_done,escalation,question" --json
+ORCA orchestration check --wait --types "worker_done,escalation,question" --timeout-ms <stallMinutes / 2 in ms, at least 60000> --json
 ORCA orchestration worker-list --run <run_id> --json
 ORCA orchestration worker-show --dispatch <dispatch id> --json
 ORCA orchestration worker-read --dispatch <dispatch id> --limit 50 --json
 gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,mergedAt
 ```
 
-Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent: after starting or messaging workers, end the turn. Never poll, and never run `check --wait` in the background: the guide says Orca wakes you, and a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator. The run's deadline (55 minutes unless the owner named another) is checked at a wake. A Claude Code coordinator also keeps the stall-check cron that the skill's Waiting section describes, so a silent worker is seen without mail.
+Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent. A Claude Code coordinator ends the turn after starting or messaging workers and keeps the stall-check cron that the skill's Waiting section describes, so a silent worker is seen without mail. It never polls and never runs `check --wait` in the background: a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator. An agent with no background wake (wake mode `unsupported`, for example Codex) has no such cron: it runs the `check --wait` in the foreground, never looped faster than once a minute. The run's deadline (55 minutes unless the owner named another) is checked at a wake.
 
 At each wake-up, including an empty one: `worker-list` for state (act on each row's `projection.attention.requiresAction` and run its literal `projection.nextAction`), then `gh pr list` for merged PRs, then the stall check. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
@@ -56,7 +57,7 @@ and handle it as blocked; run the `nextAction` that `worker-list` gives for the 
 
 ## Resume
 
-The Resume section of the handoff file holds these steps, in this order, the run id filled in:
+The plugin hands the handoff file back after a clear or compaction only in the Orca terminal its `Terminal:` line names, for a Claude Code or a Codex coordinator. Its Resume section holds these steps, in this order, the run id filled in:
 
 1. `ORCA orchestration check --json`, always first: it returns the mail that arrived meanwhile. Orca types a wake only once per unread message, and a wake can merge into the resume prompt.
 2. When it says no run is bound: `ORCA orchestration run-use --id <run id> --json`, then `check` again.

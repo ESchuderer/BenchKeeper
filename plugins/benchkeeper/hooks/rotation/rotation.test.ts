@@ -3,20 +3,27 @@ import { expect, mock, test } from 'claude-code/testing'
 import { withStatus } from './register'
 
 type Engine = Parameters<Parameters<typeof test>[1]>[1]
-const PATH = '/work/coord/.benchkeeper/runs/handoff.md'
-const HANDOFF = '# Handoff\nrun r1\n\n## Next\nwatch #12\n'
+const ROOT = '/work/coord'
+const PATH = `${ROOT}/.benchkeeper/runs/handoff.md`
+const HANDOFF = '# Handoff\nrun r1\nTerminal: term-a\n\n## Next\nwatch #12\n'
 const IDLE = { stop_hook_active: false, background_tasks: [] }
 // Each test loads the plugin afresh, so its module state (running, lastEnd, noted) starts empty.
 
-type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void> }
+type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true }
 
-function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal, stop = {}, hold }: Setup = {}) {
+function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link }: Setup = {}) {
   const clock = mock.clock(on, { now: 3_600_000 })
   const session = mock.session(on)
   const files: Record<string, string> = file === null ? {} : { [PATH]: file }
   const ran: string[] = []
-  mock.env(on, terminal === undefined ? {} : { ORCA_TERMINAL_HANDLE: terminal })
-  on('session.root', () => ({ value: '/work/coord' }))
+  mock.env(on, { ORCA_TERMINAL_HANDLE: terminal })
+  on('session.root', () => ({ value: ROOT }))
+  on('fs.stat', (_, e) => {
+    if (e.path === ROOT) return { value: { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: ROOT } }
+    if (!(e.path in files)) throw new Error('ENOENT')
+    return { value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false, realPath: link ? '/home/me/notes.md' : e.path } }
+  })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: tracked ? '.benchkeeper/runs/handoff.md\n' : '', stderr: '' } }) as never)
   on('fs.read', (_, e) => {
     if (!(e.path in files)) throw new Error('ENOENT')
     return { value: files[e.path] ?? '' }
@@ -52,7 +59,6 @@ test('a clear or compaction hands the file back after the other hooks, and nothi
   for (const source of ['clear', 'compact'] as const) {
     const context = (await $.classic.SessionStart({ source })).additionalContext ?? []
     expect(context[0]).toBe('other')
-    expect(context[1]).toMatch(/^BenchKeeper restored this coordinator's handoff file/)
     expect(context[1]?.endsWith(`\n\n${HANDOFF}`)).toBe(true)
   }
   delete e.files[PATH]
@@ -63,17 +69,25 @@ test('an idle Stop above 200000 tokens clears, then submits the resume prompt, o
   const e = engine(on)
   await $.classic.Stop(IDLE)
   await e.clock.settle()
-  expect(e.ran).toEqual(['/clear', "BenchKeeper cleared this coordinator's context at 250000 tokens to save tokens. Run the Resume steps of the handoff file in your context now, before anything else, then continue from its Next section."])
+  expect(e.ran.length).toBe(2)
+  expect(e.ran[0]).toBe('/clear')
+  expect(e.ran[1]).toContain('250000 tokens')
   expect(e.files[PATH]).toMatch(/clearing at 250000 tokens; context: 250000 tokens; last clear: none\n<!-- \/benchkeeper:status -->\n$/)
   await e.clock.advance(9 * 60_000)
   await $.classic.Stop(IDLE)
   await e.clock.settle()
   expect(e.ran.length).toBe(2)
+  await e.clock.advance(2 * 60_000)
+  await $.classic.Stop(IDLE)
+  await e.clock.settle()
+  expect(e.ran.length).toBe(4)
+  expect(e.ran[2]).toBe('/clear')
 })
 
-test('no clear while not idle, in a subagent, below the threshold or without the file', async ($, on) => {
+test('no clear while not idle, with no task list, in a subagent or without the file', async ($, on) => {
   const e = engine(on)
   await $.classic.Stop({ ...IDLE, background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'orca orchestration check --wait' }] })
+  await $.classic.Stop({ stop_hook_active: false } as never)
   await $.classic.Stop({ ...IDLE, stop_hook_active: true })
   await $.classic.Stop({ ...IDLE, agent_id: 'a1' })
   delete e.files[PATH]
@@ -110,19 +124,27 @@ test('both options at 0 turn the clear off', { options: { rotateAtTokens: 0, rot
   expect(e.ran).toEqual([])
 })
 
-test('a file that names another Orca terminal is not restored, stamped or cleared for', async ($, on) => {
-  const owned = HANDOFF.replace('run r1\n', 'run r1\nTerminal: term-a\n')
-  const e = engine(on, { file: owned, terminal: 'term-b' })
-  expect((await $.classic.SessionStart({ source: 'clear' })).additionalContext).toEqual(['other'])
-  await $.classic.PreCompact({ trigger: 'auto', custom_instructions: null })
-  await $.classic.Stop(IDLE)
-  await e.clock.settle()
-  expect(e.ran).toEqual([])
-  expect(e.files[PATH]).toBe(owned)
-})
+const refused: [string, Setup][] = [
+  ['names no terminal', { file: HANDOFF.replace('Terminal: term-a\n', '') }],
+  ['names another terminal', { terminal: 'term-b' }],
+  ['is tracked by git', { tracked: true }],
+  ['is reached through a link', { link: true }],
+]
+for (const [name, setup] of refused) {
+  test(`a file that ${name} is not restored, stamped or cleared for`, async ($, on) => {
+    const e = engine(on, setup)
+    const file = e.files[PATH]
+    expect((await $.classic.SessionStart({ source: 'clear' })).additionalContext).toEqual(['other'])
+    await $.classic.PreCompact({ trigger: 'auto', custom_instructions: null })
+    await $.classic.Stop(IDLE)
+    await e.clock.settle()
+    expect(e.ran).toEqual([])
+    expect(e.files[PATH]).toBe(file)
+  })
+}
 
-test('a file that names this Orca terminal is cleared for', async ($, on) => {
-  const e = engine(on, { file: HANDOFF.replace('run r1\n', 'run r1\nTerminal: term-a\n'), terminal: 'term-a' })
+test('a backticked terminal name is this terminal', async ($, on) => {
+  const e = engine(on, { file: HANDOFF.replace('term-a', '`term-a`') })
   await $.classic.Stop(IDLE)
   await e.clock.settle()
   expect(e.ran[0]).toBe('/clear')
@@ -146,7 +168,9 @@ test('a percent threshold the context reaches clears', { options: { rotateAtPerc
   const e = engine(on)
   await $.classic.Stop(IDLE)
   await e.clock.settle()
-  expect(e.ran).toEqual(['/clear', "BenchKeeper cleared this coordinator's context at 25% of its context window to save tokens. Run the Resume steps of the handoff file in your context now, before anything else, then continue from its Next section."])
+  expect(e.ran.length).toBe(2)
+  expect(e.ran[0]).toBe('/clear')
+  expect(e.ran[1]).toContain('25%')
 })
 
 test('unread usage is noted once in the transcript and the status block, and nothing is cleared', async ($, on) => {

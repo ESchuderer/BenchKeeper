@@ -74,8 +74,8 @@ if (isMain(import.meta.url)) {
     process.exit(1);
   }
   if (process.argv[2] === '--check') {
-    const files = ['web/package.json', 'app/package.json', 'packages/ui/package.json'];
-    const packages = Object.fromEntries(files.map((f) => [f, JSON.parse(readFileSync(`${root}/${f}`, 'utf8'))]));
+    const manifests = ['web/package.json', 'app/package.json', 'packages/ui/package.json'];
+    const packages = Object.fromEntries(manifests.map((f) => [f, JSON.parse(readFileSync(`${root}/${f}`, 'utf8'))]));
     const { image, drift } = playwrightDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), packages);
     if (!image) {
       console.log('::error::found no playwright@<version> in .devcontainer/Dockerfile');

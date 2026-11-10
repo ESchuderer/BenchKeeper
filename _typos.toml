@@ -7,6 +7,10 @@ locale = "en-us"
 axe = "axe"
 Axe = "Axe"
 
+# A DOM property, spelled as the platform spells it.
+[default.extend-identifiers]
+ariaLabelledByElements = "ariaLabelledByElements"
+
 # Recorded session logs: ids, not words.
 [files]
 extend-exclude = ["packages/sessions/test/fixtures/"]

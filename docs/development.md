@@ -29,7 +29,7 @@ In the dev container, 3 app tests fail because of the container, not the code or
 
 ## Plugin mod types
 
-The tier band's mod (`plugins/benchkeeper/hooks/tier/`) is type-checked by hand, not in CI: Claude Code writes the types it imports (`claude-code`, `claude-code/testing`) only when a logged-in session loads the mod, into `plugins/benchkeeper/.claude-plugin/types/` (git-ignored), and no `claude plugin` command writes them.
+The plugin's mod (`plugins/benchkeeper/hooks/`: the tier band and the coordinator rotation) is type-checked by hand, not in CI: Claude Code writes the types it imports (`claude-code`, `claude-code/testing`) only when a logged-in session loads the mod, into `plugins/benchkeeper/.claude-plugin/types/` (git-ignored), and no `claude plugin` command writes them.
 
 1. Load the mod once: `claude --plugin-dir plugins/benchkeeper`, then quit the session.
 2. In the dev container: `node_modules/.bin/tsc -p plugins/benchkeeper` (the options are the ones the types file names for a hooks module).

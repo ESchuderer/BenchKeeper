@@ -1,8 +1,9 @@
+import type { On } from 'claude-code'
+import type { Engine } from 'claude-code/testing'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { withStatus } from './register'
 
-type Engine = Parameters<Parameters<typeof test>[1]>[1]
 const ROOT = '/work/coord'
 const PATH = `${ROOT}/.benchkeeper/runs/handoff.md`
 const HANDOFF = '# Handoff\nrun r1\nTerminal: term-a\n\n## Next\nwatch #12\n'
@@ -11,7 +12,7 @@ const IDLE = { stop_hook_active: false, background_tasks: [] }
 
 type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true; git?: number; slow?: Promise<void>; drop?: string; surfaces?: string[] }
 
-function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link, git = 0, slow, drop, surfaces = ['terminal'] }: Setup = {}) {
+function engine(on: On, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link, git = 0, slow, drop, surfaces = ['terminal'] }: Setup = {}) {
   const clock = mock.clock(on, { now: 3_600_000 })
   const session = mock.session(on)
   const files: Record<string, string> = file === null ? {} : { [PATH]: file }
@@ -45,7 +46,7 @@ function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-
   })
   on('prompt.submit', (_, e) => {
     ran.push(e.text)
-    return drop === undefined ? { text: e.text } : { text: e.text, drop }
+    return drop === undefined ? { text: e.text } : { drop }
   })
   on('classic.Stop', () => stop)
   on('classic.SessionStart', () => ({ additionalContext: ['other'] }))
@@ -54,7 +55,7 @@ function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-
 }
 
 // One idle Stop that clears and then submits a resume prompt naming the context size.
-async function clears($: Parameters<Parameters<typeof test>[1]>[0], e: ReturnType<typeof engine>, size: string) {
+async function clears($: Engine, e: ReturnType<typeof engine>, size: string) {
   await $.classic.Stop(IDLE)
   await e.clock.advance(1000)
   expect(e.ran.length).toBe(2)

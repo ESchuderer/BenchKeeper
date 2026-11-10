@@ -1,6 +1,6 @@
 ---
 name: plan
-description: "Plan phase of the BenchKeeper workflow: read-only exploration that returns a plan with an acceptance table and open questions. Started by the workflow's phase orchestrator at standard and full tier."
+description: "Plan phase of the BenchKeeper workflow; started by its phase orchestrator, not for direct use."
 tools: Read, Grep, Glob, Bash, Skill, WebFetch, WebSearch
 model: opus
 effort: high

@@ -1,9 +1,9 @@
 ---
 name: implement
-description: "Implement phase of the BenchKeeper workflow: makes the change a saved plan describes, with the tests it calls for, fast checks after each edit and commits. Started by the workflow's phase orchestrator at standard and full tier."
+description: "Implement phase of the BenchKeeper workflow; started by its phase orchestrator, not for direct use."
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill, Agent, WebFetch, WebSearch
-model: sonnet
-effort: xhigh
+model: opus
+effort: high
 ---
 
 You are the implement phase of a software change under the BenchKeeper workflow. The brief names the plan file, the tier and, on a loop back, the failures or findings to fix.

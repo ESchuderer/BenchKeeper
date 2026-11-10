@@ -1,7 +1,7 @@
 ---
 name: research
-description: "Research agent of the BenchKeeper workflow: answers one research item from primary sources and returns the answer with a source URL per claim and a confidence. Started per item when research runs items in parallel."
-tools: Read, Grep, Glob, Bash, Write, WebFetch, WebSearch
+description: "Research agent of the BenchKeeper workflow; started per item when research runs items in parallel, not for direct use."
+tools: Read, Grep, Glob, Bash, Write, Skill, WebFetch, WebSearch
 model: fable
 effort: high
 ---

@@ -46,7 +46,8 @@ test("the board lists a period's sessions, narrows them to one project, and pass
     await accessible(page);
     await main.getByRole("button", { name: "Delete history" }).click();
     const dialog = page.getByRole("dialog", { name: "Delete the sessions history?" });
-    await expect(dialog).toBeVisible();
+    // Mantine starts the fade a frame after the dialog mounts, before accessible() can see it running.
+    await expect(dialog).toHaveCSS("opacity", "1");
     await accessible(page);
     await dialog.getByRole("button", { name: "Delete history" }).click();
     await expect(rows).toHaveCount(6);

@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { constants, fstatSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { text } from 'node:stream/consumers';
-import { FILE, RUNS, STATUS_ARGS, TOP_ARGS, changedPaths, commitArgs, drift, mine, restored, stamped } from './handoff.mjs';
+import { FILE, RUNS, STATUS_ARGS, TOP_ARGS, changedPaths, commitArgs, drift, editedAt, mine, restored } from './handoff.mjs';
 
 // git from an absolute folder of PATH, never by its bare name: Windows looks in the working folder, a project, first.
 const git = () =>
@@ -39,7 +39,7 @@ const drifted = (cwd, handle, handoff) => {
   if (!program) return '';
   const run = (args) => execFileSync(program, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, killSignal: 'SIGKILL', maxBuffer: 4 << 20 });
   try {
-    const since = stamped(handoff)?.edited ?? fstatSync(handle).mtimeMs;
+    const since = editedAt(handoff) ?? fstatSync(handle).mtimeMs;
     const top = run(TOP_ARGS).trim();
     const paths = changedPaths(run(STATUS_ARGS)).filter((path) => (statSync(join(top, path), { throwIfNoEntry: false })?.mtimeMs ?? 0) > since);
     return drift(since, run(commitArgs(since)).split('\n').filter(Boolean), paths);

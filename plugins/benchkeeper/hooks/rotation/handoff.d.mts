@@ -7,6 +7,7 @@ export declare function mine(text: string, terminal: string | undefined): boolea
 export declare function statusBlock(text: string): [number, number] | null;
 export declare function fingerprint(text: string): string;
 export declare function stamped(text: string): { edited: number; text: string } | null;
+export declare function editedAt(text: string): number | null;
 export declare function commitArgs(sinceMs: number): string[];
 export declare function changedPaths(stdout: string): string[];
 export declare function drift(sinceMs: number, commits: string[], paths: string[]): string;

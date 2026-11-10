@@ -5,7 +5,7 @@
 // nothing.
 import type { EngineInterface, Register } from 'claude-code'
 
-import { FILE, RUNS, STATUS, STATUS_ARGS, TOP_ARGS, changedPaths, commitArgs, drift, fingerprint, mine, restored, stamped, statusBlock } from './handoff.mjs'
+import { FILE, RUNS, STATUS, STATUS_ARGS, TOP_ARGS, changedPaths, commitArgs, drift, editedAt, fingerprint, mine, restored, stamped, statusBlock } from './handoff.mjs'
 
 // A second /clear while the restore hook of the first still runs cuts that hook off and loses its context.
 const GAP_MS = 10 * 60 * 1000
@@ -62,7 +62,7 @@ const vetted = async ($: EngineInterface) => {
 async function drifted($: EngineInterface, text: string) {
   try {
     const root = await $.session.root()
-    const since = stamped(text)?.edited ?? (await $.fs.stat(await handoff($))).mtimeMs
+    const since = editedAt(text) ?? (await $.fs.stat(await handoff($))).mtimeMs
     const run = (args: string[]) => $.process.run(['git', ...args], { cwd: root })
     const [top, log, status] = await Promise.all([run(TOP_ARGS), run(commitArgs(since)), run(STATUS_ARGS)])
     if (top.exitCode !== 0 || log.exitCode !== 0 || status.exitCode !== 0) return ''

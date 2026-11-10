@@ -36,7 +36,7 @@ test('restore hook: the drift counts from the edited stamp of the status line, w
   const root = folder();
   const commit = (subject, date) => {
     writeFileSync(join(root, 'README.md'), subject);
-    execFileSync('git', ['-C', root, '-c', 'user.name=t', '-c', 'user.email=t@t.test', 'commit', '-q', '-am', subject], { env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } });
+    execFileSync('git', ['-C', root, '-c', 'user.name=t', '-c', 'user.email=t@t.test', '-c', 'commit.gpgsign=false', 'commit', '-q', '-am', subject], { env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } });
   };
   writeFileSync(join(root, 'README.md'), 'a');
   execFileSync('git', ['-C', root, 'add', 'README.md']);
@@ -44,10 +44,11 @@ test('restore hook: the drift counts from the edited stamp of the status line, w
   commit('backdated', '1999-01-01T00:00:00Z');
   writeFileSync(join(root, 'README.md'), 'b');
   mkdirSync(join(root, 'sub', RUNS), { recursive: true });
-  writeFileSync(join(root, 'sub', RUNS, 'handoff.md'), `${OWNED}\n<!-- benchkeeper:status -->\n2026-01-01T00:00:00.000Z compacting; context: 1 tokens; last clear: none; edited: 2000-01-01T00:00:00.000Z; text: 00000000\n<!-- /benchkeeper:status -->\n`);
+  writeFileSync(join(root, 'sub', RUNS, 'handoff.md'), `${OWNED}\n<!-- benchkeeper:status -->\n2026-01-01T00:00:00.000Z compacting; context: 1 tokens; last clear: none; edited: 2000-01-01T00:00:00.000Z; text: ecc034a0\n<!-- /benchkeeper:status -->\n`);
   const restored = restore(join(root, 'sub'));
   assert.match(restored, /\n## Drift since this file was written \(2000-01-01T00:00:00\.000Z, /);
-  assert.match(restored, /\nCommits:\n[0-9a-f]+ 2010-01-01T00:00:00Z first\n/);
+  // git 2.39 prints %cI in UTC as +00:00, newer as Z.
+  assert.match(restored, /\nCommits:\n[0-9a-f]+ 2010-01-01T00:00:00(Z|\+00:00) first\n/);
   assert.match(restored, /\n- `README\.md`\n/);
 });
 

@@ -54,6 +54,13 @@ export const stamped = (text) => {
   return Number.isNaN(edited) ? null : { edited, text: match[2] };
 };
 
+// When the coordinator last wrote the file by its status line, or null: the stamp holds only while the text outside the
+// block is still the one it fingerprinted, else the coordinator wrote after it and the file's mtime is the time.
+export const editedAt = (text) => {
+  const stamp = stamped(text);
+  return stamp !== null && stamp.text === fingerprint(text) ? stamp.edited : null;
+};
+
 // The git calls for what changed since the coordinator wrote the file: local branches only (no remote refs), so the workers'
 // branches in the same repository show. --since-as-filter (git 2.37) keeps walking past a backdated commit, where --since
 // would stop and hide the older ones behind it; an older git fails the call, which means no drift. --no-optional-locks
@@ -61,19 +68,19 @@ export const stamped = (text) => {
 // session's folder may sit below.
 const GIT = ['-c', 'core.fsmonitor=false', '--no-optional-locks'];
 const iso = (ms) => new Date(ms).toISOString();
-export const commitArgs = (sinceMs) => [...GIT, 'log', '--branches', `--since-as-filter=${iso(sinceMs)}`, '--format=%h %cI %s', '-n', String(DRIFT_LINES)];
+export const commitArgs = (sinceMs) => [...GIT, 'log', '--branches', '--no-show-signature', `--since-as-filter=${iso(sinceMs)}`, '--format=%h %cI %s', '-n', String(DRIFT_LINES)];
 export const STATUS_ARGS = [...GIT, 'status', '--porcelain=v1', '-z'];
 export const TOP_ARGS = [...GIT, 'rev-parse', '--show-toplevel'];
 
 // The paths of `status --porcelain=v1 -z` output: "XY path" entries, a rename or copy followed by its original path, which is
-// skipped.
+// skipped. The handoff file and its run state under .benchkeeper/ are not drift.
 export const changedPaths = (stdout) => {
   const entries = stdout.split('\0');
   const paths = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     if (entry.length < 4) continue;
-    paths.push(entry.slice(3));
+    if (!/(^|\/)\.benchkeeper\//.test(entry.slice(3))) paths.push(entry.slice(3));
     if ('RC'.includes(entry[0]) || 'RC'.includes(entry[1])) i++;
   }
   return paths;
@@ -82,7 +89,7 @@ export const changedPaths = (stdout) => {
 // A line of the section, cut to LINE_MAX characters, without control characters, Unicode line and paragraph separators and
 // format characters (bidirectional controls, zero-width and tag characters): a commit subject or a file name cannot start
 // a line of its own or hide text in the model's context.
-const clean = (line) => line.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '').slice(0, LINE_MAX);
+const clean = (line) => [...line.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '')].slice(0, LINE_MAX).join('');
 
 // The heading and the lines of a section joined within room characters; a line that does not fit is left out, and no
 // line after the heading or the heading itself not fitting means no section.

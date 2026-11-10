@@ -93,10 +93,12 @@ test('a clear or compaction hands the file back after the other hooks, and nothi
 })
 
 test('the restored file is followed by the commits and the files changed since it was written', async ($, on) => {
-  engine(on, { changed: { log: 'abc1234 2026-01-01T00:00:00+00:00 add a\n', status: ' M src/a.ts\0' } })
+  engine(on, { changed: { log: 'abc1234 2026-01-01T00:00:00+00:00 add a\n', status: ' M src/a.ts\0?? .benchkeeper/\0 M coord/.benchkeeper/runs/state.json\0' } })
   const restored = (await $.classic.SessionStart({ source: 'clear' })).additionalContext?.[1] ?? ''
   expect(restored).toContain('\nabc1234 2026-01-01T00:00:00+00:00 add a\n')
   expect(restored).toContain('\n- `src/a.ts`')
+  expect(restored).not.toContain('- `.benchkeeper/`')
+  expect(restored).not.toContain('state.json')
 })
 
 test("the drift counts from the coordinator's own last write, not the plugin's status stamp", async ($, on) => {
@@ -126,6 +128,12 @@ test('a long commit subject is cut to 200 characters and hides nothing after it'
   expect(section).toContain('\n- `src/a.ts`')
 })
 
+test('a line is cut by code point, so an astral character stays or goes whole', () => {
+  const section = drift(1000, [`${'a'.repeat(199)}\u{1F600}`, `${'b'.repeat(200)}\u{1F600}`], [])
+  expect(section).toContain(`\n${'a'.repeat(199)}\u{1F600}\n${'b'.repeat(200)}`)
+  expect(section.endsWith('b')).toBe(true)
+})
+
 test('a line past the cap is left out and the lines after it that fit stay', () => {
   // The heading (134) and "Commits:" leave 1,356 of the 1,500: six 200-character lines fit (1,206), a seventh does not.
   const line = (n: number, subject: string) => `${String(n).padStart(7, '0')} 1970-01-01T00:30:00+00:00 ${subject}`
@@ -143,9 +151,11 @@ test('an 8,000-character file stays whole and the drift gets the room it leaves'
   expect(restored(`${file}${'x'.repeat(1000)}`, section)).not.toContain('## Drift')
 })
 
+// ceffb39c is the fingerprint of HANDOFF; a stamp with another one was written before the coordinator's last edit.
 const lax: [string, string][] = [
-  ['not at the end of the status line', 'edited: 1970-01-01T00:00:00.500Z; text: 00000000; more: x'],
-  ['with a malformed date', 'edited: 1970-13-01T00:00:00.500Z; text: 00000000'],
+  ['not at the end of the status line', 'edited: 1970-01-01T00:00:00.500Z; text: ceffb39c; more: x'],
+  ['with a malformed date', 'edited: 1970-13-01T00:00:00.500Z; text: ceffb39c'],
+  ['whose fingerprint is not the current text, the coordinator having edited since', 'edited: 1970-01-01T00:00:00.500Z; text: 00000000'],
 ]
 for (const [name, line] of lax) {
   test(`an edited stamp ${name} falls back to the mtime`, async ($, on) => {

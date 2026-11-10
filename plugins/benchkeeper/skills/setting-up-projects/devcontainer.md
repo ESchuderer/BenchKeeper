@@ -1,7 +1,5 @@
 # Dev container
 
-For `container` and `host-agent` ([SKILL.md](SKILL.md), step 2).
-
 Reuse `.devcontainer/devcontainer.json`, `.devcontainer.json`, or an existing named configuration. Otherwise create `.devcontainer/devcontainer.json` and only the Dockerfile or Compose services the confirmed stack needs. Preserve existing settings and services. Use an exact image version or digest and pin installed CLI/package versions. [Configuration reference](https://containers.dev/implementors/json_reference/)
 
 - `container`: install the selected agent CLIs in the image at exact versions. Login: the subscription token from the host environment through `remoteEnv` (`"CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"`), never written into the image or the repository, or a login inside the container kept in a named volume for the agent's config folder.

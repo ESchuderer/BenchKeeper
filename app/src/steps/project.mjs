@@ -247,14 +247,16 @@ export const tryState = (dir) => { try { return readState(dir); } catch { return
 // switched on or off), pick, drop (single skills added or taken out), reset (skills taken back to the library's), update (community skills added again from
 // the default branch of their source), partial
 // (a change of some skills only: the state file keeps its setup version), tier,
-// paths: { skill: 'glob, glob' }, share, guards (default true: the deny rules and the guard hook, Claude Code only), machine (on, off or none: the
+// paths: { skill: 'glob, glob' }, setPaths (entries set on top of the saved paths, '' takes one out), share, guards (default true: the deny rules and the guard hook, Claude Code only), machine (on, off or none: the
 // machine account's variables, or the user's own over them, in the local settings; Claude Code only), workflowLoad (default true: the
 // rule line that loads the workflow skill), callers (repo-standards caller workflows to write, never kept in the state file) }; missing answers come from the state file. share: the setup is committed to the
 // repository; otherwise (the default) it stays on this machine, in files git ignores.
-export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], update = [], partial = false, ...answers } = {}) {
+export function resolveAnswers(dir, { disable = [], enable = [], packOn = [], packOff = [], pick = [], drop = [], reset = [], update = [], partial = false, setPaths = {}, ...answers } = {}) {
   const prev = readState(dir) ?? {};
   const a = { agents: prev.agents ?? [], env: prev.env ?? defaultEnv(dir), sandbox: prev.sandbox ?? false, packs: prev.packs ?? [], skills: prev.singles ?? [], disabled: prev.disabled ?? [], tier: prev.tier ?? null, paths: prev.paths ?? {}, share: prev.share ?? false, guards: prev.guards ?? true, machine: prev.machine ?? null, workflowLoad: prev.workflowLoad ?? true, callers: [], ...Object.fromEntries(Object.entries(answers).filter(([, v]) => v !== undefined)) };
   a.disabled = [...new Set([...a.disabled, ...disable])].filter((n) => !enable.includes(n));
+  // One skill's --paths changes only its entry; the other skills keep theirs.
+  a.paths = Object.fromEntries(Object.entries({ ...a.paths, ...setPaths }).filter(([, v]) => v !== ''));
   // Packs and single skills switched on top of the saved choice; an order kept, so on then off restores the file.
   a.packs = [...new Set([...a.packs, ...packOn])].filter((p) => !packOff.includes(p));
   a.skills = [...new Set([...a.skills, ...pick])].filter((n) => !drop.includes(n));
@@ -397,6 +399,13 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const add = (step, title, c) => changes.push({ id: `${step}:${changes.length}`, step, title, ...c });
   // A skill pack for all projects is in the global skill folders: the project keeps it selected without copies.
   const skills = chosenSkills({ ...a, packs: a.packs.filter((id) => packScope(ctx, lib.packs.find((x) => x.id === id)) !== 'global') }, lib);
+  for (const n of Object.keys(answers.setPaths ?? {})) {
+    const s = skills.find((x) => x.name === n);
+    if (!s) throw new Error(`paths for ${n}: not a skill of this project (add it first: benchkeeper skills add ${n})`);
+    if (!copied(s)) throw new Error(`paths for ${n}: only own and your skills take paths, ${n} is installed from ${s.source}`);
+    // A second paths: key would make the copy's front matter invalid.
+    if (/^paths:/m.test(readText(join(skillFolder(ctx, s), 'SKILL.md'))?.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '')) throw new Error(`paths for ${n}: its SKILL.md sets paths itself`);
+  }
   const rel = (p) => slashRel(dir, p);
 
   // Files offered beside the setup. One is named in the block and the exclude list only once it is written: in this run, or as

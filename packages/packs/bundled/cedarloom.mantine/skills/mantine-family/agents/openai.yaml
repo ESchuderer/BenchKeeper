@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mantine in the family"
+  short_description: "Setup, tokens, density, component traps, checks"
+policy:
+  allow_implicit_invocation: true

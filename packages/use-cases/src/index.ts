@@ -72,6 +72,7 @@ export {
   hubOf,
   outboxEntries,
   previewEntryUndo,
+  previewHubLabels,
   previewIntent,
   queueIntent,
   retryEntry,

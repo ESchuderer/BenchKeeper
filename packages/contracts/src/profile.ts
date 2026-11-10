@@ -30,7 +30,7 @@ const values = (value: unknown): number =>
   typeof value === "object" && value !== null
     ? Object.values(value).reduce((count: number, item: unknown) => count + 1 + values(item), 0)
     : 0;
-const Color = z.string().regex(/^[0-9a-f]{6}$/);
+export const Color = z.string().regex(/^[0-9a-f]{6}$/);
 
 /** A pack's entry by its path inside the pack; the pack is one this profile names in `packs`. */
 export const PackRef = z.strictObject({ pack: PackId, path: PortablePath });

@@ -15,10 +15,15 @@ const OUTAGE = {
   finding: { code: "tracker.unavailable", params: { error: "ETIMEDOUT", retryAfter: null, rateLimitReset: null } },
 } as const;
 
-/** A tracker in memory: issues with labels and comments, and one fault for the next write. */
+/**
+ * A tracker in memory: the hub's labels with their colors, issues with labels and comments, and one fault for the next
+ * write.
+ */
 export class FakeTracker implements Tracker {
   readonly hub = "acme/tracker";
+  readonly hubLabels = new Map<string, string>();
   readonly #issues = new Map<string, Issue>();
+  readonly #labelIds = new Map<string, number>();
   #lastId = 1000;
   fault: Fault | null = null;
 
@@ -65,17 +70,44 @@ export class FakeTracker implements Tracker {
     });
   }
 
+  async labels(): Promise<Result<string[]>> {
+    return { ok: true, value: [...this.hubLabels.keys()] };
+  }
+
+  async createLabel(label: string, color: string): Promise<Result<RemoteComment | null>> {
+    return this.#fail(() => {
+      if (this.hubLabels.has(label)) return null;
+      this.hubLabels.set(label, color);
+      this.#labelIds.set(label, ++this.#lastId);
+      return { id: this.#lastId, url: `https://api.github.com/repos/${this.hub}/labels/${label}` };
+    });
+  }
+
+  async deleteLabel(label: string, id: number): Promise<Result<null>> {
+    if (this.hubLabels.has(label) && this.#labelIds.get(label) !== id)
+      return { ok: false, finding: { code: "tracker.refused", params: { status: 409, error: "Conflict" } } };
+    return this.#fail(() => {
+      this.hubLabels.delete(label);
+      for (const issue of this.#issues.values()) issue.labels.delete(label);
+      return null;
+    });
+  }
+
   #remote(ref: IssueRef, id: number): RemoteComment {
     return { id, url: `https://github.com/${ref.repo}/issues/${ref.number}#issuecomment-${id}` };
   }
 
   #write<T>(ref: IssueRef, write: (issue: Issue) => T): Result<T> {
+    return this.#fail(() => write(this.issue(ref)));
+  }
+
+  #fail<T>(write: () => T): Result<T> {
     const fault = this.fault;
     this.fault = null;
     if (fault === "refuse")
       return { ok: false, finding: { code: "tracker.refused", params: { status: 404, error: "Not Found" } } };
     if (fault === "outage") return OUTAGE;
-    const value = write(this.issue(ref));
+    const value = write();
     if (fault === "lose-answer") return OUTAGE;
     if (fault === "garble") return { ok: false, finding: { code: "tracker.invalid-answer", params: { error: "id" } } };
     if (fault === "crash") throw new Error("the sender ended");

@@ -863,31 +863,6 @@ test.describe('views', () => {
     await unregister(page, ['mv-local']);
   });
 
-  test('Projects: the project doctor shows the record command of a pack setup with Copy, and Check again clears it once the files exist', async ({ page }) => {
-    const dir = folder('pd-pack');
-    mkdirSync(join(dir, '.benchkeeper'));
-    writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 1, setupVersion: '6.0.0', agents: ['claude'], share: false, packs: ['matt-pocock'], skills: [] }));
-    await nav(page, 'Projects').click();
-    await addFolder(page, dir);
-    await page.getByRole('table', { name: 'Projects' }).getByRole('link', { name: 'pd-pack', exact: true }).click();
-    const doctor = page.getByRole('region', { name: 'Project doctor' });
-    await expect(doctor).toContainText('pack matt-pocock is on, but docs/agents/ does not exist');
-    await expect(doctor).toContainText(`benchkeeper sessions record --project '${dir}' -- claude '/mattpocock-skills:setup-matt-pocock-skills'`);
-    const copy = doctor.getByRole('button', { name: 'Copy the command for /mattpocock-skills:setup-matt-pocock-skills' });
-    for (const [ok, text] of [[false, /^Copy failed/], [true, /^Copied$/]]) {
-      await page.evaluate((ok) => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => (ok ? Promise.resolve() : Promise.reject(new Error('denied'))) } }), ok);
-      await copy.click();
-      await expect(doctor.getByRole('status').filter({ hasText: /^Cop/ })).toHaveText(text);
-    }
-    await noAxe(page);
-    // The app runs nothing: the user's session writes the folder, Check again reads the doctor again.
-    mkdirSync(join(dir, 'docs/agents'), { recursive: true });
-    await doctor.getByRole('button', { name: 'Check again' }).click();
-    await expect(doctor).not.toContainText('docs/agents/ does not exist');
-    await page.getByRole('link', { name: 'All projects' }).click();
-    await unregister(page, ['pd-pack']);
-  });
-
   test('Projects: pack switches preview the removal of a pack and Copy packs from project sets them; no axe violations', async ({ page }) => {
     await nav(page, 'Projects').click();
     const table = page.getByRole('table', { name: 'Projects' });

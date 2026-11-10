@@ -68,7 +68,7 @@
     "skill.find-skills": {
       "type": "skill",
       "title": "find-skills",
-      "default": "on",
+      "default": "off",
       "source": {
         "git": "https://github.com/vercel-labs/skills.git",
         "ref": "main",

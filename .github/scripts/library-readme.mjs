@@ -38,13 +38,12 @@ export function render(manifest) {
     }
     out.push('');
   }
-  out.push('## Packs', '', 'Named selections that project setup proposes when "Pick when" matches. A pack with a plugin installs through the agent\'s plugin command; its prompts are the steps the user starts after installing.', '');
+  out.push('## Packs', '', 'Named selections that project setup proposes when "Pick when" matches. A pack with a plugin installs through the agent\'s plugin command.', '');
   out.push(row(['Pack', 'Contents', 'Pick when']), row(['---', '---', '---']));
   for (const p of manifest.packs) {
     const parts = [];
     if (p.skills) parts.push(code(p.skills));
     if (p.plugins) parts.push(`plugins ${code(Object.values(p.plugins).map((x) => x.id))}`);
-    if (p.prompts) parts.push(`then ${p.prompts.map((x) => `\`${x.claude}\`${x.codex ? ` (Codex \`${x.codex}\`)` : ''}`).join(', ')}`);
     out.push(row([`\`${p.id}\`${p.role ? ` (${p.role})` : ''}`, parts.join('; '), p.pickWhen]));
   }
   return out.join('\n');

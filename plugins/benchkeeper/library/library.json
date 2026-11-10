@@ -475,19 +475,6 @@
           "marketplace": "mattpocock/skills"
         }
       },
-      "prompts": [
-        {
-          "claude": "/mattpocock-skills:setup-matt-pocock-skills",
-          "codex": "$mattpocock-skills:setup-matt-pocock-skills",
-          "why": "writes `docs/agents/` (issue tracker, triage labels, domain docs) and the `## Agent skills` block",
-          "writes": "docs/agents",
-          "sections": [
-            "### Issue tracker",
-            "### Triage labels",
-            "### Domain docs"
-          ]
-        }
-      ],
       "pointer": "Matt Pocock's skills (`mattpocock-skills:<name>`) are installed: grilling, spec and tickets, `tdd` (the red-green loop once a test is called for), code review against the issue, pull request text.",
       "pluginSkills": {
         "version": "1.3.1",

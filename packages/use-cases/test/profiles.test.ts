@@ -57,6 +57,8 @@ const machine = () => {
   applied(state, ok(planChoice(config, { hub: "acme/hub" })));
   // The gates, off here so a plan carries no line about their source, are switched back by the tests of them.
   applied(state, ok(planChoice(config, { part: "project.gates", on: false })));
+  // find-skills, off by default, is the machine's one Git source, which the tests of fetched sources need.
+  applied(state, ok(planChoice(config, { part: "machine.skill.find-skills", on: true })));
   return {
     config,
     state,
@@ -130,7 +132,7 @@ test("the selection names only the profile's parts, and a part goes back to its 
   applied(state, ok(planChoice(config, { part: "workspace.memory", on: null })));
   const selection = JSON.parse(readFileSync(join(config, "profile.json"), "utf8"));
   expect([selection.select, planChoice(config, { part: "machine.rules.gone", on: true })]).toEqual([
-    { "project.gates": false },
+    { "project.gates": false, "machine.skill.find-skills": true },
     {
       ok: false,
       finding: { code: "profile.part-unknown", params: { part: "machine.rules.gone", by: "The selection" } },

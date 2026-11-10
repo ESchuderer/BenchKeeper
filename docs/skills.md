@@ -21,7 +21,7 @@ The BenchKeeper plugin installs these nine in Claude Code and Codex at every lev
 
 ## Matt Pocock's skills
 
-The `matt-pocock` pack installs his plugin (skill list of version 1.3.1). Skills you start run as `/mattpocock-skills:<name>` (Codex `$mattpocock-skills:<name>`); the agent starts the others on its own, and you can start them too.
+The `matt-pocock` pack installs his plugin (skill list of version 1.3.1). Claude Code installs it from the official marketplace, which pins it to one commit ([marketplace.json](https://github.com/anthropics/claude-plugins-official/blob/main/.claude-plugin/marketplace.json)); the pin moves when that marketplace updates it. Skills you start run as `/mattpocock-skills:<name>` (Codex `$mattpocock-skills:<name>`); the agent starts the others on its own, and you can start them too.
 
 | Skill | Started by | What it does |
 | --- | --- | --- |

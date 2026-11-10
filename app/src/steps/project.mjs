@@ -732,20 +732,19 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const links = skippedLinks(skillFolder(ctx, s));
     return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
   });
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir, lib), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...(!a.share && commitsAgentsMd(ctx, dir) ? [besideCommitted(a.agents)] : []), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...(!a.share && commitsAgentsMd(ctx, dir) ? [besideCommitted(a.agents)] : []), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
 // The line the user pastes in their own terminal: the app shows it and never runs it.
-export const recordCommand = (dir, agent, prompt) => `benchkeeper sessions record --project ${quote(dir)} -- ${agent} ${quote(prompt)}`;
+const recordCommand = (dir, agent, prompt) => `benchkeeper sessions record --project ${quote(dir)} -- ${agent} ${quote(prompt)}`;
 // The agent a user-started step names: Claude Code when chosen, else the first agent.
-export const promptAgent = (agents) => (agents.includes('claude') ? 'claude' : agents[0]);
+const promptAgent = (agents) => (agents.includes('claude') ? 'claude' : agents[0]);
 
-// What the user starts after the deterministic steps: the setup skill session, and the packs' own prompts.
-function promptsFor(a, dir, lib = library()) {
+// What the user starts after the deterministic steps: the setup skill session.
+function promptsFor(a, dir) {
   const first = promptAgent(a.agents);
   const p = [{ agent: first, prompt: first === 'codex' ? '$benchkeeper:setting-up-projects' : first === 'claude' ? '/benchkeeper:setting-up-projects' : 'Load the setting-up-projects skill and run it.', why: 'stack skills, AGENTS.md commands, the dev container' }];
-  for (const id of a.packs) for (const x of lib.packs.find((y) => y.id === id)?.prompts ?? []) p.push({ agent: first, prompt: first === 'codex' ? x.codex : x.claude, why: x.why });
   return p.map((x) => ({ ...x, dir, command: recordCommand(dir, x.agent, x.prompt) }));
 }
 

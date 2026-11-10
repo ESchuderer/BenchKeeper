@@ -109,7 +109,7 @@ test('lint rule helper: missing, not executable, no shebang and network use fail
   assert.deepEqual(problems(tier(template(), 'echo hi # automation-alpha pgrep\n')), ['helper'], 'no shebang');
   assert.deepEqual(problems(tier(template(), '#!/usr/bin/perl\n# automation-alpha pgrep\n')), ['helper'], 'perl');
   for (const net of ['curl -s example.org', 'wget x', 'git fetch origin', 'git -C x push', 'git -c core.x=y fetch origin', 'os.system("git pull")', 'echo https://example.org', 'ssh host', 'npm view x']) assert.deepEqual(problems(tier(template(), `${SH}${net}\n`)), ['helper'], net);
-  for (const local of ['git -c pull.rebase=false log', 'git -C pull-requests log', 'git commit -m push', 'git push-hook']) assert.deepEqual(problems(tier(template(), `${SH}${local}\n`)), [], local);
+  for (const local of ['git -c pull.rebase=false log', 'git -C pull-requests log', 'git commit -m push', 'git push-hook', 'git -C push status', 'git -c pull.rebase=false status']) assert.deepEqual(problems(tier(template(), `${SH}${local}\n`)), [], local);
   const py = '#!/usr/bin/env python3\n# automation-alpha pgrep\nimport subprocess\nsubprocess.run(["gh", "pr", "list"])\n';
   assert.deepEqual(problems(tier(template(), py)), []);
   for (const imp of ['import urllib.request', 'import requests', 'from socket import socket', 'import http.client']) assert.deepEqual(problems(tier(template(), `${py}${imp}\n`)), ['helper'], imp);

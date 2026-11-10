@@ -5462,7 +5462,8 @@
                   "orca",
                   "devcontainer",
                   "no-devcontainer",
-                  "gates"
+                  "gates",
+                  "mantine"
                 ]
               },
               {
@@ -11710,7 +11711,8 @@
                   "orca",
                   "devcontainer",
                   "no-devcontainer",
-                  "gates"
+                  "gates",
+                  "mantine"
                 ]
               },
               {

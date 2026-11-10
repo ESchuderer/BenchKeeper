@@ -1,8 +1,10 @@
 import { isUtf8 } from "node:buffer";
 import { join, sep } from "node:path";
 import { type GitSource, type Result, skillFolder } from "@cedarloom/contracts";
+import { errorCode } from "@cedarloom/engine";
+import { BUNDLED } from "@cedarloom/packs";
 import type { Wanted } from "./owned.ts";
-import { entryFiles, entryOf, type Folder, packVersion, type Resolved, skillEntries } from "./resolve.ts";
+import { entryFiles, entryOf, filesIn, type Folder, packVersion, type Resolved, skillEntries } from "./resolve.ts";
 
 /** The folders fetched for a plan, by `sourceKey`: the profile's Git packs, and skills that come from Git. */
 export type Fetched = ReadonlyMap<string, Folder>;
@@ -77,17 +79,26 @@ export const sourcesOf = (
   ];
 };
 
-// The files a skill installs: its Git source's folder, else its pack entry's folder in a fetched pack.
+// The files a skill installs: its Git source's folder, else its pack entry's folder in a fetched or bundled pack.
 const filesOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<Folder["files"]> => {
   const git = gitOf(resolved, source, fetched);
   if (git !== undefined) return { ok: true, value: fetched.get(sourceKey(git))?.files ?? [] };
-  const folder = "git" in source ? undefined : packFolder(resolved, source.pack, fetched);
-  if ("git" in source || folder === undefined) {
-    const ref = "git" in source ? { pack: "", path: source.git } : source;
-    return { ok: false, finding: { code: "profile.entry-unknown", params: { ...ref, kind: "skill" } } };
-  }
+  if ("git" in source)
+    return {
+      ok: false,
+      finding: { code: "profile.entry-unknown", params: { pack: "", path: source.git, kind: "skill" } },
+    };
+  const folder = packFolder(resolved, source.pack, fetched);
   const entry = entryOf(source, "skill", folder);
-  return entry.ok ? { ok: true, value: entryFiles(source, folder) } : entry;
+  if (!entry.ok) return entry;
+  if (folder !== undefined) return { ok: true, value: entryFiles(source, folder) };
+  const root = join(BUNDLED, source.pack, source.path);
+  try {
+    return { ok: true, value: filesIn(root) };
+  } catch (error) {
+    // A damaged install: the manifest lists the skill, but its folder cannot be read.
+    return { ok: false, finding: { code: "document.unreadable", params: { path: root, error: errorCode(error) } } };
+  }
 };
 
 // The pack a skill's files come from as `id@version`, for a project's record; none for a skill from Git or a machine.

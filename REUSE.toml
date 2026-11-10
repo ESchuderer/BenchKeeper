@@ -33,3 +33,10 @@ path = ["brand/**", "web/public/brand/**", "web/public/og.png"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 CedarLoom contributors"
 SPDX-License-Identifier = "LicenseRef-Brand"
+
+# Mantine's mantine-form skill, vendored unchanged: its own LICENSE's holder, not this repository's.
+[[annotations]]
+path = "packages/packs/bundled/cedarloom.mantine/skills/mantine-form/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Mantine"
+SPDX-License-Identifier = "MIT"

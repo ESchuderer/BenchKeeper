@@ -113,7 +113,8 @@ async function decide($: EngineInterface, atTokens: number, atPercent: number) {
   const before = lastEnd
   lastEnd = now
   // A command run from the Stop hook would wait on the turn the hook holds. The timer runs it once the hook has returned,
-  // a second later, so a prompt queued during the turn starts first and the clear gives up.
+  // a second later: a prompt queued during the turn that starts within that second makes the clear give up; one that
+  // starts later still waits for the clear.
   const seen = turns
   $.clock.after(1000, () => void rotate($, size, now, seen, before))
 }

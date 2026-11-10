@@ -1,5 +1,17 @@
 import type { Api, components } from "@cedarloom/client";
-import { Alert, Group, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Text } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  Group,
+  Modal,
+  Paper,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+} from "@mantine/core";
 import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useState } from "react";
 import { dayIn, zoneOf } from "@cedarloom/contracts/http";
 import { call } from "./call.ts";
@@ -48,7 +60,7 @@ const Figure = ({ label, value, note }: { label: string; value: string; note: st
   </Paper>
 );
 
-// The period reaches past the logs the agent tools still keep: its first days have no data, not no work.
+// The period starts before the first Claude Code data: its first days have no data, not no work.
 const before = ({ span, first }: Board): boolean => first !== null && (span[0] ?? first) < first;
 
 const Figures = ({ board }: { board: Board }) => {
@@ -66,11 +78,14 @@ const Figures = ({ board }: { board: Board }) => {
     [t("sessions.testsPassed"), passed, t("sessions.tested", { tested: f.tested })],
   ];
   return (
-    <SimpleGrid cols={{ base: 2, sm: 3 }}>
-      {items.map(([label, value, note]) => (
-        <Figure key={label} label={label} value={value} note={note} />
-      ))}
-    </SimpleGrid>
+    <>
+      {board.historyMoved !== null && <Alert>{t("sessions.historyMoved", { file: board.historyMoved })}</Alert>}
+      <SimpleGrid cols={{ base: 2, sm: 3 }}>
+        {items.map(([label, value, note]) => (
+          <Figure key={label} label={label} value={value} note={note} />
+        ))}
+      </SimpleGrid>
+    </>
   );
 };
 
@@ -152,13 +167,13 @@ const Bars = ({ stacks, days, at, series }: BarsProps) => {
   });
 };
 
-// The days before the oldest session log, greyed: no data, not no work.
+// The days before the first Claude Code data, greyed: no data, not no work.
 const Before = ({ board: { span, first } }: { board: Board }) => {
   const days = first === null ? 0 : span.filter((day) => day < first).length;
   return days === 0 ? null : <rect width={(days * W) / span.length} height={H} fill="var(--mantine-color-gray-1)" />;
 };
 
-// A day's values per project, or that the logs do not reach it.
+// A day's values per project, or that it is before the first Claude Code data.
 const readoutOf = (board: Board, day: string, values: string[]): string =>
   [values.join(", ") || "0", ...(board.first !== null && day < board.first ? [t("sessions.noData")] : [])].join("; ");
 
@@ -253,6 +268,68 @@ const SessionTable = ({ rows, zone }: { rows: Row[]; zone: string }) => {
   );
 };
 
+type ConfirmProps = { opened: boolean; busy: boolean; onConfirm: () => void; onCancel: () => void };
+
+// Cancel takes focus: the least destructive choice.
+const ConfirmDelete = ({ opened, busy, onConfirm, onCancel }: ConfirmProps): ReactNode => (
+  <Modal
+    opened={opened}
+    onClose={onCancel}
+    title={t("sessions.deleteTitle")}
+    withCloseButton={false}
+    // A dialog holds no banner landmark, so its header is none.
+    attributes={{ header: { role: "none" } }}
+  >
+    <Stack>
+      <Text>{t("sessions.deleteBody")}</Text>
+      <Group>
+        <Button loading={busy} onClick={onConfirm}>
+          {t("sessions.deleteHistory")}
+        </Button>
+        <Button variant="default" disabled={busy} onClick={onCancel} data-autofocus>
+          {t("sessions.cancel")}
+        </Button>
+      </Group>
+    </Stack>
+  </Modal>
+);
+
+// The figures of sessions whose logs are gone live only here; deleting them asks first, then the board is read again.
+const History = ({ api, onDeleted }: { api: Api; onDeleted: () => void }): ReactNode => {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  const [problem, setProblem] = useState("");
+  const remove = async (): Promise<void> => {
+    setBusy(true);
+    // A 204 has no body, which call() would take for a refusal.
+    const answer = await call(async () => {
+      const { error, response } = await api.DELETE("/api/sessions/history");
+      return response.ok ? { data: null, response } : { error, response };
+    });
+    setBusy(false);
+    setAsking(false);
+    setProblem("problem" in answer ? answer.problem : "");
+    setStatus("problem" in answer ? "" : t("sessions.historyDeleted"));
+    if (!("problem" in answer)) onDeleted();
+  };
+  return (
+    <Stack gap="xs">
+      {problem !== "" && <Alert color="red">{problem}</Alert>}
+      <Text size="sm">{t("sessions.historyNote")}</Text>
+      <Group>
+        <Button variant="default" onClick={() => setAsking(true)}>
+          {t("sessions.deleteHistory")}
+        </Button>
+        <Text size="sm" role="status">
+          {status}
+        </Text>
+      </Group>
+      <ConfirmDelete opened={asking} busy={busy} onConfirm={() => void remove()} onCancel={() => setAsking(false)} />
+    </Stack>
+  );
+};
+
 const PERIODS = ["7", "30", "90", "all"];
 const METRICS: Metric[] = ["sessions", "busyMs", "tokens", "costUSD"];
 
@@ -302,6 +379,7 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
   const [metric, setMetric] = useState<Metric>("sessions");
   const [board, setBoard] = useState<Board | null>(null);
   const [problem, setProblem] = useState("");
+  const [revision, setRevision] = useState(0);
   useEffect(() => {
     let current = true;
     const query = queryOf(days, project);
@@ -314,7 +392,11 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
     void show();
     // A later choice's answer replaces this one; an answer that arrives after it is dropped.
     return () => void (current = false);
-  }, [api, days, project]);
+  }, [api, days, project, revision]);
+  const reread = (): void => {
+    setBoard(null);
+    setRevision((r) => r + 1);
+  };
   return (
     <Stack>
       {problem !== "" && <Alert color="red">{problem}</Alert>}
@@ -338,6 +420,7 @@ export const SessionsBoard = ({ api }: { api: Api }): ReactNode => {
           )}
         </>
       )}
+      <History api={api} onDeleted={reread} />
     </Stack>
   );
 };

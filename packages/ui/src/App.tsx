@@ -32,7 +32,7 @@ import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useStat
 import type { MessageId } from "@lingui/core";
 // A file, never a data: URL: the server's CSP allows images from its own origin only.
 import mark from "../../../brand/cedarloom-icon.svg?no-inline";
-import { Accounts } from "./Accounts.tsx";
+import { Accounts, type Changes, useChanges } from "./Accounts.tsx";
 import { SessionsBoard } from "./Sessions.tsx";
 import { call } from "./call.ts";
 import { t, when } from "./i18n.ts";
@@ -321,7 +321,7 @@ type View = (typeof VIEWS)[number]["id"];
 // The editor and the zod schemas it needs load only when its view opens, so the shell and Runs stay small.
 const WorkflowEditor = lazy(() => import("./workflow/Editor.tsx"));
 
-const content = (view: View, session: Session, accounts: { version: number; onChanged: () => void }): ReactNode => {
+const content = (view: View, session: Session, accounts: Changes): ReactNode => {
   if (view === "nav.runs") return <Runs session={session} />;
   if (view === "nav.profile") return <Profile api={session.api} />;
   if (view === "nav.import") return <Import api={session.api} />;
@@ -368,8 +368,7 @@ const Footer = (): ReactNode => (
 // Below sm the navigation sits behind a menu button; whichever of the two is out of sight is inert.
 export const App = ({ session }: { session: Session }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
-  // Not kept in Accounts: a view left during a change is mounted anew, and must read once the change ends.
-  const [accountsVersion, setAccountsVersion] = useState(0);
+  const accounts = useChanges();
   const [opened, { toggle, close }] = useDisclosure();
   // The theme's own sm breakpoint, as AppShell uses it: at exactly 48em the desktop navigation already shows.
   const narrow = useMatches({ base: true, sm: false });
@@ -401,10 +400,7 @@ export const App = ({ session }: { session: Session }): ReactNode => {
         <Title order={2} size="h4" mb="md">
           {t(view)}
         </Title>
-        {content(view, session, {
-          version: accountsVersion,
-          onChanged: () => setAccountsVersion((value) => value + 1),
-        })}
+        {content(view, session, accounts)}
       </AppShell.Main>
       <Footer />
     </AppShell>

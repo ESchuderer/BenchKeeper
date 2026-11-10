@@ -156,7 +156,7 @@ export type DraftSaved = z.infer<typeof DraftSaved>;
 /**
  * A usage window of a claude-swap account: the share used in percent, when it resets, and when claude-swap read it
  * (null: claude-swap no longer trusts that share, so it is the last one it trusted, or none); `usedPercent` is null when
- * claude-swap has no reading of that window at all.
+ * claude-swap has no share for that window.
  */
 const SwapWindow = z.strictObject({
   window: z.string().describe("fiveHour, sevenDay, or sevenDay:<model> for a model's own weekly window"),

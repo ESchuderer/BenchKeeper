@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import {
   type ExtensionManifest,
   type Finding,
@@ -13,6 +13,7 @@ import {
 } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
+import { folderArgument } from "./messages.ts";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
@@ -374,6 +375,13 @@ export const workflowsExport = (ctx: Context, ids: string[], folder: string, opt
   return change(ctx, planned.value, { note, data: { folder, workflows: ids }, findings: [] }, yes);
 };
 
+// Last and only after a run that went through, so "the command" of the lines above stays profiles apply.
+const labelsHint = (ctx: Context, project: string | undefined): void => {
+  if (ctx.json || !useCases.hubOn(ctx.config, ctx.app)) return;
+  const folder = project === undefined ? "" : ` --project ${folderArgument(resolve(project))}`;
+  ctx.io.out(`Create the labels the hub lacks with: cedarloom work-items labels${folder}\n`);
+};
+
 /** Shows the profile's plan for this machine, or with --yes applies it as one run. */
 export const profilesApply = async (
   ctx: Context,
@@ -396,9 +404,12 @@ export const profilesApply = async (
         : "Nothing to change in this project.",
     );
     report(ctx, findings);
+    labelsHint(ctx, project);
     return EXIT.ok;
   }
-  return change(ctx, plan, { note: "", data: {}, findings }, yes);
+  const code = change(ctx, plan, { note: "", data: {}, findings }, yes);
+  if (code === EXIT.ok) labelsHint(ctx, project);
+  return code;
 };
 
 /** Reports how this machine's Claude Code home, or a project, differs from the profile; exits 1 when it does. */

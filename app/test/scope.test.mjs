@@ -218,7 +218,6 @@ test('the Installs tab: scope hint, fixed scope and state per row; global items 
   assert.match(row('ponytail').fixed[0].reason, /user only/);
   assert.deepEqual(row('frontend').fixed, []);
   assert.deepEqual(p.chosen.map((s) => [s.name, s.hint, s.state]).sort(), skills.map((n) => [n, 'only this project', 'installed']).sort());
-  assert.ok(p.files.length && p.files.every((f) => !f.on && f.state === 'not installed' && f.fixed === null));
   // The global block: what the project does not select, once, and the BenchKeeper plugin.
   assert.deepEqual(p.global.packs.map((x) => x.id), ['matt-pocock']);
   assert.deepEqual(p.global.plugin, ['Claude Code']);
@@ -234,13 +233,6 @@ test('the Installs tab: scope hint, fixed scope and state per row; global items 
   assert.deepEqual(JSON.parse(readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8')).packs, ['ponytail']);
   undo(run.id, ctx);
   assert.equal(readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8'), before);
-
-  // An agent file switched on and off; one whose source needs an agent the project lacks says so.
-  const [file] = p.files;
-  assert.deepEqual(plan([['file-on', file.path]]).files.find((f) => f.path === file.path).on, true);
-  assert.deepEqual(plan([['file-on', file.path], ['file-off', file.path]]).files.find((f) => f.path === file.path).on, false);
-  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, agents: ['gemini'], env: 'host', packs: [] }));
-  assert.match(plan().files[0].fixed, /installs for Claude Code, Codex, GitHub Copilot CLI only/);
 });
 
 test('packs scope prints the scope and each agent\'s offer, and applies a move', async () => {

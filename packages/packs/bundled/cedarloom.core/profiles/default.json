@@ -51,10 +51,24 @@
       "default": "on",
       "plugin": "mattpocock-skills@claude-plugins-official"
     },
+    "plugin.typescript-lsp": {
+      "type": "plugin",
+      "title": "TypeScript and JavaScript language server",
+      "description": "Claude sees type errors after its edits and finds definitions and references by symbol. The plugin starts typescript-language-server from your PATH and installs nothing: install it first, such as with npm install -g typescript-language-server typescript (https://code.claude.com/docs/en/plugins/code-intelligence).",
+      "default": "off",
+      "plugin": "typescript-lsp@claude-plugins-official"
+    },
+    "plugin.rust-analyzer-lsp": {
+      "type": "plugin",
+      "title": "Rust language server (rust-analyzer)",
+      "description": "Claude sees compile errors after its edits to .rs files and finds definitions and references by symbol. The plugin starts rust-analyzer from your PATH and installs nothing: install it first, such as with rustup component add rust-analyzer (https://code.claude.com/docs/en/plugins/code-intelligence).",
+      "default": "off",
+      "plugin": "rust-analyzer-lsp@claude-plugins-official"
+    },
     "skill.find-skills": {
       "type": "skill",
       "title": "find-skills",
-      "default": "on",
+      "default": "off",
       "source": {
         "git": "https://github.com/vercel-labs/skills.git",
         "ref": "main",

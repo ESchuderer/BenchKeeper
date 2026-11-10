@@ -6,6 +6,7 @@
       "packages/**",
       "!packages/*/schema",
       "!packages/*/openapi.json",
+      "!packages/packs/bundled/*/skills/*/SKILL.md",
       "*.json",
       "*.ts",
       "!.release-please-manifest.json",

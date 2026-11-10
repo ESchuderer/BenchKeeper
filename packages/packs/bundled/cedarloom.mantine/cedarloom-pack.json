@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.pack",
+  "id": "cedarloom.mantine",
+  "version": "0.1.0",
+  "name": "Mantine",
+  "description": "Skills for building family UIs on Mantine: the family's own conventions and Mantine's form skill.",
+  "license": "MIT",
+  "minApp": "0.1.0",
+  "entries": {
+    "skills/mantine-family": {
+      "kind": "skill",
+      "description": "Mantine in a family project: setup, tokens, density, component traps, forms, tables, i18n, accessibility checks, docs lookup"
+    },
+    "skills/mantine-form": {
+      "kind": "skill",
+      "description": "Mantine's official form skill: the useForm API of @mantine/form",
+      "source": {
+        "git": "https://github.com/mantinedev/skills.git",
+        "ref": "master",
+        "path": "skills/mantine-form"
+      }
+    }
+  }
+}

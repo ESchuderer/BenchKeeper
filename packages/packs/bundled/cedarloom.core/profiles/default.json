@@ -4,7 +4,7 @@
   "id": "cedarloom.default",
   "version": "0.1.0",
   "name": "The CedarLoom way",
-  "description": "Claude Code with the CedarLoom, Ponytail and Matt Pocock plugins and CedarLoom's rules; a hub repository for issues and owner questions; a memory repository; project rules, gates and the dev container command.",
+  "description": "Claude Code with the CedarLoom, Ponytail and Matt Pocock plugins and CedarLoom's rules; a hub repository for issues and owner questions; project rules, gates and the dev container command.",
   "license": "MIT",
   "minApp": "0.1.0",
   "agents": ["claude-code"],
@@ -93,7 +93,7 @@
     "settings.auto-memory": {
       "type": "settings",
       "title": "Auto memory off",
-      "description": "Claude Code neither writes nor reads its own notes from your sessions, so each session works only from the rules and files you can review; what should last goes into the memory repository (https://code.claude.com/docs/en/memory#auto-memory). Switched off after an apply, its keys stay in your Claude Code settings.json until you remove them.",
+      "description": "Claude Code neither writes nor reads its own notes from your sessions, so each session works only from the rules and files you can review; what should last goes into those rules or the project's docs (https://code.claude.com/docs/en/memory#auto-memory). Switched off after an apply, its keys stay in your Claude Code settings.json until you remove them.",
       "default": "on",
       "set": {
         "autoMemoryEnabled": false,
@@ -179,7 +179,7 @@
     "memory": {
       "type": "memory",
       "title": "Memory repository and its loader",
-      "default": "on",
+      "default": "off",
       "scaffold": {
         "pack": "cedarloom.core",
         "path": "templates/memory"

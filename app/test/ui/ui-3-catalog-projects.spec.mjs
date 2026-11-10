@@ -1020,7 +1020,13 @@ test.describe('views', () => {
     const { prompts } = await (await planned).json();
     expect(prompts[0].command).toMatch(/^benchkeeper sessions record --project '.+' -- claude '\/benchkeeper:setting-up-projects'$/);
     await expect(drawer.getByText(prompts[0].command)).toBeVisible();
-    await expect(drawer.getByRole('button', { name: 'Copy the command for /benchkeeper:setting-up-projects' })).toBeVisible();
+    // Copy says whether the clipboard took the command.
+    const copy = drawer.getByRole('button', { name: 'Copy the command for /benchkeeper:setting-up-projects' });
+    for (const [ok, text] of [[false, /^Copy failed/], [true, /^Copied$/]]) {
+      await page.evaluate((ok) => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => (ok ? Promise.resolve() : Promise.reject(new Error('denied'))) } }), ok);
+      await copy.click();
+      await expect(drawer.getByRole('status').filter({ hasText: /^Cop/ })).toHaveText(text);
+    }
     await openDiffs(drawer);
     await expect(drawer).toContainText('CLAUDE.local.md');
     // The summary shows every answer next to its step; Change goes back to that step and one click returns.

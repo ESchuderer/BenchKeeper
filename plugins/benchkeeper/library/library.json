@@ -68,6 +68,14 @@
       "pickWhen": "The repository builds an MCP server"
     },
     {
+      "name": "webapp-testing",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "A running web app checked by Python scripts in headless Chromium: clicks, screenshots, console logs (needs Python, pip and a browser download)"
+    },
+    {
       "name": "experimental-design",
       "section": "science",
       "set": "Core",
@@ -616,7 +624,8 @@
       "skills": [
         "frontend-design",
         "designing-technical-uis",
-        "accessibility"
+        "accessibility",
+        "webapp-testing"
       ]
     },
     {
@@ -624,7 +633,8 @@
       "title": "Testing",
       "pickWhen": "The repository has or adds browser tests",
       "skills": [
-        "playwright-best-practices"
+        "playwright-best-practices",
+        "webapp-testing"
       ]
     },
     {

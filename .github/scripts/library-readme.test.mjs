@@ -33,7 +33,3 @@ test('skills sharing a row are grouped', () => {
   assert.match(md, /\| `a`, `b` \| `o\/r` \| both \| p \|/);
   assert.match(md, /\| `c` \| `o\/r` \| Codex only \| p \|/);
 });
-test('pack prompts name both agents', () => {
-  const md = render({ sections: [], skills: [], packs: [{ id: 'p', pickWhen: 'w', prompts: [{ claude: '/a:b', codex: '$a:b' }] }] });
-  assert.match(md, /\| `p` \| then `\/a:b` \(Codex `\$a:b`\) \| w \|/);
-});

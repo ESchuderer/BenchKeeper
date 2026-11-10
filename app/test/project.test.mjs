@@ -481,11 +481,10 @@ test('the workflow load line: on by default, off per project and kept off, on ag
   assert.match(block(), /load the `benchkeeper:workflow` skill/);
 });
 
-test('packs with plugins install them and list their prompts', () => {
+test('packs with plugins install them', () => {
   const r = repo();
   const p = plan(r, { agents: ['claude'], packs: ['matt-pocock'] });
   assert.ok(p.changes.some((c) => c.argv?.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official'));
-  assert.ok(p.prompts.some((x) => x.prompt === '/mattpocock-skills:setup-matt-pocock-skills'));
   const installed = plan(r, { agents: ['claude'], packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] });
   assert.ok(!installed.changes.some((c) => c.kind === 'command'));
   assert.throws(() => plan(r, { agents: ['claude'], packs: ['nope'] }), /unknown pack/);
@@ -505,21 +504,6 @@ test('a pack is named in the project text only when it is on: off, no mention; o
     apply(preview(plan(on, { agents: ['claude', 'codex'], env: 'host', share, packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'], codex: ['mattpocock-skills@mattpocock'] }).changes), on.ctx, { scope: on.dir });
     assert.match(texts(on), /- Matt Pocock's skills \(`mattpocock-skills:<name>`\) are installed/);
   }
-});
-
-test("doctor: a pack whose own setup writes docs/agents/ and AGENTS.md sections is named while they are missing", () => {
-  assert.equal(library().packs.find((p) => p.id === 'matt-pocock').prompts[0].writes, 'docs/agents');
-  const off = repo();
-  apply(preview(plan(off, { agents: ['claude'], env: 'host' }).changes), off.ctx, { scope: off.dir });
-  assert.deepEqual(projectChecks(off.ctx, off.dir, ['claude']).filter((i) => i.check === 'packs'), []);
-  const r = repo();
-  apply(preview(plan(r, { agents: ['claude'], env: 'host', packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] }).changes), r.ctx, { scope: r.dir });
-  const found = () => projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'packs').map((i) => [i.level, i.message, i.fix.split(' ').slice(0, 2).join(' ')]);
-  assert.deepEqual(found(), [['warning', 'pack matt-pocock is on, but docs/agents/ does not exist', 'run /mattpocock-skills:setup-matt-pocock-skills']]);
-  mkdirSync(join(r.dir, 'docs/agents'), { recursive: true });
-  assert.deepEqual(found().map((i) => i[0]), ['info']);
-  writeFileSync(join(r.dir, 'AGENTS.md'), '## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n### Triage labels\n\nDefault.\n\n### Domain docs\n\nNone.\n');
-  assert.deepEqual(found(), []);
 });
 
 test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and podman', () => {

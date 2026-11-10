@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { splitSource } from './fixsource.js';
 import { updateProjects } from './update.js';
-import { ChangeList, RunProgress, SettingFactsOf, StartBlock, confirms, defaultSelect, usePrerun } from './parts.jsx';
+import { ChangeList, RunProgress, SettingFactsOf, confirms, defaultSelect, usePrerun } from './parts.jsx';
 import { Dot, Loading, Note, groupBy, href, icon, useApi } from './shell.jsx';
 
 // Doctor findings the setup can fix open the plan that fixes them; the others keep their fix text only.
@@ -66,7 +66,6 @@ function DoctorTable({ found, onAction, onDismiss }) {
               <Stack gap={4} align="flex-start">
                 {action ? actionButton(action, onAction) : <Text size="sm">{withRuns(text)}</Text>}
                 {source && <Anchor href={source} target="_blank" rel="noreferrer" size="sm" title={source}>Documentation</Anchor>}
-                {i.start && <StartBlock start={i.start} />}
                 {onDismiss && i.dismissId?.startsWith('doctor:') && <Button size="xs" variant="subtle" aria-label={`Dismiss: ${i.message}`} onClick={() => onDismiss(i)}>Dismiss</Button>}
               </Stack>
             );

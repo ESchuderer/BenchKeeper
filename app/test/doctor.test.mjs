@@ -262,29 +262,6 @@ test('a container engine: docker alone is enough', () => {
   assert.ok(!doctor(ctx, { agents: ['claude'], env: {}, devcontainerCli: '1.0.0' }).some((i) => i.message === 'no container engine (podman or docker)'));
 });
 
-test('a pack with its own setup skill: missing folder is a warning with a start line, missing sections info, quiet when both exist', () => {
-  const ctx = machine();
-  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-pack-'));
-  mkdirSync(join(dir, '.benchkeeper'));
-  const state = (agents) => writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ schemaVersion: 2, appVersion, contentVersion, agents, packs: ['matt-pocock'], share: true }));
-  const packs = () => doctor(ctx, { agents: [], dir, env: {} }).filter((i) => i.check === 'packs');
-  state(['codex']);
-  const [missing] = packs();
-  assert.equal(missing.level, 'warning');
-  assert.equal(missing.message, 'pack matt-pocock is on, but docs/agents/ does not exist');
-  assert.match(missing.fix, /^run \$mattpocock-skills:setup-matt-pocock-skills once in this project: it writes `docs\/agents\/`/);
-  assert.deepEqual(missing.start, { agent: 'codex', dir, prompt: '$mattpocock-skills:setup-matt-pocock-skills', command: `benchkeeper sessions record --project '${dir}' -- codex '$mattpocock-skills:setup-matt-pocock-skills'` });
-  state([]);
-  assert.equal(packs()[0].start, undefined, 'no agent, no start line');
-  state(['codex', 'claude']);
-  mkdirSync(join(dir, 'docs/agents'), { recursive: true });
-  writeFileSync(join(dir, 'AGENTS.md'), '# P\n\n### Issue tracker\n');
-  assert.deepEqual(packs().map((i) => [i.level, i.message]), [['info', 'pack matt-pocock is on, but ### Issue tracker, ### Triage labels, ### Domain docs are not all in AGENTS.md']]);
-  assert.match(packs()[0].fix, /^run \/mattpocock-skills:setup-matt-pocock-skills once/);
-  writeFileSync(join(dir, 'CLAUDE.md'), '  ### Triage labels\n### Domain docs\n');
-  assert.deepEqual(packs(), []);
-});
-
 test('project state: unreadable, committed while local, older than this app, a container env without the Dev Containers CLI', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-doc-'));
   const ctx = context({ home, run: (argv) => {

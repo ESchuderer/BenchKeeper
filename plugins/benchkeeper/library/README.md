@@ -101,12 +101,12 @@ CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project.
 
 ## Packs
 
-Named selections that project setup proposes when "Pick when" matches. A pack with a plugin installs through the agent's plugin command; its prompts are the steps the user starts after installing.
+Named selections that project setup proposes when "Pick when" matches. A pack with a plugin installs through the agent's plugin command.
 
 | Pack | Contents | Pick when |
 | --- | --- | --- |
 | `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full. It adds about 1,000 tokens at each session start (its rules and a map of the repository) and about 700 per subagent |
-| `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, tdd and review skills |
+| `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock` | The project uses his grilling, spec, tickets, tdd and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |
 | `security` | `gha-security-review`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |

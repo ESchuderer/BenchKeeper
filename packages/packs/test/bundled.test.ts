@@ -42,12 +42,7 @@ test("each bundled pack's manifest, in the folder of its id, lists exactly the f
       folder,
       manifest.id,
       files.filter((file) => file !== "cedarloom-pack.json" && !entries.some((entry) => covers(entry, file))),
-      // An entry with a Git source holds no files here; every other entry holds some.
-      entries.filter((entry) => {
-        const found = manifest.entries[entry];
-        const fromGit = found?.kind === "skill" && found.source !== undefined;
-        return fromGit === files.some((file) => covers(entry, file));
-      }),
+      entries.filter((entry) => !files.some((file) => covers(entry, file))),
     ]),
   );
   expect(checked).toEqual([

@@ -7,11 +7,11 @@ import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
-import { appVersion, library } from '../src/content.mjs';
+import { appVersion } from '../src/content.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { SKILLS_SPEC } from '../src/steps/global.mjs';
-import { ENVS, STATE, localSetup, projectCtx, projectPlan, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
+import { ENVS, STATE, localSetup, projectCtx, projectPlan, quote, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
 import { classify } from '../src/inventory.mjs';
 import { initRepo } from './helpers.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
@@ -489,6 +489,11 @@ test('packs with plugins install them', () => {
   assert.ok(!installed.changes.some((c) => c.kind === 'command'));
   assert.throws(() => plan(r, { agents: ['claude'], packs: ['nope'] }), /unknown pack/);
   assert.throws(() => plan(r, { agents: ['claude'], env: 'vm' }), /env must be/);
+});
+
+// The record command is pasted into a shell: an apostrophe in a folder name must not end the quoted word.
+test('quote keeps an apostrophe inside one shell word', () => {
+  assert.equal(quote("/tmp/x'; touch pwned; '"), "'/tmp/x'\\''; touch pwned; '\\'''");
 });
 
 // The block of a pack's own setup in CLAUDE.md is not moved: that setup runs outside BenchKeeper's plan and undo.

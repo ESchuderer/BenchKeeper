@@ -32,11 +32,12 @@ const tracked = (cwd) => {
 };
 
 // The drift since the coordinator last wrote the file: the time the status line carries, else the file's mtime. Any
-// failure means no drift, never a failed restore, as in the Claude Code module.
+// failure means no drift, never a failed restore, as in the Claude Code module, whose engine bounds its git calls too: a
+// call past 5 seconds or 4 MiB of output (a huge status) is one.
 const drifted = (cwd, handle, handoff) => {
   const program = git();
   if (!program) return '';
-  const run = (args) => execFileSync(program, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const run = (args) => execFileSync(program, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, killSignal: 'SIGKILL', maxBuffer: 4 << 20 });
   try {
     const since = stamped(handoff)?.edited ?? fstatSync(handle).mtimeMs;
     const top = run(TOP_ARGS).trim();

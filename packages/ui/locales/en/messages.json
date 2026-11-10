@@ -4,6 +4,20 @@
     "accounts.action": ["Action"],
     "accounts.active": ["Active"],
     "accounts.approve": ["claude-swap runs this command once you approve it"],
+    "accounts.approveInstall": ["This command installs claude-swap once you approve it"],
+    "accounts.auto": ["claude-swap's auto switching"],
+    "accounts.autoOff": ["Turn auto switching off"],
+    "accounts.autoOn": ["Turn auto switching on"],
+    "accounts.autoSwitch": [
+      [
+        "on",
+        "select",
+        {
+          "true": ["Auto switching is on: the menu bar switches accounts."],
+          "other": ["Auto switching is off: the menu bar shows usage and switches no account."]
+        }
+      ]
+    ],
     "accounts.cancel": ["Cancel"],
     "accounts.cancelled": ["Nothing ran."],
     "accounts.caption": ["claude-swap's accounts"],
@@ -11,6 +25,8 @@
     "accounts.disabled": ["Disabled"],
     "accounts.globalLine": ["claude-swap's global line"],
     "accounts.held": ["Needs a new login"],
+    "accounts.install": ["Install claude-swap"],
+    "accounts.installed": ["claude-swap ", ["version"], " is installed."],
     "accounts.line": ["Switch line"],
     "accounts.lines": ["Switch lines of claude-swap's auto mode"],
     "accounts.name": [["number"], " (", ["alias"], ")"],
@@ -19,6 +35,7 @@
     "accounts.resets": ["resets ", ["when"]],
     "accounts.run": ["Run it"],
     "accounts.set": ["claude-swap set ", ["key"], " to ", ["value"], "."],
+    "accounts.source": ["claude-swap ", ["release"], ", downloaded from ", ["source"]],
     "accounts.stale": ["not current"],
     "accounts.state": ["State"],
     "accounts.switch": ["Switch to ", ["name"]],
@@ -37,6 +54,11 @@
       ": ",
       ["percent"],
       "%"
+    ],
+    "accounts.windowUnknown": [
+      ["span", "select", { "fiveHour": ["5 hours"], "sevenDay": ["7 days"], "other": [["span"]] }],
+      ["model", "select", { "none": [], "other": [" (", ["model"], ")"] }],
+      ": unknown"
     ],
     "app.licenses": ["Third-party licenses"],
     "app.title": ["CedarLoom"],
@@ -475,6 +497,91 @@
     "session.lost": [
       "This page has no session. Run cedarloom ui again and open the link it prints: each link works once, in one tab."
     ],
+    "sessions.agent": [["agent", "select", { "codex": ["Codex"], "other": ["Claude Code"] }]],
+    "sessions.agentColumn": ["Agent"],
+    "sessions.allProjects": ["All projects"],
+    "sessions.allTime": ["All time"],
+    "sessions.cancel": ["Cancel"],
+    "sessions.caption": ["Sessions, newest first"],
+    "sessions.chart": [
+      [
+        "metric",
+        "select",
+        { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
+      ],
+      " per day and project, ",
+      ["from"],
+      " to ",
+      ["to"],
+      ". Arrow keys move through the days."
+    ],
+    "sessions.cost": ["Cost"],
+    "sessions.costColumn": ["Cost (estimate)"],
+    "sessions.costNote": [
+      "Estimates: Claude Code's own, and Codex at OpenAI's list prices of ",
+      ["date"],
+      ".",
+      [
+        "uncosted",
+        "plural",
+        { "0": [], "one": [" ", "#", " session without a cost."], "other": [" ", "#", " sessions without a cost."] }
+      ]
+    ],
+    "sessions.count": ["Sessions"],
+    "sessions.dataFrom": [
+      "Claude Code data starts on ",
+      ["first"],
+      ": Claude Code deletes older transcripts, so earlier days show less work than there was."
+    ],
+    "sessions.days": ["Last ", ["days"], " days"],
+    "sessions.daysOf": [["worked"], " of ", ["days"]],
+    "sessions.daysWorked": ["Days worked"],
+    "sessions.deleteBody": [
+      "Sessions whose logs are gone leave the board for good, and the .bad copy of a damaged history is deleted too. Sessions whose logs still exist stay, and the history records them again."
+    ],
+    "sessions.deleteHistory": ["Delete history"],
+    "sessions.deleteTitle": ["Delete the sessions history?"],
+    "sessions.empty": ["No session in this period."],
+    "sessions.hint": ["Point at a day, or focus the chart and use the arrow keys, to read its values."],
+    "sessions.historyDeleted": ["The history is deleted."],
+    "sessions.historyMoved": [
+      "The sessions history could not be read, so it was moved to ",
+      ["file"],
+      ". A new history starts with the sessions whose logs still exist."
+    ],
+    "sessions.historyNote": [
+      "The history keeps each session's project, start, agent time, tokens, cost and test result on this computer, so the board still counts it after the agent tools delete its log. It keeps no title or other text of a session."
+    ],
+    "sessions.metric": ["Per day"],
+    "sessions.metricName": [
+      [
+        "metric",
+        "select",
+        { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
+      ]
+    ],
+    "sessions.noData": ["before the first Claude Code data"],
+    "sessions.none": ["None"],
+    "sessions.other": ["Other"],
+    "sessions.peak": ["Top line: ", ["value"], " a day"],
+    "sessions.period": ["Period"],
+    "sessions.project": ["Project"],
+    "sessions.reading": ["Reading the session logs. A first read of many logs takes a few seconds."],
+    "sessions.result": [["tests", "select", { "pass": ["Passed"], "fail": ["Failed"], "other": ["None"] }]],
+    "sessions.started": ["Started"],
+    "sessions.streak": ["Longest run ", ["streak", "plural", { "one": ["#", " day"], "other": ["#", " days"] }]],
+    "sessions.tested": [
+      "Of ",
+      ["tested", "plural", { "one": ["#", " session"], "other": ["#", " sessions"] }],
+      " with a test run"
+    ],
+    "sessions.tests": ["Tests"],
+    "sessions.testsPassed": ["Tests passed"],
+    "sessions.time": ["Agent time"],
+    "sessions.timeNote": ["API and tool time, summed; Codex's turn time"],
+    "sessions.title": ["Title"],
+    "sessions.tokens": ["Tokens"],
+    "sessions.tokensNote": ["Input, cache and output"],
     "view.notBuilt": ["This view is not built yet."]
   }
 }

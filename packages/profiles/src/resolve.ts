@@ -141,7 +141,8 @@ const rootOf = (profile: ProfileSelection["profile"]): Result<{ json: unknown; b
 
 /**
  * A composed profile with the parts switched on (`level.id`), this machine's hub and gate workflow source, the `auto`
- * parts that wait for that source, the parts selected on that stay off without Orca, and what keeps it from applying.
+ * parts that wait for that source, the parts selected on that stay off without Orca, the parts the selection switches
+ * off, and what keeps it from applying.
  */
 export interface Resolved extends Composed {
   readonly on: ReadonlySet<string>;
@@ -149,6 +150,7 @@ export interface Resolved extends Composed {
   readonly gates: string | undefined;
   readonly unbound: readonly string[];
   readonly unmet: readonly string[];
+  readonly switchedOff: readonly string[];
   readonly problems: Finding[];
 }
 
@@ -232,6 +234,7 @@ export const resolveProfile = (
     .filter(([key, part]) => part.when === "gates" && select[key] === undefined && !on.has(key))
     .map(([key]) => key);
   const unmet = [...parts].filter(([key]) => select[key] === true && !on.has(key)).map(([key]) => key);
+  const switchedOff = [...parts.keys()].filter((key) => select[key] === false);
   const problems = problemsOf(parts, on, selection);
-  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, unmet, problems } };
+  return { ok: true, value: { ...composed.value, on, hub, gates, unbound, unmet, switchedOff, problems } };
 };

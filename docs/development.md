@@ -4,17 +4,13 @@ How the checks, the workflows and the local agent setup of this repository work.
 
 ## Workflows
 
-- `checks.yml` runs `checks-core`, `app-ui-tests` and `plugin-checks` in parallel; the job `checks` gates all three. `links.yml` gates its `link-check` job the same way with `lychee`.
+- `checks.yml` runs `checks-core`, `app-ui-tests` and `plugin-checks` in parallel; the job `checks` gates all three.
 - Every workflow has `permissions: {}` at the top and per job, `timeout-minutes` on every job and a `concurrency` group that cancels superseded pull request runs.
-- Every required check runs on pull requests into `main` and on pushes to `main`, except `conventional` (the pull request title) and `dependency-review`, which run on pull requests only.
-- The rulesets name the required checks: `checks`, `app (ubuntu-latest)`, `app (macos-latest)`, `app-windows-smoke`, `build`, `lychee`, `conventional`, `dependency-review`. A job change keeps these names.
-- `checks-core`: `actionlint`, `zizmor` (a checkout keeps its credentials only with a `zizmor: ignore[artipacked]` reason), no em dash or emoji in text files outside the `.agents/` and `.claude/` folders, the `.github/scripts/` tests and checks (skill lint, generated docs, version pins, claims).
-- Actions are pinned to commit SHAs with a version comment. Dependabot (`.github/dependabot.yml`) updates the `uses:` pins and the npm packages of the site, the app and `.github/pnpm` (the pnpm of the CedarLoom CI) weekly. By hand: the actionlint image digest, `node-version` in every workflow, the dev container image and its pnpm (they follow the Node 26 line of `cedarloom.yml` and the pnpm of `.github/pnpm`, and the CI step `Version pins` fails when the Node or the pnpm differs; bump the image's tag and digest together, since the step reads the tag; BenchKeeper's own workflows stay on Node 22), and the Claude Code pin of the `plugin-checks` job (`.github/claude-code/package.json` and its lockfile, the npm `stable` tag).
+- Every required check runs on pull requests into `main` and on pushes to `main`, except `conventional` (the pull request title) and `dependency-review`, which run on pull requests only, and `check`, which runs on pull requests, the merge queue and weekly.
+- The rulesets name the required checks: `checks`, `app (ubuntu-latest)`, `app (macos-latest)`, `app-windows-smoke`, `build`, `check` (the CedarLoom gate of `cedarloom.yml`), `conventional`, `dependency-review`. A job change keeps these names.
+- `checks-core`: `actionlint`, `zizmor` (a checkout keeps its credentials only with a `zizmor: ignore[artipacked]` reason), no em dash or emoji in text files outside the `.agents/` and `.claude/` folders and the vendored `packages/packs/bundled/cedarloom.mantine/skills/mantine-form/`, the `.github/scripts/` tests and checks (skill lint, generated docs, version pins, claims).
+- Actions are pinned to commit SHAs with a version comment. Dependabot (`.github/dependabot.yml`) updates the `uses:` pins and the npm packages of the site, the app, the CedarLoom workspace at the root (group `mantine` for every `@mantine/*` version update, else group `cedarloom` for minor and patch) and `.github/pnpm` (the pnpm of the CedarLoom CI) weekly. By hand: the actionlint image digest, `node-version` in every workflow, the dev container image and its pnpm (they follow the Node 26 line of `cedarloom.yml` and the pnpm of `.github/pnpm`, and the CI step `Version pins` fails when the Node or the pnpm differs; bump the image's tag and digest together, since the step reads the tag; BenchKeeper's own workflows stay on Node 22), and the Claude Code pin of the `plugin-checks` job (`.github/claude-code/package.json` and its lockfile, the npm `stable` tag).
 - The Chromium headless shell version of `@playwright/test` in `web/package.json` and `app/package.json` is also set in `.devcontainer/Dockerfile`; the CI step `Version pins` fails when they differ.
-
-## Links
-
-The job `link-check` (pull requests and pushes) runs lychee offline over the Markdown files (relative links and anchors) and the link checker test (`node --test .github/scripts/github-links.test.mjs`). External links are checked by the jobs `external-links` (lychee for all hosts, `.github/scripts/github-links.mjs` and the GitHub API for github.com) and `external-site-links` on the weekly cron and on `workflow_dispatch` only, so a broken external link shows as a red scheduled run.
 
 ## App quality gates
 
@@ -31,9 +27,18 @@ In the dev container, 3 app tests fail because of the container, not the code or
 - `machine setup` and `machine session variables` need `ssh-keygen`, which the image lacks ([#979](https://github.com/ESchuderer/BenchKeeper/issues/979)).
 - `sandbox: srt confines a real command ...` runs because `.devcontainer/compose.yaml` sets `BENCHKEEPER_SANDBOX_TEST=1` (CI does not, so it skips the test there), and srt does not start in the rootless podman container ([#1019](https://github.com/ESchuderer/BenchKeeper/issues/1019)).
 
+## Plugin mod types
+
+The plugin's mod (`plugins/benchkeeper/hooks/`: the tier band and the coordinator rotation) is type-checked by hand, not in CI: Claude Code writes the types it imports (`claude-code`, `claude-code/testing`) only when a logged-in session loads the mod, into `plugins/benchkeeper/.claude-plugin/types/` (git-ignored), and no `claude plugin` command writes them.
+
+1. Load the mod once: `claude --plugin-dir plugins/benchkeeper`, then quit the session.
+2. In the dev container: `node_modules/.bin/tsc -p plugins/benchkeeper` (the options are the ones the types file names for a hooks module).
+
+The types are those of the Claude Code that loaded the mod, which can be newer than the `plugin-checks` pin.
+
 ## Site
 
-`.github/workflows/pages.yml` runs the README sync check, the build, axe in light and dark, and lychee offline on the built HTML (its external links are the weekly `external-site-links`). It deploys on pushes to `main`, on a published release and by hand ([releasing](releasing.md#site)); a failing `build` job fails the run and the previous deployment stays. Pushes share one concurrency group, so deployments are ordered.
+`.github/workflows/pages.yml` runs the README sync check, the build, and axe in light and dark. It deploys on pushes to `main`, on a published release and by hand ([releasing](releasing.md#site)); a failing `build` job fails the run and the previous deployment stays. Pushes share one concurrency group, so deployments are ordered.
 
 Preview: `npm run preview` in `web/` in the dev container serves the site under `/BenchKeeper/` on a free host port: `podman port $(podman ps -q --filter label=devcontainer.local_folder="$PWD") 4321`.
 
@@ -43,15 +48,12 @@ Set `dev.containers.copyGitConfig` to `false` and `dev.containers.gitCredentialH
 
 ## Agent config
 
-The project skills (`.claude/skills/`, `.agents/skills/`), `skills-lock.json`, `.mcp.json` and `.codex/config.toml` are local to each checkout and not tracked. In a new clone:
+`.mcp.json` is committed: Claude Code's project MCP servers, `playwright` (a browser in the dev container) and `mantine` (Mantine's docs from mantine.dev, which follow the latest Mantine release: check an answer against the installed `@mantine/core` before using an API it names). `mantine` runs the root devDependency `@mantine/mcp-server` in the dev container, like `playwright`, so code that the container writes into `node_modules` never runs on the host; Dependabot's `mantine` group moves it with the other `@mantine/*` packages, majors included; before merging that pull request, copy `mantine-form` anew (the group's comment in `.github/dependabot.yml`). In an interactive session Claude Code asks before it starts each one ([project scope](https://code.claude.com/docs/en/mcp#project-scope)); a `claude -p` run starts both without asking, unless it passes `--strict-mcp-config` (the MCP scoping row of the [security model](security.md)). The project skills (`.claude/skills/`, `.agents/skills/`), `skills-lock.json` and `.codex/config.toml` are local to each checkout and not tracked. In a new clone:
 
 1. Run the project setup of [setup](setup.md#per-repo) with `--agents claude,codex`. It installs the skills and the lock file and lists them in `.git/info/exclude`.
-2. Write the Playwright MCP server `playwright` into `.mcp.json` (`mcpServers.playwright`: `type` `stdio`, `command` `sh`, `args` `-c` and the line below) and into `.codex/config.toml` (`[mcp_servers.playwright]`, the same `command` and `args`). The line:
+2. Install the CedarLoom packages in the dev container (`pnpm install --frozen-lockfile`), which `mantine` needs.
+3. For Codex, write both servers into `.codex/config.toml` (`[mcp_servers.playwright]` and `[mcp_servers.mantine]`, each with the `command` and `args` of its `.mcp.json` entry).
+4. Copy Mantine's `mantine-form` skill, which the `cedarloom.mantine` pack carries at a recorded upstream commit, into both skill folders: `cp -R packages/packs/bundled/cedarloom.mantine/skills/mantine-form .claude/skills/` and the same into `.agents/skills/`. Copy it again after a `@mantine/*` update.
+5. Add `/.codex/config.toml`, `/.claude/skills` and `/.agents/skills` to `.git/info/exclude`.
 
-   ```sh
-   root=$(git rev-parse --show-toplevel) && devcontainer up --docker-path podman --workspace-folder "$root" < /dev/null > /dev/null 2>&1 && exec devcontainer exec --docker-path podman --workspace-folder "$root" playwright-mcp --browser chromium --headless
-   ```
-
-3. Add `/.mcp.json`, `/.codex/config.toml`, `/.claude/skills` and `/.agents/skills` to `.git/info/exclude`.
-
-A new worktree (Orca, Claude Code `--worktree`) gets a copy of the paths that `.worktreeinclude` in the primary checkout lists, when Git ignores them there. The project setup of step 1 writes that file with its own list between `# benchkeeper:worktrees` markers and adds `/.worktreeinclude` to `.git/info/exclude`. Add `.mcp.json` and `.codex/config.toml` below the block, one path per line; the setup keeps lines outside it.
+A new worktree (Orca, Claude Code `--worktree`) gets a copy of the paths that `.worktreeinclude` in the primary checkout lists, when Git ignores them there. The project setup of step 1 writes that file with its own list between `# benchkeeper:worktrees` markers and adds `/.worktreeinclude` to `.git/info/exclude`. Add `.codex/config.toml`, `.claude/skills` and `.agents/skills` below the block, one path per line; the setup keeps lines outside it. A worktree's `mantine` server starts once step 2 has run in that worktree.

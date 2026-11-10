@@ -105,8 +105,12 @@ const probeOf = (app: string | undefined, config: string, project: string | unde
   };
 };
 
-// The profile this machine's selection names, resolved.
-const selectedProfile = (config: string, app: string | undefined, project: string | undefined): Result<Resolved> => {
+/** The profile this machine's selection names, resolved. */
+export const selectedProfile = (
+  config: string,
+  app: string | undefined,
+  project: string | undefined,
+): Result<Resolved> => {
   const read = readSelection(config);
   return read.ok ? resolveProfile(read.value.selection, APP_VERSION, probeOf(app, config, project)) : read;
 };
@@ -194,6 +198,11 @@ const levelOf = async (
   if (stray !== undefined) {
     const unknown: Finding = { code: "profile.remove-unknown", params: { item: stray } };
     return { ok: false as const, finding: unknown };
+  }
+  // At the user's home, the project's `.claude/` and `.codex/` files are the tools' user config, which no profile writes.
+  if (project !== undefined && project === onDisk(machine.user)) {
+    const home: Finding = { code: "profile.project-is-home", params: { project } };
+    return { ok: false as const, finding: home };
   }
   if (project !== undefined) return projectLevel(state, project, given, given.apply ?? devcontainerCli);
   const where = targetOf(config, state, machine);

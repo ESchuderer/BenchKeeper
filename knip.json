@@ -6,7 +6,8 @@
     ".": {
       "entry": ["scripts/*.test.ts"],
       "project": ["*.ts", "scripts/*.ts"],
-      "node": false
+      "node": false,
+      "ignoreDependencies": ["@mantine/mcp-server"]
     },
     "packages/*": { "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "test/**/*.ts"] },
     "packages/extension-host": {

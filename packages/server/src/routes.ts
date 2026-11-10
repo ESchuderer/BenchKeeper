@@ -8,14 +8,19 @@ import {
   ImportPreview,
   type Plan,
   ProfileView,
+  QualifiedPartId,
   Refusal,
   type Result,
   Run,
   RunResult,
+  SessionsBoard,
   Sha256,
   Step,
   SwapAccounts,
   SwapApproval,
+  SwapInstall,
+  SwapInstalled,
+  SwapService,
   UndoPreview,
   WorkflowId,
   WorkflowJson,
@@ -182,7 +187,10 @@ export const profileRoutes: FastifyPluginAsyncZod<{
     "/api/profile/parts/:part",
     {
       schema: {
-        params: z.strictObject({ part: z.string().describe("The part as level.id, such as machine.rules.global") }),
+        // The pattern is ASCII only, so its 139 characters are 139 UTF-16 units, the length the router (maxParamLength) measures.
+        params: z.strictObject({
+          part: QualifiedPartId.describe("The part as level.id, such as machine.rules.global"),
+        }),
         body: z.strictObject({ on: z.boolean() }),
         // 409 with a run result: refused (the selection file changed meanwhile) or stopped midway.
         response: answers({ 200: RunResult, 409: z.union([RunResult, Refusal]) }),
@@ -262,16 +270,61 @@ const SettingsBody = z.strictObject({
   value: z.number().min(0).max(100).describe("The switch line in percent; claude-swap checks its own range"),
   allow: approved,
 });
+const AutoSet = z.union([SwapApproval, SwapService]);
+const AutoBody = z.strictObject({ on: z.boolean().describe("true: auto-on, false: auto-off"), allow: approved });
+const Installed = z.union([SwapInstall, SwapInstalled]);
+// The installer, not cswap, and the command the user approved: the extension runs no other one. 1,024 characters at 12
+// escaped bytes each fit the server's 16 KiB body limit, so a longer one answers 400, not 413.
+const InstallBody = z.strictObject({
+  allow: z
+    .strictObject({ installer: SwapInstall.shape.installer, runs: z.string().max(1024) })
+    .nullable()
+    .describe("The installer and command of the approval the user gave; null asks for it"),
+});
 
-// Accounts belong to claude-swap: these routes keep nothing, and a change runs only once the request says `allow`.
-export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: string; app: string | undefined }> = async (
-  server,
-  { state, config, app },
-) => {
-  const swap = (action: string, allow = false, inputs: Record<string, string> = {}): Promise<Result<object>> =>
+type SwapPaths = { state: string; config: string; app: string | undefined };
+// An action of the app's claude-swap extension, with the programs the user allowed.
+const swapIn =
+  ({ state, config, app }: SwapPaths) =>
+  (action: string, allow: string[] = [], inputs: Record<string, string> = {}): Promise<Result<object>> =>
     app === undefined
       ? Promise.resolve({ ok: false, finding: { code: "extension.unknown", params: { extension: SWAP } } })
-      : useCases.runBundled({ state, config, app }, SWAP, action, { allow: allow ? ["cswap"] : [], inputs });
+      : useCases.runBundled({ state, config, app }, SWAP, action, { allow, inputs });
+const cswap = (allow: boolean): string[] => (allow ? ["cswap"] : []);
+
+// claude-swap's auto mode and its install, each run only once the request allows the command it showed.
+const swapRoutes: FastifyPluginAsyncZod<SwapPaths> = async (server, paths) => {
+  const swap = swapIn(paths);
+  server.get(
+    "/api/accounts/auto",
+    { schema: { response: answers({ 200: SwapService, 409: Refusal }) } },
+    async (_req, reply) => {
+      const ran = await swap("auto");
+      return ran.ok ? SwapService.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+  server.post(
+    "/api/accounts/auto",
+    { schema: { body: AutoBody, response: answers({ 200: AutoSet, 409: Refusal }) } },
+    async (req, reply) => {
+      const ran = await swap(req.body.on ? "auto-on" : "auto-off", cswap(req.body.allow));
+      return ran.ok ? AutoSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+  server.post(
+    "/api/accounts/install",
+    { schema: { body: InstallBody, response: answers({ 200: Installed, 409: Refusal }) } },
+    async (req, reply) => {
+      const { allow } = req.body;
+      const ran = await swap("install", allow === null ? [] : [allow.installer], allow ? { approved: allow.runs } : {});
+      return ran.ok ? Installed.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+};
+
+// Accounts belong to claude-swap: these routes keep nothing, and a change runs only once the request says `allow`.
+export const accountRoutes: FastifyPluginAsyncZod<SwapPaths> = async (server, paths) => {
+  const swap = swapIn(paths);
   server.get(
     "/api/accounts",
     { schema: { response: answers({ 200: SwapAccounts, 409: Refusal }) } },
@@ -286,7 +339,7 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
     "/api/accounts/switch",
     { schema: { body: SwitchBody, response: answers({ 200: Switched, 409: Refusal }) } },
     async (req, reply) => {
-      const ran = await swap("switch", req.body.allow, { account: String(req.body.account) });
+      const ran = await swap("switch", cswap(req.body.allow), { account: String(req.body.account) });
       return ran.ok ? Switched.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
     },
   );
@@ -295,8 +348,41 @@ export const accountRoutes: FastifyPluginAsyncZod<{ state: string; config: strin
     { schema: { body: SettingsBody, response: answers({ 200: SettingsSet, 409: Refusal }) } },
     async (req, reply) => {
       const { key, value, allow } = req.body;
-      const ran = await swap("settings", allow, { key, value: String(value) });
+      const ran = await swap("settings", cswap(allow), { key, value: String(value) });
       return ran.ok ? SettingsSet.parse(ran.value) : reply.code(409).send(refusal(ran.finding));
+    },
+  );
+  await server.register(swapRoutes, paths);
+};
+
+// Reads the session logs (a first read of many logs takes a few seconds); writes only the cache and the sessions
+// history with its `.bad` copy, which a DELETE removes.
+export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
+  const query = z.strictObject({
+    days: z.coerce.number().int().min(1).max(3650).optional().describe("The period's length in days; absent: all time"),
+    // 1,025 characters at 12 escaped bytes each fit the 16 KiB a request line may take, so a 400 answers, not a 431.
+    project: z.string().max(1024).optional().describe("The project's folder; absent: every project"),
+    tz: z
+      .string()
+      .max(64)
+      .optional()
+      .describe("The IANA time zone the days are counted in, such as Europe/Berlin; absent or unknown: UTC"),
+  });
+  app.get(
+    "/api/sessions",
+    { schema: { querystring: query, response: answers({ 200: SessionsBoard }) } },
+    async (req, _reply) => {
+      const { days, project, tz } = req.query;
+      // An unknown zone counts in UTC, and the answer names the zone it counted in.
+      return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone: tz });
+    },
+  );
+  app.delete(
+    "/api/sessions/history",
+    { schema: { response: answers({ 204: z.null().describe("Deleted, or there was none") }) } },
+    async (_req, reply) => {
+      useCases.deleteHistory(logs);
+      return reply.code(204).send(null);
     },
   );
 };

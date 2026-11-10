@@ -21,6 +21,7 @@ const serve = async (): Promise<{ base: string; token: string; state: string }> 
     state,
     config: join(state, "..", "config"),
     machine,
+    logs: { claude: machine.home, codex: join(state, "..", ".codex"), cache: null, history: null },
     every: 25,
     log: () => undefined,
   });

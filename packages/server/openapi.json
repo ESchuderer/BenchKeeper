@@ -3589,6 +3589,307 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.mcp-approval"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "transport": {
+                    "type": "string",
+                    "enum": [
+                      "stdio",
+                      "http"
+                    ]
+                  },
+                  "runs": {
+                    "type": "string"
+                  },
+                  "variables": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "string"
+                        },
+                        "change": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "replace"
+                          ]
+                        },
+                        "entry": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "file",
+                        "change",
+                        "entry"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "codex": {
+                    "type": "boolean"
+                  },
+                  "unpinned": {
+                    "type": "boolean"
+                  },
+                  "installed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "part",
+                  "title",
+                  "project",
+                  "server",
+                  "transport",
+                  "runs",
+                  "variables",
+                  "entries",
+                  "codex",
+                  "unpinned",
+                  "installed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "change": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "replace",
+                      "remove"
+                    ]
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "entry": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "change",
+                  "file",
+                  "entry"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-kept"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-dependency"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-outside-git"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.project-is-home"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "profile.template-failed"
               },
               "params": {
@@ -4329,6 +4630,64 @@
                 "required": [
                   "repo",
                   "hub"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.no-project-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.label-too-long"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "label",
+                  "limit"
                 ],
                 "additionalProperties": false
               }
@@ -5451,9 +5810,16 @@
                   "type": "string"
                 },
                 "usedPercent": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 100
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "resetsAt": {
                   "type": [
@@ -5525,11 +5891,84 @@
           },
           "approve": {
             "type": "string"
+          },
+          "hint": {
+            "type": "string"
           }
         },
         "required": [
           "runs",
           "approve"
+        ],
+        "additionalProperties": false
+      },
+      "SwapServiceInput": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "autoSwitch": {
+            "type": "boolean"
+          },
+          "hint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SwapInstallInput": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean",
+            "const": false
+          },
+          "installer": {
+            "type": "string",
+            "const": "uv"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "release": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runs",
+          "approve",
+          "installed",
+          "installer",
+          "source",
+          "release"
+        ],
+        "additionalProperties": false
+      },
+      "SwapInstalledInput": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "const": true
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installed",
+          "version"
         ],
         "additionalProperties": false
       },
@@ -5539,7 +5978,8 @@
           "agent": {
             "type": "string",
             "enum": [
-              "claude-code"
+              "claude-code",
+              "codex"
             ]
           },
           "id": {
@@ -5594,6 +6034,15 @@
               }
             ]
           },
+          "costEstimated": {
+            "type": "boolean"
+          },
+          "unpriced": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "tests": {
             "anyOf": [
               {
@@ -5619,7 +6068,188 @@
           "busyMs",
           "tokens",
           "costUSD",
+          "costEstimated",
+          "unpriced",
           "tests"
+        ],
+        "additionalProperties": false
+      },
+      "SessionFiguresInput": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "busyMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "costUSD": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncosted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "daysWorked": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "streak": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "tested": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "testsPassed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sessions",
+          "busyMs",
+          "costUSD",
+          "uncosted",
+          "tokens",
+          "days",
+          "daysWorked",
+          "streak",
+          "tested",
+          "testsPassed"
+        ],
+        "additionalProperties": false
+      },
+      "SessionsBoardInput": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zone": {
+            "type": "string"
+          },
+          "span": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            }
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "figures": {
+            "$ref": "#/components/schemas/SessionFiguresInput"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentSessionInput"
+            }
+          },
+          "prices": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "source": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "date",
+              "source"
+            ],
+            "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "days",
+          "project",
+          "zone",
+          "span",
+          "first",
+          "projects",
+          "figures",
+          "sessions",
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       },
@@ -9205,6 +9835,307 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "profile.mcp-approval"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "transport": {
+                    "type": "string",
+                    "enum": [
+                      "stdio",
+                      "http"
+                    ]
+                  },
+                  "runs": {
+                    "type": "string"
+                  },
+                  "variables": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "string"
+                        },
+                        "change": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "replace"
+                          ]
+                        },
+                        "entry": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "file",
+                        "change",
+                        "entry"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "codex": {
+                    "type": "boolean"
+                  },
+                  "unpinned": {
+                    "type": "boolean"
+                  },
+                  "installed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "part",
+                  "title",
+                  "project",
+                  "server",
+                  "transport",
+                  "runs",
+                  "variables",
+                  "entries",
+                  "codex",
+                  "unpinned",
+                  "installed"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-entry"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "change": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "replace",
+                      "remove"
+                    ]
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "entry": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "change",
+                  "file",
+                  "entry"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-kept"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-dependency"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-outside-git"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.project-is-home"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "profile.template-failed"
               },
               "params": {
@@ -9945,6 +10876,64 @@
                 "required": [
                   "repo",
                   "hub"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.no-project-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.label-too-long"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "label",
+                  "limit"
                 ],
                 "additionalProperties": false
               }
@@ -11034,9 +12023,16 @@
                   "type": "string"
                 },
                 "usedPercent": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 100
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "resetsAt": {
                   "type": [
@@ -11108,11 +12104,84 @@
           },
           "approve": {
             "type": "string"
+          },
+          "hint": {
+            "type": "string"
           }
         },
         "required": [
           "runs",
           "approve"
+        ],
+        "additionalProperties": false
+      },
+      "SwapService": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "autoSwitch": {
+            "type": "boolean"
+          },
+          "hint": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SwapInstall": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean",
+            "const": false
+          },
+          "installer": {
+            "type": "string",
+            "const": "uv"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "release": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runs",
+          "approve",
+          "installed",
+          "installer",
+          "source",
+          "release"
+        ],
+        "additionalProperties": false
+      },
+      "SwapInstalled": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "const": true
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installed",
+          "version"
         ],
         "additionalProperties": false
       },
@@ -11122,7 +12191,8 @@
           "agent": {
             "type": "string",
             "enum": [
-              "claude-code"
+              "claude-code",
+              "codex"
             ]
           },
           "id": {
@@ -11177,6 +12247,15 @@
               }
             ]
           },
+          "costEstimated": {
+            "type": "boolean"
+          },
+          "unpriced": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "tests": {
             "anyOf": [
               {
@@ -11202,7 +12281,188 @@
           "busyMs",
           "tokens",
           "costUSD",
+          "costEstimated",
+          "unpriced",
           "tests"
+        ],
+        "additionalProperties": false
+      },
+      "SessionFigures": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "busyMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "costUSD": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncosted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "daysWorked": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "streak": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "tested": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "testsPassed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sessions",
+          "busyMs",
+          "costUSD",
+          "uncosted",
+          "tokens",
+          "days",
+          "daysWorked",
+          "streak",
+          "tested",
+          "testsPassed"
+        ],
+        "additionalProperties": false
+      },
+      "SessionsBoard": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zone": {
+            "type": "string"
+          },
+          "span": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            }
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "figures": {
+            "$ref": "#/components/schemas/SessionFigures"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentSession"
+            }
+          },
+          "prices": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "source": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "date",
+              "source"
+            ],
+            "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "days",
+          "project",
+          "zone",
+          "span",
+          "first",
+          "projects",
+          "figures",
+          "sessions",
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       }
@@ -12094,7 +13354,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
             },
             "in": "path",
             "name": "part",
@@ -12374,6 +13635,312 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/auto": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwapService"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "on": {
+                    "type": "boolean"
+                  },
+                  "allow": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "on",
+                  "allow"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SwapApproval"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SwapService"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/install": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "allow": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "installer": {
+                            "type": "string",
+                            "enum": [
+                              "uv"
+                            ]
+                          },
+                          "runs": {
+                            "type": "string",
+                            "maxLength": 1024
+                          }
+                        },
+                        "required": [
+                          "installer",
+                          "runs"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "allow"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SwapInstall"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SwapInstalled"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3650
+            },
+            "in": "query",
+            "name": "days",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "in": "query",
+            "name": "project",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "tz",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsBoard"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/history": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Default Response"
           },
           "default": {
             "description": "Default Response",

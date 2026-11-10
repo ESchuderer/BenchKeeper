@@ -226,8 +226,9 @@ jobs:
         name: The workflow packages' hooks
         run: |
           pnpm --filter @cedarloom/orchestration run build
-          policy='{"schemaVersion":1,"repositories":"origin","hub":null,"memory":null}'
-          call() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"},"cwd":"%s"}' "$1" "$PWD" | node packages/cli/hooks/guard.mjs "$policy"; }
+          policy='{"schemaVersion":1,"hub":null,"memory":null,"plugin":"w"}'
+          # As a workflow script's agent: the guard binds only a workflow's own agents.
+          call() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"},"cwd":"%s","agent_type":"workflow-subagent","agent_id":"a1"}' "$1" "$PWD" | node packages/cli/hooks/guard.mjs "$policy"; }
           call ls
           if call "sudo ls" 2> /dev/null; then exit 1; fi
           files=$(cd packages/cli && npm pack --dry-run --json --ignore-scripts)

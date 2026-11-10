@@ -7,11 +7,11 @@ import { test } from 'node:test';
 import { apply, context, preview, runCommand, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { recordSession } from '../src/session.mjs';
-import { appVersion, contentDir, library } from '../src/content.mjs';
+import { appVersion } from '../src/content.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { SKILLS_SPEC } from '../src/steps/global.mjs';
-import { ENVS, STATE, localSetup, projectCtx, projectPlan, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
+import { ENVS, STATE, localSetup, projectCtx, projectPlan, quote, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
 import { classify } from '../src/inventory.mjs';
 import { initRepo } from './helpers.mjs';
 // Links resolved: the registry keeps canonical paths (macOS: /var is /private/var).
@@ -481,15 +481,19 @@ test('the workflow load line: on by default, off per project and kept off, on ag
   assert.match(block(), /load the `benchkeeper:workflow` skill/);
 });
 
-test('packs with plugins install them and list their prompts', () => {
+test('packs with plugins install them', () => {
   const r = repo();
   const p = plan(r, { agents: ['claude'], packs: ['matt-pocock'] });
   assert.ok(p.changes.some((c) => c.argv?.join(' ') === 'claude plugin install mattpocock-skills@claude-plugins-official'));
-  assert.ok(p.prompts.some((x) => x.prompt === '/mattpocock-skills:setup-matt-pocock-skills'));
   const installed = plan(r, { agents: ['claude'], packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] });
   assert.ok(!installed.changes.some((c) => c.kind === 'command'));
   assert.throws(() => plan(r, { agents: ['claude'], packs: ['nope'] }), /unknown pack/);
   assert.throws(() => plan(r, { agents: ['claude'], env: 'vm' }), /env must be/);
+});
+
+// The record command is pasted into a shell: an apostrophe in a folder name must not end the quoted word.
+test('quote keeps an apostrophe inside one shell word', () => {
+  assert.equal(quote("/tmp/x'; touch pwned; '"), "'/tmp/x'\\''; touch pwned; '\\'''");
 });
 
 // The block of a pack's own setup in CLAUDE.md is not moved: that setup runs outside BenchKeeper's plan and undo.
@@ -505,21 +509,6 @@ test('a pack is named in the project text only when it is on: off, no mention; o
     apply(preview(plan(on, { agents: ['claude', 'codex'], env: 'host', share, packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'], codex: ['mattpocock-skills@mattpocock'] }).changes), on.ctx, { scope: on.dir });
     assert.match(texts(on), /- Matt Pocock's skills \(`mattpocock-skills:<name>`\) are installed/);
   }
-});
-
-test("doctor: a pack whose own setup writes docs/agents/ and AGENTS.md sections is named while they are missing", () => {
-  assert.equal(library().packs.find((p) => p.id === 'matt-pocock').prompts[0].writes, 'docs/agents');
-  const off = repo();
-  apply(preview(plan(off, { agents: ['claude'], env: 'host' }).changes), off.ctx, { scope: off.dir });
-  assert.deepEqual(projectChecks(off.ctx, off.dir, ['claude']).filter((i) => i.check === 'packs'), []);
-  const r = repo();
-  apply(preview(plan(r, { agents: ['claude'], env: 'host', packs: ['matt-pocock'] }, { claude: ['mattpocock-skills@claude-plugins-official'] }).changes), r.ctx, { scope: r.dir });
-  const found = () => projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'packs').map((i) => [i.level, i.message, i.fix.split(' ').slice(0, 2).join(' ')]);
-  assert.deepEqual(found(), [['warning', 'pack matt-pocock is on, but docs/agents/ does not exist', 'run /mattpocock-skills:setup-matt-pocock-skills']]);
-  mkdirSync(join(r.dir, 'docs/agents'), { recursive: true });
-  assert.deepEqual(found().map((i) => i[0]), ['info']);
-  writeFileSync(join(r.dir, 'AGENTS.md'), '## Agent skills\n\n### Issue tracker\n\nGitHub.\n\n### Triage labels\n\nDefault.\n\n### Domain docs\n\nNone.\n');
-  assert.deepEqual(found(), []);
 });
 
 test('Gemini CLI reads AGENTS.md; the sandbox option excludes devcontainer and podman', () => {
@@ -724,18 +713,7 @@ test('a dangling state link is unreadable, not a missing setup', () => {
   assert.throws(() => readState(r.dir), /state\.json: a link to a missing file/);
 });
 
-test('the project block carries every rule that left the global file; bare skill names without plugin agents', () => {
-  const before = read(new URL('./fixtures/rules-before-190.md', import.meta.url).pathname).split('\n').filter((l) => l.startsWith('- '));
-  const global = read(join(contentDir, 'rules/global.md')).split('\n');
-  // A rule may be reworded later, in either file; its trigger (the text before the first comma) stays.
-  const trigger = (l) => l.split(',')[0];
-  const moved = before.filter((l) => !global.some((g) => g.startsWith(trigger(l))));
-  assert.deepEqual(moved.map(trigger), ['- Before changing a repository', '- When goal', '- When a check fails'], 'workflow load, open questions and fix the cause moved');
-  const r = repo();
-  const { changes } = plan(r, { agents: ['claude'], env: 'host', share: true });
-  assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: changes.map((c) => c.id) }).status, 'done');
-  const block = read(join(r.dir, 'AGENTS.md'));
-  for (const l of moved) assert.ok(block.includes(trigger(l)), l);
+test('bare skill names without plugin agents', () => {
   const g = repo();
   const gp = plan(g, { agents: ['gemini'], env: 'host', share: true }).changes;
   apply(preview(gp), g.ctx, { scope: g.dir, select: gp.map((c) => c.id) });

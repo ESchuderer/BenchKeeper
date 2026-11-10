@@ -52,7 +52,6 @@ export function renderSubagent(format, s) {
   if (format === 'markdown' || format === 'copilot-agent') return `---\n${fm.join('\n')}\n---\n\n${s.prompt.trimEnd()}\n`;
   throw new Error(`no renderer for subagent format ${format}`);
 }
-export const subagentFile = (format, name) => `${name}${format === 'toml' ? '.toml' : format === 'copilot-agent' ? '.agent.md' : '.md'}`;
 
 // Settings edits [{ path, value | append }] for JSON and JSONC (comments kept); TOML takes [{ table, key, value }].
 export { mergeJson as renderJsonSettings };

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Questions"
+  short_description: "Answer the open question issues"
+policy:
+  allow_implicit_invocation: false

@@ -992,6 +992,266 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/auto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapService"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        on: boolean;
+                        allow: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapApproval"] | components["schemas"]["SwapService"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        allow: {
+                            /** @enum {string} */
+                            installer: "uv";
+                            runs: string;
+                        } | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SwapInstall"] | components["schemas"]["SwapInstalled"];
+                    };
+                };
+                /** @description Default Response */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Refusal"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    days?: number;
+                    project?: string;
+                    tz?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SessionsBoard"];
+                    };
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Default Response */
+                default: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -1821,6 +2081,75 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.mcp-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                server: string;
+                /** @enum {string} */
+                transport: "stdio" | "http";
+                runs: string;
+                variables: string[];
+                entries: {
+                    file: string;
+                    /** @enum {string} */
+                    change: "add" | "replace";
+                    entry: string;
+                }[];
+                codex: boolean;
+                unpinned: boolean;
+                installed: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-entry";
+            params: {
+                part: string;
+                server: string;
+                /** @enum {string} */
+                change: "add" | "replace" | "remove";
+                file: string;
+                entry: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-kept";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-outside-git";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.template-failed";
             params: {
                 part: string;
@@ -1990,6 +2319,19 @@ export interface components {
             params: {
                 repo: string;
                 hub: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.no-project-name";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                limit: number;
             };
         } | {
             /** @constant */
@@ -2191,7 +2533,7 @@ export interface components {
             threshold: number | null;
             windows: {
                 window: string;
-                usedPercent: number;
+                usedPercent: number | null;
                 resetsAt: string | null;
                 readAt: string | null;
             }[];
@@ -2205,10 +2547,33 @@ export interface components {
         SwapApprovalInput: {
             runs: string;
             approve: string;
+            hint?: string;
+        };
+        SwapServiceInput: {
+            service?: string;
+            autoSwitch?: boolean;
+            hint?: string;
+        };
+        SwapInstallInput: {
+            runs: string;
+            approve: string;
+            hint?: string;
+            /** @constant */
+            installed: false;
+            /** @constant */
+            installer: "uv";
+            /** Format: uri */
+            source: string;
+            release: string;
+        };
+        SwapInstalledInput: {
+            /** @constant */
+            installed: true;
+            version: string;
         };
         AgentSessionInput: {
             /** @enum {string} */
-            agent: "claude-code";
+            agent: "claude-code" | "codex";
             id: string;
             project: string | null;
             title: string | null;
@@ -2219,7 +2584,38 @@ export interface components {
             busyMs: number | null;
             tokens: number;
             costUSD: number | null;
+            costEstimated: boolean;
+            unpriced: string[];
             tests: ("pass" | "fail") | null;
+        };
+        SessionFiguresInput: {
+            sessions: number;
+            busyMs: number;
+            costUSD: number | null;
+            uncosted: number;
+            tokens: number;
+            days: number;
+            daysWorked: number;
+            streak: number;
+            tested: number;
+            testsPassed: number | null;
+        };
+        SessionsBoardInput: {
+            days: number | null;
+            project: string | null;
+            zone: string;
+            span: string[];
+            first: string | null;
+            projects: string[];
+            figures: components["schemas"]["SessionFiguresInput"];
+            sessions: components["schemas"]["AgentSessionInput"][];
+            prices: {
+                /** Format: date */
+                date: string;
+                /** Format: uri */
+                source: string;
+            };
+            historyMoved: string | null;
         };
         SchemaVersion: number;
         Sha256: string;
@@ -3012,6 +3408,75 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.mcp-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                server: string;
+                /** @enum {string} */
+                transport: "stdio" | "http";
+                runs: string;
+                variables: string[];
+                entries: {
+                    file: string;
+                    /** @enum {string} */
+                    change: "add" | "replace";
+                    entry: string;
+                }[];
+                codex: boolean;
+                unpinned: boolean;
+                installed: string | null;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-entry";
+            params: {
+                part: string;
+                server: string;
+                /** @enum {string} */
+                change: "add" | "replace" | "remove";
+                file: string;
+                entry: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-kept";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-outside-git";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.template-failed";
             params: {
                 part: string;
@@ -3181,6 +3646,19 @@ export interface components {
             params: {
                 repo: string;
                 hub: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.no-project-name";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                limit: number;
             };
         } | {
             /** @constant */
@@ -3380,7 +3858,7 @@ export interface components {
             threshold: number | null;
             windows: {
                 window: string;
-                usedPercent: number;
+                usedPercent: number | null;
                 resetsAt: string | null;
                 readAt: string | null;
             }[];
@@ -3394,10 +3872,33 @@ export interface components {
         SwapApproval: {
             runs: string;
             approve: string;
+            hint?: string;
+        };
+        SwapService: {
+            service?: string;
+            autoSwitch?: boolean;
+            hint?: string;
+        };
+        SwapInstall: {
+            runs: string;
+            approve: string;
+            hint?: string;
+            /** @constant */
+            installed: false;
+            /** @constant */
+            installer: "uv";
+            /** Format: uri */
+            source: string;
+            release: string;
+        };
+        SwapInstalled: {
+            /** @constant */
+            installed: true;
+            version: string;
         };
         AgentSession: {
             /** @enum {string} */
-            agent: "claude-code";
+            agent: "claude-code" | "codex";
             id: string;
             project: string | null;
             title: string | null;
@@ -3408,7 +3909,38 @@ export interface components {
             busyMs: number | null;
             tokens: number;
             costUSD: number | null;
+            costEstimated: boolean;
+            unpriced: string[];
             tests: ("pass" | "fail") | null;
+        };
+        SessionFigures: {
+            sessions: number;
+            busyMs: number;
+            costUSD: number | null;
+            uncosted: number;
+            tokens: number;
+            days: number;
+            daysWorked: number;
+            streak: number;
+            tested: number;
+            testsPassed: number | null;
+        };
+        SessionsBoard: {
+            days: number | null;
+            project: string | null;
+            zone: string;
+            span: string[];
+            first: string | null;
+            projects: string[];
+            figures: components["schemas"]["SessionFigures"];
+            sessions: components["schemas"]["AgentSession"][];
+            prices: {
+                /** Format: date */
+                date: string;
+                /** Format: uri */
+                source: string;
+            };
+            historyMoved: string | null;
         };
     };
     responses: never;

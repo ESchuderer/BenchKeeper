@@ -2,8 +2,9 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AutomationLevel, WorkflowDefinition } from "@cedarloom/contracts";
+import { type AutomationLevel, ExportIndex, WorkflowDefinition } from "@cedarloom/contracts";
 import { buildPackage, type Hooks, type PackageFile } from "@cedarloom/emitter";
+import { BUNDLED } from "@cedarloom/packs";
 import { expect, test } from "vitest";
 import { type Call, passing, report, runScript } from "./script.ts";
 
@@ -132,6 +133,32 @@ test("each level keeps its gates, and a stop carries the inputs every later stag
     .split("\n")
     .find((each) => each.includes("`merge`, once"));
   expect([stop?.includes("`$w:merge-approved`"), stop?.includes("`topic`")]).toEqual([true, true]);
+});
+
+// The core pack's export folder, as `cedarloom import` reads it.
+const FEATURE = join(BUNDLED, "cedarloom.core", "templates", "workflows");
+const json = (path: string): unknown => JSON.parse(readFileSync(join(FEATURE, path), "utf8"));
+
+test("the bundled feature workflow builds at each level, its merge step a workflow script's own agent", () => {
+  const index = ExportIndex.parse(json("cedarloom-export.json"));
+  const feature = WorkflowDefinition.parse(json(`workflows/workflow-${index.workflows[0] ?? ""}.json`));
+  const paths = (level: AutomationLevel) =>
+    built(feature, level)
+      .map((file) => file.path)
+      .filter((path) => /^(agents|workflows)\//.test(path));
+  // Only test and review run as the plugin's own subagents: a step that does cannot merge at Auto.
+  const agents = ["agents/review.md", "agents/test.md"];
+  expect([paths("supervised"), paths("checkpoint"), paths("auto")]).toEqual([
+    [
+      ...agents,
+      "workflows/run-implementation-approved.js",
+      "workflows/run-merge-approved.js",
+      "workflows/run-start.js",
+      "workflows/run-verdict-approved.js",
+    ],
+    [...agents, "workflows/run-merge-approved.js", "workflows/run-start.js"],
+    [...agents, "workflows/run-start.js"],
+  ]);
 });
 
 test("workflow text in skill content never runs as a command when the skill loads, and no unreviewed text reaches it", () => {
@@ -283,22 +310,23 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-test("the package's guard lets an agent of a workflow script merge at Auto only, never the session itself", () => {
+test("the package's guard lets an agent of a workflow script merge at Auto only, never the package's own step subagent", () => {
   const project = mkdtempSync(join(tmpdir(), "guarded-"));
   try {
     execFileSync("git", ["init", "-q", project]);
     execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/app.git"]);
-    const merge = (agent?: string) =>
+    const merge = (agent: string) =>
       JSON.stringify({
         tool_name: "Bash",
         tool_input: { command: "gh pr merge 12 --squash" },
         cwd: project,
-        ...(agent === undefined ? {} : { agent_type: agent, agent_id: "a1" }),
+        agent_type: agent,
+        agent_id: "a1",
       });
     const verdicts = (["supervised", "checkpoint", "auto"] as const).map((level) => {
       const hooks = JSON.parse(fileOf(built(read("valid-build-and-review.json"), level), "hooks/claude-code.json"));
       const [, policy = ""]: string[] = hooks.hooks.PreToolUse[0].hooks[0].args;
-      return [merge("workflow-subagent"), merge()].map(
+      return [merge("workflow-subagent"), merge("build-and-review:review")].map(
         (input) => spawnSync(process.execPath, [GUARD, policy], { input, encoding: "utf8" }).status,
       );
     });

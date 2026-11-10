@@ -4,7 +4,7 @@
   "levels": [
     {
       "name": "Lite",
-      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills",
+      "contains": "the BenchKeeper plugin: the `workflow`, `tier`, `ask`, `questions`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills",
       "writes": "nothing outside the plugin install, besides the app's run record for undo",
       "command": "npx benchkeeper@6.26.0 apply --level lite",
       "evidence": "app/test/level.test.mjs"
@@ -313,7 +313,7 @@
       "title": "`rules/global.md`",
       "href": "https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/rules/global.md",
       "scope": "Global, every session, full level",
-      "text": "Secrets kept out, confirmation before hard-to-reverse actions or actions visible to others, when and how to ask the user, best practice with a source, writing without filler, sources for claims. The repository rules (ask before assuming, checks never weakened, load the workflow skill) are in `rules/project.md`, part of each project's block.",
+      "text": "Secrets kept out, confirmation before hard-to-reverse actions or actions visible to others, assumptions stated, the minimum change and the check that proves it done. The repository rules (when and how to ask, best practice with a source, writing without filler, sources for claims, checks never weakened, load the workflow skill) are in `rules/project.md`, part of each project's block.",
       "evidence": ["plugins/benchkeeper/rules/global.md", "plugins/benchkeeper/rules/project.md", "docs/stack.md#contents"]
     },
     {
@@ -354,7 +354,7 @@
       "href": "https://code.visualstudio.com/docs/devcontainers/devcontainer-cli",
       "scope": "Per repository",
       "text": "Installs, builds, tests and the browser run in the container as a non-root user. Domain skills come from the [BenchKeeper library](https://github.com/ESchuderer/BenchKeeper/blob/main/plugins/benchkeeper/library/README.md), stack skills from [find-skills](https://github.com/vercel-labs/skills), at most two per technology.",
-      "evidence": ["docs/stack.md#components", "plugins/benchkeeper/skills/setting-up-projects/SKILL.md"]
+      "evidence": ["docs/stack.md#components", "plugins/benchkeeper/skills/setting-up-projects/SKILL.md", "plugins/benchkeeper/skills/setting-up-projects/devcontainer.md"]
     }
   ],
   "sdlc": {

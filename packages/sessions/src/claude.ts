@@ -142,7 +142,10 @@ class Transcript {
           )
         : sum(this.usage.values());
     return {
+      agent: "claude-code",
       id: basename(file, ".jsonl"),
+      parent: null,
+      provider: null,
       folder: this.folder,
       project: null,
       title: this.title,
@@ -152,6 +155,7 @@ class Transcript {
       tokens,
       costUSD: cost?.totalCostUSD ?? null,
       tests: this.tests,
+      usage: {},
     };
   }
 }

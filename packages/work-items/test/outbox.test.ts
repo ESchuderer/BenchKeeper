@@ -25,6 +25,23 @@ const queue = (store: WorkItemStore, key: string, intent: Intent): string => {
   return entry.value.id;
 };
 const bodies = (tracker: FakeTracker): string[] => [...tracker.issue(issue).comments.values()];
+// A sent entry that found the tracker already as asked: its undo has nothing to take back.
+const expectNoUndo = (store: WorkItemStore, id: string): void => {
+  expect(compensate(store, id, "")).toEqual({
+    ok: false,
+    finding: { code: "outbox.not-undoable", params: { id, reason: "unchanged" } },
+  });
+};
+// Sends the undo `back` of a sent entry as the owner approved it; that undo has no undo of its own.
+const sendUndo = async (store: WorkItemStore, tracker: FakeTracker, id: string, back: Intent): Promise<void> => {
+  const undo = compensate(store, id, intentHash(back));
+  if (!undo.ok) throw new Error(undo.finding.code);
+  await drain(store, tracker);
+  expect(compensate(store, undo.value.id, "")).toEqual({
+    ok: false,
+    finding: { code: "outbox.not-undoable", params: { id: undo.value.id, reason: "no-inverse" } },
+  });
+};
 
 test.each(["lose-answer", "crash"] as const)(
   "a comment sent again after a %s is posted once: the next send finds it by its marker",
@@ -90,10 +107,7 @@ test("a retried label is read again, so its undo leaves the label someone added 
   tracker.issue(issue).labels.add("agent:review");
   store.retry(id);
   expect(await drain(store, tracker)).toMatchObject([{ id, status: "sent" }]);
-  expect(compensate(store, id, "")).toEqual({
-    ok: false,
-    finding: { code: "outbox.not-undoable", params: { id, reason: "unchanged" } },
-  });
+  expectNoUndo(store, id);
 });
 
 test("an entry a live sender holds is left to it with the ones after it, and due again once that sender ends", async () => {
@@ -118,10 +132,17 @@ test("an entry for another repository than the hub fails and writes nothing", as
   const [store, tracker] = [fresh(), new FakeTracker([issue])];
   const elsewhere: IssueRef = { repo: "acme/public-app", number: 7 };
   const id = queue(store, "mirror", { kind: "comment", issue: elsewhere, body: "Run ended." });
+  const label = queue(store, "label", { kind: "create-label", repo: "acme/public-app", label: "bug", color: "d73a4a" });
   expect(await drain(store, tracker)).toMatchObject([
     { id, status: "failed", finding: { code: "outbox.not-hub", params: { id, repo: "acme/public-app" } } },
+    {
+      id: label,
+      status: "failed",
+      finding: { code: "outbox.not-hub", params: { id: label, repo: "acme/public-app" } },
+    },
   ]);
   expect(bodies(tracker)).toEqual([]);
+  expect([...tracker.hubLabels]).toEqual([]);
 });
 
 test("a label's undo removes it only when the send added it, also when the send's answer was lost", async () => {
@@ -142,16 +163,59 @@ test("a label's undo removes it only when the send added it, also when the send'
   expect([...tracker.issue(issue).labels]).toEqual(["ready-for-agent"]);
 });
 
+test("a hub label that exists in any case at send is left as it is, and its undo has nothing to do", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  tracker.hubLabels.set("Bug", "d73a4a");
+  const id = queue(store, "bug", { kind: "create-label", repo: "acme/tracker", label: "bug", color: "00ff00" });
+  expect(await drain(store, tracker)).toMatchObject([{ id, status: "sent" }]);
+  expect([...tracker.hubLabels]).toEqual([["Bug", "d73a4a"]]);
+  expect(compensate(store, id, "")).toEqual({
+    ok: false,
+    finding: { code: "outbox.not-undoable", params: { id, reason: "unchanged" } },
+  });
+});
+
+test("a hub label's undo deletes the label the send created, and the delete has no undo", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  const intent: Intent = { kind: "create-label", repo: "acme/tracker", label: "agent:review", color: "fef2c0" };
+  const id = queue(store, "new", intent);
+  await drain(store, tracker);
+  await sendUndo(store, tracker, id, { kind: "delete-label", repo: "acme/tracker", label: "agent:review", id: 1001 });
+  expect([...tracker.hubLabels]).toEqual([]);
+});
+
+test("a hub label deleted and made again before the undo is another's, and the undo leaves it", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  const id = queue(store, "new", { kind: "create-label", repo: "acme/tracker", label: "deferred", color: "c5def5" });
+  await drain(store, tracker);
+  tracker.hubLabels.delete("deferred");
+  await tracker.createLabel("deferred", "000000");
+  const undo = compensate(
+    store,
+    id,
+    intentHash({ kind: "delete-label", repo: "acme/tracker", label: "deferred", id: 1001 }),
+  );
+  if (!undo.ok) throw new Error(undo.finding.code);
+  expect(await drain(store, tracker)).toMatchObject([
+    { id: undo.value.id, status: "failed", finding: { code: "tracker.refused", params: { status: 409 } } },
+  ]);
+  expect([...tracker.hubLabels]).toEqual([["deferred", "000000"]]);
+});
+
+test("a hub label found by the send's own create, as after a lost answer, is kept by its undo", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  const id = queue(store, "new", { kind: "create-label", repo: "acme/tracker", label: "deferred", color: "c5def5" });
+  tracker.fault = "lose-answer";
+  await drain(store, tracker);
+  expect(await drain(store, tracker)).toMatchObject([{ id, status: "sent" }]);
+  expectNoUndo(store, id);
+  expect([...tracker.hubLabels]).toEqual([["deferred", "c5def5"]]);
+});
+
 test("a comment's undo deletes it, and that deletion has no undo", async () => {
   const [store, tracker] = [fresh(), new FakeTracker([issue])];
   const id = queue(store, "mirror", { kind: "comment", issue, body: "Run ended." });
   await drain(store, tracker);
-  const undo = compensate(store, id, intentHash({ kind: "uncomment", issue, comment: 1001 }));
-  if (!undo.ok) throw new Error(undo.finding.code);
-  await drain(store, tracker);
+  await sendUndo(store, tracker, id, { kind: "uncomment", issue, comment: 1001 });
   expect(bodies(tracker)).toEqual([]);
-  expect(compensate(store, undo.value.id, "")).toEqual({
-    ok: false,
-    finding: { code: "outbox.not-undoable", params: { id: undo.value.id, reason: "no-inverse" } },
-  });
 });

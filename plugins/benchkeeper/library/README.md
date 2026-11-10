@@ -1,6 +1,6 @@
 # Skill library
 
-Skills that the app (`npx benchkeeper@6 projects apply --pack <id> --skill <name>`) or `setting-up-projects` installs into a project. A pack with a plugin (`matt-pocock`) installs that plugin globally, through the agent's plugin command. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
+Skills that the app (`npx benchkeeper@6 projects apply --pack <id> --skill <name>`) installs into a project. A pack with a plugin (`matt-pocock`) installs that plugin globally, through the agent's plugin command. It proposes a set when "Pick when" matches what the repository contains, and the user trims it skill by skill. The source of these tables is `library.json` (`node .github/scripts/library-readme.mjs` writes them, CI checks them). Nothing here duplicates the global setup (Ponytail, the BenchKeeper skills, find-skills, and Matt Pocock's skills when installed) or Claude Code's bundled skills. Stack skills: `setting-up-projects` finds them per project with find-skills.
 
 Install, from the project root, for the selected agents only:
 - Own skill (folder next to this file): copy it to `.agents/skills/<name>/` (Codex) and `.claude/skills/<name>/` (Claude Code). Codex ignores the `paths` key.
@@ -19,8 +19,9 @@ Folders next to this file.
 
 | Skills | Source (license) | Agents | Pick when |
 | --- | --- | --- | --- |
-| `frontend-design` | `anthropics/skills` | both | New UI or a visual redesign |
-| `mcp-builder` | `anthropics/skills` | both | The repository builds an MCP server |
+| `frontend-design` | `anthropics/skills` (Apache-2.0) | both | New UI or a visual redesign |
+| `mcp-builder` | `anthropics/skills` (Apache-2.0) | both | The repository builds an MCP server |
+| `webapp-testing` | `anthropics/skills` (Apache-2.0) | both | The agent checks a running web app in a browser and the machine has Python (the skill drives headless Chromium from Python scripts; it needs pip and a browser download) |
 
 ## Science
 
@@ -101,12 +102,12 @@ CC-BY-SA-4.0: the copied skill keeps its license and attribution in the project.
 
 ## Packs
 
-Named selections that project setup proposes when "Pick when" matches. A pack with a plugin installs through the agent's plugin command; its prompts are the steps the user starts after installing.
+Named selections that project setup proposes when "Pick when" matches. A pack with a plugin installs through the agent's plugin command.
 
 | Pack | Contents | Pick when |
 | --- | --- | --- |
 | `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full. It adds about 1,000 tokens at each session start (its rules and a map of the repository) and about 700 per subagent |
-| `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, tdd and review skills |
+| `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock` | The project uses his grilling, spec, tickets, tdd and review skills |
 | `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
 | `testing` | `playwright-best-practices` | The repository has or adds browser tests |
 | `security` | `gha-security-review`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |
@@ -115,12 +116,4 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 | `data` | `validate-data`, `exploratory-data-analysis`, `statistical-analysis` | The repository imports, analyzes or publishes datasets |
 | `marketing` | `product-marketing`, `copywriting`, `copy-editing`, `seo-audit`, `launch` | A product site, landing pages or a public launch |
 | `operations` | `incident-response`, `compliance-check`, `gdpr-compliant` | A deployed service or regulated product |
-
-## Sources
-
-Agent files a project picks one by one (`--agent-file <path>`), fetched at a pinned commit.
-
-| Source | Agent files | Evaluation |
-| --- | --- | --- |
-| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code, Codex (converted to TOML) and GitHub Copilot CLI: Gemini CLI agent files need the project's converter, which this setup does not run. | [agency-agents.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md) |
 <!-- /generated:catalog -->

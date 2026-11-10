@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ask"
+  short_description: "Allow terminal questions for a while"
+policy:
+  allow_implicit_invocation: false

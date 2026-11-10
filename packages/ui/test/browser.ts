@@ -14,6 +14,7 @@ export const serve = (state: string, errors: string[], options: Partial<Options>
     state,
     config: join(state, "..", "config"),
     machine: { home: join(state, "..", ".claude"), user: join(state, "..") },
+    logs: { claude: join(state, "..", ".claude"), codex: join(state, "..", ".codex"), cache: null, history: null },
     ui: join(import.meta.dirname, "..", "dist"),
     log: (text) => errors.push(text),
     ...options,

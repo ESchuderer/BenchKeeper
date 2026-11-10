@@ -8,6 +8,9 @@
     },
     "approve": {
       "type": "string"
+    },
+    "hint": {
+      "type": "string"
     }
   },
   "required": [

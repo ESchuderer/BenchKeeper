@@ -19,6 +19,7 @@ const PIPE =
 // An issue's path holds a document's own keys, which may come from elsewhere (an extension's manifest): shown safely.
 const issueList = (issues: { path: string; code: string; char?: string | undefined }[]): string =>
   issues.map((i) => `${shown(i.path, 200) || "(top)"} ${i.char ?? i.code}`).join(", ");
+const indented = (text: string, indent: string): string => `\n${indent}${text.replaceAll("\n", `\n${indent}`)}`;
 // A node's input, or (node null) one of the workflow's own outputs.
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
@@ -137,7 +138,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "package.name-taken": (p) =>
     `Node ${p.node} takes the name ${p.name}, which another node or stage of the package takes too; give an agent step another skill, or rename the node.`,
   "package.approval-needed": (p) => {
-    const runs = p.commands.map((command) => `\n      ${command.replaceAll("\n", "\n      ")}`).join("");
+    const runs = p.commands.map((command) => indented(command, "      ")).join("");
     return `${p.plugin}, the workflow ${p.id} at ${p.level}, waits for your approval by name, as its guard and exit hooks run in every Claude Code session and its commands then run unasked: cedarloom workflows install ${p.id} --level ${p.level} --allow ${p.plugin} --yes. ${p.commands.length === 0 ? "It runs no command of its own." : `Its commands:${runs}`}`;
   },
   "package.hooks-missing": (p) =>
@@ -146,7 +147,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "package.plugin-taken": (p) =>
     `The plugin ${p.plugin} holds the package of the workflow ${p.id}, whose id folds to the same name; uninstall that one first, or give one of the two workflows another id.`,
   "package.levels-mixed": (p) =>
-    `The workflow ${p.other} is installed at ${p.otherLevel}, and ${p.id} at ${p.level}. Each package's guard runs in every Claude Code session, so for merges the strictest installed level holds: no merge passes while one package is below Auto. Install them at one level: cedarloom workflows install ${p.other} --level ${p.level}, or this one at ${p.otherLevel}.`,
+    `The workflow ${p.other} is installed at ${p.otherLevel}, and ${p.id} at ${p.level}. Each package's guard binds the agents of every workflow script, so for their merges the strictest installed level holds: no workflow agent's merge passes while one package is below Auto. Install them at one level: cedarloom workflows install ${p.other} --level ${p.level}, or this one at ${p.otherLevel}.`,
   "package.codex-missing": (p) =>
     `Codex holds CedarLoom's packages but not ${p.plugin}, the workflow ${p.id}: codex plugin add ${p.plugin}@${WORKFLOW_MARKETPLACE}`,
   "package.codex-stale": (p) =>
@@ -254,6 +255,44 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     const from = p.source === null ? "" : `, from ${p.source}`;
     return `${p.part} (${p.title}) writes ${what.join("; and ")}${from}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
   },
+  "profile.mcp-approval": (p) => {
+    const files = p.entries.map(({ file }) => file).join(" and ");
+    const codex = p.codex
+      ? ""
+      : " Codex gets no entry, as this project has no .codex/ folder; create one to add it there too.";
+    const http = p.transport === "http";
+    const named = `${p.variables.length === 1 ? "variable" : "variables"} ${p.variables.join(", ")}`;
+    const bearer = p.variables.length === 0 ? "" : `, with your ${named} as its bearer token`;
+    const env = p.variables.length === 0 ? "" : `, with your ${named}`;
+    const unpinned = p.unpinned ? " Unpinned: it runs the newest release at each start." : "";
+    const runs = http
+      ? `Your agents connect to ${p.runs} themselves, outside their sandboxes, and send it what their sessions give its tools${bearer}.`
+      : `It runs ${p.installed === null ? p.runs : `the bin of ${p.installed}, the locally installed package from the nearest folder that installs it, inside this repository,`} on this machine, outside the agents' sandboxes${env}.${unpinned}`;
+    const written = p.entries
+      .map(({ file, change, entry }) => {
+        const label = change === "replace" ? `${file}, in place of the entry it wrote before:` : `${file}:`;
+        return `\n      ${label}${indented(entry, "        ")}`;
+      })
+      .join("");
+    return `${p.part} (${p.title}) writes the MCP server ${p.server} (${http ? "HTTP" : "stdio"}) into this project's committed ${files}, project scope.${codex} ${runs} Once committed, every claude -p run without --bare in the repository, yours and everyone's who clones it, ${http ? "connects to it" : "starts it"} without a trust prompt. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}. It writes:${written}`;
+  },
+  "profile.mcp-entry": (p) => {
+    const entry = indented(p.entry, "      ");
+    if (p.change === "add") return `${p.part} adds the MCP server ${p.server} to ${p.file}:${entry}`;
+    if (p.change === "replace")
+      return `${p.part} puts its new entry for the MCP server ${p.server} in ${p.file} in place of the one it wrote before:${entry}`;
+    return `${p.part} is switched off, so the plan takes its MCP server ${p.server} out of ${p.file}:${entry}`;
+  },
+  "profile.mcp-conflict": (p) =>
+    `${p.file} holds the MCP server ${p.server} with an entry CedarLoom did not write or that changed since, or in a form the plan cannot change alone, so the plan writes that server nowhere for ${p.part}. Remove or rename that entry, or write the servers as plain tables, to take the part's.`,
+  "profile.mcp-kept": (p) =>
+    `${p.part} is switched off, but its MCP server ${p.server} stays in ${p.file}, as that entry changed since CedarLoom wrote it or sits in a form the plan cannot take out alone; from this plan on, CedarLoom leaves it to you. Remove it by hand if the server should go.`,
+  "profile.mcp-dependency": (p) =>
+    `${p.part} starts ${p.package} from this project's own install, but package.json does not list ${p.package} as a devDependency at an exact version, so it adds nothing. Add it pinned, so Dependabot updates it: npm install --save-dev --save-exact ${p.package}`,
+  "profile.mcp-outside-git": (p) =>
+    `${p.part} starts ${p.package} from this project's own install, found by walking up to the repository's root, but this project is in no Git repository, so the walk could reach a parent folder's install; it adds nothing. Put the project under Git (git init) to take it.`,
+  "profile.project-is-home": (p) =>
+    `${p.project} is your home folder, so its .claude/settings.json and .codex/config.toml are Claude Code's and Codex's user config, which no profile writes. Plan a project folder of its own.`,
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
   "profile.template-failed": (p) =>
@@ -300,6 +339,10 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "work-items.no-hub": () => "This machine binds no hub. Name it: cedarloom profiles bind hub <owner/repo> --yes",
   "work-items.not-hub": (p) =>
     `${p.repo} is not this machine's hub (${p.hub}); CedarLoom works on hub issues only, so nothing was queued or linked.`,
+  "work-items.no-project-name": (p) =>
+    `git found no origin naming exactly one GitHub repository in ${shown(p.project, 300)}, or its name has no letter or digit, so its project label has no name; nothing was queued.`,
+  "work-items.label-too-long": (p) =>
+    `The project label ${shown(p.label, 300)} is longer than the ${p.limit} characters GitHub takes; shorten the profile's projectLabel prefix or name the project in projectNames. Nothing was queued.`,
   "secret.missing": (p) => `No ${p.name} token is in the OS credential store. ${PIPE}`,
   "secret.unavailable": (p) =>
     `The OS credential store did not answer for ${p.name} (${shown(p.error, 300)}). Check that it is unlocked and, on Linux, that a Secret Service such as GNOME Keyring or KWallet runs.`,

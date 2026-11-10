@@ -19,11 +19,6 @@
         "darwin": ["uv", "~/.local/bin/uv", "~/.cargo/bin/uv"],
         "linux": ["uv", "~/.local/bin/uv", "~/.cargo/bin/uv"],
         "win32": ["uv"]
-      },
-      "pipx": {
-        "darwin": ["pipx", "~/.local/bin/pipx"],
-        "linux": ["pipx", "~/.local/bin/pipx"],
-        "win32": ["pipx"]
       }
     }
   },
@@ -74,11 +69,18 @@
       },
       "install": {
         "title": "Install claude-swap",
+        "inputs": {
+          "approved": { "type": "string", "description": "The command the user approved; another one does not run" }
+        },
         "outputs": {
           "installed": { "type": "boolean" },
           "version": { "type": "string", "description": "Absent while claude-swap is not installed" },
           "runs": { "type": "string", "description": "The command the install runs once allowed" },
-          "approve": { "type": "string", "description": "The command line that allows it" }
+          "approve": { "type": "string", "description": "The command line that allows it" },
+          "installer": { "type": "string", "description": "The program that runs it: uv" },
+          "source": { "type": "string", "description": "Where it downloads claude-swap from" },
+          "release": { "type": "string", "description": "The claude-swap release it installs" },
+          "hint": { "type": "string", "description": "What else the installer fetches, and from where" }
         }
       },
       "auto": {
@@ -88,15 +90,23 @@
             "type": "string",
             "description": "claude-swap's first line on its menu bar service; macOS only"
           },
+          "autoSwitch": {
+            "type": "boolean",
+            "description": "Whether the menu bar switches accounts; absent while no service is installed"
+          },
           "hint": { "type": "string", "description": "What to do next for claude-swap's auto mode" }
         }
       },
       "auto-on": {
-        "title": "Install claude-swap's menu bar service",
+        "title": "Turn on claude-swap's auto switching",
         "outputs": {
           "service": {
             "type": "string",
             "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "autoSwitch": {
+            "type": "boolean",
+            "description": "Whether the menu bar switches accounts; absent while no service is installed"
           },
           "hint": { "type": "string", "description": "What to do next for claude-swap's auto mode" },
           "runs": { "type": "string", "description": "The command it runs once allowed" },
@@ -104,11 +114,15 @@
         }
       },
       "auto-off": {
-        "title": "Remove claude-swap's menu bar service",
+        "title": "Turn off claude-swap's auto switching",
         "outputs": {
           "service": {
             "type": "string",
             "description": "claude-swap's first line on its menu bar service; macOS only"
+          },
+          "autoSwitch": {
+            "type": "boolean",
+            "description": "Whether the menu bar switches accounts; absent while no service is installed"
           },
           "runs": { "type": "string", "description": "The command it runs once allowed" },
           "approve": { "type": "string", "description": "The command line that allows it" },

@@ -1,4 +1,6 @@
+import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 
 import { lastTier, plain } from './register'
 
@@ -8,10 +10,13 @@ const BAND = {
   props: { hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 12 }, view: {} },
 } as const
 const ON = { options: { tierBand: true } }
+// /benchkeeper:tier as the person types it at the prompt.
+const tierCommand = (args: string) =>
+  ({ text: `/benchkeeper:tier ${args}`, command: { name: 'benchkeeper:tier', args }, wait: false, origin: { kind: 'composer' } }) as const
 const COMPOSE = { model: 'claude-sonnet-5-5', promptModel: 'claude-sonnet-5-5', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] } as const
 
 // The engine beneath: a session id, a store, an empty system prompt, another mod's band, and a step that answers text.
-function engine(on: Parameters<Parameters<typeof test>[1]>[1], store: Record<string, unknown> = {}) {
+function engine(on: On, store: Record<string, unknown> = {}) {
   mock.store(on, store)
   on('session.id', () => ({ value: 's1' }))
   on('prompt.compose', () => ({ sections: [] }))
@@ -26,12 +31,12 @@ function engine(on: Parameters<Parameters<typeof test>[1]>[1], store: Record<str
   })
   return { answer: (text: string) => { answer = text } }
 }
-async function step($: Parameters<Parameters<typeof test>[1]>[0], agentId?: string) {
+async function step($: Engine, agentId?: string) {
   const s = $.turn.step({ turnId: 't1', index: 0, model: 'claude-sonnet-5-5', messageCount: 1, ...(agentId ? { agentId } : {}) })
   for await (const _ of s) { /* chunks */ }
   return s.result
 }
-const sections = async ($: Parameters<Parameters<typeof test>[1]>[0]) => (await $.prompt.compose(COMPOSE)).sections.filter(x => x.id === 'benchkeeper:tier')
+const sections = async ($: Engine) => (await $.prompt.compose(COMPOSE)).sections.filter(x => x.id === 'benchkeeper:tier')
 
 test('reads the last tier line and its change type', () => {
   expect(lastTier('Reading.\nTier: quick (docs, typo)\nTier: full (feature)\ndone')).toEqual({ tier: 'full', changeType: 'feature' })
@@ -53,7 +58,7 @@ test('off by default: no band, no prompt section, no override kept', async ($, o
   const e = engine(on)
   e.answer('Tier: standard (bug, known cause)')
   await step($)
-  await $.prompt.submit({ text: '/benchkeeper:tier full', command: { name: 'benchkeeper:tier', args: 'full' } })
+  await $.prompt.submit(tierCommand('full'))
   expect(await sections($)).toEqual([])
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /^Tier:/ })).toBeUndefined()
@@ -80,14 +85,14 @@ test('on: the band shows the tier of the main loop, above the other mods', ON, a
 
 test('on: /benchkeeper:tier sets a session override that every prompt carries, also after compaction and resume', ON, async ($, on) => {
   engine(on)
-  await $.prompt.submit({ text: '/benchkeeper:tier full', command: { name: 'benchkeeper:tier', args: 'full' } })
+  await $.prompt.submit(tierCommand('full'))
   expect((await sections($))[0]?.text).toMatch(/Tier override for this session .*: full/)
   // A compaction composes the prompt again: the section is still there.
   expect((await sections($)).length).toBe(1)
   // A typo leaves the override; the skill then asks which tier was meant.
-  await $.prompt.submit({ text: '/benchkeeper:tier fulll', command: { name: 'benchkeeper:tier', args: 'fulll' } })
+  await $.prompt.submit(tierCommand('fulll'))
   expect((await sections($))[0]?.text).toMatch(/: full\./)
-  await $.prompt.submit({ text: '/benchkeeper:tier Auto', command: { name: 'benchkeeper:tier', args: 'Auto' } })
+  await $.prompt.submit(tierCommand('Auto'))
   expect(await sections($)).toEqual([])
 })
 
@@ -259,7 +264,7 @@ test('on: doctor asks the agent to run the doctor, ? explains the band and how t
 })
 
 // One stub answers every tool call: Bash with the outcome set, the edit tools with it too.
-function tools($: Parameters<Parameters<typeof test>[1]>[0], on: Parameters<Parameters<typeof test>[1]>[1]) {
+function tools($: Engine, on: On) {
   let outcome: { isError?: true; text: string } = { text: 'ok' }
   on('tool.call', () => ({ result: {}, ...outcome }) as never)
   return {

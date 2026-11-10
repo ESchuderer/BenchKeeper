@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import { text } from "node:stream/consumers";
 import { GUARD_SCHEMA_VERSION, GuardPolicy, readDocument } from "@cedarloom/contracts";
-import { type CallPolicy, guardCommand, MAY_MERGE, type Remotes } from "./guard.ts";
+import { type CallPolicy, guardCommand, type Remotes } from "./guard.ts";
 import { gitRemotes, originRepos } from "./session-guard.ts";
 
 // A folder's remotes, with or without a typed URL, read once per hook run.
@@ -61,18 +61,21 @@ const readCall = (input: string): Call | null => {
 const WORKFLOW_AGENT = "workflow-subagent";
 
 // A subagent of a type: it has an agent id, which a session started as that type (`claude --agent`) lacks (hooks docs).
-const isAgent = (call: Call | null, type: (agent: string) => boolean): boolean =>
-  typeof call?.agent === "string" && type(call.agent) && typeof call.agentId === "string" && call.agentId !== "";
+const isAgent = (call: Call, type: (agent: string) => boolean): boolean =>
+  typeof call.agent === "string" && type(call.agent) && typeof call.agentId === "string" && call.agentId !== "";
 
-// Whether a workflow agent merges at this call, and whether the full guard limits the caller.
-type Reach = { readonly merges: boolean; readonly limited: boolean };
+// A step of the package that runs as its own subagent.
+const isStep = (type: unknown, plugin: string): boolean => typeof type === "string" && type.startsWith(`${plugin}:`);
 
-// Why the guard refuses to start an agent, or null.
-const agentRefusal = ({ isolation, subagent }: Call, { merges }: Reach): string | null => {
+// Why the guard refuses a workflow's agent to start an agent, or null: it starts only agents the guard binds.
+const agentRefusal = ({ isolation, subagent }: Call, { plugin, merge }: GuardPolicy): string | null => {
   // A remote subagent runs in the cloud, where no hook of this session reads its commands.
   if (isolation === "remote") return "a remote agent runs where the guard reads nothing";
-  // Where workflow agents may merge, a project's agent of that name would merge as one.
-  return merges && subagent === WORKFLOW_AGENT ? `the agent type ${WORKFLOW_AGENT} is kept for workflow scripts` : null;
+  if (isStep(subagent, plugin)) return null;
+  // At Auto an agent of that type merges, which a step's own subagent may not.
+  if (subagent === WORKFLOW_AGENT)
+    return merge === "workflow" ? `the agent type ${WORKFLOW_AGENT} is kept for workflow scripts` : null;
+  return `the guard does not bind an agent of the type ${typeof subagent === "string" ? subagent : "general-purpose"}`;
 };
 
 const UNREADABLE = "its input is no tool call with a command and an absolute folder";
@@ -82,48 +85,49 @@ const located = (command: unknown, cwd: unknown): { command: string; cwd: string
   typeof command === "string" && typeof cwd === "string" && isAbsolute(cwd) ? { command, cwd } : UNREADABLE;
 
 // The command a call runs in its folder, null for a call that runs no shell command, or why the guard cannot read it.
-const commandOf = (call: Call | null, reach: Reach): { command: string; cwd: string } | string | null => {
-  if (call === null || typeof call.tool !== "string") return UNREADABLE;
+const commandOf = (call: Call, policy: GuardPolicy): { command: string; cwd: string } | string | null => {
   const { tool, command, cwd } = call;
-  if (tool === "Agent") return agentRefusal(call, reach);
+  if (typeof tool !== "string") return UNREADABLE;
+  if (tool === "Agent") return agentRefusal(call, policy);
   // A Monitor call without a command watches a WebSocket and runs nothing.
   if (!SHELL_TOOLS.has(tool) || (tool === "Monitor" && command === undefined)) return null;
   if (tool !== "PowerShell") return located(command, cwd);
-  // PowerShell, which the guard does not read, refuses a workflow agent (its shell is Bash) and text naming a merge.
-  return reach.limited || MAY_MERGE.test(String(command)) ? "the guard reads no PowerShell; use the Bash tool" : null;
+  // A workflow's agents run their steps in Bash; the guard reads no PowerShell.
+  return "the guard reads no PowerShell; use the Bash tool";
 };
 
 /**
- * The policy as this call meets it. A limited caller: `origin` read from the working folder, with the hub and the
- * memory repository; a workflow script's agent merges only at Auto, which a stage reaches after its reviewer agreed
- * (owner 2026-11-08), and only in the origin's own repositories: never the hub's, nor the memory repository's, whose
- * `main` no agent updates. Any other caller, as the package's hooks run in every session: no repository limit, and what
- * the guard cannot read runs; merges, approvals and the other rules hold (Q5, option b until the owner answers).
+ * The policy as a workflow's agent meets it: `origin` read from the working folder, with the hub and the memory
+ * repository; a workflow script's agent merges only at Auto, which a stage reaches after its reviewer agreed (owner
+ * 2026-11-08), and only in the origin's own repositories: never the hub's, nor the memory repository's, whose `main` no
+ * agent updates.
  */
-const callPolicy = (policy: GuardPolicy, cwd: string, { merges, limited }: Reach, remotes: Remotes): CallPolicy => {
-  const origin = limited && (policy.repositories === "origin" || merges) ? originRepos(cwd, remotes) : [];
+const callPolicy = (policy: GuardPolicy, cwd: string, merges: boolean, remotes: Remotes): CallPolicy => {
+  const origin = originRepos(cwd, remotes);
   const bound = [policy.hub, policy.memory].filter((repo) => repo !== null);
-  const repositories = policy.repositories === "origin" ? [...new Set([...origin, ...bound])] : policy.repositories;
   return {
     ...policy,
-    repositories: limited ? repositories : null,
+    repositories: [...new Set([...origin, ...bound])],
     merge: merges ? origin.filter((repo) => !bound.some((other) => other.toLowerCase() === repo.toLowerCase())) : [],
-    lenient: !limited,
   };
 };
 
-// Why the guard refuses one PreToolUse input, or null; what it cannot read refuses a workflow's agents (A79).
+/**
+ * Why the guard refuses one PreToolUse input, or null. It binds only a workflow's own agents, a workflow script's and a
+ * step of this package that runs as its own subagent: any other caller runs untouched, merges included (owner,
+ * 2026-11-09). What it cannot read refuses (A79).
+ */
 const guardHook = (input: string, policyJson: string | null, remotes: Remotes): string | null => {
   const policy = policyJson === null ? null : readPolicy(policyJson);
   if (policy === null) return "its policy is missing or invalid";
   const read = readCall(input);
-  const [auto, workflow] = [policy.merge === "workflow", isAgent(read, (type) => type === WORKFLOW_AGENT)];
-  // A step's own subagent (`<plugin>:<step>`) and any caller of a worker's policy, which lists its repositories, too.
-  const limited = workflow || isAgent(read, (type) => type.includes(":")) || policy.repositories !== "origin";
-  const call = commandOf(read, { merges: auto, limited });
+  if (read === null) return UNREADABLE;
+  const workflow = isAgent(read, (type) => type === WORKFLOW_AGENT);
+  if (!workflow && !isAgent(read, (type) => isStep(type, policy.plugin))) return null;
+  const call = commandOf(read, policy);
   if (call === null || typeof call === "string") return call;
-  const reach = { merges: auto && workflow, limited };
-  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, reach, remotes), remotes);
+  const merges = policy.merge === "workflow" && workflow;
+  const denial = guardCommand(call.command, call.cwd, callPolicy(policy, call.cwd, merges, remotes), remotes);
   return denial === null ? null : `${denial.detail} (${denial.rule})`;
 };
 

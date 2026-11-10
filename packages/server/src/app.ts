@@ -5,7 +5,7 @@ import { fastifySSE } from "@fastify/sse";
 import serveStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import { CSRF_HEADER, contracts } from "@cedarloom/contracts";
-import { type Fetch, type Machine, sweepDrafts } from "@cedarloom/use-cases";
+import { type Fetch, type Logs, type Machine, sweepDrafts } from "@cedarloom/use-cases";
 import fp from "fastify-plugin";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
@@ -18,6 +18,7 @@ import {
 import { eventRoutes } from "./events.ts";
 import {
   accountRoutes,
+  boardRoutes,
   draftRoutes,
   importRoutes,
   profileRoutes,
@@ -45,6 +46,8 @@ export interface AppOptions {
   every?: number | undefined;
   /** How an import and the profile fetch a Git ref (default: over https and ssh). */
   fetch?: Fetch | undefined;
+  /** Where the sessions board reads this machine's session logs, and its cache and history. */
+  logs: Logs;
 }
 
 // Requests carry ids, hashes and the session token, never file contents; only a draft save carries a workflow.
@@ -105,6 +108,8 @@ const methods = (app: FastifyInstance): void => {
 
 const SERVER = {
   bodyLimit: BODY_LIMIT,
+  // The longest qualified part id (`workspace.` and two 64-character segments), where Fastify's default is 100.
+  routerOptions: { maxParamLength: 139 },
   frameworkErrors,
   // Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
   requestTimeout: 30_000,
@@ -161,6 +166,7 @@ export const buildApp = async (options: AppOptions): Promise<FastifyInstance> =>
   await app.register(importRoutes, { state, fetch });
   await app.register(profileRoutes, { config, state, machine, app: options.app, fetch });
   await app.register(accountRoutes, { state, config, app: options.app });
+  await app.register(boardRoutes, { logs: options.logs });
   // CommonJS typed as ESM: wrapped as its module.exports is, so reply.sse reaches the routes beside it.
   await app.register(fp(fastifySSE, { fastify: "5.x", name: "@fastify/sse" }));
   await app.register(eventRoutes, { state, every, log });
@@ -173,7 +179,9 @@ export const buildApp = async (options: AppOptions): Promise<FastifyInstance> =>
 /** The OpenAPI document of the routes as @fastify/swagger generates it from their zod schemas, as JSON text. */
 export const openapi = async (version: string): Promise<string> => {
   const machine = { home: "", user: "" };
-  const app = await buildApp({ state: "", config: "", machine, session: new Session(), log: console.error });
+  // Generating the document answers no request, so nothing is read.
+  const logs = { claude: "", codex: "", cache: null, history: null };
+  const app = await buildApp({ state: "", config: "", machine, logs, session: new Session(), log: console.error });
   await app.ready();
   const document = app.swagger();
   await app.close();

@@ -6,6 +6,8 @@
       "packages/**",
       "!packages/*/schema",
       "!packages/*/openapi.json",
+      "!packages/packs/bundled/*/skills/*/SKILL.md",
+      "!packages/packs/bundled/cedarloom.mantine/skills/mantine-form",
       "*.json",
       "*.ts",
       "!.release-please-manifest.json",
@@ -15,7 +17,10 @@
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "overrides": [
     {
-      "includes": ["packages/contracts/corpus/WorkflowDefinition/**"],
+      "includes": [
+        "packages/contracts/corpus/WorkflowDefinition/**",
+        "packages/packs/bundled/cedarloom.core/templates/workflows/**"
+      ],
       "json": { "formatter": { "expand": "always" } }
     }
   ],

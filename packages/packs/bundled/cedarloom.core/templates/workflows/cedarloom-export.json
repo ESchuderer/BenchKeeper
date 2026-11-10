@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "kind": "cedarloom.export",
+  "name": "CedarLoom default workflows",
+  "description": "The workflows that ship with CedarLoom.",
+  "license": "MIT",
+  "workflows": [
+    "feature"
+  ]
+}

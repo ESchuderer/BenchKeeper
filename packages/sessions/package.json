@@ -2,7 +2,7 @@
   "name": "@cedarloom/sessions",
   "version": "0.0.0",
   "private": true,
-  "description": "Reads the agent sessions of this machine from the Claude Code session logs, with their time, tokens, cost and tests.",
+  "description": "Reads the agent sessions of this machine from the Claude Code and Codex session logs, with their time, tokens, cost and tests.",
   "license": "MIT",
   "type": "module",
   "exports": {

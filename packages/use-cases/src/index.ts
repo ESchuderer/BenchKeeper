@@ -70,8 +70,10 @@ export { programPath } from "@cedarloom/orchestration";
 export { HUB_ISSUES, type Keyring, readSecret, type SecretRef, storeHubToken } from "./secrets.ts";
 export {
   hubOf,
+  hubOn,
   outboxEntries,
   previewEntryUndo,
+  previewHubLabels,
   previewIntent,
   queueIntent,
   retryEntry,
@@ -79,3 +81,4 @@ export {
   undoEntry,
 } from "./work-items.ts";
 export { managedPolicyDoctor } from "./managed-policy.ts";
+export { type BoardQuery, deleteHistory, type Logs, projectOf, sessionLogs, sessionsBoard } from "./sessions.ts";

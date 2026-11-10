@@ -1,5 +1,5 @@
-// Structural checks for BenchKeeper's own skills (plugin skills and own library skills).
-// Usage: node .github/scripts/skill-lint.mjs [skill folders...]   (default: every own skill), exit 1 on any error.
+// Structural checks for BenchKeeper's own skills (plugin skills and own library skills) and the plugin's agents.
+// Usage: node .github/scripts/skill-lint.mjs [skill folders...]   (default: every own skill and agent), exit 1 on any error.
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,6 +68,48 @@ export function lintSkill(dir) {
   return errors;
 }
 
+const MODELS = ['fable', 'opus', 'sonnet', 'haiku', 'inherit'];
+// Plugin agents ignore these keys (https://code.claude.com/docs/en/plugins-reference), and `claude plugin validate` reads no agents/.
+const IGNORED = ['hooks', 'mcpServers', 'permissionMode', 'initialPrompt'];
+
+// A front matter value as YAML reads it: a plain scalar, or a complete double- or single-quoted one; else undefined.
+function scalar(raw) {
+  if (raw.startsWith('"')) {
+    try { return /^"(?:[^"\\]|\\.)*"$/.test(raw) ? JSON.parse(raw) : undefined; } catch { return undefined; }
+  }
+  if (raw.startsWith("'")) return /^'(?:[^']|'')*'$/.test(raw) ? raw.slice(1, -1).replaceAll("''", "'") : undefined;
+  return /^[[\]{}#&*!|>%@`'"]|: |:$| #/.test(raw) ? undefined : raw;
+}
+
+// shortcut: a strict subset of YAML (`key: scalar` lines), as checks-core installs no YAML parser; anything outside it
+// fails rather than passes. Switch to the `yaml` package once that job installs one.
+function agentFields(block) {
+  if (block === undefined) return null;
+  const fields = {};
+  for (const line of block.split('\n')) {
+    const kv = /^([A-Za-z][\w-]*):(?:[ \t]+(.*?))?[ \t]*$/.exec(line);
+    const value = kv && scalar(kv[2] ?? '');
+    if (value === undefined || value === null) return null;
+    fields[kv[1]] = value;
+  }
+  return fields;
+}
+
+export function lintAgent(file) {
+  const text = readFileSync(file, 'utf8');
+  const block = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1];
+  const keys = block?.match(/^[A-Za-z][\w-]*(?=:)/gm) ?? [];
+  const ignored = IGNORED.filter((key) => keys.includes(key)).map((key) => `${file}: ${key} is ignored in a plugin agent`);
+  const fm = agentFields(block);
+  if (!fm) return [...ignored, `${file}: front matter missing, or not "key: value" lines with a plain or complete quoted value`];
+  const missing = ['name', 'description'].filter((key) => !fm[key]).map((key) => `${file}: ${key} missing`);
+  const model = fm.model === undefined || MODELS.includes(fm.model) ? [] : [`${file}: model "${fm.model}" is not one of ${MODELS.join(', ')}`];
+  return [...ignored, ...missing, ...model];
+}
+
+// Claude Code loads a plugin's agents from agents/ and its subfolders.
+export const ownAgents = () => markdownFiles(join(root, 'plugins/benchkeeper/agents'));
+
 export function ownSkills() {
   const dirs = ['plugins/benchkeeper/skills', 'plugins/benchkeeper/library'].map((d) => join(root, d));
   return dirs.flatMap((d) => readdirSync(d).map((n) => join(d, n)).filter((p) => statSync(p).isDirectory()));
@@ -75,8 +117,9 @@ export function ownSkills() {
 
 if (isMain(import.meta.url)) {
   const dirs = process.argv.length > 2 ? process.argv.slice(2).map((d) => resolve(d)) : ownSkills();
-  const errors = dirs.flatMap(lintSkill);
+  const agents = process.argv.length > 2 ? [] : ownAgents();
+  const errors = [...dirs.flatMap(lintSkill), ...agents.flatMap(lintAgent)];
   for (const e of errors) console.log(`::error::${e.replace(root + '/', '')}`);
-  console.log(`${dirs.length} skills checked, ${errors.length} errors`);
+  console.log(`${agents.length} agents, ${dirs.length} skills checked, ${errors.length} errors`);
   process.exit(errors.length ? 1 : 0);
 }

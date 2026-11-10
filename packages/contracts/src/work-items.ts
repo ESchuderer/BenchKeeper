@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Finding } from "./findings.ts";
 import { Sha256 } from "./plan.ts";
+import { Color } from "./profile.ts";
 import { PlainText } from "./text.ts";
 
 /**
@@ -19,14 +20,23 @@ const Label = PlainText.min(1)
   .regex(/^(?!\.{1,2}$)/);
 
 /**
- * A write to a hub issue that the file ledger cannot undo; it waits in the outbox until it is sent. A comment's body
- * leaves room for the outbox's marker under GitHub's 65,536 characters.
+ * A write to a hub issue, or to the hub's labels, that the file ledger cannot undo; it waits in the outbox until it is
+ * sent. A comment's body leaves room for the outbox's marker under GitHub's 65,536 characters.
  */
 export const Intent = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("comment"), issue: IssueRef, body: z.string().min(1).max(65_000) }),
   z.strictObject({ kind: z.literal("uncomment"), issue: IssueRef, comment: z.int().positive() }),
   z.strictObject({ kind: z.literal("label"), issue: IssueRef, label: Label }),
   z.strictObject({ kind: z.literal("unlabel"), issue: IssueRef, label: Label }),
+  z.strictObject({
+    kind: z.literal("create-label"),
+    repo: IssueRef.shape.repo,
+    label: Label,
+    color: Color,
+    description: PlainText.max(100).optional(),
+  }),
+  // `id`: the label the send created; one of the name made since is another's and stays.
+  z.strictObject({ kind: z.literal("delete-label"), repo: IssueRef.shape.repo, label: Label, id: z.int().positive() }),
 ]);
 export type Intent = z.infer<typeof Intent>;
 
@@ -36,9 +46,9 @@ export type RemoteComment = z.infer<typeof RemoteComment>;
 
 /**
  * An outbox entry: its intent, the idempotency key it was queued under (one entry per key), who approved it (the owner)
- * and how far it got. `sending` without a live sender was interrupted and is due again. `unchanged`: the issue already
- * was as a label intent asks, read before its first write, so its undo has nothing to do. `remote`: the comment a
- * comment intent made.
+ * and how far it got. `sending` without a live sender was interrupted and is due again. `unchanged`: the issue or hub
+ * already was as a label intent asks, read before its first write, so its undo has nothing to do. `remote`: the comment a
+ * comment intent made, or the hub label a create-label intent made.
  */
 export const OutboxEntry = z.strictObject({
   id: z.uuid(),

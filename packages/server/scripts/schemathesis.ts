@@ -32,6 +32,7 @@ const server = await startServer({
   state,
   config: join(root, "config"),
   machine: { home: join(root, ".claude"), user: root },
+  logs: { claude: join(root, ".claude"), codex: join(root, ".codex"), cache: null, history: null },
   fetch: await flowsExport(),
   log: (text) => process.stderr.write(text),
 });
@@ -52,7 +53,12 @@ const imported = await fetch(`${origin}/api/imports`, {
 const { id: importId } = z.object({ id: z.uuid() }).parse(await imported.json());
 const config = join(root, "schemathesis.toml");
 const ids = [`"path.runId" = "${run.value.runId}"`, `"path.importId" = "${importId}"`];
-writeFileSync(config, `[parameters]\n${ids.join("\n")}\n"path.id" = "minimal"\n`);
+// Schemathesis's default list plus 414 and 431: Fastify refuses an over-long URL or header before any route runs.
+const rejected = [400, 401, 403, 404, 405, 406, 409, 414, 415, 422, 428, 429, 431, "5xx"];
+writeFileSync(
+  config,
+  `[parameters]\n${ids.join("\n")}\n"path.id" = "minimal"\n\n[checks]\nnegative_data_rejection.expected-statuses = ${JSON.stringify(rejected)}\n`,
+);
 const document = join(import.meta.dirname, "..", "openapi.json");
 const session = ["-H", `cookie: ${cookie}`, "-H", `${CSRF_HEADER}: ${csrf}`];
 // The event stream never ends, so Schemathesis would wait on it until its timeout; the server tests cover it.

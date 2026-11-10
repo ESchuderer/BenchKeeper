@@ -25,7 +25,6 @@ import { readTriage, setTriage, shownFindings, withTriage } from './triage.mjs';
 import { exists, inside, readText } from './fsx.mjs';
 import { inventory } from './inventory.mjs';
 import { rehearsable, rehearse } from './prerun.mjs';
-import { sourceRows } from './frameworks.mjs';
 import { copied, exportPack, importPack, libraryWith, removePack, savePack, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
 import { createPlan, listPresets, presetsWith, recommend } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
@@ -105,8 +104,6 @@ function setupAnswers(src) {
   const all = (k) => (src instanceof URLSearchParams ? src.getAll(k) : [src[k] ?? []].flat()).filter((x) => typeof x === 'string');
   const list = (k) => (src instanceof URLSearchParams ? all(k).flatMap((x) => x.split(',')).filter(Boolean) : all(k));
   return { agents: list('agents'), env: get('env') || undefined, sandbox: get('sandbox') === '1' || get('sandbox') === true, packs: list(src instanceof URLSearchParams ? 'pack' : 'packs'), skills: list(src instanceof URLSearchParams ? 'skill' : 'skills'),
-    // Agent files are kept unless the answers name them (a form of agents, packs and tier alone does not take them out).
-    agentFiles: named(src, 'agent-file', 'agentFiles') ? list(src instanceof URLSearchParams ? 'agent-file' : 'agentFiles') : undefined,
     // An empty tier clears the saved one; no tier keeps it.
     tier: (src instanceof URLSearchParams ? src.has('tier') : 'tier' in src) ? get('tier') || null : undefined,
     // No guards or share keeps the saved choice.
@@ -397,7 +394,7 @@ export function api(ctx) {
       if (!registered(dir)) throw bad('register the project first');
       const setup = q.get('setup') === '1' ? setupAnswers(q) : {};
       // Pack switches and single-skill actions of a project's page, on top of the saved answers.
-      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), fileOn: q.getAll('file-on'), fileOff: q.getAll('file-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
+      const switches = { packOn: q.getAll('pack-on'), packOff: q.getAll('pack-off'), pick: q.getAll('pick'), drop: q.getAll('drop'), reset: q.getAll('reset'), update: q.getAll('update'), partial: q.has('focus') };
       // Skill toggles name skills of this project only. A toggle of a skill whose pack is switched off in the same plan is
       // dropped, so skill and pack switches work in any order; a name outside the library is still an error.
       const own = input(() => chosenSkills(resolveAnswers(dir, { ...setup, ...switches }), libraryWith(ctx)).map((s) => s.name));
@@ -417,7 +414,7 @@ export function api(ctx) {
       const focus = q.getAll('focus');
       const all = preview(p.changes).filter((c) => c.kind !== 'command' || c.cwd);
       const changes = focus.length ? focusOn(all, focus) : all;
-      // The Installs tab's rows: scope hint, fixed scopes, state on disk, agent files and the global block.
+      // The Installs tab's rows: scope hint, fixed scopes, state on disk and the global block.
       const rows = projectInstalls(ctx, dir, p.answers);
       return { planId: keep(changes, projectCtx(ctx, dir), dir), changes: serialize(changes, projectCtx(ctx, dir)), prompts: p.prompts, skills: p.skills, warnings: p.warnings,
         chosen: own.map((name) => ({ name, disabled: p.answers.disabled.includes(name), pickWhen: libraryWith(ctx).skills.find((s) => s.name === name)?.pickWhen ?? null, ...rows.skills[name] })),
@@ -439,7 +436,7 @@ export function api(ctx) {
       const lib = libraryWith(ctx);
       const agents = agentsNow().filter((a) => a.installed).map((a) => ({ id: a.id, name: a.name }));
       return { agents, advisers: agents.filter((a) => ADVISERS.includes(a.id)), state: projectState(ctx, dir), envs: ENVS, tiers: TIERS, suggested: suggest(dir),
-        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })), sources: sourceRows() };
+        packs: lib.packs.map((p) => ({ id: p.id, title: p.title, pickWhen: p.pickWhen, skills: p.skills ?? [] })), skills: lib.skills.map((s) => ({ name: s.name, pickWhen: s.pickWhen, agents: s.agents ?? null })) };
     },
     // What a one-run setup starts from: the installed agents and advisers, and each project with its setup state. A
     // blocked project is left to Update all: one-run writes local setups in the checkout, and that is not possible for a

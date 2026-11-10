@@ -1,5 +1,5 @@
 {
- "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the sandbox, deprecated-key and auto mode passages 2026-10-28 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
+ "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the sandbox, deprecated-key and auto mode passages 2026-10-28, the disableAllHooks passage 2026-11-09 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
  "fetched": "2026-10-25",
  "pages": {
   "https://code.claude.com/docs/en/advisor": [
@@ -21,6 +21,7 @@
    "s 1-hour cache writes at a higher rate. Requires Claude Code v2.1.242 or later | | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` | Set to `1` to strip credentials from the environments of the subprocesses Claude Code starts, such as Bash commands, hooks, and stdio MCP servers. The scrub recognizes a credential by its variable name or its val"
   ],
   "https://code.claude.com/docs/en/settings-reference": [
+   "com/docs/en/agent-sdk/hooks.md) keep running. Requires Claude Code v2.1.309 or later. * **In any other settings file**: Claude Code disables user, project, local, and plugin hooks; managed hooks, Agent SDK hooks, and hooks from plugins force-enabled in managed [`enabledPlugins`](#enabledplugins) ke",
    "ore it saved levels per model, and it keeps applying where it applied before, on Opus 5, Fable 5.1, and earlier models. Opus 5.5 and models released after it ignore it and start at their own default until you save a level for them, which `/effort` writes under [`modelSettings`](#modelsettings). In project, local, and managed settings, and with `--s",
    "ll request attribution text * `false`: Claude Code omits both the commit trailer and the pull request attribution text, unless `attribution` sets `commit` or `pr`, in which case the [`attribution`](#attribution) rules apply * **Default**: `true` ```json settings.json theme={null} {",
    "e.com/docs/en/permission-modes.md#which-mode-a-session-starts-in) for your surface. * **Scope**: [`Any file`](#scopes). `auto` and `bypassPermissions` don't take effect from project or local settings, so set them in `$HOME/.claude/settings.json` instead. Before v2.1.257, `bypassPermissions` took effect from any file. For ",

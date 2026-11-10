@@ -50,7 +50,7 @@ export const stamped = (text) => {
   const at = statusBlock(text);
   const line = at === null ? '' : text.slice(at[0] + STATUS[0].length, at[1] - STATUS[1].length).trim();
   const match = /; edited: (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z); text: ([0-9a-f]{8})$/.exec(line);
-  const edited = match === null ? NaN : Date.parse(match[1]);
+  const edited = match === null ? Number.NaN : Date.parse(match[1]);
   return Number.isNaN(edited) ? null : { edited, text: match[2] };
 };
 

@@ -2052,6 +2052,7 @@ export interface components {
                     entry: string;
                 }[];
                 codex: boolean;
+                unpinned: boolean;
             };
         } | {
             /** @constant */
@@ -2059,8 +2060,6 @@ export interface components {
             params: {
                 part: string;
                 server: string;
-                /** @enum {string} */
-                change: "add" | "remove";
                 file: string;
                 entry: string;
             };
@@ -2078,6 +2077,12 @@ export interface components {
             params: {
                 part: string;
                 package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
             };
         } | {
             /** @constant */
@@ -3340,6 +3345,7 @@ export interface components {
                     entry: string;
                 }[];
                 codex: boolean;
+                unpinned: boolean;
             };
         } | {
             /** @constant */
@@ -3347,8 +3353,6 @@ export interface components {
             params: {
                 part: string;
                 server: string;
-                /** @enum {string} */
-                change: "add" | "remove";
                 file: string;
                 entry: string;
             };
@@ -3366,6 +3370,12 @@ export interface components {
             params: {
                 part: string;
                 package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
             };
         } | {
             /** @constant */

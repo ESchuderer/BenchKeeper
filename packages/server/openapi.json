@@ -3643,6 +3643,9 @@
                   },
                   "codex": {
                     "type": "boolean"
+                  },
+                  "unpinned": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -3654,7 +3657,8 @@
                   "runs",
                   "variables",
                   "entries",
-                  "codex"
+                  "codex",
+                  "unpinned"
                 ],
                 "additionalProperties": false
               }
@@ -3681,13 +3685,6 @@
                   "server": {
                     "type": "string"
                   },
-                  "change": {
-                    "type": "string",
-                    "enum": [
-                      "add",
-                      "remove"
-                    ]
-                  },
                   "file": {
                     "type": "string"
                   },
@@ -3698,7 +3695,6 @@
                 "required": [
                   "part",
                   "server",
-                  "change",
                   "file",
                   "entry"
                 ],
@@ -3765,6 +3761,32 @@
                 "required": [
                   "part",
                   "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.project-is-home"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
                 ],
                 "additionalProperties": false
               }
@@ -9714,6 +9736,9 @@
                   },
                   "codex": {
                     "type": "boolean"
+                  },
+                  "unpinned": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -9725,7 +9750,8 @@
                   "runs",
                   "variables",
                   "entries",
-                  "codex"
+                  "codex",
+                  "unpinned"
                 ],
                 "additionalProperties": false
               }
@@ -9752,13 +9778,6 @@
                   "server": {
                     "type": "string"
                   },
-                  "change": {
-                    "type": "string",
-                    "enum": [
-                      "add",
-                      "remove"
-                    ]
-                  },
                   "file": {
                     "type": "string"
                   },
@@ -9769,7 +9788,6 @@
                 "required": [
                   "part",
                   "server",
-                  "change",
                   "file",
                   "entry"
                 ],
@@ -9836,6 +9854,32 @@
                 "required": [
                   "part",
                   "package"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.project-is-home"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
                 ],
                 "additionalProperties": false
               }

@@ -42,29 +42,16 @@ const tomlValue = (item: string | readonly string[]) =>
 export const tomlTable = (server: string, pairs: readonly (readonly [string, string | readonly string[]])[]): string =>
   [`[mcp_servers.${server}]`, ...pairs.map(([key, item]) => `${key} = ${tomlValue(item)}`)].join("\n");
 
-/** The text with the table added after a blank line, its own lines left as they are. */
-export const withTable = (text: string, table: string): string =>
-  text === "" ? `${table}\n` : `${text.endsWith("\n") ? text : `${text}\n`}\n${table}\n`;
+/** The text with the table added after a blank line, in the text's line ending, its own lines left as they are. */
+export const withTable = (text: string, table: string): string => {
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = `${table.replaceAll("\n", eol)}${eol}`;
+  return text === "" ? lines : `${text.endsWith("\n") ? text : `${text}${eol}`}${eol}${lines}`;
+};
 
 /** Whether the text holds the server's table as `table` does, none that the table would add as it is, or another. */
 export const tomlState = (text: string, server: string, table: string): "equal" | "absent" | "differs" => {
   const [current, entry] = [entryIn(text, server), entryIn(table, server)];
   if (current === undefined) return verified(text, withTable(text, table), server, entry) ? "absent" : "differs";
   return isDeepStrictEqual(current, entry) ? "equal" : "differs";
-};
-
-const TABLE_END = /^[ \t]*(?:\[|#|\r?$)/;
-/**
- * The text without the server's table: its header line, the lines up to a blank, `[` or `#` line, and one blank line
- * before it; null when there is no such header or the cut would change any other value.
- */
-export const withoutTable = (text: string, server: string): string | null => {
-  const lines = text.split("\n");
-  const header = `[mcp_servers.${server}]`;
-  const at = lines.findIndex((line) => line === header || line === `${header}\r`);
-  if (at === -1) return null;
-  const end = lines.findIndex((line, index) => index > at && TABLE_END.test(line));
-  const from = at > 0 && lines[at - 1]?.trim() === "" ? at - 1 : at;
-  const next = [...lines.slice(0, from), ...lines.slice(end === -1 ? lines.length : end)].join("\n");
-  return verified(text, next, server, undefined) ? next : null;
 };

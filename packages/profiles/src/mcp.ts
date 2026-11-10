@@ -3,8 +3,8 @@ import { join, relative, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { canonicalJson, type Finding, isTree, type Json, type Operation, type Result } from "@cedarloom/contracts";
 import { sha256 } from "@cedarloom/ledger";
-import { tomlOf, tomlState, tomlTable, withoutTable, withTable } from "./codex-config.ts";
-import { fileWrite, onDisk, readSettings } from "./machine.ts";
+import { tomlOf, tomlState, tomlTable, withTable } from "./codex-config.ts";
+import { onDisk, readSettings } from "./machine.ts";
 import { type Resolved, textFile } from "./resolve.ts";
 
 type Part = Extract<Resolved["profile"]["project"][string], { type: "mcp" }>;
@@ -16,8 +16,6 @@ type Document = {
   entry: (server: string, launch: Launch) => string;
   state: (server: string, launch: Launch) => State;
   add: (server: string, launch: Launch) => void;
-  /** Whether the entry went: only one that is as the launch writes it does. */
-  remove: (server: string, launch: Launch) => boolean;
   operations: () => Result<Operation[]>;
 };
 
@@ -58,10 +56,20 @@ const tomlEntry = (server: string, launch: Launch): string => {
 
 const jsonText = (server: string, launch: Launch) => `${JSON.stringify(server)}: ${JSON.stringify(jsonEntry(launch))}`;
 
+// The file's own indent (a tab, or its first indented line's spaces), line ending and final break; a new or one-line
+// file gets two spaces, LF and a break.
+const asWritten = (json: Json, text: string | null): string => {
+  const indent = /^([ \t]+)\S/m.exec(text ?? "")?.[1] ?? "  ";
+  const eol = text?.includes("\r\n") ? "\r\n" : "\n";
+  const end = text === null || text.endsWith("\n") ? eol : "";
+  return `${JSON.stringify(json, null, indent).replaceAll("\n", eol)}${end}`;
+};
+
 const jsonFile = (path: string): Result<Document> => {
   const read = readSettings(path);
   if (!read.ok) return read;
-  const found = isTree(read.value.json) ? read.value.json["mcpServers"] : undefined;
+  const { json, text, before } = read.value;
+  const found = isTree(json) ? json["mcpServers"] : undefined;
   if (found !== undefined && !isTree(found))
     return refuse({ code: "document.unreadable", params: { path, error: "mcpServers is not an object" } });
   const servers = { ...found };
@@ -69,20 +77,15 @@ const jsonFile = (path: string): Result<Document> => {
     if (!Object.hasOwn(servers, server)) return "absent";
     return isDeepStrictEqual(servers[server], jsonEntry(launch)) ? "equal" : "differs";
   };
-  const remove = (server: string, launch: Launch) => {
-    if (state(server, launch) !== "equal") return false;
-    delete servers[server];
-    return true;
-  };
   const operations = (): Result<Operation[]> => {
     if (canonicalJson(servers) === canonicalJson(found ?? {})) return { ok: true, value: [] };
-    const write = fileWrite(path, (json) => ({ ...(isTree(json) ? json : {}), mcpServers: servers }));
-    return write.ok ? { ok: true, value: write.value.operations } : write;
+    const content = asWritten({ ...(isTree(json) ? json : {}), mcpServers: servers }, text);
+    return { ok: true, value: [{ kind: "write", path, before, content }] };
   };
   const add = (server: string, launch: Launch) => {
     servers[server] = jsonEntry(launch);
   };
-  return { ok: true, value: { file: MCP_JSON, entry: jsonText, state, add, remove, operations } };
+  return { ok: true, value: { file: MCP_JSON, entry: jsonText, state, add, operations } };
 };
 
 const tomlFile = (path: string): Result<Document> => {
@@ -93,11 +96,6 @@ const tomlFile = (path: string): Result<Document> => {
     return refuse({ code: "document.unreadable", params: { path, error: "not TOML" } });
   let text = original;
   const state = (server: string, launch: Launch) => tomlState(text, server, tomlEntry(server, launch));
-  const remove = (server: string, launch: Launch) => {
-    const next = state(server, launch) === "equal" ? withoutTable(text, server) : null;
-    if (next !== null) text = next;
-    return next !== null;
-  };
   const before = read.value === null ? null : sha256(read.value);
   const operations = (): Result<Operation[]> => ({
     ok: true,
@@ -106,7 +104,7 @@ const tomlFile = (path: string): Result<Document> => {
   const add = (server: string, launch: Launch) => {
     text = withTable(text, tomlEntry(server, launch));
   };
-  return { ok: true, value: { file: CODEX, entry: tomlEntry, state, add, remove, operations } };
+  return { ok: true, value: { file: CODEX, entry: tomlEntry, state, add, operations } };
 };
 
 // A file's path on disk, refused when a link leads it anywhere else: docs/agents/cedarloom-rationale.md#project-links
@@ -141,9 +139,8 @@ const contextOf = (project: string, approved: ReadonlySet<string>, on: [string, 
   const documents: Document[] = [];
   for (const [target, open] of targets) {
     const document = opened(project, target, open);
-    // Off parts have nothing to take out of a file the plan cannot open, so it stops only a plan that adds.
-    if (!document.ok && on.length > 0) return document;
-    if (document.ok) documents.push(document.value);
+    if (!document.ok) return document;
+    documents.push(document.value);
   }
   const installed = on.some(([, part]) => "devDependency" in part.source);
   const manifest = installed ? readSettings(join(project, "package.json")) : { ok: true as const, value: { json: {} } };
@@ -169,6 +166,7 @@ const approvalOf = ({ project, codex }: Context, { key, part, launch, entries }:
     variables: launch.variables,
     entries,
     codex,
+    unpinned: ("npm" in part.source || "pypi" in part.source) && part.source.version === undefined,
   },
 });
 
@@ -196,30 +194,16 @@ const onPart = (context: Context, [id, part]: [string, Part]): Outcome => {
     return { held: true, findings: [approvalOf(context, { key, part, launch, entries })] };
   for (const document of absent) document.add(server, launch);
   const findings = entries.map(
-    ({ file, entry }): Finding => ({
-      code: "profile.mcp-entry",
-      params: { part: key, server, change: "add", file, entry },
-    }),
+    ({ file, entry }): Finding => ({ code: "profile.mcp-entry", params: { part: key, server, file, entry } }),
   );
   return { held: false, findings };
 };
 
-// An off part's entry goes where it is as the part writes it; another entry of its name stays without a line, as
-// CedarLoom cannot tell its own changed entry from the owner's.
-const offPart = (documents: Document[], [id, { server, source }]: [string, Part]): Finding[] => {
-  const launch = launchOf(source);
-  return documents.flatMap((document): Finding[] => {
-    if (!document.remove(server, launch)) return [];
-    const params = { part: `project.${id}`, server, change: "remove" as const, file: document.file };
-    return [{ code: "profile.mcp-entry", params: { ...params, entry: document.entry(server, launch) } }];
-  });
-};
-
 /**
  * The MCP parts' servers in the project's `.mcp.json`, and in `.codex/config.toml` where the project has `.codex/`:
- * each on part's entry once `approved` names it, and the entry of a part the selection switches off taken out where it
- * is unchanged; `held` names the parts that wait for approval, for a devDependency, or for a file that holds another
- * entry of their server's name.
+ * each on part's entry once `approved` names it; a part that is off leaves its entry, as CedarLoom cannot tell its own
+ * from the owner's until the per-entry record. `held` names the parts that wait for approval, for a devDependency, or
+ * for a file that holds another entry of their server's name.
  */
 export const mcpWrites = ({
   resolved,
@@ -234,23 +218,18 @@ export const mcpWrites = ({
     (each): each is [string, Part] => each[1].type === "mcp",
   );
   const on = parts.filter(([id]) => resolved.on.has(`project.${id}`));
+  // With no part on, the files are not even read: one the plan cannot open stops only a plan that adds.
+  if (on.length === 0) return { ok: true, value: { operations: [], findings: [], held: [] } };
   const twice = on.find(([, part], index) => on.slice(0, index).some(([, other]) => other.server === part.server));
   if (twice !== undefined)
     return refuse({
       code: "profile.target-twice",
       params: { part: `project.${twice[0]}`, target: `mcpServers.${twice[1].server}` },
     });
-  // Only an explicit off removes: a default-off part or one held back by a part it requires takes nothing out.
-  const names = new Set(on.map(([, part]) => part.server));
-  const off = parts.filter(([id, part]) => resolved.switchedOff.includes(`project.${id}`) && !names.has(part.server));
-  if (on.length + off.length === 0) return { ok: true, value: { operations: [], findings: [], held: [] } };
   const context = contextOf(project, approved, on);
   if (!context.ok) return context;
   const outcomes = on.map((each) => ({ key: `project.${each[0]}`, ...onPart(context.value, each) }));
-  const findings = [
-    ...outcomes.flatMap((each) => each.findings),
-    ...off.flatMap((each) => offPart(context.value.documents, each)),
-  ];
+  const findings = outcomes.flatMap((each) => each.findings);
   const operations: Operation[] = [];
   for (const document of context.value.documents) {
     const write = document.operations();

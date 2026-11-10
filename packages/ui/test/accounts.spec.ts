@@ -82,6 +82,9 @@ const install = async (route: Route): Promise<void> => {
   return route.fulfill({ json: { installed: true, version: "1.0.0" } });
 };
 
+// While set, an approved switch waits for it: cswap switch takes seconds.
+let switching: Promise<void> | null = null;
+
 const swap = async (route: Route): Promise<void> => {
   if (route.request().method() === "GET")
     return installed
@@ -92,10 +95,17 @@ const swap = async (route: Route): Promise<void> => {
     const approve = `cedarloom claude-swap switch --account ${account} --allow cswap`;
     return route.fulfill({ json: { runs: `cswap switch ${account}`, approve } });
   }
+  await switching;
   const from = active;
   active = account;
   return route.fulfill({ json: { switched: true, from, to: account } });
 };
+
+const row = (alias: string) =>
+  page
+    .getByRole("main")
+    .getByRole("row")
+    .filter({ hasText: `(${alias})` });
 
 test.beforeAll(async ({ browser }) => {
   server = await serve(join(mkdtempSync(join(tmpdir(), "cedarloom-accounts-")), "state"), errors);
@@ -114,7 +124,6 @@ test("claude-swap's accounts show with their usage, and a switch shows claude-sw
   await page.goto(server.url);
   await page.getByRole("navigation", { name: "Views" }).getByRole("button", { name: "Accounts" }).click();
   const main = page.getByRole("main");
-  const row = (alias: string) => main.getByRole("row").filter({ hasText: `(${alias})` });
   await expect(row("home")).toContainText("90%");
   // The active account offers no switch.
   await expect(row("spare").getByRole("button")).toHaveCount(0);
@@ -161,5 +170,31 @@ test("without claude-swap the page offers its install, which shows the command, 
   await expect(main.getByRole("button", { name: "Turn auto switching off" })).toBeVisible();
   expect(autoSwitch).toBe(true);
   // The browser logs the 409 that says claude-swap is missing.
+  expect(errors.filter((error) => !error.includes("409"))).toEqual([]);
+});
+
+test("a view reopened while a switch runs reads claude-swap again once the switch ends", async () => {
+  [active, installed] = [3, true];
+  const release = Promise.withResolvers<void>();
+  switching = release.promise;
+  try {
+    await page.reload();
+    const views = page.getByRole("navigation", { name: "Views" });
+    await views.getByRole("button", { name: "Accounts" }).click();
+    const main = page.getByRole("main");
+    await row("home").getByRole("button").click();
+    await main.getByRole("button", { name: "Run it" }).click();
+    await views.getByRole("button", { name: "Runs" }).click();
+    await views.getByRole("button", { name: "Accounts" }).click();
+    // The switch is still running: spare is active, and home offers its switch.
+    await expect(row("home").getByRole("button")).toHaveCount(1);
+    await expect(row("spare").getByRole("button")).toHaveCount(0);
+  } finally {
+    release.resolve();
+    switching = null;
+  }
+  // Read again without opening the view: home is active now.
+  await expect(row("home").getByRole("button")).toHaveCount(0);
+  expect(active).toBe(2);
   expect(errors.filter((error) => !error.includes("409"))).toEqual([]);
 });

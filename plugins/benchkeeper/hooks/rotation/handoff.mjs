@@ -7,8 +7,18 @@ const CAP = 9000;
 
 // Whether the file is this session's: every Terminal: line of its header (before the first ## heading) names this terminal, and one does.
 export const mine = (text, terminal) => {
-  const claims = [...text.split(/^## /m)[0].matchAll(/^Terminal:(.*)$/gm)].map((m) => m[1].trim().replace(/^`+|`+$/g, '').trim());
+  const header = text.split(/^## /m)[0].split('\n');
+  const claims = header.filter((line) => line.startsWith('Terminal:')).map((line) => unquoted(line.slice('Terminal:'.length)));
   return Boolean(terminal) && claims.length > 0 && claims.every((claim) => claim === terminal);
+};
+
+// The value without spaces and surrounding backticks; no regular expression, so a long line costs linear time.
+const unquoted = (value) => {
+  let start = 0;
+  let end = value.length;
+  while (start < end && (value[start] === '`' || value[start].trim() === '')) start++;
+  while (end > start && (value[end - 1] === '`' || value[end - 1].trim() === '')) end--;
+  return value.slice(start, end);
 };
 
 export const restored = (text) =>

@@ -12,7 +12,7 @@ import {
   Table,
   Text,
 } from "@mantine/core";
-import { type ComponentProps, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useState } from "react";
 import { dayIn, zoneOf } from "@cedarloom/contracts/http";
 import { call } from "./call.ts";
 import { t } from "./i18n.ts";
@@ -274,11 +274,8 @@ const ConfirmDelete = ({ opened, busy, onConfirm, onCancel }: ConfirmProps): Rea
     onClose={onCancel}
     title={t("sessions.deleteTitle")}
     withCloseButton={false}
-    // No banner landmark in a dialog; Mantine sets role="dialog" after any attribute, so only renderRoot can replace it.
-    attributes={{
-      header: { role: "none" },
-      content: { renderRoot: (props: ComponentProps<"section">) => <section {...props} role="alertdialog" /> },
-    }}
+    // A dialog holds no banner landmark, so its header is none.
+    attributes={{ header: { role: "none" } }}
   >
     <Stack>
       <Text>{t("sessions.deleteBody")}</Text>

@@ -27,7 +27,7 @@ export const deleteHistory = ({ history }: Logs): void => {
   if (history !== null) rmSync(history, { force: true });
 };
 
-// Requests that come while a read runs share it: a first read of a long history takes seconds.
+// Requests that come while a read runs share it: a first read of many logs takes seconds.
 const reading = new Map<string, Promise<AgentSession[]>>();
 const sessionsOf = (logs: Logs): Promise<AgentSession[]> => {
   const key = JSON.stringify(logs);

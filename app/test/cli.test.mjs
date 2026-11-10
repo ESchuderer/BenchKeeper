@@ -45,6 +45,45 @@ test('projects plan and apply refuse a --skill name that is neither a library sk
   assert.equal(existsSync(join(dir, '.benchkeeper')), false);
 });
 
+test('projects apply --paths writes the globs into the copied SKILL.md front matter and the state file, keeps other skills\' entries, and an empty value takes the entry out', async () => {
+  const c = cli();
+  const dir = join(c.home, 'p');
+  mkdirSync(join(dir, '.benchkeeper'), { recursive: true });
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  writeFileSync(join(dir, '.benchkeeper/state.json'), JSON.stringify({ agents: ['claude'], env: 'host', paths: { other: 'x/**' } }));
+  const apply = (value) => c.exec(['projects', 'apply', dir, '--skill', 'designing-technical-uis', '--paths', value, '--yes']);
+  const skillMd = () => readFileSync(join(dir, '.claude/skills/designing-technical-uis/SKILL.md'), 'utf8');
+  const statePaths = () => JSON.parse(readFileSync(join(dir, '.benchkeeper/state.json'), 'utf8')).paths;
+  assert.equal(await apply('designing-technical-uis=app/ui/**,docs/**'), 0);
+  assert.match(skillMd(), /^paths: "app\/ui\/\*\*,docs\/\*\*"$/m);
+  assert.deepEqual(statePaths(), { other: 'x/**', 'designing-technical-uis': 'app/ui/**,docs/**' });
+  assert.equal(await apply('designing-technical-uis='), 0);
+  assert.doesNotMatch(skillMd(), /^paths:/m);
+  assert.deepEqual(statePaths(), { other: 'x/**' });
+});
+
+test('projects plan refuses a --paths without =, with an empty glob, for an unknown, unselected or community skill, exit 2, nothing written', async () => {
+  const c = cli();
+  const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  // A fragment per refusal tells them apart without pinning the wording.
+  const usage = 'use <skill>=<glob>,<glob>';
+  const cases = [
+    [[], 'app/**', usage],
+    [[], '=app/**', usage],
+    [['designing-technical-uis'], 'designing-technical-uis=app/**,', usage],
+    [[], 'nosuch=app/**', 'unknown skill nosuch'],
+    [['designing-technical-uis'], 'accessibility=app/**', 'not a skill of this project'],
+    [['frontend-design'], 'frontend-design=app/**', 'installed from anthropics/skills'],
+  ];
+  for (const [skills, value, fragment] of cases) {
+    await assert.rejects(c.exec(['projects', 'plan', dir, '--agents', 'claude', ...skills.flatMap((s) => ['--skill', s]), '--paths', value]), (e) => e.message.includes(fragment), value);
+  }
+  assert.equal(await c.exec(['projects', 'plan', dir, '--agents', 'claude', '--paths', 'app/**', '--json']), 2);
+  assert.ok(JSON.parse(c.text()).error.includes(usage));
+  assert.equal(existsSync(join(dir, '.benchkeeper')), false);
+});
+
 test('a changing command with no answer refuses before any change; every change declined records no run', async () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
   const dir = mkdtempSync(join(tmpdir(), 'bk-cli-proj-'));

@@ -124,12 +124,14 @@ Usage: benchkeeper <command> [options]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--machine on|off|none] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
-                    [--share|--local] [--caller lint-js|lint-python|sonar]
+                    [--share|--local] [--caller lint-js|lint-python|sonar] [--paths 'skill=glob,glob']
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude), listed in .worktreeinclude for new worktrees;
                                     --share commits them (AGENTS.md block, CLAUDE.md);
-                                    --caller writes that repo-standards workflow file (never GitHub settings)
+                                    --caller writes that repo-standards workflow file (never GitHub settings);
+                                    --paths writes the globs into an own or your skill's copied SKILL.md (Claude Code loads
+                                    it only for matching files) and keeps them in the state file; skill= takes them out
   projects create <dir> --preset <id> [--yes] [--all]
                                     a new folder set up from a preset, as a plan with a diff, then registered; refused for a
                                     folder that exists. Then a check recommends skills to turn off and packs to add, each with
@@ -341,7 +343,7 @@ Agents: claude, codex, gemini, copilot (default: the installed ones; evals: clau
 Env (where the agent runs): container (default; host-agent or host when AGENTS.md says the agent runs on the host), host-agent, sandbox, host. Tier: quick, standard, full, research.`;
 
 const OPTIONS = {
-  agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
+  agents: { type: 'string' }, pack: { type: 'string', multiple: true }, paths: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' },
   env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, 'workflow-load': { type: 'boolean' }, 'no-workflow-load': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, id: { type: 'string' },
@@ -583,7 +585,7 @@ const FLAGS = {
   'evals cases': 'target expected should-not run project scope transcript description query',
   'evals plan': 'agents model target all', 'evals run': 'agents model target all yes', 'evals results': '',
   history: '', 'history show': '', undo: 'step unit', restore: 'yes',
-  'projects plan': `${PLAN_FLAGS} project`, 'projects apply': `${PLAN_FLAGS} project yes all`,
+  'projects plan': `${PLAN_FLAGS} project paths`, 'projects apply': `${PLAN_FLAGS} project paths yes all`,
   'packs list': '', 'packs show': '', 'packs save': 'skill', 'packs export': '', 'packs import': 'id', 'packs remove': '', 'packs warnings': '',
   'packs scope': 'agents yes all', 'packs enable': `${PLAN_FLAGS} project global yes all`, 'packs disable': `${PLAN_FLAGS} project global yes all`,
   'skills list': 'project check agents library', 'skills show': '', 'skills cli': '',
@@ -1086,9 +1088,15 @@ function machineItems(ctx, o, cmd) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, machine: o.machine, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, ...extra };
+  const setPaths = {};
+  for (const arg of o.paths ?? []) {
+    const at = arg.indexOf('='), name = arg.slice(0, at).trim(), value = arg.slice(at + 1).trim();
+    if (at < 0 || !name || (value && value.split(',').some((g) => !g.trim()))) throw Object.assign(new Error(`--paths ${arg}: use <skill>=<glob>,<glob> (an empty value clears the skill's paths)`), { status: 400 });
+    setPaths[name] = value;
+  }
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, machine: o.machine, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, setPaths, ...extra };
   // A --skill name that is no skill is refused like an unknown pack; a stored pick that no longer resolves only warns (#915).
-  const unknown = (o.skill ?? []).filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
+  const unknown = [...new Set([...(o.skill ?? []), ...Object.keys(setPaths)])].filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
   if (unknown.length) throw Object.assign(new Error(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`), { status: 404 });
   const { changes, prompts, skills, warnings } = projectPlan({ ctx: pctx, dir, answers, plugins: installedPlugins(ctx) });
   return { pctx, plan: preview(focus ? focusOn(changes, focus) : changes), prompts, skills, warnings };

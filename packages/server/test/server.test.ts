@@ -76,7 +76,7 @@ const serve = async (
 ): Promise<Client> => {
   const log: string[] = [];
   const server = await startServer({
-    logs: { claude: join(state, "..", ".claude"), codex: join(state, "..", ".codex"), cache: null },
+    logs: { claude: join(state, "..", ".claude"), codex: join(state, "..", ".codex"), cache: null, history: null },
     state,
     config: join(state, "..", "config"),
     machine: { home: join(state, "..", ".claude"), user: join(state, "..") },

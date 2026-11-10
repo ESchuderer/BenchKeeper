@@ -941,8 +941,32 @@ msgstr "Top line: {value} a day"
 
 #. js-lingui-explicit-id
 msgid "sessions.dataFrom"
-msgstr "Claude Code's transcripts start on {first}: it deletes older ones, so earlier days show less work than there was."
+msgstr "The history starts on {first}: Claude Code deleted older transcripts before the board read them, so earlier days show less work than there was."
 
 #. js-lingui-explicit-id
 msgid "sessions.noData"
-msgstr "before the oldest Claude Code transcript"
+msgstr "before the history starts"
+
+#. js-lingui-explicit-id
+msgid "sessions.historyNote"
+msgstr "The history keeps each session's project, start, agent time, tokens, cost and test result on this computer, so the board still counts it after the agent tools delete its log. It keeps no title or other text of a session."
+
+#. js-lingui-explicit-id
+msgid "sessions.deleteHistory"
+msgstr "Delete history"
+
+#. js-lingui-explicit-id
+msgid "sessions.deleteTitle"
+msgstr "Delete the sessions history?"
+
+#. js-lingui-explicit-id
+msgid "sessions.deleteBody"
+msgstr "Sessions whose logs are gone leave the board for good. Sessions whose logs still exist stay, and the history records them again."
+
+#. js-lingui-explicit-id
+msgid "sessions.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "sessions.historyDeleted"
+msgstr "The history is deleted."

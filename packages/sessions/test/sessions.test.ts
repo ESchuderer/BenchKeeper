@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSession } from "@cedarloom/contracts";
@@ -36,7 +36,8 @@ const machine = () => {
     writeFileSync(file, lines === undefined ? moved : `${moved.split("\n").slice(0, lines).join("\n")}\n`);
     return file;
   };
-  return { repository, worktree, put, logs: { claude: home, codex: join(at, "codex"), cache: join(at, "cache.json") } };
+  const logs = { claude: home, codex: join(at, "codex"), cache: join(at, "cache.json"), history: null };
+  return { at, repository, worktree, put, logs };
 };
 
 const shop = {
@@ -88,6 +89,38 @@ test("the cache holds only logs that are there, reads a grown one again and keep
   expect(await readSessions(logs)).toEqual([]);
 });
 
+test("the history keeps a session's figures, never its text, once its log is gone; a history of another version is left as it is", async () => {
+  const { at, put, repository, logs } = machine();
+  const history = join(at, "history.json");
+  const own = { ...logs, history };
+  const transcript = put(SHOP, "-work-shop");
+  appendFileSync(transcript, '{"type":"ai-title","aiTitle":"Fix the login form"}\n');
+  expect(await readSessions(own)).toEqual([{ ...shop, project: repository, title: "Fix the login form" }]);
+  expect(JSON.parse(readFileSync(history, "utf8"))).toEqual({
+    version: 1,
+    sessions: [
+      {
+        agent: "claude-code",
+        id: SHOP,
+        project: repository,
+        start: "2026-11-09T08:44:19.864Z",
+        busyMs: 4075,
+        tokens: 41248,
+        costUSD: 0.0401998,
+        tests: "pass",
+      },
+    ],
+  });
+  rmSync(transcript);
+  expect(await readSessions(own)).toEqual([{ ...shop, project: repository, end: shop.start }]);
+  rmSync(history);
+  expect(await readSessions(own)).toEqual([]);
+  writeFileSync(history, '{"version":2,"sessions":[]}');
+  put(SHOP, "-work-shop");
+  expect(await readSessions(own)).toEqual([{ ...shop, project: repository }]);
+  expect(readFileSync(history, "utf8")).toBe('{"version":2,"sessions":[]}');
+});
+
 // One recorded session with one edit in its JSON, read alone: its test result.
 const testsAfter = async (
   id: string,
@@ -130,7 +163,8 @@ test.each([
 // Built from the rollout format of openai/codex at 8703d32b: no Codex rollout was recorded yet.
 test("Codex sessions: a subagent's tokens and cost on its root row at list prices, another provider's unpriced, the last test run", async () => {
   const codex = { agent: "codex", project: "/work/shop", title: null } as const;
-  expect(await readSessions({ claude: join(root, "none"), codex: join(fixtures, "codex"), cache: null })).toEqual([
+  const logs = { claude: join(root, "none"), codex: join(fixtures, "codex"), cache: null, history: null };
+  expect(await readSessions(logs)).toEqual([
     {
       ...codex,
       id: "019a3c11-7a4f-7d55-b032-1e8f5c2d9e03",

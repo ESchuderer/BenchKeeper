@@ -68,7 +68,8 @@ export const boardOf = (
   const projects = [...counts]
     .toSorted(([a, x], [b, y]) => y.length - x.length || a.localeCompare(b))
     .map(([name]) => name);
-  // Only Claude Code deletes its logs by age (cleanupPeriodDays); Codex keeps a rollout until its thread is deleted.
+  // The history's oldest Claude Code session: only Claude Code deletes its logs by age (cleanupPeriodDays), Codex keeps a
+  // rollout until its thread is deleted.
   const first = all.findLast((s) => s.agent === "claude-code");
   return {
     days,

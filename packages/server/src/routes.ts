@@ -351,7 +351,8 @@ export const accountRoutes: FastifyPluginAsyncZod<SwapPaths> = async (server, pa
   await server.register(swapRoutes, paths);
 };
 
-// Reads the session logs (a first read of a large history takes seconds), never writes but the cache.
+// Reads the session logs (a first read of a large history takes seconds); writes only the cache and the sessions history,
+// which a DELETE removes.
 export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async (app, { logs }) => {
   const query = z.strictObject({
     days: z.coerce.number().int().min(1).max(3650).optional().describe("The period's length in days; absent: all time"),
@@ -370,6 +371,14 @@ export const boardRoutes: FastifyPluginAsyncZod<{ logs: useCases.Logs }> = async
       const { days, project, tz } = req.query;
       // An unknown zone counts in UTC, and the answer names the zone it counted in.
       return useCases.sessionsBoard(logs, { days: days ?? null, project: project ?? null, zone: tz });
+    },
+  );
+  app.delete(
+    "/api/sessions/history",
+    { schema: { response: answers({ 204: z.null().describe("Deleted, or there was none") }) } },
+    async (_req, reply) => {
+      useCases.deleteHistory(logs);
+      return reply.code(204).send(null);
     },
   );
 };

@@ -13203,6 +13203,34 @@
         }
       }
     },
+    "/api/sessions/history": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/events": {
       "get": {
         "description": "text/event-stream: `runs` events with RunsEvent (the runs), `refusal` events with Refusal",

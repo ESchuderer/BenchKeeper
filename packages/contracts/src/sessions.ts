@@ -5,7 +5,9 @@ import { contracts } from "./registry.ts";
  * One agent session as its own log records it, for the sessions board. `project`: the repository its folder belongs to
  * (the main worktree's folder), else the folder; `title` is the agent's own text, never markup. `busyMs` (Claude Code's
  * API and tool time, Codex's turn time) and `costUSD` are null when the log has none; `costEstimated`: priced from the
- * dated list-price table, which has no rate for the `unpriced` models.
+ * dated list-price table, which has no rate for the `unpriced` models. A session whose log is gone comes from the
+ * history: its project, start, agent time, tokens, cost and test result only, so no title, its start as its end and no
+ * `unpriced` models.
  */
 export const AgentSession = z
   .strictObject({
@@ -48,8 +50,8 @@ export type SessionFigures = z.infer<typeof SessionFigures>;
 
 /**
  * The sessions board of a period (`days` up to today; null: all time) and a project (null: every one): `span` holds its
- * days in `zone`, oldest first; `first` is the first day Claude Code's transcripts cover, as it deletes old ones;
- * `projects` are ranked by sessions over all time; `sessions` are newest first; `prices` dates Codex's price table.
+ * days in `zone`, oldest first; `first` is the first day of Claude Code data: the oldest Claude Code session the
+ * history kept (else the oldest transcript), as Claude Code deletes old transcripts; `projects` are ranked by sessions over all time; `sessions` are newest first; `prices` dates Codex's price table.
  */
 export const SessionsBoard = z
   .strictObject({

@@ -501,6 +501,7 @@
     "sessions.agentColumn": ["Agent"],
     "sessions.allProjects": ["All projects"],
     "sessions.allTime": ["All time"],
+    "sessions.cancel": ["Cancel"],
     "sessions.caption": ["Sessions, newest first"],
     "sessions.chart": [
       [
@@ -528,15 +529,24 @@
     ],
     "sessions.count": ["Sessions"],
     "sessions.dataFrom": [
-      "Claude Code's transcripts start on ",
+      "The history starts on ",
       ["first"],
-      ": it deletes older ones, so earlier days show less work than there was."
+      ": Claude Code deleted older transcripts before the board read them, so earlier days show less work than there was."
     ],
     "sessions.days": ["Last ", ["days"], " days"],
     "sessions.daysOf": [["worked"], " of ", ["days"]],
     "sessions.daysWorked": ["Days worked"],
+    "sessions.deleteBody": [
+      "Sessions whose logs are gone leave the board for good. Sessions whose logs still exist stay, and the history records them again."
+    ],
+    "sessions.deleteHistory": ["Delete history"],
+    "sessions.deleteTitle": ["Delete the sessions history?"],
     "sessions.empty": ["No session in this period."],
     "sessions.hint": ["Point at a day, or focus the chart and use the arrow keys, to read its values."],
+    "sessions.historyDeleted": ["The history is deleted."],
+    "sessions.historyNote": [
+      "The history keeps each session's project, start, agent time, tokens, cost and test result on this computer, so the board still counts it after the agent tools delete its log. It keeps no title or other text of a session."
+    ],
     "sessions.metric": ["Per day"],
     "sessions.metricName": [
       [
@@ -545,7 +555,7 @@
         { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
       ]
     ],
-    "sessions.noData": ["before the oldest Claude Code transcript"],
+    "sessions.noData": ["before the history starts"],
     "sessions.none": ["None"],
     "sessions.other": ["Other"],
     "sessions.peak": ["Top line: ", ["value"], " a day"],

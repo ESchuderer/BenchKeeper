@@ -1,101 +1,66 @@
 ---
 name: setting-up-projects
-description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex: devcontainer configuration and where the agent runs, AGENTS.md, domain skills from the BenchKeeper library, stack-specific skills, the default task tier, other project configuration to remove. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
+description: "Sets up or updates a repository's development container and agent tooling for Claude Code and Codex beyond what `benchkeeper projects apply` writes: devcontainer configuration and where the agent runs, the project parts of AGENTS.md, stack-specific skills, other project configuration to remove. Use when the user asks to set up, onboard, update, or audit a project's agent setup, or to add skills for its stack."
 disable-model-invocation: true
-writes: "After you approve its plan: the dev container configuration, `AGENTS.md` (commands, first-class targets, footgun docs, pointers) and `CLAUDE.md` with only `@AGENTS.md`, both committed, where `AGENTS.md` is new or holds the BenchKeeper block (into a committed `AGENTS.md` without the block, only the parts you pick, and `CLAUDE.md` stays as it is), short footgun docs under `docs/agents/`, stack and library skills with `skills-lock.json`, and the removals you confirm in step 6: skills, plugin and marketplace entries, MCP servers, hooks, other agent rules files and tool folders. The BenchKeeper block and `.benchkeeper/state.json` come from `benchkeeper projects apply`."
+writes: "After you approve its plan: the dev container configuration, `AGENTS.md` (commands, first-class targets, footgun docs, pointers) and `CLAUDE.md` with only `@AGENTS.md`, both committed, where `AGENTS.md` is new or holds the BenchKeeper block (into a committed `AGENTS.md` without the block, only the parts you pick, and `CLAUDE.md` stays as it is), short footgun docs under `docs/agents/`, stack skills with `skills-lock.json`, and the removals you confirm in step 5: skills, plugin and marketplace entries, MCP servers, hooks, other agent rules files and tool folders. The BenchKeeper block, library skills and `.benchkeeper/state.json` come from `benchkeeper projects apply`."
 ---
 
 # Setting up projects
 
 Run in the repository root. On a repository whose working tree already has devcontainer configuration, `AGENTS.md`, `skills-lock.json`, or `docs/agents/`, every step compares the current state with what it would create and proposes only the differences.
 
-The BenchKeeper app owns the deterministic part: `npx benchkeeper@6 projects apply` writes the BenchKeeper block (the repository rules every project shares, where commands run, default tier, skill pointers), the pack and library skills and `.benchkeeper/state.json`. Every apply rewrites the block, so its rules stay current: never edit inside it. A repository without an `AGENTS.md`, or whose `AGENTS.md` holds the BenchKeeper block (an earlier shared setup), commits its agent manual, so its setup is shared (`projects apply --share`, state `share: true`): the block in `AGENTS.md`, a `CLAUDE.md` that imports it, the skills and the state file, all committed. A repository that commits an `AGENTS.md` without the BenchKeeper block, a third-party one included, gets only what the user picks in step 3; a local setup there goes on, and the app warns that the committed `AGENTS.md` loads next to the local block and that `--share` would commit the block into that repository. Local setup (state `share: false`): the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`; lines outside the block stay), and every file the app writes is listed in `.git/info/exclude`; the app's block in `.worktreeinclude` lists them for new worktrees, so leave it as written. `--share` takes an earlier local setup's block out of `CLAUDE.local.md`; an `AGENTS.override.md` with lines of the user's own keeps a copy of `AGENTS.md` with the block above them, since Codex reads it instead of `AGENTS.md`, and only `projects apply` in that checkout rebuilds the copy. With a state file, compare those parts and change an answer through `projects apply` (`--env`, `--tier`, `--pack`, `--skill`). Without one, propose `npx benchkeeper@6 projects plan --share` for them first, or `projects plan` where the repository commits an `AGENTS.md` without the block. This skill does the steps that need judgement: the stack search, the project parts of `AGENTS.md`, the dev container, cleanup.
+The BenchKeeper app owns the deterministic part: `npx benchkeeper@6 projects apply` writes the BenchKeeper block (repository rules, where commands run, default tier, skill pointers), the library skills and `.benchkeeper/state.json`, local by default, committed with `--share`. Never edit inside the block, the state file or the app's block in `.worktreeinclude`; change an answer only with the flags `npx benchkeeper@6 projects apply --help` lists. Read `npx benchkeeper@6 projects plan` instead of deriving its parts again: its `warning:` lines and each change's diff (the block's rules among them). Without a state file, pass `projects plan` and `projects apply` the same answers: `--agents` from agent selection, `--env` from step 2, `--pack` and `--skill` from step 4, plus `--share` where the repository has no `AGENTS.md` or its `AGENTS.md` holds the block. This skill does the steps that need judgement.
 
 Process: plan first, then apply. Its questions and approvals go to the user in the session only while the user allows terminal questions; otherwise the read-only step puts them with your recommendations into the plan, and the run stops before Apply.
-1. Read only: run agent selection and steps 1 to 6 as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"). Write, install, and remove nothing. Do not build or start a container.
-2. Plan: one list of files created, changed, or removed, skills added or removed, packages added to the image, container build or rebuild, integrations enabled or disabled, and skipped steps with the reason. Mark destructive items: overwriting or removing files, config entries, or skills, and removing or rebuilding a container. Ask: apply all, a subset, or cancel.
-3. Apply only approved items, including container launch and verification. Right before each destructive item, show the diff or list and ask again.
-4. Review (step 7), then report (step 8).
+1. Read only: run agent selection and steps 1, 2 and 4 for their answers, then `projects plan` with them, then steps 3 and 5 against that plan, all as detection and comparison, including their questions (stack confirmation, skill choice, steps marked "ask"); when an answer changes later, run the plan again. Write, install, and remove nothing. Do not build or start a container.
+2. Plan: one list of files created, changed, or removed, skills added or removed, packages added to the image, container build or rebuild, integrations enabled or disabled, the `projects apply` command with its flags (with `container` or `host-agent` on a repository without `.devcontainer/`, also the `scripts/dc` launcher the app adds once that folder exists), and skipped steps with the reason. Mark destructive items: overwriting or removing files, config entries, or skills, and removing or rebuilding a container. Ask: apply all, a subset, or cancel.
+3. Apply only approved items, including container launch and verification. Write the approved `.devcontainer/` files before the planned `projects apply`. Right before each destructive item, show the diff or list and ask again.
+4. Review (step 6), then report (step 7).
 
 Never run sudo or AUR installs (give the user the command).
 
 ## Agent selection
 
-Detect `claude` and `codex` with `command -v`, then ask which installed agents the user uses for this project: Claude Code, Codex, both, or neither. Reuse an explicit selection already given for this project in the session. Do not install agent CLIs or infer usage from installation. Report missing requested agents. Proceed only for confirmed installed agents. If none are selected, stop without changes. A state file that also names `gemini` or `copilot` (untested in the app): leave their files unchanged and report that this skill covers Claude Code and Codex.
+The state file's `agents` are the answer, limited to the installed ones. Without one, detect `claude` and `codex` with `command -v`, ask which installed agents the user uses for this project (Claude Code, Codex, both, or neither), and pass only installed ones as `--agents claude`, `--agents codex` or `--agents claude,codex`. Reuse an explicit selection already given for this project in the session. Do not install agent CLIs or infer usage from installation. Report missing requested agents. If none are selected, stop without changes. A state file that also names `gemini` or `copilot`: leave their files unchanged and report that this skill covers Claude Code and Codex.
 
-Scope every step, including updates and cleanup, to selected agents. Leave unselected agents' files and integrations in place. `<agent-flags>` means `-a claude-code`, `-a codex`, or both, matching that selection. Never omit agent flags and rely on auto-detection. If existing shared links would change skill content used by an unselected agent, report and skip that mutation.
+Scope every step, including updates and cleanup, to selected agents; leave unselected agents' files and integrations in place. `<agent-flags>` means `-a claude-code`, `-a codex`, or both, matching that selection; never omit them and rely on auto-detection. If existing shared links would change skill content used by an unselected agent, report and skip that mutation.
 
 ## 1. Stack
 
 Identify languages, frameworks, and infrastructure tools from build files, dependency manifests, config files, and file extensions. Count only technologies the repository contains code or config for (not ones its docs merely mention), and skip a language with fewer than about 10 files unless it is the main one. Show the list. The user confirms or edits it.
 
-## 2. Development container
+## 2. Where the agent runs (ask)
 
-Ask where the agent runs, recommending the first:
-- **Agent in the container** (default): the agent CLIs selected above are installed in the image at exact versions, and the user starts them with `devcontainer exec --workspace-folder . claude` (or `codex`). Login: the subscription token from the host environment through `remoteEnv` (`"CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"`), never written into the image or the repository, or a login inside the container kept in a named volume for the agent's config folder.
-- **Agent on the host**: toolchains in the container, the agent on the host, project commands routed through `devcontainer exec`.
-  `projects apply --sandbox` then turns on Claude Code's command sandbox, with `devcontainer exec` and `podman` excluded (state `sandbox: true`).
-- **Docker Sandboxes microVM** (`sbx`, untested): the agent and its builds and tests run inside it. Set with `projects apply --env sandbox`, then skip the rest of this step.
-- **Host only**: no container. Skip the rest of this step.
+The state file's `env` is the answer. Without one, ask, recommending the first, and put `--env <env>` on the planned `projects apply`:
+- `container`: the agent and the project commands run in the dev container.
+- `host-agent`: the agent on the host, project commands in the dev container. `--sandbox` turns on Claude Code's command sandbox, with `devcontainer exec` and `podman` excluded.
+- `sandbox`: a Docker Sandboxes microVM (`sbx`, untested) runs the agent, its builds and tests.
+- `host`: no container.
 
-Reuse `.devcontainer/devcontainer.json`, `.devcontainer.json`, or an existing named configuration. Otherwise create `.devcontainer/devcontainer.json` and only the Dockerfile or Compose services the confirmed stack needs. Preserve existing settings and services. Use an exact image version or digest and pin installed CLI/package versions. [Configuration reference](https://containers.dev/implementors/json_reference/)
-
-- Install the project toolchain and required local MCP/browser tools inside the image, resolving exact package versions before writing install commands.
-- For a browser check, install the browser tool the project uses at an exact version and its matching browser inside the container, with a project-specific stdio launcher through `devcontainer exec`. Verify the connection and browser access to the application. Inspect effective client configuration and override or disable inherited host entries of the same tool for this project. If routing fails, keep the integration disabled.
-- Run project-local MCP launchers inside the container: resolve the workspace and named configuration for every launcher and verify the execution location (an MCP server may start outside the agent's working directory).
-- Run project commands as a non-root container user. Mount only the project and required project data. Do not mount the host home or Docker socket, enable privileged mode, or forward credentials by default. Review existing mounts, Features, and lifecycle commands before launch. `initializeCommand` runs on the host. [Lifecycle reference](https://github.com/devcontainers/spec/blob/main/docs/specs/devcontainer-reference.md)
-- VS Code may attach to the same container for project terminals, builds, and debugging. Verify where native chat or agent extensions run. [VS Code](https://code.visualstudio.com/docs/devcontainers/containers)
-- Before VS Code attachment, disable host Git credential integration and SSH-agent forwarding, then check the effective container environment and mounts. VS Code can forward these automatically. [Credential sharing](https://github.com/microsoft/vscode-docs/blob/main/remote/advancedcontainers/sharing-git-credentials.md)
-
-Host launch and verification:
-```sh
-devcontainer up --workspace-folder .
-devcontainer exec --workspace-folder . git status --short
-devcontainer exec --workspace-folder . id -un
-```
-Agent on the host: launch `claude` or `codex` on the host in the repository or worktree, and route project dependency installs, builds, lint, tests, and local MCP/browser tools through `devcontainer exec --workspace-folder . ...`. From an existing container terminal, run project commands directly.
-
-Keep compound project commands inside the container shell: `devcontainer exec --workspace-folder . sh -lc 'npm test && npm run lint'`.
-
-For a named configuration, pass its `--config` path consistently. For linked Git worktrees, inspect the `.git` file and `git rev-parse --git-common-dir`. Preserve the referenced paths with narrowly scoped mounts for the required Git metadata, then verify `git status` inside the container. That metadata is shared with the repository's other worktrees. Do not mount a broad parent directory. [Git worktree layout](https://git-scm.com/docs/git-worktree#_details)
-
-After changing the image, Dockerfile, or container creation settings, rebuild instead of reusing the old container: VS Code **Dev Containers: Rebuild Container**, or `devcontainer up --workspace-folder . --remove-existing-container`. First identify data in the old container's writable layer and ask before removing it. Preserve required data in project storage.
+For `container` and `host-agent`, follow [devcontainer.md](devcontainer.md). Otherwise skip it.
 
 ## 3. AGENTS.md and CLAUDE.md
 
 A repository without an `AGENTS.md`, or whose `AGENTS.md` holds the BenchKeeper block, gets both, committed. `AGENTS.md`, short, in this order:
 1. `## Commands`: the real install, build, test, lint, format and run commands, and the changed-files check the block's push rule names (the command CI runs for the changed files, or the closest local one). Verify each where the block says commands run, when local, read-only, and under a minute; never run network, SSH, or deploy commands merely to verify documentation.
-2. The BenchKeeper block from `projects apply`: the shared rules (before a push, code, tests), where commands run, the default tier, skill pointers. A new block lands at the end of the file: move it whole, markers included, between Commands and Every change considers; later applies keep its place.
+2. The BenchKeeper block from `projects apply`. A new block lands at the end of the file: move it whole, markers included, between Commands and Every change considers; later applies keep its place.
 3. `## Every change considers`: the first-class targets every change keeps working (platforms, runtimes, entry points such as a CLI, a server or a UI, browsers or devices, languages), then one link per risky area to a short footgun doc (for example git and child processes, platform paths). Link an existing doc; write a missing one under `docs/agents/`, a few lines on what goes wrong and how to avoid it, only for a risk the code shows.
 4. `## Pointers`: `docs/agents/` (domain, issue tracker, triage labels), the styleguide and design tokens of a project with a UI, and other docs an agent needs. Link deeper docs instead of copying them.
 
-Conventions found in the code that differ from the stack defaults go in one line each under Commands or Pointers. No project summary or layout. Update: compare each part, fix failing or changed commands, and after asking remove a project summary or layout section and hand-written lines that repeat a rule of the block.
+Conventions found in the code that differ from the stack defaults go in one line each under Commands or Pointers. No project summary or layout. Update: compare each part, fix failing or changed commands, and after asking remove a project summary or layout section and hand-written lines that repeat or contradict a rule of the block (a `Default tier:` line outside it, for example: offer `--tier <tier>` so its answer stays).
 
 `CLAUDE.md` beside that `AGENTS.md`, when Claude Code is selected: exactly `@AGENTS.md`. Claude Code reads `AGENTS.md` on its own only without a `CLAUDE.md`, and the import keeps one source of instructions (https://code.claude.com/docs/en/memory). Move any other content into `AGENTS.md` first, after asking.
 
-A repository that commits an `AGENTS.md` without the BenchKeeper block: merge nothing into it unasked, and leave `CLAUDE.md` as it is: the local setup reads `AGENTS.md` through `CLAUDE.local.md`.
-- Compare the block's rules and the layout above with the file's own text: rules the file lacks, rules that say something else, sections it lacks. The rules are in the plan's diff (`npx benchkeeper@6 projects plan`), which shows only changes, so on a setup that is already current read them in the block of `CLAUDE.local.md` or `AGENTS.override.md`. Show the user those differences.
+A repository that commits an `AGENTS.md` without the BenchKeeper block (the plan warns about it): merge nothing into it unasked, and leave `CLAUDE.md` as it is: the local setup reads `AGENTS.md` through `CLAUDE.local.md`.
+- Compare the block's rules and the layout above with the file's own text: rules the file lacks, rules that say something else, sections it lacks. The rules are in the plan's diff, which shows only changes, so on a setup that is already current read them in the block of `CLAUDE.local.md` or `AGENTS.override.md`. Show the user those differences.
 - Ask with the question tool which of them to merge into `AGENTS.md`: multiSelect, one option per difference or group of rules, plus "the whole block, committed". Each option says what merging it changes for the repository's other contributors.
 - Write only what the user picks, outside the block, as items of the plan. With uncommitted changes in `AGENTS.md`, ask the user to commit them first, so `git restore AGENTS.md` undoes only the picked parts before a commit. The whole block picked: `projects apply --share`. Otherwise the setup stays local.
 
 A local setup puts the project parts outside the block of `CLAUDE.local.md` (Claude Code) and `AGENTS.override.md` (Codex).
 
-## 4. Skills
+## 4. Stack skills
 
-Add only domain knowledge (library) and knowledge about the confirmed stack (search). Every skill here is installed in the project, never globally.
-
-### Library (ask)
-
-The catalog is `library/library.json` in the BenchKeeper plugin, two levels above this skill's folder (`library/README.md` renders it). Propose the packs and single skills whose `pickWhen` matches what the repository contains, each pack as one question the user can trim skill by skill. Install as the catalog README says, community skills from the default branch of their source:
-- Own skills: copy the folder. When the catalog names folders for `paths` and the user names them, add `paths:` with their globs to the copied front matter. Add the catalog's pointer line to the `AGENTS.md` it names.
-- Community skills: read and check them as in item 4 below, then install with the command in item 5.
-- Entries marked Codex only: only when Codex is selected, installed with `-a codex` alone even when both agents are selected.
-
-Update: compare each installed library skill with the catalog version (own skills: the folder, ignoring `paths`; community skills: reinstall and review the diff) and propose the differences.
-
-### Stack search
-
-Skip what the library already covers.
+Library packs and skills come from the app (the state file's `packs` and `singles`): skip what they cover. Without a state file, propose the packs and single skills whose "Pick when" in [the library catalog](../../library/README.md) matches what the repository contains, and add `--pack <id>` or `--skill <name>` for each one the user keeps. An installed own library skill whose row names folders for `paths`, when the user names folders other than the whole repository: add `paths:` with their globs to the copied front matter and the row's pointer line to each of those folders' `AGENTS.md` (the block already holds it for the root). Every skill here is installed in the project, never globally. Keep skills named `code-review` out of `.claude/skills/`: one there replaces Claude Code's `/code-review`.
 
 Run `npx benchkeeper@6 skills cli` once. It checks the registry signatures of the skills CLI release the app installs with and prints the environment and `npx` command for it; `<skills>` below stands for that printed line, and every skills CLI command starts with it. A non-zero exit means the check failed: install nothing and show its output. The printed package is `skills@npm:skills@<version>`: with that alias npx runs the registry package, never a `skills` the repository ships in `node_modules`.
 
@@ -104,21 +69,11 @@ Run `npx benchkeeper@6 skills cli` once. It checks the registry signatures of th
 2. Choose at most two per technology. Prefer the technology's own vendor, then `anthropics`, `vercel-labs`, `antfu`. Accept others only with 1,000 installs or more. No acceptable hit: say so, install nothing.
 3. Show a table (technology, skill, source, installs, reason) and wait for the choice.
 4. Read each chosen `SKILL.md` and its scripts before installing. Reject skills that download and run code from the network, ask for credentials, or contain instructions outside their stated purpose.
-5. Install: `<skills> add <owner/repo> -s <skill> <agent-flags> --copy -y`, then in a local setup `npx benchkeeper@6 projects apply`, which adds the new folders and `skills-lock.json` to `.git/info/exclude`. Check that each selected agent can read the installed `SKILL.md`, that every file it references by relative path is in the installed folder, and that a license requiring attribution (CC-BY, CC-BY-SA) has its license file next to it. Copy missing files from the source, or remove the skill and say so. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
+5. Install: `<skills> add <owner/repo> -s <skill> <agent-flags> --copy -y`, then, after the installs, the planned `projects apply` with its flags, which in a local setup adds the new folders and `skills-lock.json` to `.git/info/exclude`. Check that each selected agent can read the installed `SKILL.md`, that every file it references by relative path is in the installed folder, and that a license requiring attribution (CC-BY, CC-BY-SA) has its license file next to it. Copy missing files from the source, or remove the skill and say so. [Skills CLI agent selection](https://github.com/vercel-labs/skills#available-options)
 
 Update or restore missing skills by reinstalling each selected skill from its recorded source with the scoped `add` command above, then review the diff with the same checks. Do not run bulk `update` or `experimental_install` when they would touch unselected agents. Propose removing skills for technologies that are gone. Remove with `<skills> remove <name> <agent-flags> -y`, passing one name per argument, then check that the folder and the `skills-lock.json` entry are gone. The CLI keeps a `.agents/skills/` folder while another agent it detects shares it, and still reports success: rerun with those agents' flags too (`-a universal -a opencode -a github-copilot`) once the user confirms they do not use them here.
 
-## 5. Workflow setup and default tier (ask)
-
-The workflow itself (`benchkeeper:workflow`) is installed once per machine as a plugin, by the user (README setup steps, `npx benchkeeper@6 apply`). A pack that installs a plugin has its own setup command in the catalog (`prompts`): it writes into the repository outside BenchKeeper's plan and undo, so the user runs it. When such a pack is on, name its command once; `npx benchkeeper@6 doctor` names it again while its sections are missing from `AGENTS.md`. Keep skills named `code-review` out of `.claude/skills/`: one there replaces Claude Code's `/code-review`.
-
-Ask for the default task tier of `benchkeeper:workflow`: none (the agent picks per request), `quick`, `standard`, `full` or `research`. Recommend none for code repositories. Set the choice with `npx benchkeeper@6 projects apply --tier <tier>`, which writes the `Default tier:` line into the BenchKeeper block. For none, pass `--tier=` (an unset `--tier` keeps the saved tier) and remove a `Default tier:` line outside the block after asking.
-
-### State file
-
-`.benchkeeper/state.json` (git ignores it in a local setup; committed in a shared one) holds the answers, so a later run and the BenchKeeper app read the same: `schemaVersion` 2, `appVersion` and `contentVersion` (the plugin `version`; a project is behind when either differs; a version 1 file with `setupVersion` is read as both and rewritten by the next `projects apply`), `agents`, `env` (`container`, `host-agent`, `sandbox`, `host`), `sandbox` (true or false), `packs` (library or own pack ids), `singles` (skills chosen besides the packs'), `tier`, `share` (true: committed), `guards` (true or false: the deny rules and the guard hook, Claude Code only), `paths` (skill name to globs), `disabled` (skills turned off, their folders kept in `.benchkeeper/disabled/`), `agentFiles`, `agentOwned` and `frameworkRefs` (the agent files picked from a source, the ones the app fetched and the commit each source was fetched at), `skills` (`name`, `source`, `ref`). The app writes it; read it and leave it unchanged. When it exists, its answers are the defaults of every question above. After adding or removing a library skill by hand, run `npx benchkeeper@6 projects apply` so the file matches. Update all covers registered projects with a state file: register this one with `npx benchkeeper@6 projects add .`. A repository that still tracks `.benchkeeper/state.json` while the setup is local: `npx benchkeeper@6 projects unshare .` commits the removal of the committed copies on the local branch `chore/agent-setup-local` for the user to push; after merging and pulling, Update all writes the local setup again.
-
-## 6. Other configuration (ask)
+## 5. Other configuration (ask)
 
 List everything agent-related in the project that the plan does not create or keep:
 - skills in `.claude/skills/` and `.agents/skills/` that are neither in `skills-lock.json` nor library skills, and copies of skills a global plugin already provides
@@ -130,18 +85,19 @@ List everything agent-related in the project that the plan does not create or ke
 
 For each item, say what it is and whether it still works, checked in its execution environment: host hooks on the host, container launchers through `devcontainer exec`. A missing host binary does not make a container launcher dead. Skills listed in `skills-lock.json` are removed with the step 4 `remove` command, so the lock entry goes too. A tool folder with open work: propose moving the open items into the issue tracker first. `AGENTS.md` and `CLAUDE.md` are updated in step 3, never removed.
 
-## 7. Review
+## 6. Review
 
 After the apply step, give the diff (`git diff` against the default branch plus untracked files, and in a local setup the ignored files from `git status --ignored`) and the plan to a review subagent (Claude Code: the Agent tool, Codex: a subagent). It reports each failed item with the file and line:
 - Every command and tool named in the touched `AGENTS.md` files exists where that file says it runs (container or host). Instructions for a tool whose skills or binary this run removed are gone.
 - Statements in `AGENTS.md` that the run checked (commands, test status, build output, reproducibility) match what the checks showed.
-- Each link in a touched `AGENTS.md` resolves. An `AGENTS.md` that holds the BenchKeeper block has Commands, the block, Every change considers and Pointers in that order, and `CLAUDE.md` is exactly `@AGENTS.md`. In a shared setup, no `CLAUDE.local.md` holds a BenchKeeper block, and an `AGENTS.override.md` beside `AGENTS.md` carries the current `AGENTS.md` in its block; offer to move that file's own lines into `AGENTS.md` and remove it, after asking, so Codex reads `AGENTS.md` itself. A committed `AGENTS.md` without the block: its diff holds only the parts the user picked, and `CLAUDE.md` is unchanged.
+- Each link in a touched `AGENTS.md` resolves. An `AGENTS.md` that holds the BenchKeeper block has Commands, the block, Every change considers and Pointers in that order, and `CLAUDE.md` is exactly `@AGENTS.md`. A committed `AGENTS.md` without the block: its diff holds only the parts the user picked, and `CLAUDE.md` is unchanged.
 - A folder `AGENTS.md` or `CLAUDE.md` added inside a docs or site source folder is excluded from that build (for example `exclude_docs` in MkDocs).
 - Each installed skill passes the step 4 install checks, and each removal left no folder or lock entry.
+- `npx benchkeeper@6 projects plan` after the apply lists no change but the ones the user declined and the reset it offers for a skill given `paths:` in step 4, and each of its `warning:` lines is resolved or reported.
 - The branch merges cleanly into the default branch. Otherwise merge the default branch in and resolve the conflicts before pushing.
 
 Fix the findings within the approved plan. Report the others.
 
-## 8. Report
+## 7. Report
 
-Give a table of each changed file, the skills added or removed (with their source), and steps skipped with the reason. Include the container launch result and the project checks run inside it. Report MCP/browser connections as verified, unavailable, skipped, or untested. Then give launch commands for selected host agents and the container command prefix.
+Give a table of each changed file, the skills added or removed (with their source), and steps skipped with the reason. Include the container launch result and the project checks run inside it. Report MCP/browser connections as verified, unavailable, skipped, or untested. Then give launch commands for selected host agents and the container command prefix. Name `npx benchkeeper@6 projects add .` when `npx benchkeeper@6 projects list` does not name this folder, so Update all covers it.

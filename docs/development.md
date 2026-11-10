@@ -57,6 +57,7 @@ The project skills (`.claude/skills/`, `.agents/skills/`), `skills-lock.json`, `
    root=$(git rev-parse --show-toplevel) && devcontainer up --docker-path podman --workspace-folder "$root" < /dev/null > /dev/null 2>&1 && exec devcontainer exec --docker-path podman --workspace-folder "$root" playwright-mcp --browser chromium --headless
    ```
 
-3. Add `/.mcp.json`, `/.codex/config.toml`, `/.claude/skills` and `/.agents/skills` to `.git/info/exclude`.
+3. For the Mantine UI in `packages/ui`: write the Mantine MCP server `mantine` into both files the same way as `playwright` (`command` `npx`, `args` `-y` and `@mantine/mcp-server@<version>`, where `<version>` is the exact `@mantine/core` version in `packages/ui/package.json`; each Mantine upgrade moves it), and install Mantine's `mantine-form` skill: `<skills> add https://github.com/mantinedev/skills -s mantine-form -a claude-code codex --copy -y`, where `<skills>` is the line `npx benchkeeper@6 skills cli` prints.
+4. Add `/.mcp.json`, `/.codex/config.toml`, `/.claude/skills` and `/.agents/skills` to `.git/info/exclude`.
 
-A new worktree (Orca, Claude Code `--worktree`) gets a copy of the paths that `.worktreeinclude` in the primary checkout lists, when Git ignores them there. The project setup of step 1 writes that file with its own list between `# benchkeeper:worktrees` markers and adds `/.worktreeinclude` to `.git/info/exclude`. Add `.mcp.json` and `.codex/config.toml` below the block, one path per line; the setup keeps lines outside it.
+A new worktree (Orca, Claude Code `--worktree`) gets a copy of the paths that `.worktreeinclude` in the primary checkout lists, when Git ignores them there. The project setup of step 1 writes that file with its own list between `# benchkeeper:worktrees` markers and adds `/.worktreeinclude` to `.git/info/exclude`. Add `.mcp.json`, `.codex/config.toml`, `.claude/skills` and `.agents/skills` below the block, one path per line; the setup keeps lines outside it.

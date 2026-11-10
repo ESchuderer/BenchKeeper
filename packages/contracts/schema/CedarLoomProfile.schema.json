@@ -1708,13 +1708,14 @@
                 "description": "auto: on when its `when` probe holds"
               },
               "when": {
-                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source; mantine: a package.json in the project names @mantine/core",
                 "type": "string",
                 "enum": [
                   "orca",
                   "devcontainer",
                   "no-devcontainer",
-                  "gates"
+                  "gates",
+                  "mantine"
                 ]
               },
               "requires": {

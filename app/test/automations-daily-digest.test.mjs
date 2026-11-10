@@ -65,6 +65,16 @@ test('daily-digest precheck: runs without a digest, then only when a pull reques
   const forked = precheck({ issue: '12' }, {}, 3600, fork).log;
   assert.match(forked[0], /^pr list --repo owner\/fork --state all --search /, 'empty repos: the origin repository, not the default one of gh');
   assert.match(forked[1], /^issue list --repo owner\/fork .* --jq map\(select\(\.number \| tostring != "12"\)\) \| length$/, 'the digest issue is still left out');
+  for (const origin of ['ssh://git@ssh.github.com:443/Owner/Fork.git', 'git@GitHub.com:Owner/Fork.git']) {
+    const dir = mkdtempSync(join(tmpdir(), 'bk-dd-origin-'));
+    initRepo(dir)('remote', 'add', 'origin', origin);
+    assert.match(precheck({}, {}, 3600, dir).log[0] ?? '', /^pr list --repo owner\/fork --state all /, origin);
+  }
+  const alias = mkdtempSync(join(tmpdir(), 'bk-dd-alias-'));
+  initRepo(alias)('remote', 'add', 'origin', 'git@github-work:o/r.git');
+  const aliased = precheck({ repos: 'o/r,x/y', issue: '12' }, {}, 3600, alias).log.map((l) => l.replace(/ --state .* --jq /, ' '));
+  const noTwelve = 'map(select(.number | tostring != "12")) | length';
+  assert.deepEqual(aliased, [`pr list --repo o/r ${noTwelve}`, `issue list --repo o/r ${noTwelve}`, `pr list --repo x/y ${noTwelve}`, `issue list --repo x/y ${noTwelve}`], 'an origin that names no GitHub repository: the digest issue is left out of every listed repository');
   const gitlab = mkdtempSync(join(tmpdir(), 'bk-dd-gitlab-'));
   initRepo(gitlab)('remote', 'add', 'origin', 'git@gitlab.com:team/proj.git');
   assert.deepEqual(precheck({}, { 'pr list': 1 }, 3600, gitlab), { code: 1, log: [] }, 'empty repos, an origin off github.com: no gh call');

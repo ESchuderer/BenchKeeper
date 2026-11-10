@@ -8,8 +8,8 @@ writes: "The tier line `Tier: <tier> (<change type>)` before the first edit; thr
 
 Every tier:
 - Before the first edit, state the assumptions you work from and the check that proves each step done (a test, a command, a screenshot); loop until those checks pass.
-- Change only what the request needs: every changed line traces to it, neighboring code, comments and formatting stay as they are, unrelated dead code is named in the report, and what your own change left unused is removed.
-- Write the minimum code that solves the task, and keep validation at trust boundaries, error handling that prevents data loss, and security checks.
+- Neighboring code, comments and formatting stay as they are, unrelated dead code is named in the report, and what your own change left unused is removed.
+- Keep validation at trust boundaries, error handling that prevents data loss, and security checks.
 - A step here or in the playbooks that asks or waits on the user does so in the session only while the user allows terminal questions. Otherwise its questions go with your recommendations into one issue per task in the issue tracker the project names, else the report; take each recommendation that is safe and reversible (an item without one waits), and go on.
 
 1. **Classify.** Kind: software change, docs pass (several documents or product copy checked against the code; a one-file rewrite with no claim about code is a quick software change), research, or a mix (one item per kind). Tier of a software change:
@@ -64,6 +64,6 @@ A follow-up commit on an open pull request keeps its tier and needs no workflow 
 
 ## Verify
 
-The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Test rule: no tests by default; add one only when it fails if the change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks) and runs at the single layer that owns the behavior. Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts; a test like that is deleted when touched, not updated. Coverage is no target. The project's own test rules in `AGENTS.md` win. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
+The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests. Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Test rule: no tests by default; add one only when it fails if the change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks) and runs at the single layer that owns the behavior; a `tdd` skill, too, writes a test only where this rule asks for one. Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts; a test like that is deleted when touched, not updated. Coverage is no target. The project's own test rules in `AGENTS.md` win. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
 
 After a compaction, read this skill and the playbook of the current tier again before the next step.

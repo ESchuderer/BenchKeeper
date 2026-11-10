@@ -35,7 +35,7 @@ export function render(skills, manifest) {
   for (const s of skills) out.push(row([`[${s.name}](../plugins/benchkeeper/skills/${s.name}/SKILL.md)`, s.purpose, s.start, s.when, s.writes]));
   const pack = manifest.packs.find((p) => p.pluginSkills);
   const { version, skills: theirs } = pack.pluginSkills;
-  out.push('', `## ${pack.title}`, '', `The \`${pack.id}\` pack installs his plugin (skill list of version ${version}). Skills you start run as \`/mattpocock-skills:<name>\` (Codex \`$mattpocock-skills:<name>\`); the agent starts the others on its own, and you can start them too.`, '');
+  out.push('', `## ${pack.title}`, '', `The \`${pack.id}\` pack installs his plugin (skill list of version ${version}). Claude Code installs it from the official marketplace, which pins it to a reviewed commit and follows its updates. Skills you start run as \`/mattpocock-skills:<name>\` (Codex \`$mattpocock-skills:<name>\`); the agent starts the others on its own, and you can start them too.`, '');
   out.push(row(['Skill', 'Started by', 'What it does']), row(['---', '---', '---']));
   for (const s of theirs) out.push(row([`\`${s.name}\``, s.user ? 'you' : 'the agent or you', s.does]));
   return out.join('\n');

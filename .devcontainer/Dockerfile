@@ -8,8 +8,8 @@ RUN apt-get update \
     bubblewrap=0.8.0-2+deb12u1 socat=1.7.4.4-2 ripgrep=13.0.0-4+b2 procps=2:4.0.2-3 \
   && rm -rf /var/lib/apt/lists/*
 
-# Playwright MCP with its Chromium, and the Chromium headless shell of the site's @playwright/test (keep 1.65.0 equal to
-# web/package.json); the system libraries once, from the MCP's Playwright
+# Playwright MCP with its Chromium, and the Chromium headless shell of @playwright/test (keep 1.65.0 equal to web/, app/
+# and packages/ui); the system libraries once, from the MCP's Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN npm i -g --ignore-scripts --prefix /usr/local @playwright/mcp@0.0.83 \
   && mcp=/usr/local/lib/node_modules/@playwright/mcp/node_modules/playwright-core/cli.js \

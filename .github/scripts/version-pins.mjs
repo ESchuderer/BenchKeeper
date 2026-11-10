@@ -2,7 +2,7 @@
 // tag `--branch app-v<version>` (older pins name `setup-v`). Other version mentions (benchmark arms, history) stay as written.
 // With --release (release.yml, on the release branch) it also sets minApp in plugins/benchkeeper/content.json to that version.
 // Usage: node .github/scripts/version-pins.mjs [--check | --release]   (--check: changes nothing; exit 1 when a file differs, or when
-// the dev container's Playwright, pnpm or Node differs from web/ and app/, .github/pnpm, or NODE_VERSION of cedarloom.yml)
+// the dev container's Playwright, pnpm or Node differs from web/, app/ and packages/ui, .github/pnpm, or NODE_VERSION of cedarloom.yml)
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -28,7 +28,7 @@ export function minAppPin(text, version) {
 // install command in a comment is not what the image runs and one spread over several lines is one command.
 const commands = (dockerfile) => dockerfile.replace(/^[ \t]*#.*\r?\n?/gm, '').replace(/\\\r?\n/g, ' ');
 
-// Dependabot raises @playwright/test in both package files but not the browser build the dev container installs.
+// Dependabot raises @playwright/test in each package file but not the browser build the dev container installs.
 export function playwrightDrift(dockerfile, packages) {
   // From the install command, not a comment; the whole token, so a prerelease such as 1.64.1-beta.0 counts as different.
   const image = commands(dockerfile).match(/\bnpm i\b[^\n#]*?\bplaywright@(\S+)/)?.[1];
@@ -74,7 +74,8 @@ if (isMain(import.meta.url)) {
     process.exit(1);
   }
   if (process.argv[2] === '--check') {
-    const packages = Object.fromEntries(['web/package.json', 'app/package.json'].map((f) => [f, JSON.parse(readFileSync(`${root}/${f}`, 'utf8'))]));
+    const files = ['web/package.json', 'app/package.json', 'packages/ui/package.json'];
+    const packages = Object.fromEntries(files.map((f) => [f, JSON.parse(readFileSync(`${root}/${f}`, 'utf8'))]));
     const { image, drift } = playwrightDrift(readFileSync(`${root}/.devcontainer/Dockerfile`, 'utf8'), packages);
     if (!image) {
       console.log('::error::found no playwright@<version> in .devcontainer/Dockerfile');

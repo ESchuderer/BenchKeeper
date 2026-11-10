@@ -56,6 +56,11 @@ test.for<[string, ProfileSelection, unknown[]]>([
     local("9.0.0", { future: true }),
     [{ code: "profile.app-too-old", params: { minApp: "9.0.0", app: "0.1.0" } }],
   ],
+  [
+    "a local file of another kind for a newer CedarLoom",
+    local("9.0.0", { kind: "cedarloom.workflow" }),
+    [{ code: "profile.foreign-kind", params: { kind: "cedarloom.workflow" } }],
+  ],
 ])("a selection with %s does not apply", ([, chosen, expected]) => {
   expect(problems(chosen)).toEqual(expected);
 });

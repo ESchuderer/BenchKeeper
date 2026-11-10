@@ -173,26 +173,28 @@ test("without claude-swap the page offers its install, which shows the command, 
   expect(errors.filter((error) => !error.includes("409"))).toEqual([]);
 });
 
-test("a view reopened while a switch runs reads claude-swap again once the switch ends", async () => {
+test("a view reopened while a switch runs shows it running, then announces its outcome and reads claude-swap again", async () => {
   [active, installed] = [3, true];
   const release = Promise.withResolvers<void>();
   switching = release.promise;
+  const main = page.getByRole("main");
   try {
     await page.reload();
     const views = page.getByRole("navigation", { name: "Views" });
     await views.getByRole("button", { name: "Accounts" }).click();
-    const main = page.getByRole("main");
     await row("home").getByRole("button").click();
     await main.getByRole("button", { name: "Run it" }).click();
     await views.getByRole("button", { name: "Runs" }).click();
     await views.getByRole("button", { name: "Accounts" }).click();
-    // The switch is still running: spare is active, and home offers its switch.
-    await expect(row("home").getByRole("button")).toHaveCount(1);
+    // The switch is still running: spare is active, and home's switch waits.
+    await expect(row("home").getByRole("button")).toBeDisabled();
     await expect(row("spare").getByRole("button")).toHaveCount(0);
   } finally {
     release.resolve();
     switching = null;
   }
+  await expect(main.getByRole("status")).toBeFocused();
+  await expect(main.getByRole("status")).not.toBeEmpty();
   // Read again without opening the view: home is active now.
   await expect(row("home").getByRole("button")).toHaveCount(0);
   expect(active).toBe(2);

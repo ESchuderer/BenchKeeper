@@ -45,9 +45,9 @@ updates:
       default-days: 3
     # Every @mantine/* version update, majors included, comes as one pull request, so the @mantine/* packages keep one
     # version. cedarloom excludes them: Dependabot puts a dependency in its most specific group, and a group without
-    # patterns outranks a wildcard pattern. Before merging the mantine pull request, copy skills/mantine-form of
-    # https://github.com/mantinedev/skills anew into packages/packs/bundled/cedarloom.mantine/skills/mantine-form and
-    # update the commit its manifest entry names.
+    # patterns outranks a wildcard pattern (pattern_specificity_calculator.rb of dependabot-core). Before merging the
+    # mantine pull request, copy skills/mantine-form of https://github.com/mantinedev/skills anew into
+    # packages/packs/bundled/cedarloom.mantine/skills/mantine-form and update the commit its manifest entry names.
     groups:
       mantine:
         patterns: ['@mantine/*']

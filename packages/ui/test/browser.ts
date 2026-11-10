@@ -46,6 +46,12 @@ export const accessible = async (page: Page): Promise<void> => {
           animation.effect?.getComputedTiming().endTime === Number.POSITIVE_INFINITY,
       ),
   );
+  // shortcut: Firefox of Playwright 1.65.0 crashes when the page reads this property after a role lookup
+  // (microsoft/playwright#43967), so axe reads the attribute instead; drop once Playwright ships the fixed Firefox.
+  if (page.context().browser()?.browserType().name() === "firefox")
+    await page.evaluate(() => {
+      Object.defineProperty(Element.prototype, "ariaLabelledByElements", { get: () => null });
+    });
   const { violations } = await new AxeBuilder({ page }).analyze();
   expect(
     violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target).join(" ")}`),

@@ -47,7 +47,7 @@ export function ownSkillFiles(src, paths) {
     const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
     // The target of a link, not the link: the copy copies a link as a link.
     if (!Buffer.from(text).equals(bytes)) return { file, from: real(join(src, file)), bytes };
-    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${paths}`) : text };
+    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${JSON.stringify(paths)}`) : text };
   });
 }
 

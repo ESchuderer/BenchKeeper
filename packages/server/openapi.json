@@ -13238,7 +13238,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100
             },
             "in": "path",
             "name": "part",

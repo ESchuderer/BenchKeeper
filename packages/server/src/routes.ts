@@ -186,7 +186,10 @@ export const profileRoutes: FastifyPluginAsyncZod<{
     "/api/profile/parts/:part",
     {
       schema: {
-        params: z.strictObject({ part: z.string().describe("The part as level.id, such as machine.rules.global") }),
+        // Fastify's default maxParamLength: a longer path parameter is answered 414 before any route runs.
+        params: z.strictObject({
+          part: z.string().max(100).describe("The part as level.id, such as machine.rules.global"),
+        }),
         body: z.strictObject({ on: z.boolean() }),
         // 409 with a run result: refused (the selection file changed meanwhile) or stopped midway.
         response: answers({ 200: RunResult, 409: z.union([RunResult, Refusal]) }),

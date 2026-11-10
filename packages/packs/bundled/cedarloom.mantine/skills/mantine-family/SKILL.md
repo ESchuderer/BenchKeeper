@@ -13,7 +13,7 @@ description: "Mantine in any project: component traps (Modal, NumberInput, Pagin
 
 - Projects on `@open-reloading/design-tokens`: tokens, never raw colors or px: `--page --surface --surface-alt --ink --muted --line --control-line --accent --accent-hover --accent-tint --on-accent --link --error-text --warn-* --select --space-xs..xl --font-size-xs..xl --font-size-field --size-target`.
 - New styles: CSS modules with `classNames`, never Mantine's private `--_*` variables.
-- Mantine's grays still show in SegmentedControl and Switch tracks and disabled Buttons.
+- With `ui.css`, Mantine's grays still show in SegmentedControl and Switch tracks and disabled Buttons.
 
 ## Density
 
@@ -26,10 +26,10 @@ description: "Mantine in any project: component traps (Modal, NumberInput, Pagin
 - `useHotkeys` skips input, textarea and select, checkboxes included: pass `tagsToIgnore` or put `getHotkeyHandler` on `onKeyDown`.
 - NumberInput: `clampBehavior="none"` to show range errors.
 - Pagination: name controls through `getControlProps` and `getItemProps`.
-- Select with `size="field"`: size its options too.
+- Select with `ui.css`'s `size="field"`: size its options too.
 - `vars` beat `styles` on the same key.
 - A Switch description becomes part of its accessible name: keep it short.
-- Filled controls: the accent, no `autoContrast` (`color="blue" autoContrast` failed contrast in dark).
+- Filled controls with `ui.css`: the accent, no `autoContrast` (`color="blue" autoContrast` failed contrast in dark).
 
 ## Forms, tables, i18n
 

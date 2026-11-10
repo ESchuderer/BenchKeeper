@@ -238,7 +238,7 @@ const subfolders = (folder: string): string[] => {
 export const usesMantine = (project: string): boolean => {
   if (namesMantine(project)) return true;
   const first = subfolders(project);
-  return [...first, ...first.flatMap(subfolders)].some(namesMantine);
+  return first.some(namesMantine) || first.some((folder) => subfolders(folder).some(namesMantine));
 };
 
 // A dev container part's files where the project has none: its Template's output; before approval, none are applied.

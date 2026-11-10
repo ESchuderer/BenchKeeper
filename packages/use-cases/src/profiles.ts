@@ -203,11 +203,6 @@ const levelOf = async (
     const unknown: Finding = { code: "profile.remove-unknown", params: { item: stray } };
     return { ok: false as const, finding: unknown };
   }
-  // At the user's home, the project's `.claude/` and `.codex/` files are the tools' user config, which no profile writes.
-  if (project !== undefined && project === onDisk(machine.user)) {
-    const home: Finding = { code: "profile.project-is-home", params: { project } };
-    return { ok: false as const, finding: home };
-  }
   if (project !== undefined) return projectLevel(state, project, given, given.apply ?? devcontainerCli);
   const where = targetOf(config, state, machine);
   return where.ok ? planMachine(resolved, where.value.target, where.value.written, options) : where;
@@ -246,6 +241,11 @@ export const planProfile = async (
   const where = folderOf(project);
   if (!where.ok) return where;
   const folder = where.value;
+  // At the user's home, the project's `.claude/` and `.codex/` files are the tools' user config, which no profile
+  // writes; refused before the probes, which would walk the home folder.
+  if (folder !== undefined && folder === onDisk(machine.user)) {
+    return { ok: false, finding: { code: "profile.project-is-home", params: { project: folder } } };
+  }
   const resolved = selectedProfile(config, app, folder);
   if (!resolved.ok) return resolved;
   if (resolved.value.problems.length > 0) {

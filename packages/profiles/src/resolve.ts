@@ -60,6 +60,7 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
 };
 
 /** The files below a folder by their paths in it; a link is no file, so nothing outside it is read. */
+// shortcut: every file gets mode 100644, as no bundled skill ships a script; read the executable bit once one does.
 export const filesIn = (folder: string): Folder["files"] =>
   readdirSync(folder, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())

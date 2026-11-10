@@ -471,7 +471,7 @@ test.describe('views', () => {
     await page.unroute(/\/api\/history(\?|$)/);
   });
 
-  test('Project Installs tab: packs, workflow owner and skills each with a switch, scope hint and state; the global block once with its link; a switch by keyboard changes the plan; 390 px', async ({ page }) => {
+  test('Project Installs tab: packs, workflow owner and skills each with a switch, scope hint and state; the global block once with its link; a switch toggles by keyboard; 390 px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await page.goto('/#/projects');
     await page.getByText('Cards', { exact: true }).click();

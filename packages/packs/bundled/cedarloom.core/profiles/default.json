@@ -14,6 +14,9 @@
     },
     "cedarloom.orca": {
       "bundled": true
+    },
+    "cedarloom.mantine": {
+      "bundled": true
     }
   },
   "machine": {
@@ -365,6 +368,14 @@
       "title": "Skill packs for this project",
       "default": "on",
       "packs": []
+    },
+    "mantine-skills": {
+      "type": "packs",
+      "title": "Mantine skills: conventions and component traps, and Mantine's form skill",
+      "description": "An agent building UI on Mantine gets mantine-family (component traps, forms, tables, i18n and accessibility checks for any Mantine project; provider setup, design tokens and control density for projects on @open-reloading/ui) and Mantine's own mantine-form (the useForm API of @mantine/form, copied from mantinedev/skills at a recorded commit).",
+      "default": "auto",
+      "when": "mantine",
+      "packs": ["cedarloom.mantine"]
     }
   }
 }

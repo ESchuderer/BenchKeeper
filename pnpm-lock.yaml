@@ -26,6 +26,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.6.4
         version: 2.6.4
+      '@mantine/mcp-server':
+        specifier: 9.7.4
+        version: 9.7.4
       '@types/node':
         specifier: 26.6.6
         version: 26.6.6
@@ -818,11 +821,24 @@ packages:
     peerDependencies:
       react: ^19.2.0
 
+  '@mantine/mcp-server@9.7.4':
+    resolution: {integrity: sha512-2r2M7lXep8idt9t7rsvcMZoHtIAJ+hh44oQE1fZ1sAieV9hKoU/w5w1+g6vTqNatCjGaVJHZMzUjRoAJVlVFfw==}
+    engines: {node: '>=22'}
+    hasBin: true
+
   '@messageformat/date-skeleton@1.1.0':
     resolution: {integrity: sha512-rmGAfB1tIPER+gh3p/RgA+PVeRE/gxuQ2w4snFWPF5xtb5mbWR7Cbw7wCOftcUypbD6HVoxrVdyyghPm3WzP5A==}
 
   '@messageformat/parser@5.2.0':
     resolution: {integrity: sha512-sc3hNZ0JtC32GhL5nUgPbh2ilcwji4G+Vmj/vhMd8hZaH//NDOvkfwKK1mFnRWG5h2DpksN8xr/HB5/+vMg3iw==}
+
+  '@modelcontextprotocol/core@2.1.0':
+    resolution: {integrity: sha512-YdFj5gMRHr0gYNAhTbQDgjLHiEJdIAUYxomhKseUNye7ZGlISQmUoLh2sveFFCiQ7j2YMffT1kgSND0FSfIFjQ==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/server@2.1.0':
+    resolution: {integrity: sha512-FdvwZU5N03O77Suh35JqjAqq5R1ZTEPFtwu6N4BgBq28qrQtrCnpbLL5U2pwYCuE194jAw0xnlOVmIqhfoYuUQ==}
+    engines: {node: '>=20'}
 
   '@napi-rs/keyring-darwin-arm64@2.1.2':
     resolution: {integrity: sha512-vsInUWUzWS6/WzR/TFNwmdtmwKWjnnR8TOpvZ/pjjxDAkJB/waz37PWzp2b8AFcw1aCcq2aQ7k2vvbLQy8pTrw==}
@@ -3333,11 +3349,25 @@ snapshots:
     dependencies:
       react: 19.3.1
 
+  '@mantine/mcp-server@9.7.4':
+    dependencies:
+      '@modelcontextprotocol/server': 2.1.0
+      zod: 4.6.7
+
   '@messageformat/date-skeleton@1.1.0': {}
 
   '@messageformat/parser@5.2.0':
     dependencies:
       moo: 0.5.3
+
+  '@modelcontextprotocol/core@2.1.0':
+    dependencies:
+      zod: 4.6.7
+
+  '@modelcontextprotocol/server@2.1.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.1.0
+      zod: 4.6.7
 
   '@napi-rs/keyring-darwin-arm64@2.1.2':
     optional: true

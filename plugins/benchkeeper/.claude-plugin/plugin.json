@@ -24,6 +24,18 @@
       "title": "What BenchKeeper's status line prints (accounts with usage tracking)",
       "description": "merged (default): the usage windows and Ponytail's level. plugin: Ponytail's level only. benchkeeper: the usage windows only. none: nothing. Any other value counts as merged. The usage windows are recorded in every style. Applies only where benchkeeper accounts track installed the status line.",
       "default": "merged"
+    },
+    "rotateAtTokens": {
+      "type": "number",
+      "title": "Clear an idle coordinator above this many context tokens",
+      "description": "200000 by default; 0 turns it off. Applies only to a session whose working folder holds the handoff file of /benchkeeper:orchestrating-projects (.benchkeeper/runs/handoff.md). When such a coordinator ends a turn with no background task running and its context is above this size, the plugin clears it with /clear and submits a prompt that resumes it from the file; after a clear or compaction it hands the file back. At most one clear every 10 minutes. Without the file nothing happens.",
+      "default": 200000
+    },
+    "rotateAtPercent": {
+      "type": "number",
+      "title": "Clear an idle coordinator above this percent of the context window",
+      "description": "0 (default) is off and rotateAtTokens applies. Above 0, an idle coordinator that keeps the handoff file of /benchkeeper:orchestrating-projects is cleared with /clear and resumed from the file once its context fills this percent of the model's context window, in place of rotateAtTokens.",
+      "default": 0
     }
   }
 }

@@ -2322,6 +2322,19 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "work-items.no-project-name";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                limit: number;
+            };
+        } | {
+            /** @constant */
             code: "secret.missing";
             params: {
                 name: string;
@@ -3633,6 +3646,19 @@ export interface components {
             params: {
                 repo: string;
                 hub: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.no-project-name";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                limit: number;
             };
         } | {
             /** @constant */

@@ -4491,6 +4491,64 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "work-items.no-project-name"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "project"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "work-items.label-too-long"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "label",
+            "limit"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "secret.missing"
         },
         "params": {

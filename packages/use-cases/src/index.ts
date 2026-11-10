@@ -70,6 +70,7 @@ export { programPath } from "@cedarloom/orchestration";
 export { HUB_ISSUES, type Keyring, readSecret, type SecretRef, storeHubToken } from "./secrets.ts";
 export {
   hubOf,
+  hubOn,
   outboxEntries,
   previewEntryUndo,
   previewHubLabels,

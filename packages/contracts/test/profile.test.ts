@@ -466,6 +466,14 @@ const hub = (id: string, label: string) => ({
   labels: { [label]: { color: "ffffff" } },
 });
 
+test("a projectNames key is a repository in lower case", () => {
+  const at = ["workspace", "hub", "projectNames"];
+  expect(outcome(readProfile(set(defaults, at, { "acme/widgets.v2": "widgets-app" })))).toBe("ok");
+  expect(outcome(readProfile(set(defaults, at, { "ACME/Widgets": "widgets-app" })))).toEqual([
+    "workspace.hub.projectNames.ACME/Widgets",
+  ]);
+});
+
 test("a label named like a source field merges as a label", () => {
   const parent = file({ ...own, id: "acme.p", workspace: { hub: hub("acme.p", "github") } });
   const root = file({

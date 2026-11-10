@@ -93,12 +93,26 @@ const rulesFile = part("rules", {
   text: Text,
 });
 const userSettings = part("settings", { set: JsonObject.describe("Merged into the agent's user settings") });
+/** GitHub's label name limit, as its label form enforces it; unverified against docs.github.com. */
+export const LABEL_MAX = 50;
+// GitHub names repositories without case: one spelling per repository, so a child profile's key replaces its parent's.
+const LowerGitHubRepo = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]{0,38}\/[a-z0-9._-]{1,100}$/, "a GitHub repository as owner/repo, in lower case");
 const hub = part("hub", {
   labels: sized(
-    z.record(PlainText.min(1).max(50), z.strictObject({ color: Color, description: PlainText.max(100).optional() })),
+    z.record(
+      PlainText.min(1).max(LABEL_MAX),
+      z.strictObject({ color: Color, description: PlainText.max(100).optional() }),
+    ),
     100,
   ),
   projectLabel: z.strictObject({ prefix: PlainText.min(1).max(40), color: Color }).optional(),
+  projectNames: sized(z.record(LowerGitHubRepo, Name), 100)
+    .optional()
+    .describe(
+      "A project's name in its label by its origin's GitHub repository, as owner/repo in lower case; else that repository's name in lower case with hyphens",
+    ),
   rules: Text.optional().describe("The question rule, a machine rules file while this part is on"),
 });
 const memory = part("memory", { scaffold: PackRef, loader: z.boolean() });

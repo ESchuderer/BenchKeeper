@@ -9,7 +9,6 @@ import { exists, hashText, isDir, readText, realish, writeAtomic } from './fsx.m
 import { blob, clean, defaultBranch, git, isRepo, repoEnv, repoRoot, safeBranch } from './git.mjs';
 import { unfit, unscannable } from './roots.mjs';
 import { apply, preview } from './runner.mjs';
-import { agentFileRows } from './frameworks.mjs';
 import { projectSkills, skillFiles } from './skills.mjs';
 import { PLUGINS, globalPlan, globalSkills, localPlugins, pluginScope, pluginState } from './steps/global.mjs';
 import { STATE, chosenSkills, committedSetup, localSetup, normalizeState, parseState, projectCtx, projectPlan, quote, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
@@ -107,7 +106,7 @@ export function scopePlan(ctx, id, scope, agents) {
 }
 // The Installs tab of a project, from its resolved answers (a). Per pack and skill: the scope hint ("also global" when it is
 // installed for the user, by the pack's scope or because an agent offers only that scope), the scopes agents fix and why, and
-// the state on disk. Then the agent files, and what the global setup makes active here that the project does not select.
+// the state on disk. Then what the global setup makes active here that the project does not select.
 const WORSE = ['installed', 'off', 'outdated', 'modified', 'not installed'];
 const CELL = { current: 'installed', removed: 'not installed', absent: 'not installed', disabled: 'off' };
 export function projectInstalls(ctx, dir, a) {
@@ -130,7 +129,7 @@ export function projectInstalls(ctx, dir, a) {
   const skills = Object.fromEntries(chosenSkills(a, lib).map(({ name: n }) => [n, viaGlobal(n)
     ? { state: a.disabled.includes(n) ? 'off' : inGlobal(n), hint: 'also global' }
     : { state: onDisk.get(n) ?? 'not installed', hint: 'only this project' }]));
-  return { packs, skills, files: agentFileRows(a, dir, tryState(dir), lib),
+  return { packs, skills,
     global: {
       plugin: plugged.filter((x) => enabled[x].includes('benchkeeper@benchkeeper')).map((x) => agent(x).name),
       packs: lib.packs.filter((p) => !a.packs.includes(p.id) && packs[p.id].scope === 'global' && packs[p.id].state === 'installed').map((p) => ({ id: p.id, title: p.title ?? p.id })),

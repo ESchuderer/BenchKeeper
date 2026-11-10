@@ -1,4 +1,5 @@
-import { mkdtempSync, realpathSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { applyPlan, planChoice, previewHubLabels, previewIntent } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
@@ -44,4 +45,62 @@ test("only the labels the hub lacks are previewed, compared without case, and on
   ]);
   applied(state, ok(planChoice(config, { part: "workspace.hub", on: false })));
   expect(await previewHubLabels(config, tracker)).toEqual({ ok: true, value: [] });
+});
+
+// A Git folder whose origin fetches from `fetch` and, when given, pushes to `push`.
+const origin = (fetch?: string, push?: string): string => {
+  const project = folder("project-");
+  execFileSync("git", ["init", "-q", project]);
+  if (fetch !== undefined) execFileSync("git", ["-C", project, "remote", "add", "origin", fetch]);
+  if (push !== undefined) execFileSync("git", ["-C", project, "remote", "set-url", "--push", "origin", push]);
+  return project;
+};
+
+test("a project's label is named by the profile for its origin's GitHub repository, else by that repository's name in lower case; a project without one is refused", async () => {
+  const [config, state] = [folder("config-"), folder("state-")];
+  applied(state, ok(planChoice(config, { hub: "acme/hub" })));
+  const tracker = { labels: async () => ({ ok: true as const, value: [] }) };
+  const projectLabels = async (project: string) =>
+    ok(await previewHubLabels(config, tracker, { project })).flatMap(({ intent }) =>
+      intent.kind === "create-label" && intent.label.startsWith("project:")
+        ? [[intent.repo, intent.label, intent.color]]
+        : [],
+    );
+  const buildGuide = origin("git@github.com:acme/BuildGuide.git");
+  expect(await projectLabels(buildGuide)).toEqual([["acme/hub", "project:buildguide", "1d76db"]]);
+  expect(await projectLabels(origin("https://github.com/acme/-My_App.v2-.git"))).toEqual([
+    ["acme/hub", "project:my-app-v2", "1d76db"],
+  ]);
+  const long = origin(`git@github.com:acme/${"a".repeat(43)}.git`);
+  expect(await previewHubLabels(config, tracker, { project: long })).toEqual({
+    ok: false,
+    finding: { code: "work-items.label-too-long", params: { label: `project:${"a".repeat(43)}`, limit: 50 } },
+  });
+  // A folder that is no repository itself, inside one: git would find the outer origin.
+  const inside = join(origin("git@github.com:acme/outer.git"), "new-thing");
+  mkdirSync(inside);
+  for (const project of [
+    origin(),
+    origin("git@github.com:acme/_.git"),
+    origin("git@github.com:acme/r.git", "git@github.com:acme/s.git"),
+    inside,
+  ]) {
+    expect(await previewHubLabels(config, tracker, { project })).toEqual({
+      ok: false,
+      finding: { code: "work-items.no-project-name", params: { project } },
+    });
+  }
+
+  // A key names its repository in lower case, whatever case the origin spells it in.
+  const file = join(config, "mine.json");
+  const head = { schemaVersion: 1, kind: "cedarloom.profile", id: "acme.mine", version: "1.0.0", name: "Mine" };
+  const extend = { extends: [{ pack: "cedarloom.core", path: "profiles/default.json" }], minApp: "0.0.0" };
+  const projectNames = { "acme/buildguide": "agent-studio" };
+  const packs = { "cedarloom.core": { bundled: true } };
+  writeFileSync(file, JSON.stringify({ ...head, ...extend, packs, workspace: { hub: { type: "hub", projectNames } } }));
+  applied(state, ok(planChoice(config, { file })));
+  expect(await projectLabels(buildGuide)).toEqual([["acme/hub", "project:agent-studio", "1d76db"]]);
+
+  applied(state, ok(planChoice(config, { part: "workspace.hub", on: false })));
+  expect(await previewHubLabels(config, tracker, { project: origin() })).toEqual({ ok: true, value: [] });
 });

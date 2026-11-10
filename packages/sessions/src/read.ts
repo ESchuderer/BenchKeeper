@@ -1,18 +1,21 @@
-import { globSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import type { AgentSession } from "@cedarloom/contracts";
+import { globSync, readFileSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
+import type { AgentSession, SessionsBoard } from "@cedarloom/contracts";
 import { z } from "zod";
 import { readClaude } from "./claude.ts";
 import { readCodex } from "./codex.ts";
+import { withHistory } from "./history.ts";
 import { estimate } from "./prices.ts";
+import { writePrivate } from "./private-file.ts";
 import { projectOf } from "./project.ts";
 import { Summary } from "./summary.ts";
 
-/** Where the logs are: the Claude Code home, the Codex home, and the cache file (null: none). */
+/** Where the logs are: the Claude Code home, the Codex home, the cache file and the history file (null: none). */
 export interface Logs {
   readonly claude: string;
   readonly codex: string;
   readonly cache: string | null;
+  readonly history: string | null;
 }
 
 // A change to what a summary holds raises it, so every log is read again.
@@ -29,18 +32,6 @@ const readCache = (file: string | null): Entries => {
     return file === null ? {} : (Cache.safeParse(JSON.parse(readFileSync(file, "utf8"))).data?.files ?? {});
   } catch {
     return {};
-  }
-};
-
-// Titles and folders of the user's sessions: this user only; renamed into place, so no reader sees half a file.
-const writeCache = (file: string, files: Entries): void => {
-  const temp = `${file}.${process.pid}.tmp`;
-  try {
-    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-    writeFileSync(temp, JSON.stringify({ version: VERSION, files }), { mode: 0o600 });
-    renameSync(temp, file);
-  } catch {
-    // A cache that cannot be written is rebuilt next time.
   }
 };
 
@@ -127,18 +118,20 @@ const summariesOf = async (logs: Logs, cached: Entries): Promise<{ files: Entrie
 
 /**
  * Every agent session of this machine, newest first, read from the session logs on demand. A log is parsed once per size
- * and modification time; the cache holds only logs that still exist, so it can be deleted at any time.
+ * and modification time; the cache holds only logs that still exist, so it can be deleted at any time. Sessions whose
+ * logs are gone come from the history, which, unlike the cache, cannot be rebuilt; `historyMoved` names the file this
+ * read moved a history that is not JSON to (null: none).
  */
-export const readSessions = async (logs: Logs): Promise<AgentSession[]> => {
+export const readSessions = async (logs: Logs): Promise<Pick<SessionsBoard, "sessions" | "historyMoved">> => {
   const cached = readCache(logs.cache);
   const { files, read } = await summariesOf(logs, cached);
   if (logs.cache !== null && (read > 0 || Object.keys(files).length !== Object.keys(cached).length))
-    writeCache(logs.cache, files);
+    writePrivate(logs.cache, JSON.stringify({ version: VERSION, files }));
   const summaries = Object.values(files).map((entry) => entry.summary);
   const claude = summaries
     .filter((s) => s.agent === "claude-code")
     .map((s) => rowOf(s, s.tokens, { costUSD: s.costUSD, unpriced: [] }));
-  return [...claude, ...codexRows(summaries)]
-    .filter((row) => row !== null)
-    .toSorted((a, b) => (a.start < b.start ? 1 : -1));
+  const live = [...claude, ...codexRows(summaries)].filter((row) => row !== null);
+  const { sessions, historyMoved } = withHistory(live, logs.history);
+  return { sessions: sessions.toSorted((a, b) => (a.start < b.start ? 1 : -1)), historyMoved };
 };

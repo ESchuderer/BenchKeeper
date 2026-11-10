@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fill, genericDir } from '../src/automations.mjs';
-import { automationTemplate } from './helpers.mjs';
+import { automationTemplate, initRepo } from './helpers.mjs';
 
 const template = () => automationTemplate('daily-digest');
 
@@ -26,20 +26,22 @@ function precheck(values, answers = {}, digestAge = null) {
   return { code: r.status, log: log.trim().split('\n').filter(Boolean) };
 }
 
-test('daily-digest: parameters file, repos and notify, report only by default, file required', () => {
-  const t = template();
-  assert.deepEqual(Object.keys(t.parameters), ['file', 'repos', 'notify']);
-  assert.deepEqual(fill(t, { file: 'digest.md' }).values, { mode: 'report', file: 'digest.md', repos: '', notify: 'false' });
-  assert.throws(() => fill(t), /file/);
+test('daily-digest: the precheck writes nothing to GitHub', () => {
+  const helper = readFileSync(join(genericDir, 'daily-digest/precheck.sh'), 'utf8');
+  assert.doesNotMatch(helper, /\bgh (pr|issue) (create|comment|edit|close|reopen|merge|review|lock|delete)\b|\bgh api\b|\bgit\b[^\n]*\bpush\b|\bgh (label|release|repo|secret|variable|workflow) /);
+  assert.doesNotMatch(helper, /--method|-X /);
 });
 
-test('daily-digest: no GitHub write in the prompt or the precheck', () => {
-  const t = template();
-  const helper = readFileSync(join(genericDir, 'daily-digest/precheck.sh'), 'utf8');
-  for (const text of [t.prompt, helper]) {
-    assert.doesNotMatch(text, /\bgh (pr|issue) (create|comment|edit|close|reopen|merge|review|lock|delete)\b|\bgh api\b|\bgit push\b|\bgh (label|release|repo|secret|variable|workflow) /);
-  }
-  assert.doesNotMatch(helper, /--method|-X /);
+test('daily-digest precheck: a committed, unchanged digest starts at its commit author time, not its mtime', { skip: process.platform === 'win32' && 'sh precheck' }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-dd-repo-'));
+  const git = initRepo(dir);
+  const file = join(dir, 'digest.md');
+  writeFileSync(file, 'digest\n');
+  git('add', 'digest.md');
+  git('commit', '-qm', 'digest', '--date=2020-01-02T03:04:05Z');
+  const r = precheck({ file });
+  assert.equal(r.code, 1);
+  assert.match(r.log[0], / --search updated:>=2020-01-02T03:04:05Z /);
 });
 
 test('daily-digest precheck: runs without a digest, then only when a pull request or an issue changed since it', { skip: process.platform === 'win32' && 'sh precheck' }, () => {
@@ -48,6 +50,9 @@ test('daily-digest precheck: runs without a digest, then only when a pull reques
   assert.equal(quiet.code, 1);
   assert.equal(quiet.log.length, 4, 'pr and issue per repository');
   assert.match(quiet.log[0], /^pr list --repo o\/a --state all --search updated:>=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ --json number --jq length$/);
+  const own = precheck({ issue: '12' }, {}, 3600);
+  assert.match(own.log[1], /^issue list --state all --search \S+ --json number --jq map\(select\(\.number \| tostring != "12"\)\) \| length$/, 'the digest issue does not start the next run');
+  assert.match(precheck({ repos: 'o/b', issue: '12' }, {}, 3600).log[1], /^issue list --repo o\/b .* --jq length$/, 'issue 12 of another repository still counts');
   assert.match(quiet.log[3], /^issue list --repo o\/b /);
   assert.equal(precheck({ repos: 'o/a,o/b' }, { 'issue list --repo o/b': 2 }, 3600).code, 0);
   const here = precheck({}, { 'pr list --state': 1 }, 3600);

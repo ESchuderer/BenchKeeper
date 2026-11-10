@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { FEATURES, agent, detect, forAgent, notAvailable, registry, renderJsonSettings, renderRules, renderSubagent, skillDirs, subagentFile, supports, unavailable } from '../src/agents.mjs';
+import { FEATURES, agent, detect, forAgent, notAvailable, registry, renderJsonSettings, renderRules, renderSubagent, skillDirs, supports, unavailable } from '../src/agents.mjs';
 import { supportTables } from '../../web/scripts/support.mjs';
 import { setToml } from '../src/merge.mjs';
 
@@ -41,8 +41,6 @@ test('subagent renderers match the fixtures byte for byte', () => {
     const { format } = agent(id).project.subagents;
     assert.equal(renderSubagent(format, sub), fixture(`subagent.${id}`), id);
   }
-  assert.equal(subagentFile('copilot-agent', 'x'), 'x.agent.md');
-  assert.equal(subagentFile('toml', 'x'), 'x.toml');
 });
 
 test('settings renderers: JSON, JSONC with comments, TOML', () => {

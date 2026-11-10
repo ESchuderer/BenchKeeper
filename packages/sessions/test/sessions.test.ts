@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSession } from "@cedarloom/contracts";
@@ -36,7 +36,8 @@ const machine = () => {
     writeFileSync(file, lines === undefined ? moved : `${moved.split("\n").slice(0, lines).join("\n")}\n`);
     return file;
   };
-  return { repository, worktree, put, logs: { claude: home, codex: join(at, "codex"), cache: join(at, "cache.json") } };
+  const logs = { claude: home, codex: join(at, "codex"), cache: join(at, "cache.json"), history: null };
+  return { at, repository, worktree, put, logs };
 };
 
 const shop = {
@@ -60,7 +61,7 @@ test("Claude Code sessions: cost, agent time and tokens from the last cost-state
   // A copy Claude Code set aside is no session of its own.
   copyFileSync(file, file.replace(/\.jsonl$/, ".orphaned-1794213859000-ab12.jsonl"));
   put(LAB, "-work-lab");
-  expect(await readSessions({ ...logs, cache: null })).toEqual([
+  expect((await readSessions({ ...logs, cache: null })).sessions).toEqual([
     {
       ...shop,
       id: LAB,
@@ -80,12 +81,77 @@ test("the cache holds only logs that are there, reads a grown one again and keep
   const { put, repository, worktree, logs } = machine();
   // Still running: no cost-state line yet, so no cost or agent time, and each message's tokens once.
   const file = put(SHOP, "-work-shop", 29);
-  expect(await readSessions(logs)).toEqual([{ ...shop, project: repository, busyMs: null, costUSD: null }]);
+  expect((await readSessions(logs)).sessions).toEqual([{ ...shop, project: repository, busyMs: null, costUSD: null }]);
   rmSync(join(worktree, ".git"));
   put(SHOP, "-work-shop");
-  expect(await readSessions(logs)).toEqual([{ ...shop, project: repository }]);
+  expect((await readSessions(logs)).sessions).toEqual([{ ...shop, project: repository }]);
   rmSync(file);
-  expect(await readSessions(logs)).toEqual([]);
+  expect((await readSessions(logs)).sessions).toEqual([]);
+});
+
+// The shop session's row in the history: its figures and key, no text.
+const shopRow = {
+  agent: "claude-code",
+  id: SHOP,
+  start: "2026-11-09T08:44:19.864Z",
+  busyMs: 4075,
+  tokens: 41248,
+  costUSD: 0.0401998,
+  tests: "pass",
+} as const;
+
+test("the history keeps a session's figures, never its text, once its log is gone; a history of another version is left as it is", async () => {
+  const { at, put, repository, logs } = machine();
+  const history = join(at, "history.json");
+  const own = { ...logs, history };
+  const transcript = put(SHOP, "-work-shop");
+  appendFileSync(transcript, '{"type":"ai-title","aiTitle":"Fix the login form"}\n');
+  expect((await readSessions(own)).sessions).toEqual([{ ...shop, project: repository, title: "Fix the login form" }]);
+  expect(JSON.parse(readFileSync(history, "utf8"))).toEqual({
+    version: 1,
+    sessions: [{ ...shopRow, project: repository }],
+  });
+  rmSync(transcript);
+  expect((await readSessions(own)).sessions).toEqual([{ ...shop, project: repository, end: shop.start }]);
+  rmSync(history);
+  expect((await readSessions(own)).sessions).toEqual([]);
+  // A row this version cannot read (a hand edit) costs only itself.
+  const gone = { agent: "claude-code", id: "0b7c5e1a-0000-4000-8000-000000000001", project: "/work/gone" };
+  const figures = { start: "2026-10-01T08:00:00.000Z", busyMs: 60000, tokens: 1000, costUSD: 0.5, tests: "pass" };
+  const edited = { ...gone, ...figures, id: "0b7c5e1a-0000-4000-8000-000000000002", busyMs: "a" };
+  writeFileSync(history, JSON.stringify({ version: 1, sessions: [{ ...gone, ...figures }, edited] }));
+  expect((await readSessions(own)).sessions).toEqual([
+    { ...gone, ...figures, title: null, end: "2026-10-01T08:00:00.000Z", costEstimated: false, unpriced: [] },
+  ]);
+  writeFileSync(history, '{"version":2,"sessions":[]}');
+  put(SHOP, "-work-shop");
+  expect(await readSessions(own)).toEqual({ sessions: [{ ...shop, project: repository }], historyMoved: null });
+  expect(readFileSync(history, "utf8")).toBe('{"version":2,"sessions":[]}');
+});
+
+test("a history that is not JSON is moved aside as .bad, not overwritten, and the read says so once", async () => {
+  const { at, put, repository, logs } = machine();
+  const history = join(at, "history.json");
+  const bad = join(at, "history.json.bad");
+  const own = { ...logs, history };
+  put(SHOP, "-work-shop");
+  // A write cut off in the middle.
+  writeFileSync(history, '{"version":1,"sessions":[');
+  expect(await readSessions(own)).toEqual({ sessions: [{ ...shop, project: repository }], historyMoved: bad });
+  expect(readFileSync(bad, "utf8")).toBe('{"version":1,"sessions":[');
+  expect(JSON.parse(readFileSync(history, "utf8"))).toEqual({
+    version: 1,
+    sessions: [{ ...shopRow, project: repository }],
+  });
+  expect((await readSessions(own)).historyMoved).toBeNull();
+  // A byte-order mark, as Windows editors save one, still leaves JSON.
+  writeFileSync(history, `\uFEFF${readFileSync(history, "utf8")}`);
+  expect((await readSessions(own)).historyMoved).toBeNull();
+  // A byte that is not UTF-8 inside a string, which would parse as U+FFFD.
+  const stray = Buffer.concat([Buffer.from('{"version":1,"sessions":["'), Buffer.from([0xe1]), Buffer.from('"]}')]);
+  writeFileSync(history, stray);
+  expect((await readSessions(own)).historyMoved).toBe(bad);
+  expect(readFileSync(bad)).toEqual(stray);
 });
 
 // One recorded session with one edit in its JSON, read alone: its test result.
@@ -98,7 +164,7 @@ const testsAfter = async (
   const { put, logs } = machine();
   const file = put(id, folder);
   writeFileSync(file, readFileSync(file, "utf8").replace(from, to));
-  return (await readSessions({ ...logs, cache: null }))[0]?.tests;
+  return (await readSessions({ ...logs, cache: null })).sessions[0]?.tests;
 };
 
 test.each([
@@ -130,7 +196,8 @@ test.each([
 // Built from the rollout format of openai/codex at 8703d32b: no Codex rollout was recorded yet.
 test("Codex sessions: a subagent's tokens and cost on its root row at list prices, another provider's unpriced, the last test run", async () => {
   const codex = { agent: "codex", project: "/work/shop", title: null } as const;
-  expect(await readSessions({ claude: join(root, "none"), codex: join(fixtures, "codex"), cache: null })).toEqual([
+  const logs = { claude: join(root, "none"), codex: join(fixtures, "codex"), cache: null, history: null };
+  expect((await readSessions(logs)).sessions).toEqual([
     {
       ...codex,
       id: "019a3c11-7a4f-7d55-b032-1e8f5c2d9e03",

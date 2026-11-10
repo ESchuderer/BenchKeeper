@@ -126,9 +126,9 @@ function Overview({ p, card, names }) {
   );
 }
 
-// The per-project install controls: packs, workflow owner, skills and agent files, one switch each with its scope hint; what
+// The per-project install controls: packs, workflow owner and skills, one switch each with its scope hint; what
 // the global setup makes active here; the plan and its result; the skill states with their actions.
-const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [], fileOn: [], fileOff: [] };
+const NO_TOGGLES = { disable: [], enable: [], packOn: [], packOff: [] };
 function Installs({ project, others, onDone, onSetup }) {
   const [toggles, setToggles] = useState(NO_TOGGLES);
   // The plan reloads with a new id after an apply, so the result lives here.
@@ -137,7 +137,7 @@ function Installs({ project, others, onDone, onSetup }) {
   // An apply on either side reloads the other: the plan's switches and the skill states read the same files.
   const [tick, setTick] = useState(0);
   const q = new URLSearchParams({ dir: project.path });
-  for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off'], ['fileOn', 'file-on'], ['fileOff', 'file-off']]) for (const n of toggles[k]) q.append(name, n);
+  for (const [k, name] of [['disable', 'disable'], ['enable', 'enable'], ['packOn', 'pack-on'], ['packOff', 'pack-off']]) for (const n of toggles[k]) q.append(name, n);
   const plan = useApi(!project.missing && project.setupVersion && !lags(project) ? `/api/project-plan?${q}` : null);
   // The rows stay while the next plan loads, so a switch keeps the keyboard focus; only the plan itself waits for it.
   const shown = useRef(null);
@@ -148,9 +148,6 @@ function Installs({ project, others, onDone, onSetup }) {
   const flip = (s) => setToggles(({ disable, enable, ...rest }) => (s.disabled
     ? { ...rest, disable: disable.filter((x) => x !== s.name), enable: [...enable, s.name] }
     : { ...rest, disable: [...disable, s.name], enable: enable.filter((x) => x !== s.name) }));
-  const flipFile = (f) => setToggles(({ fileOn, fileOff, ...rest }) => (f.on
-    ? { ...rest, fileOn: fileOn.filter((x) => x !== f.path), fileOff: [...fileOff, f.path] }
-    : { ...rest, fileOn: [...fileOn, f.path], fileOff: fileOff.filter((x) => x !== f.path) }));
   if (project.missing) return <Text>The folder is not found: relocate the project first.</Text>;
   if (!project.setupVersion) return (
     <Stack gap="xs" align="flex-start">
@@ -176,14 +173,6 @@ function Installs({ project, others, onDone, onSetup }) {
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
                   {p.chosen.map((s) => <InstallRow key={s.name} label={s.name} checked={!s.disabled} onChange={() => flip(s)} busy={locked} hint={s.hint} state={s.state}
                     facts={{ summary: s.pickWhen ?? s.name, eli5: 'one instruction file the agent loads when a task fits it', impact: 'off moves it to .benchkeeper/disabled/ when the plan is applied', default: 'on, with its pack or as a single pick', current: s.disabled ? 'off' : 'on' }} />)}
-                </SimpleGrid>
-              </Section>
-            )}
-            {!!p.files.length && (
-              <Section title="Agent files">
-                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="xs">
-                  {p.files.map((f) => <InstallRow key={f.path} label={f.name} checked={f.on} onChange={() => flipFile(f)} busy={locked} disabled={!!f.fixed && !f.on} why={f.fixed} hint="only this project" state={f.state}
-                    facts={{ summary: f.pickWhen, eli5: 'a description of a helper agent your agent can hand work to', impact: `fetches ${f.name}.md from ${f.source} at a pinned commit into the project's agent folder`, default: 'off', current: f.on ? 'on' : 'off' }} />)}
                 </SimpleGrid>
               </Section>
             )}

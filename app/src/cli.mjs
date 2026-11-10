@@ -214,8 +214,8 @@ Usage: benchkeeper <command> [options]
                                     tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html);
                                     Ponytail's ledger, when present, is read beside them (read only)
   sessions list [--run id]          orchestrated runs with cost (API-equivalent USD; Codex estimated from its tokens and
-                                    OpenAI API prices, unpriced models left out) and tokens from the sessions scan;
-                                    --run: that run per task
+                                    OpenAI API prices, unpriced models left out), tokens and the concrete models from the
+                                    sessions scan; --run: that run per task
   sessions cache show|clear|set [--keep-days N|none] [--yes]
                                     the summaries the scan keeps after an agent deletes a transcript: show counts them with
                                     the retention; set --keep-days (1 to 3650, none: for good) changes it, the next scan
@@ -897,7 +897,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'sessions' && arg === 'list') {
     const runs = byRun(await scanSessions(ctx)).filter((x) => o.run === undefined || x.run === o.run);
     if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 2; }
-    const line = (x) => `${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${x.costUSD == null ? 'cost not recorded' : `$${x.costUSD.toFixed(2)}`}, ${x.tokens} tokens`;
+    const line = (x) => `${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${x.costUSD == null ? 'cost not recorded' : `$${x.costUSD.toFixed(2)}`}, ${x.tokens} tokens${x.models.length ? `, models: ${x.models.join(', ')}` : ''}`;
     for (const x of runs) {
       out.write(`run ${x.run ?? 'not recorded'}: ${line(x)}\n`);
       if (o.run !== undefined) for (const t of x.tasks) out.write(`  task ${t.task ?? 'not recorded'}: ${line(t)}\n`);

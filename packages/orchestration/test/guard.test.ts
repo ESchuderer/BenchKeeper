@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
-import { guardCommand, type Remotes, TYPED_REMOTE } from "@cedarloom/orchestration";
+import { folderRemotes, guardCommand, originRepos, type Remotes, TYPED_REMOTE } from "@cedarloom/orchestration";
 import { expect, test } from "vitest";
 import { z } from "zod";
 
@@ -147,6 +147,27 @@ test("a workflow's agent reaches its project's origin, the hub and the memory re
       run(`git push ${memory} HEAD:main`),
       run("git push https://github.com/acme/app HEAD:main"),
     ]).toEqual(["runs", "refused", "runs", "refused", "refused"]);
+  });
+}, 30_000);
+
+test("the hook reads the remotes as the guarded command's git does, a session's GIT_DIR included; the CLI reads the folder's own", () => {
+  inProject({ memory: "acme/memory" }, (project, policy) => {
+    const memory = mkdtempSync(join(tmpdir(), "guard-memory-"));
+    try {
+      execFileSync("git", ["init", "-q", memory]);
+      execFileSync("git", ["-C", memory, "remote", "add", "origin", "git@github.com:acme/memory.git"]);
+      process.env["GIT_DIR"] = join(memory, ".git");
+      const run = (text: string) => hook(bash(text, project), policy);
+      expect([
+        run("git push origin HEAD:main"),
+        run("git push origin HEAD:memory/worker-1"),
+        originRepos(project),
+        originRepos(project, folderRemotes),
+      ]).toEqual(["refused", "runs", ["acme/memory"], ["acme/app"]]);
+    } finally {
+      delete process.env["GIT_DIR"];
+      rmSync(memory, { recursive: true, force: true });
+    }
   });
 }, 30_000);
 

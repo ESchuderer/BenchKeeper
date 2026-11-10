@@ -3,12 +3,10 @@ import { randomUUID } from "node:crypto";
 import { githubRepo, type Remotes, TYPED_REMOTE } from "./guard.ts";
 import { programPath } from "./program.ts";
 
-/**
- * The fetch and push URLs of a folder's remotes as git reads them, insteadOf rewrites applied; null when unreadable.
- * git comes from an absolute folder of PATH: the hook runs outside the sandbox, where a relative entry would let the
- * session's own files stand in for it.
- */
-export const gitRemotes: Remotes = (folder, typedUrl) => {
+// The remotes a git started with `env` lists for the folder, insteadOf rewrites applied; null when unreadable.
+const remotesIn = (folder: string, typedUrl: string | undefined, env: NodeJS.ProcessEnv): ReturnType<Remotes> => {
+  // git comes from an absolute folder of PATH: the hook runs outside the sandbox, where a relative entry would let the
+  // session's own files stand in for it.
   const git = programPath("git", process.env);
   if (git === undefined) return null;
   // A name of its own per call, so that no remote the checkout configures (a pushurl) stands in for the typed URL.
@@ -20,8 +18,7 @@ export const gitRemotes: Remotes = (folder, typedUrl) => {
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true,
-      // No GIT_* variables: a hook's GIT_DIR would read another repository (docs/agents/git-and-processes.md#git).
-      env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))),
+      env,
     });
     const remotes = new Map<string, string[]>();
     for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {
@@ -32,6 +29,20 @@ export const gitRemotes: Remotes = (folder, typedUrl) => {
     return null;
   }
 };
+
+/**
+ * The fetch and push URLs of a folder's remotes as the session's git reads them, its GIT_* variables included: the
+ * guard refuses a command that sets one, so the guarded command's git uses the same, and GIT_DIR or a GIT_CONFIG_*
+ * rewrite names the repository it reaches.
+ */
+export const gitRemotes: Remotes = (folder, typedUrl) => remotesIn(folder, typedUrl, process.env);
+
+/**
+ * The folder's own remotes, whatever GIT_* variables the caller has: a hook's GIT_DIR would read another repository
+ * (docs/agents/git-and-processes.md#git). For the CLI; the guard reads with gitRemotes.
+ */
+export const folderRemotes: Remotes = (folder, typedUrl) =>
+  remotesIn(folder, typedUrl, Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))));
 
 /** The GitHub repositories of a folder's `origin` remote, its fetch and push URLs; none when git cannot read it. */
 export const originRepos = (folder: string, remotes: Remotes = gitRemotes): string[] => {

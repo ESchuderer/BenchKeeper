@@ -361,7 +361,7 @@ export const Finding = z
     /** A project whose origin remote names no GitHub repository, or two, so its hub label has no name: nothing is queued. */
     finding("work-items.no-project-name", { project: z.string() }),
     /** A project label longer than GitHub takes: nothing is queued. */
-    finding("work-items.label-too-long", { label: z.string(), max: z.int() }),
+    finding("work-items.label-too-long", { label: z.string(), limit: z.int() }),
     /** Nothing is stored under the name in the OS credential store (service `cedarloom`). */
     finding("secret.missing", { name: z.string() }),
     /** The OS credential store could not be reached, such as a locked keychain or no Secret Service on Linux. */

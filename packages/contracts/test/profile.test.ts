@@ -466,6 +466,13 @@ const hub = (id: string, label: string) => ({
   labels: { [label]: { color: "ffffff" } },
 });
 
+test("a repository spelled twice in projectNames, also in another case, is refused", () => {
+  const names = { "acme/widgets": "widgets-app", "ACME/Widgets": "other" };
+  expect(outcome(readProfile(set(defaults, ["workspace", "hub", "projectNames"], names)))).toEqual([
+    "workspace.hub.projectNames",
+  ]);
+});
+
 test("a label named like a source field merges as a label", () => {
   const parent = file({ ...own, id: "acme.p", workspace: { hub: hub("acme.p", "github") } });
   const root = file({

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
-import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
+import { description, distinct, GitRef, GitUrl, PortablePath, sized, unique } from "./extension.ts";
 import { GitSource, PACK_ID, PackId, skillFolder } from "./pack.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
@@ -100,6 +100,11 @@ const hub = part("hub", {
   ),
   projectLabel: z.strictObject({ prefix: PlainText.min(1).max(40), color: Color }).optional(),
   projectNames: sized(z.record(GitHubRepo, Name), 100)
+    // GitHub names repositories without case, so two spellings of one would leave the label's name to key order.
+    .refine(
+      (names) => unique(Object.keys(names).map((repo) => repo.toLowerCase())),
+      "no repository twice, also in another case",
+    )
     .optional()
     .describe(
       "A project's name in its label by its origin's GitHub repository, without case; else that repository's name in lower case with hyphens",

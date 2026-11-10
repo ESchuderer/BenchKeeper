@@ -74,7 +74,7 @@ test("a project's label is named by the profile for its origin's GitHub reposito
   const long = origin(`git@github.com:acme/${"a".repeat(43)}.git`);
   expect(await previewHubLabels(config, tracker, { project: long })).toEqual({
     ok: false,
-    finding: { code: "work-items.label-too-long", params: { label: `project:${"a".repeat(43)}`, max: 50 } },
+    finding: { code: "work-items.label-too-long", params: { label: `project:${"a".repeat(43)}`, limit: 50 } },
   });
   for (const project of [
     origin(),
@@ -87,11 +87,11 @@ test("a project's label is named by the profile for its origin's GitHub reposito
     });
   }
 
-  // A child profile's keys follow its parent's, so of two keys differing in case the later one names the project.
+  // A key names its repository without case; one file spells a repository once (the profile schema refuses two).
   const file = join(config, "mine.json");
   const head = { schemaVersion: 1, kind: "cedarloom.profile", id: "acme.mine", version: "1.0.0", name: "Mine" };
   const extend = { extends: [{ pack: "cedarloom.core", path: "profiles/default.json" }], minApp: "0.0.0" };
-  const projectNames = { "acme/buildguide": "parent-name", "ACME/BuildGuide": "agent-studio" };
+  const projectNames = { "ACME/BuildGuide": "agent-studio" };
   const packs = { "cedarloom.core": { bundled: true } };
   writeFileSync(file, JSON.stringify({ ...head, ...extend, packs, workspace: { hub: { type: "hub", projectNames } } }));
   applied(state, ok(planChoice(config, { file })));

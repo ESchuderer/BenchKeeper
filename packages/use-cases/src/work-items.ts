@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type Finding, Intent, type OutboxEntry, type Result } from "@cedarloom/contracts";
 import type { z } from "zod";
 import { intentHash, openWorkItemStore, type WorkItemStore } from "@cedarloom/ledger";
-import { originRepos } from "@cedarloom/orchestration";
+import { folderRemotes, originRepos } from "@cedarloom/orchestration";
 import type { Resolved } from "@cedarloom/profiles";
 import { compensate, drain, inverse, repoOf, type Tracker } from "@cedarloom/work-items";
 import { readSelection, selectedProfile } from "./profiles.ts";
@@ -63,7 +63,7 @@ export const hubOn = (config: string, app: string | undefined): boolean => {
 
 // The origin's repository and the name it gives, never the folder's name: worktrees are named after their task.
 const originOf = (project: string): Result<{ repo: string; name: string }> => {
-  const repos = [...new Set(originRepos(project).map((repo) => repo.toLowerCase()))];
+  const repos = [...new Set(originRepos(project, folderRemotes).map((repo) => repo.toLowerCase()))];
   const [repo = ""] = repos;
   const name = repo
     .slice(repo.indexOf("/") + 1)
@@ -95,7 +95,7 @@ const wantedLabels = (resolved: Resolved, project: string | undefined): Result<L
   });
   const long = projectLabels.find(([label]) => label.length > LABEL_MAX);
   if (long !== undefined)
-    return refuse({ code: "work-items.label-too-long", params: { label: long[0], max: LABEL_MAX } });
+    return refuse({ code: "work-items.label-too-long", params: { label: long[0], limit: LABEL_MAX } });
   return { ok: true, value: [...own, ...projectLabels] };
 };
 

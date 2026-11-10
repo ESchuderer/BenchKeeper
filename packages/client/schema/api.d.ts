@@ -2331,7 +2331,7 @@ export interface components {
             code: "work-items.label-too-long";
             params: {
                 label: string;
-                max: number;
+                limit: number;
             };
         } | {
             /** @constant */
@@ -3658,7 +3658,7 @@ export interface components {
             code: "work-items.label-too-long";
             params: {
                 label: string;
-                max: number;
+                limit: number;
             };
         } | {
             /** @constant */

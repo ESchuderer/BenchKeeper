@@ -20,8 +20,8 @@ export interface Tracker {
   setLabel(issue: IssueRef, label: string, on: boolean): Promise<Result<null>>;
   /** The names of the hub's labels. */
   labels(): Promise<Result<string[]>>;
-  /** Creates a label of the hub: true; false when it already exists, which is left as it is. */
-  createLabel(label: string, color: string, description?: string): Promise<Result<boolean>>;
+  /** Creates a label of the hub, with its id; null when it already exists, which is left as it is. */
+  createLabel(label: string, color: string, description?: string): Promise<Result<RemoteComment | null>>;
   /** Deletes a label of the hub, which takes it off every issue; one already gone counts as deleted. */
-  deleteLabel(label: string): Promise<Result<null>>;
+  deleteLabel(label: string, id: number): Promise<Result<null>>;
 }

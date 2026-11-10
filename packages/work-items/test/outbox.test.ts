@@ -180,8 +180,26 @@ test("a hub label's undo deletes the label the send created, and the delete has 
   const intent: Intent = { kind: "create-label", repo: "acme/tracker", label: "agent:review", color: "fef2c0" };
   const id = queue(store, "new", intent);
   await drain(store, tracker);
-  await sendUndo(store, tracker, id, { kind: "delete-label", repo: "acme/tracker", label: "agent:review" });
+  await sendUndo(store, tracker, id, { kind: "delete-label", repo: "acme/tracker", label: "agent:review", id: 1001 });
   expect([...tracker.hubLabels]).toEqual([]);
+});
+
+test("a hub label deleted and made again before the undo is another's, and the undo leaves it", async () => {
+  const [store, tracker] = [fresh(), new FakeTracker([issue])];
+  const id = queue(store, "new", { kind: "create-label", repo: "acme/tracker", label: "deferred", color: "c5def5" });
+  await drain(store, tracker);
+  tracker.hubLabels.delete("deferred");
+  await tracker.createLabel("deferred", "000000");
+  const undo = compensate(
+    store,
+    id,
+    intentHash({ kind: "delete-label", repo: "acme/tracker", label: "deferred", id: 1001 }),
+  );
+  if (!undo.ok) throw new Error(undo.finding.code);
+  expect(await drain(store, tracker)).toMatchObject([
+    { id: undo.value.id, status: "failed", finding: { code: "tracker.refused", params: { status: 409 } } },
+  ]);
+  expect([...tracker.hubLabels]).toEqual([["deferred", "000000"]]);
 });
 
 test("a hub label found by the send's own create, as after a lost answer, is kept by its undo", async () => {

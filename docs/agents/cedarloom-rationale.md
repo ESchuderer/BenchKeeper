@@ -143,7 +143,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Hub labels
 
-`packages/use-cases/src/work-items.ts` (`previewHubLabels`). `cedarloom work-items labels` queues the missing labels of the hub parts in the outbox rather than running `gh label create`: the owner approves each by its hash, it is sent with the hub-issues token and not the user's broad `gh` login, a label the hub has is never edited, and an undo deletes only a label the send created. A create that GitHub answers with `already_exists`, as after a lost answer or someone else's create in between, counts as not made, so its undo refuses and the label stays: deleting a label strips it from every issue. BenchKeeper's `/benchkeeper:questions` still creates `deferred` with `gh` when the hub lacks it, as that plugin also runs without CedarLoom.
+`packages/use-cases/src/work-items.ts` (`previewHubLabels`). `cedarloom work-items labels` queues the missing labels of the hub parts in the outbox rather than running `gh label create`: the owner approves each by its hash, it is sent with the hub-issues token and not the user's broad `gh` login, a label the hub has is never edited, and an undo deletes only a label the send created, known by the id the send kept: a label of that name made since is refused. A create that GitHub answers with `already_exists`, as after a lost answer or someone else's create in between, counts as not made, so its undo refuses and the label stays: deleting a label strips it from every issue. BenchKeeper's `/benchkeeper:questions` still creates `deferred` with `gh` when the hub lacks it, as that plugin also runs without CedarLoom.
 
 ### Rate limits
 

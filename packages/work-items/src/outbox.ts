@@ -17,7 +17,7 @@ const performRepo = async (
   tracker: Tracker,
   entry: OutboxEntry,
   intent: Extract<Intent, { kind: "create-label" | "delete-label" }>,
-): Promise<Result<null>> => {
+): Promise<Result<RemoteComment | null>> => {
   const create = intent.kind === "create-label";
   let unchanged = entry.unchanged;
   if (unchanged === null) {
@@ -27,12 +27,12 @@ const performRepo = async (
     store.observe(entry.id, unchanged);
   }
   if (unchanged) return { ok: true, value: null };
-  if (!create) return tracker.deleteLabel(intent.label);
+  if (!create) return tracker.deleteLabel(intent.label, intent.id);
   const created = await tracker.createLabel(intent.label, intent.color, intent.description);
   if (!created.ok) return created;
   // Found by its own answer, after a lost answer or another's create: no undo may delete a label it cannot tell it made.
-  if (!created.value) store.observe(entry.id, true);
-  return { ok: true, value: null };
+  if (created.value === null) store.observe(entry.id, true);
+  return created;
 };
 
 // A comment maybe posted before is looked up by its marker first; a label is read before the first write, for its undo.
@@ -113,7 +113,10 @@ export const inverse = (entry: OutboxEntry): Result<Intent> => {
   }
   if (entry.unchanged !== false) return refuse({ code: "outbox.not-undoable", params: { id, reason: "unchanged" } });
   if (intent.kind === "create-label") {
-    return { ok: true, value: { kind: "delete-label", repo: intent.repo, label: intent.label } };
+    const { remote } = entry;
+    return remote === null
+      ? noInverse
+      : { ok: true, value: { kind: "delete-label", repo: intent.repo, label: intent.label, id: remote.id } };
   }
   const kind = intent.kind === "label" ? "unlabel" : "label";
   return { ok: true, value: { kind, issue: intent.issue, label: intent.label } };

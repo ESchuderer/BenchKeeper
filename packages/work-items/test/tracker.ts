@@ -23,6 +23,7 @@ export class FakeTracker implements Tracker {
   readonly hub = "acme/tracker";
   readonly hubLabels = new Map<string, string>();
   readonly #issues = new Map<string, Issue>();
+  readonly #labelIds = new Map<string, number>();
   #lastId = 1000;
   fault: Fault | null = null;
 
@@ -73,15 +74,18 @@ export class FakeTracker implements Tracker {
     return { ok: true, value: [...this.hubLabels.keys()] };
   }
 
-  async createLabel(label: string, color: string): Promise<Result<boolean>> {
+  async createLabel(label: string, color: string): Promise<Result<RemoteComment | null>> {
     return this.#fail(() => {
-      if (this.hubLabels.has(label)) return false;
+      if (this.hubLabels.has(label)) return null;
       this.hubLabels.set(label, color);
-      return true;
+      this.#labelIds.set(label, ++this.#lastId);
+      return { id: this.#lastId, url: `https://api.github.com/repos/${this.hub}/labels/${label}` };
     });
   }
 
-  async deleteLabel(label: string): Promise<Result<null>> {
+  async deleteLabel(label: string, id: number): Promise<Result<null>> {
+    if (this.hubLabels.has(label) && this.#labelIds.get(label) !== id)
+      return { ok: false, finding: { code: "tracker.refused", params: { status: 409, error: "Conflict" } } };
     return this.#fail(() => {
       this.hubLabels.delete(label);
       for (const issue of this.#issues.values()) issue.labels.delete(label);

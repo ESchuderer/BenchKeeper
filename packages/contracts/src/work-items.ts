@@ -35,7 +35,8 @@ export const Intent = z.discriminatedUnion("kind", [
     color: Color,
     description: PlainText.max(100).optional(),
   }),
-  z.strictObject({ kind: z.literal("delete-label"), repo: IssueRef.shape.repo, label: Label }),
+  // `id`: the label the send created; one of the name made since is another's and stays.
+  z.strictObject({ kind: z.literal("delete-label"), repo: IssueRef.shape.repo, label: Label, id: z.int().positive() }),
 ]);
 export type Intent = z.infer<typeof Intent>;
 
@@ -47,7 +48,7 @@ export type RemoteComment = z.infer<typeof RemoteComment>;
  * An outbox entry: its intent, the idempotency key it was queued under (one entry per key), who approved it (the owner)
  * and how far it got. `sending` without a live sender was interrupted and is due again. `unchanged`: the issue or hub
  * already was as a label intent asks, read before its first write, so its undo has nothing to do. `remote`: the comment a
- * comment intent made.
+ * comment intent made, or the hub label a create-label intent made.
  */
 export const OutboxEntry = z.strictObject({
   id: z.uuid(),

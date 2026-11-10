@@ -12,6 +12,7 @@ const VERSION = { headers: { "x-github-api-version": "2026-03-10" } };
 
 // The parts of GitHub's list answers that are read, checked as GitHub's text is untrusted.
 const Labels = z.array(z.object({ name: z.string() }));
+const Created = z.object({ id: z.number(), url: z.string() });
 const Comment = z.object({ id: z.number(), html_url: z.string(), body: z.string().nullish() });
 const Comments = z.array(Comment);
 const CommentIssue = z.object({ issue_url: z.string() });
@@ -134,18 +135,21 @@ const hubLabels = (github: Client, hub: string): Pick<Tracker, "labels" | "creat
       const label = { ...at, name, color, ...(description === undefined ? {} : { description }) };
       return call(async () => {
         try {
-          await github.request("POST /repos/{owner}/{repo}/labels", label);
-          return true;
+          const { id, url } = Created.parse((await github.request("POST /repos/{owner}/{repo}/labels", label)).data);
+          return RemoteComment.parse({ id, url });
         } catch (error) {
-          if (exists(error)) return false;
+          if (exists(error)) return null;
           throw error;
         }
       });
     },
     // A 404 is a label gone only while the hub answers; a hub the token cannot see refuses at its read.
-    deleteLabel: (name) =>
+    deleteLabel: (name, id) =>
       call(async () => {
         try {
+          const found = await github.request("GET /repos/{owner}/{repo}/labels/{name}", { ...at, name });
+          // A label of that name made since the send is another's: deleting it would take it off their issues.
+          if (Created.parse(found.data).id !== id) throw new Refused(409, `label ${name} is not the one the send made`);
           await github.request("DELETE /repos/{owner}/{repo}/labels/{name}", { ...at, name });
         } catch (error) {
           if (!(httpError(error) && error.status === 404)) throw error;

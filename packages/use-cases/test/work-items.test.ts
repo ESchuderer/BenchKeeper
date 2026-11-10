@@ -24,7 +24,7 @@ test("without a hub nothing is queued, and an issue outside the hub is refused; 
     finding: { code: "work-items.not-hub", params: { repo: "acme/app", hub: "acme/hub" } },
   });
   expect(previewIntent(config, comment("ACME/Hub"))).toMatchObject({ ok: true });
-  expect(previewIntent(config, { kind: "delete-label", repo: "acme/app", label: "bug" })).toEqual({
+  expect(previewIntent(config, { kind: "delete-label", repo: "acme/app", label: "bug", id: 1 })).toEqual({
     ok: false,
     finding: { code: "work-items.not-hub", params: { repo: "acme/app", hub: "acme/hub" } },
   });

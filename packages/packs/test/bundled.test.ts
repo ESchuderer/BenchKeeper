@@ -47,6 +47,7 @@ test("each bundled pack's manifest, in the folder of its id, lists exactly the f
   );
   expect(checked).toEqual([
     [true, "cedarloom.core", "cedarloom.core", [], []],
+    [true, "cedarloom.mantine", "cedarloom.mantine", [], []],
     [true, "cedarloom.orca", "cedarloom.orca", [], []],
   ]);
 });

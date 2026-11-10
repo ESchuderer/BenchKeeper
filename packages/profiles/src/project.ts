@@ -21,6 +21,7 @@ import {
   ownerChanged,
   recordOf,
   recordWrite,
+  type ServersRecord,
   withRecord,
 } from "./record.ts";
 import { type Folder, packVersion, type Resolved, textFile } from "./resolve.ts";
@@ -138,6 +139,7 @@ type Given = {
   fetched: Fetched;
   templates: ReadonlyMap<string, Folder>;
   approved: ReadonlySet<string>;
+  recorded: ServersRecord;
 };
 
 // The parts that write whole files, and how each keeps them: committed or ignored by Git, an existing file left as is.
@@ -476,13 +478,13 @@ const heldOf = (given: Given, written: Written): Result<Given> => {
   return { ok: true, value: { ...given, resolved: unheld(given.resolved, held) } };
 };
 
-// The project's record of the files CedarLoom wrote: docs/agents/cedarloom-rationale.md#project-links
-const recordAt = (project: string): Result<{ path: string; record: FilesRecord }> => {
+// The project's record of the files and MCP server entries CedarLoom wrote: docs/agents/cedarloom-rationale.md#project-links
+const recordAt = (project: string): Result<{ path: string; record: FilesRecord; servers: ServersRecord }> => {
   const path = onDisk(join(project, ...FILES_RECORD.split("/")));
   if (outside(project, path))
     return refuse({ code: "profile.target-linked", params: { part: "project", target: FILES_RECORD, path } });
   const record = recordOf(project, path);
-  return record.ok ? { ok: true, value: { path, record: record.value } } : record;
+  return record.ok ? { ok: true, value: { path, record: record.value.files, servers: record.value.servers } } : record;
 };
 
 /** What CedarLoom last left at each path of a project: the run store's `written` with the project's committed record. */
@@ -515,8 +517,9 @@ export const planProject = (
   if (unknown.length > 0) return { ok: true, value: { operations: [], findings: unknown } };
   const at = recordAt(project);
   if (!at.ok) return at;
+  const recorded = at.value.servers;
   const held = heldOf(
-    { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved },
+    { resolved, project, claude: onDisk(join(project, ".claude")), fetched, templates, approved, recorded },
     written,
   );
   if (!held.ok) return held;
@@ -533,7 +536,11 @@ export const planProject = (
   if (!blocks.ok) return blocks;
   const excluded = new Set(files.value.excluded);
   const committed = new Map([...owned.value.wanted].filter(([path]) => !excluded.has(path)));
-  const record = recordWrite({ project, path: at.value.path }, at.value.record, { committed, plan: owned.value });
+  const record = recordWrite(
+    { project, path: at.value.path },
+    { files: at.value.record, servers: recorded },
+    { committed, plan: owned.value, servers: mcp.recorded },
+  );
   const operations = [...blocks.value, ...settings.operations, ...mcp.operations, ...owned.value.operations, ...record];
   const unbound = resolved.unbound
     .filter((part) => part.startsWith("project."))

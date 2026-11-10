@@ -420,6 +420,9 @@ export const ProfileSelection = z
   .register(fileFormats, { id: "ProfileSelection" });
 export type ProfileSelection = z.infer<typeof ProfileSelection>;
 
+// An MCP server entry CedarLoom wrote, by its server's name: the hash of its value's canonical JSON.
+const ServerEntries = sized(z.record(Name, z.strictObject({ sha256: Sha256 })), 500);
+
 /**
  * The files CedarLoom wrote into a project that Git keeps, by their paths from the project: the hash of what CedarLoom
  * left there and the pack version the text came from, so another clone tells them from the owner's (hub issue 151).
@@ -443,6 +446,10 @@ export const ProfileFiles = z
       ),
       2000,
     ),
+    servers: z
+      .strictObject({ ".mcp.json": ServerEntries.optional(), ".codex/config.toml": ServerEntries.optional() })
+      .optional()
+      .describe("The MCP server entries CedarLoom wrote, by file and server name, each by its value's hash"),
   })
   .register(fileFormats, { id: "ProfileFiles" });
 export type ProfileFiles = z.infer<typeof ProfileFiles>;

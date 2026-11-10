@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
+  canonicalJson,
   FILES_SCHEMA_VERSION,
   type Finding,
   type Operation,
@@ -8,6 +9,7 @@ import {
   type Result,
   readDocument,
   semverAbove,
+  sortKeys,
 } from "@cedarloom/contracts";
 import { hashFile, readOptionalJson } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
@@ -18,6 +20,8 @@ type Written = ReadonlyMap<string, string | null>;
 type Entry = ProfileFiles["files"][string];
 /** A project's committed record of the files CedarLoom wrote there, by path on disk. */
 export type FilesRecord = ReadonlyMap<string, Entry>;
+/** The record's MCP server entries CedarLoom wrote, by file and server name. */
+export type ServersRecord = NonNullable<ProfileFiles["servers"]>;
 
 // A record that does not parse, fit its schema or is newer, named so the owner knows which file to mend.
 const named = (finding: Finding, path: string): Finding => {
@@ -25,15 +29,20 @@ const named = (finding: Finding, path: string): Finding => {
   return finding.code === "document.newer-schema" ? { ...finding, params: { ...finding.params, path } } : finding;
 };
 
-/** The record at `path` (`.cedarloom/profile-files.json` on disk) by the files' paths on disk; empty without one. */
-export const recordOf = (project: string, path: string): Result<FilesRecord> => {
+/**
+ * The record at `path` (`.cedarloom/profile-files.json` on disk): the files by their paths on disk and the MCP server
+ * entries; empty without one.
+ */
+export const recordOf = (project: string, path: string): Result<{ files: FilesRecord; servers: ServersRecord }> => {
   const file = readOptionalJson(path);
   if (!file.ok) return { ok: false, finding: named(file.finding, path) };
-  if (file.value === null) return { ok: true, value: new Map() };
+  if (file.value === null) return { ok: true, value: { files: new Map(), servers: {} } };
   const read = readDocument(ProfileFiles, FILES_SCHEMA_VERSION, file.value.json);
   if (!read.ok) return { ok: false, finding: named(read.finding, path) };
-  const files = Object.entries(read.value.files);
-  return { ok: true, value: new Map(files.map(([at, entry]) => [onDisk(join(project, ...at.split("/"))), entry])) };
+  const files = new Map(
+    Object.entries(read.value.files).map(([at, entry]) => [onDisk(join(project, ...at.split("/"))), entry]),
+  );
+  return { ok: true, value: { files, servers: read.value.servers ?? {} } };
 };
 
 /** A file's hash; null when it is absent or cannot be read. */
@@ -88,23 +97,26 @@ const entriesOf = (project: string, files: FilesRecord): [string, Entry][] =>
     .map(([at, entry]): [string, Entry] => [relative(project, at).split(sep).join("/"), entry])
     .toSorted(([a], [b]) => (a < b ? -1 : 1));
 
-// The record after a plan: CedarLoom's files set, deleted ones out, others kept; written only when entries change.
+// The record after a plan: CedarLoom's files set, deleted ones out, others kept, and the plan's MCP server entries;
+// written only when entries change, `servers` only while it names one, so a record without them stays as it was.
 export const recordWrite = (
   { project, path }: { project: string; path: string },
-  record: FilesRecord,
-  { committed, plan }: { committed: ReadonlyMap<string, Wanted>; plan: LevelPlan },
+  record: { files: FilesRecord; servers: ServersRecord },
+  { committed, plan, servers }: { committed: ReadonlyMap<string, Wanted>; plan: LevelPlan; servers: ServersRecord },
 ): Operation[] => {
   const theirs = ownerChanged(plan);
-  const files = new Map(record);
+  const files = new Map(record.files);
   for (const [at, { content, pack }] of committed)
     if (!theirs.has(at)) files.set(at, { sha256: textDigest(content), ...(pack === undefined ? {} : { pack }) });
   for (const operation of plan.operations) if (operation.kind === "delete") files.delete(operation.path);
   const entries = entriesOf(project, files);
-  if (JSON.stringify(entries) === JSON.stringify(entriesOf(project, record))) return [];
+  const same = canonicalJson(servers) === canonicalJson(record.servers);
+  if (same && JSON.stringify(entries) === JSON.stringify(entriesOf(project, record.files))) return [];
   const document = {
     schemaVersion: FILES_SCHEMA_VERSION,
     kind: "cedarloom.profile-files",
     files: Object.fromEntries(entries),
+    ...(Object.keys(servers).length === 0 ? {} : { servers: sortKeys(servers) }),
   };
   return [{ kind: "write", path, before: hashOrNull(path), content: `${JSON.stringify(document, null, 2)}\n` }];
 };

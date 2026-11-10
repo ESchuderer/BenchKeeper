@@ -268,14 +268,27 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     const runs = http
       ? `Your agents connect to ${p.runs} themselves, outside their sandboxes, and send it what their sessions give its tools${bearer}.`
       : `It runs ${p.runs} on this machine, outside the agents' sandboxes${env}.${unpinned}`;
-    const added = p.entries.map(({ file, entry }) => `\n      ${file}:${indented(entry, "        ")}`).join("");
-    return `${p.part} (${p.title}) adds the MCP server ${p.server} (${http ? "HTTP" : "stdio"}) to this project's committed ${files}, project scope.${codex} ${runs} Once committed, every claude -p run in the repository, yours and everyone's who clones it, ${http ? "connects to it" : "starts it"} without a trust prompt. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}. It adds:${added}`;
+    const written = p.entries
+      .map(({ file, change, entry }) => {
+        const label = change === "replace" ? `${file}, in place of the entry it wrote before:` : `${file}:`;
+        return `\n      ${label}${indented(entry, "        ")}`;
+      })
+      .join("");
+    return `${p.part} (${p.title}) writes the MCP server ${p.server} (${http ? "HTTP" : "stdio"}) into this project's committed ${files}, project scope.${codex} ${runs} Once committed, every claude -p run without --bare in the repository, yours and everyone's who clones it, ${http ? "connects to it" : "starts it"} without a trust prompt. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}. It writes:${written}`;
   },
-  "profile.mcp-entry": (p) => `${p.part} adds the MCP server ${p.server} to ${p.file}:${indented(p.entry, "      ")}`,
+  "profile.mcp-entry": (p) => {
+    const entry = indented(p.entry, "      ");
+    if (p.change === "add") return `${p.part} adds the MCP server ${p.server} to ${p.file}:${entry}`;
+    if (p.change === "replace")
+      return `${p.part} puts its new entry for the MCP server ${p.server} in ${p.file} in place of the one it wrote before:${entry}`;
+    return `${p.part} is switched off, so the plan takes its MCP server ${p.server} out of ${p.file}:${entry}`;
+  },
   "profile.mcp-conflict": (p) =>
-    `${p.file} holds the MCP server ${p.server} with another entry than ${p.part} writes, or its servers in a form the plan cannot add to, so the plan writes that server nowhere. Remove or rename that entry, or write the servers as tables, to take the part's.`,
+    `${p.file} holds the MCP server ${p.server} with an entry CedarLoom did not write or that changed since, or in a form the plan cannot change alone, so the plan writes that server nowhere for ${p.part}. Remove or rename that entry, or write the servers as plain tables, to take the part's.`,
+  "profile.mcp-kept": (p) =>
+    `${p.part} is switched off, but its MCP server ${p.server} stays in ${p.file}, as that entry changed since CedarLoom wrote it or sits in a form the plan cannot take out alone; from this plan on, CedarLoom leaves it to you. Remove it by hand if the server should go.`,
   "profile.mcp-dependency": (p) =>
-    `${p.part} starts ${p.package} from this project's own install, but package.json has no devDependency ${p.package}, so it adds nothing. Add it pinned, so Dependabot updates it: npm install --save-dev --save-exact ${p.package}`,
+    `${p.part} starts ${p.package} from this project's own install, but package.json does not list ${p.package} as a devDependency at an exact version, so it adds nothing. Add it pinned, so Dependabot updates it: npm install --save-dev --save-exact ${p.package}`,
   "profile.project-is-home": (p) =>
     `${p.project} is your home folder, so its .claude/settings.json and .codex/config.toml are Claude Code's and Codex's user config, which no profile writes. Plan a project folder of its own.`,
   "profile.target-linked": (p) =>

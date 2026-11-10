@@ -46,12 +46,6 @@ export function render(manifest) {
     if (p.plugins) parts.push(`plugins ${code(Object.values(p.plugins).map((x) => x.id))}`);
     out.push(row([`\`${p.id}\`${p.role ? ` (${p.role})` : ''}`, parts.join('; '), p.pickWhen]));
   }
-  out.push('', '## Sources', '', 'Agent files a project picks one by one (`--agent-file <path>`), fetched at a pinned commit.', '');
-  out.push(row(['Source', 'Agent files', 'Evaluation']), row(['---', '---', '---']));
-  for (const f of manifest.sources ?? []) {
-    const i = f.install;
-    out.push(row([`\`${f.id}\``, `\`${i.source}\` at \`${i.ref.slice(0, 12)}\`: ${code(i.files.map((x) => x.path.split('/').pop().replace(/\.md$/, '')))}${f.limits ? `. ${f.limits}` : ''}`, `[${f.evaluation.split('/').pop()}](${f.evaluation})`]));
-  }
   return out.join('\n');
 }
 

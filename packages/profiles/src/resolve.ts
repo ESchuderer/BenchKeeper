@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   type Composed,
   composeProfile,
@@ -7,10 +7,12 @@ import {
   type LoadParent,
   PACK_SCHEMA_VERSION,
   PackManifest,
+  type PartProbe,
   type Profile,
   type ProfileSelection,
   type Result,
   readDocument,
+  semver,
   semverAbove,
 } from "@cedarloom/contracts";
 import { errorCode, parseDocument, readJson } from "@cedarloom/engine";
@@ -57,6 +59,16 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
     return refuse({ code: "document.unreadable", params: { path: file, error: errorCode(error) } });
   }
 };
+
+/** The files below a folder by their paths in it; a link is no file, so nothing outside it is read. */
+// shortcut: every file gets mode 100644, as no bundled skill ships a script; read the executable bit once one does.
+export const filesIn = (folder: string): Folder["files"] =>
+  readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const path = join(entry.parentPath, entry.name);
+      return { path: relative(folder, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
+    });
 
 type Entry = PackManifest["entries"][string];
 
@@ -182,20 +194,25 @@ const problemsOf = (parts: ReadonlyMap<string, Part>, on: ReadonlySet<string>, s
 ];
 
 /** What an `auto` part is on by. */
-export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates";
+export type Probe = PartProbe;
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
+
+// A profile file's minApp before the strict parse, as a newer release's file may hold fields this one refuses.
+const minAppOf = (json: unknown): string | undefined => {
+  const head = typeof json === "object" && json !== null ? json : {};
+  const at = semver.safeParse("minApp" in head ? head.minApp : undefined);
+  return "kind" in head && head.kind === "cedarloom.profile" && at.success ? at.data : undefined;
+};
 
 // The selected profile with its parents; a bundled one ships with this release, so only another file can be newer.
 const composedOf = (selection: ProfileSelection | null, app: string): Result<Composed> => {
   const root = rootOf(selection?.profile ?? DEFAULT_PROFILE);
   if (!root.ok) return root;
-  const composed = composeProfile(root.value.json, loadParent);
-  if (!composed.ok) return composed;
-  const { minApp } = composed.value.profile;
-  if (!root.value.bundled && semverAbove(minApp, app))
+  const minApp = root.value.bundled ? undefined : minAppOf(root.value.json);
+  if (minApp !== undefined && semverAbove(minApp, app))
     return refuse({ code: "profile.app-too-old", params: { minApp, app } });
-  return composed;
+  return composeProfile(root.value.json, loadParent);
 };
 
 /** A profile file composed with its parents, only to read: a pack's entry or a file of the owner's, whatever its `minApp`. */

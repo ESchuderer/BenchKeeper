@@ -391,12 +391,12 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
   return ledger ? withLedger(ctx, rows, since, onNote) : rows;
 }
 
-// Cost and tokens per orchestrated run and per task, matched by the ids the scan took from the worker's first prompt; a
-// worker without a run line counts under run null. A Codex row without an estimated cost adds tokens only: cost stays null until a row has one.
+// Cost, tokens and models (sorted, distinct) per orchestrated run and per task, matched by the ids the scan took from the worker's
+// first prompt; a worker without a run line counts under run null. A Codex row without an estimated cost adds tokens only: cost stays null until a row has one.
 export function byRun(rows) {
   const runs = new Map();
-  const add = (x, r) => { x.sessions++; x.tokens += r.tokens ?? 0; if (r.costUSD != null) x.costUSD = (x.costUSD ?? 0) + r.costUSD; };
-  const blank = (k, v) => ({ [k]: v, sessions: 0, costUSD: null, tokens: 0 });
+  const add = (x, r) => { x.sessions++; x.tokens += r.tokens ?? 0; if (r.costUSD != null) x.costUSD = (x.costUSD ?? 0) + r.costUSD; x.models = [...new Set([...x.models, ...(r.models ?? [])])].sort((a, b) => a.localeCompare(b)); };
+  const blank = (k, v) => ({ [k]: v, sessions: 0, costUSD: null, tokens: 0, models: [] });
   for (const r of rows) {
     if (!r.run && !r.task) continue;
     if (!runs.has(r.run)) runs.set(r.run, { ...blank('run', r.run), tasks: new Map() });

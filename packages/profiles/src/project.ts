@@ -1,5 +1,5 @@
 import { isUtf8 } from "node:buffer";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
   FILES_RECORD,
@@ -9,6 +9,7 @@ import {
   sealedTarget,
   targetClass,
 } from "@cedarloom/contracts";
+import { readJson } from "@cedarloom/engine";
 import { repositoryOf } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
@@ -197,6 +198,48 @@ const filesTexts = ({ resolved, fetched }: Given, id: string, part: Of<"files">)
 /** Whether a project has a dev container: a folder, or a file at its root (https://containers.dev/implementors/spec/). */
 export const hasContainer = (project: string): boolean =>
   existsSync(join(project, ".devcontainer")) || existsSync(join(project, ".devcontainer.json"));
+
+// A package.json that names @mantine/core in its dependencies, dev or peer dependencies. Only a regular file up to 1 MiB
+// is read, as a FIFO would block the plan and a link to /dev/zero would fill memory (docs/agents/git-and-processes.md).
+const namesMantine = (folder: string): boolean => {
+  const path = join(folder, "package.json");
+  try {
+    const stat = lstatSync(path, { throwIfNoEntry: false });
+    if (!stat?.isFile() || stat.size > 1024 * 1024) return false;
+  } catch {
+    return false;
+  }
+  const file = readJson(path);
+  const json = file.ok ? file.value.json : null;
+  if (typeof json !== "object" || json === null) return false;
+  return ["dependencies", "devDependencies", "peerDependencies"].some((key) => {
+    const listed: unknown = Object.hasOwn(json, key) ? Reflect.get(json, key) : null;
+    return typeof listed === "object" && listed !== null && Object.hasOwn(listed, "@mantine/core");
+  });
+};
+
+// A folder's subfolders, without node_modules, dot folders and links.
+const subfolders = (folder: string): string[] => {
+  try {
+    return readdirSync(folder, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== "node_modules" && !entry.name.startsWith("."))
+      .map((entry) => join(folder, entry.name));
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Whether a project uses Mantine: its own package.json or a workspace package's names @mantine/core. shortcut: reads
+ * the package.json at the root and one or two folders below it, not the workspace globs (no YAML parser for
+ * pnpm-workspace.yaml here), so a fixture or example there counts too; read the globs once a project keeps its
+ * packages deeper.
+ */
+export const usesMantine = (project: string): boolean => {
+  if (namesMantine(project)) return true;
+  const first = subfolders(project);
+  return first.some(namesMantine) || first.some((folder) => subfolders(folder).some(namesMantine));
+};
 
 // A dev container part's files where the project has none: its Template's output; before approval, none are applied.
 const containerTexts = ({ project, templates, approved }: Given, id: string): Result<[string, string][]> => {

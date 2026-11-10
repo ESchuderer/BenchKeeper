@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { type Finding, Intent, LABEL_MAX, type OutboxEntry, type Result } from "@cedarloom/contracts";
 import type { z } from "zod";
 import { intentHash, openWorkItemStore, type WorkItemStore } from "@cedarloom/ledger";
-import { folderRemotes, originRepos } from "@cedarloom/orchestration";
+import { folderRemotes, originRepos, sshHostName } from "@cedarloom/orchestration";
 import type { Resolved } from "@cedarloom/profiles";
 import { compensate, drain, inverse, repoOf, type Tracker } from "@cedarloom/work-items";
 import { readSelection, selectedProfile } from "./profiles.ts";
@@ -63,7 +63,7 @@ export const hubOn = (config: string, app: string | undefined): boolean => {
 
 // The origin's repository in lower case, never the folder's name: worktrees are named after their task.
 const originOf = (project: string): Result<string> => {
-  const repos = [...new Set(originRepos(project, folderRemotes).map((repo) => repo.toLowerCase()))];
+  const repos = [...new Set(originRepos(project, folderRemotes, sshHostName).map((repo) => repo.toLowerCase()))];
   const [repo = ""] = repos;
   return repos.length === 1
     ? { ok: true, value: repo }

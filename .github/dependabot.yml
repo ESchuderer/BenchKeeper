@@ -43,10 +43,10 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
-    # A dependency joins the first group that matches: every @mantine/* update, majors included, comes as one pull
-    # request, as Mantine's upgrade guide moves them together. That pull request also copies skills/mantine-form of
+    # A dependency joins the first group that matches: every @mantine/* version update, majors included, comes as one
+    # pull request, as Mantine's upgrade guide moves them together. Before merging it, copy skills/mantine-form of
     # https://github.com/mantinedev/skills anew into packages/packs/bundled/cedarloom.mantine/skills/mantine-form and
-    # updates the commit its manifest entry names.
+    # update the commit its manifest entry names.
     groups:
       mantine:
         patterns: ['@mantine/*']

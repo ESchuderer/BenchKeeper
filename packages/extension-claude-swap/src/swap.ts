@@ -75,6 +75,9 @@ const scopedName = (name: unknown): string | undefined =>
  */
 type Window = { window: string; usedPercent: number | null; resetsAt: string | null; readAt: string | null };
 
+// The 5-hour and 7-day windows, which every account has.
+const STANDARD = ["fiveHour", "sevenDay"];
+
 /**
  * An account's windows. claude-swap trusts a row's usage only while its `usageStatus` is `ok`: a row it no longer
  * trusts gives its last good windows without a read time. The 5-hour and 7-day windows are always there, unknown
@@ -86,8 +89,7 @@ const windowsOf = (row: unknown): Window[] => {
   const readAt = trusted ? textOr(at(row, "usageFetchedAt"), null) : null;
   const scoped = at(usage, "scoped");
   const named: [string | undefined, unknown][] = [
-    ["fiveHour", at(usage, "fiveHour")],
-    ["sevenDay", at(usage, "sevenDay")],
+    ...STANDARD.map((window): [string, unknown] => [window, at(usage, window)]),
     ...(Array.isArray(scoped) ? scoped : []).map((entry): [string | undefined, unknown] => [
       scopedName(at(entry, "name")),
       entry,
@@ -95,7 +97,7 @@ const windowsOf = (row: unknown): Window[] => {
   ];
   const windows = named.flatMap(([window, entry]) => {
     const pct = at(entry, "pct");
-    if (window === undefined || (typeof pct !== "number" && window.includes(":"))) return [];
+    if (window === undefined || (typeof pct !== "number" && !STANDARD.includes(window))) return [];
     const resetsAt = textOr(at(entry, "resetsAt"), null);
     const usedPercent = typeof pct === "number" ? Math.min(100, Math.max(0, pct)) : null;
     return [{ window, usedPercent, resetsAt, readAt }];

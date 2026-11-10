@@ -368,7 +368,6 @@ const Footer = (): ReactNode => (
 // Below sm the navigation sits behind a menu button; whichever of the two is out of sight is inert.
 export const App = ({ session }: { session: Session }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
-  // Not kept in Accounts: a view left during a change is mounted anew, and must show it running and its outcome.
   const accounts = useChanges();
   const [opened, { toggle, close }] = useDisclosure();
   // The theme's own sm breakpoint, as AppShell uses it: at exactly 48em the desktop navigation already shows.

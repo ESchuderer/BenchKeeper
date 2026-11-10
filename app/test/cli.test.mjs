@@ -244,10 +244,10 @@ test('sessions list: cost and tokens per run, with --run per task; no worker tex
   assert.equal(await c.exec(['sessions', 'list']), 0);
   assert.equal(await c.exec(['sessions', 'list', '--run', 'r-9']), 0);
   assert.equal(c.text(), [
-    'run r-9: 3 sessions, $2.25, 345 tokens',
-    'run r-9: 3 sessions, $2.25, 345 tokens',
-    '  task task_b: 1 session, $0.25, 115 tokens',
-    '  task task_a: 2 sessions, $2.00, 230 tokens',
+    'run r-9: 3 sessions, $2.25, 345 tokens, models: claude-sonnet-5-5',
+    'run r-9: 3 sessions, $2.25, 345 tokens, models: claude-sonnet-5-5',
+    '  task task_b: 1 session, $0.25, 115 tokens, models: claude-sonnet-5-5',
+    '  task task_a: 2 sessions, $2.00, 230 tokens, models: claude-sonnet-5-5',
     '',
   ].join('\n'));
   assert.equal(await c.exec(['sessions', 'list', '--run', 'nope']), 2);

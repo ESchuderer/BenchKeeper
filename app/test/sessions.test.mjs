@@ -78,11 +78,13 @@ test('byRun: cost and tokens per run and per task from the run fixture; Codex ad
   const { home, ctx } = fixture();
   writeRunSessions(home, '/work/app', MARK);
   const rows = await scanSessions(ctx);
-  const codex = { agent: 'codex', run: 'r-9', task: 'task_c', costUSD: null, tokens: 500 };
+  const codex = { agent: 'codex', run: 'r-9', task: 'task_c', costUSD: null, tokens: 500, models: ['gpt-6-astra'] };
   const [run, ...rest] = byRun([...rows, codex]);
   assert.deepEqual(rest, [], 'sessions without a run or task id are no run');
   assert.deepEqual([run.run, run.sessions, run.costUSD, run.tokens], ['r-9', 4, 2.25, 3 * 115 + 500]);
   assert.deepEqual(run.tasks.map((t) => [t.task, t.sessions, t.costUSD, t.tokens]), [['task_b', 1, 0.25, 115], ['task_a', 2, 2, 230], ['task_c', 1, null, 500]]);
+  assert.deepEqual(run.models, ['claude-sonnet-5-5', 'gpt-6-astra'], 'the sorted distinct models of all rows');
+  assert.deepEqual(run.tasks.map((t) => t.models), [['claude-sonnet-5-5'], ['claude-sonnet-5-5'], ['gpt-6-astra']]);
   assert.ok(!JSON.stringify(rows).includes(MARK));
   assert.ok(!boardHtml(rows).includes(MARK));
   assert.match(boardHtml(rows), /"runs":\[\{"run":"r-9"/);

@@ -19,8 +19,9 @@ Folders next to this file.
 
 | Skills | Source (license) | Agents | Pick when |
 | --- | --- | --- | --- |
-| `frontend-design` | `anthropics/skills` | both | New UI or a visual redesign |
-| `mcp-builder` | `anthropics/skills` | both | The repository builds an MCP server |
+| `frontend-design` | `anthropics/skills` (Apache-2.0) | both | New UI or a visual redesign |
+| `mcp-builder` | `anthropics/skills` (Apache-2.0) | both | The repository builds an MCP server |
+| `webapp-testing` | `anthropics/skills` (Apache-2.0) | both | The agent checks a running web app in a browser and the machine has Python (the skill drives headless Chromium from Python scripts; it needs pip and a browser download) |
 
 ## Science
 

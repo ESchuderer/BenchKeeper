@@ -53,6 +53,7 @@ const Marketplace = z.union([
 export const ProfileLevel = z.enum(["machine", "workspace", "project"]);
 /** What an auto part is on by; gates: this machine names a gate workflow source. */
 export const PartProbe = z.enum(["orca", "devcontainer", "no-devcontainer", "gates", "mantine"]);
+export type PartProbe = z.infer<typeof PartProbe>;
 
 const common = {
   title,

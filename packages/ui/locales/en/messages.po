@@ -461,7 +461,7 @@ msgstr "{level, select, machine {Machine} workspace {Workspace} other {Project}}
 
 #. js-lingui-explicit-id
 msgid "profile.when"
-msgstr "{when, select, orca {Automatic: on while Orca is installed and its extension is on.} devcontainer {Automatic: on in a project with a dev container.} gates {Automatic: on once this machine names its gate workflow source.} other {Automatic: on in a project without a dev container.}}"
+msgstr "{when, select, orca {Automatic: on while Orca is installed and its extension is on.} devcontainer {Automatic: on in a project with a dev container.} gates {Automatic: on once this machine names its gate workflow source.} mantine {Automatic: on in a project with a package.json that names @mantine/core.} other {Automatic: on in a project without a dev container.}}"
 
 #. js-lingui-explicit-id
 msgid "problem.partUnknown"

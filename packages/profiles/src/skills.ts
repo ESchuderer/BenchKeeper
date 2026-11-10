@@ -1,16 +1,9 @@
 import { isUtf8 } from "node:buffer";
 import { join, sep } from "node:path";
 import { type GitSource, type Result, skillFolder } from "@cedarloom/contracts";
+import { BUNDLED } from "@cedarloom/packs";
 import type { Wanted } from "./owned.ts";
-import {
-  bundledFolder,
-  entryFiles,
-  entryOf,
-  type Folder,
-  packVersion,
-  type Resolved,
-  skillEntries,
-} from "./resolve.ts";
+import { entryFiles, entryOf, filesIn, type Folder, packVersion, type Resolved, skillEntries } from "./resolve.ts";
 
 /** The folders fetched for a plan, by `sourceKey`: the profile's Git packs, and skills that come from Git. */
 export type Fetched = ReadonlyMap<string, Folder>;
@@ -97,7 +90,8 @@ const filesOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<F
   const folder = packFolder(resolved, source.pack, fetched);
   const entry = entryOf(source, "skill", folder);
   if (!entry.ok) return entry;
-  return folder === undefined ? bundledFolder(source) : { ok: true, value: entryFiles(source, folder) };
+  const files = folder === undefined ? filesIn(join(BUNDLED, source.pack, source.path)) : entryFiles(source, folder);
+  return { ok: true, value: files };
 };
 
 // The pack a skill's files come from as `id@version`, for a project's record; none for a skill from Git or a machine.

@@ -457,6 +457,7 @@
           "orca": ["Automatic: on while Orca is installed and its extension is on."],
           "devcontainer": ["Automatic: on in a project with a dev container."],
           "gates": ["Automatic: on once this machine names its gate workflow source."],
+          "mantine": ["Automatic: on in a project with a package.json that names @mantine/core."],
           "other": ["Automatic: on in a project without a dev container."]
         }
       ]

@@ -207,14 +207,12 @@ const namesMantine = (folder: string): boolean => {
     return false;
   }
   const file = readJson(path);
-  if (!file.ok || typeof file.value.json !== "object" || file.value.json === null) return false;
-  return Object.entries(file.value.json).some(
-    ([key, listed]) =>
-      ["dependencies", "devDependencies", "peerDependencies"].includes(key) &&
-      typeof listed === "object" &&
-      listed !== null &&
-      Object.hasOwn(listed, "@mantine/core"),
-  );
+  const json = file.ok ? file.value.json : null;
+  if (typeof json !== "object" || json === null) return false;
+  return ["dependencies", "devDependencies", "peerDependencies"].some((key) => {
+    const listed: unknown = Object.hasOwn(json, key) ? Reflect.get(json, key) : null;
+    return typeof listed === "object" && listed !== null && Object.hasOwn(listed, "@mantine/core");
+  });
 };
 
 // A folder's subfolders, without node_modules, dot folders and links.

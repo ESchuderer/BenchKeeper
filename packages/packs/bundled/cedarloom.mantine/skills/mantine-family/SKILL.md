@@ -1,13 +1,13 @@
 ---
 name: mantine-family
-description: "Mantine conventions for the family's projects (those on @open-reloading/ui and @open-reloading/design-tokens, and CedarLoom): provider setup, design tokens, control density, component traps (Modal, NumberInput, Pagination, Select, Switch, useHotkeys), forms, tables, i18n, accessibility checks and docs lookup. Use when building, changing or reviewing a screen on Mantine in such a project, or when a Mantine component misbehaves."
+description: "Mantine in any project: component traps (Modal, NumberInput, Pagination, Select, Switch, useHotkeys), forms, tables, i18n, accessibility checks and docs lookup; plus provider setup, design tokens and control density for projects on @open-reloading/ui and @open-reloading/design-tokens. Use when building, changing or reviewing a screen on Mantine, or when a Mantine component misbehaves."
 ---
 
 ## Setup
 
 - Projects on `@open-reloading/ui`: wrap the app in `UiProvider` (its `i18n` holds `uiMessages` beside the app's messages) and import `ui.css` once; it brings Mantine's styles. No `MantineProvider` or `MantineThemeProvider` of your own: their props undo `ui.css` or the tokens.
 - Server-rendered shell: spread `mantineHtmlProps` on `<html>`, give `ColorSchemeScript` and the provider the same `defaultColorScheme`, render scheme controls after mount.
-- CedarLoom's UI: an interim evergreen theme (`packages/ui/src/main.tsx`) until the generated theme lands.
+- In the CedarLoom repository: its UI has an interim evergreen theme (`packages/ui/src/main.tsx`) until the generated theme lands.
 
 ## Tokens
 
@@ -36,7 +36,7 @@ description: "Mantine conventions for the family's projects (those on @open-relo
 - `useForm` (`@mantine/form`; the `mantine-form` skill has its API): validators return message ids; focus the first invalid field; validate live after the first submit.
 - `@rjsf/mantine` for schema forms, never mixed with `useForm`; it builds against Mantine 8, so test its widgets early.
 - `Table` inside `Table.ScrollContainer`; `aria-sort` on each sortable `th` with a sort button inside; an indeterminate select-all. Thousands of rows: TanStack Table with TanStack Virtual.
-- Every kit string is a prop: Lingui `t` into `labels` and `aria-label`. Dates: `@mantine/dates` with dayjs locales.
+- Every kit string is a prop: pass translated text to `labels` and `aria-label` (with Lingui, `t`). Dates: `@mantine/dates` with dayjs locales.
 
 ## Done when
 

@@ -1,4 +1,4 @@
-import { lstatSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
   type Composed,
@@ -7,6 +7,7 @@ import {
   type LoadParent,
   PACK_SCHEMA_VERSION,
   PackManifest,
+  type PartProbe,
   type Profile,
   type ProfileSelection,
   type Result,
@@ -58,24 +59,14 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
   }
 };
 
-/** A bundled pack's folder entry: its files by their paths in it, with the modes a Git fetch gives; a link refuses it. */
-export const bundledFolder = (ref: Ref): Result<Folder["files"]> => {
-  const root = join(BUNDLED, ref.pack, ref.path);
-  const files: Folder["files"][number][] = [];
-  try {
-    for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
+/** The files below a folder by their paths in it; a link is no file, so nothing outside it is read. */
+export const filesIn = (folder: string): Folder["files"] =>
+  readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
       const path = join(entry.parentPath, entry.name);
-      if (entry.isDirectory()) continue;
-      if (!entry.isFile())
-        return refuse({ code: "document.unreadable", params: { path, error: "not a regular file" } });
-      const mode = lstatSync(path).mode & 0o100 ? "100755" : "100644";
-      files.push({ path: relative(root, path).split(sep).join("/"), mode, content: readFileSync(path) });
-    }
-  } catch (error) {
-    return refuse({ code: "document.unreadable", params: { path: root, error: errorCode(error) } });
-  }
-  return { ok: true, value: files };
-};
+      return { path: relative(folder, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
+    });
 
 type Entry = PackManifest["entries"][string];
 
@@ -199,7 +190,7 @@ const problemsOf = (parts: ReadonlyMap<string, Part>, on: ReadonlySet<string>, s
 ];
 
 /** What an `auto` part is on by. */
-export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates" | "mantine";
+export type Probe = PartProbe;
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 

@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import {
   type ExtensionManifest,
   type Finding,
@@ -13,6 +13,7 @@ import {
 } from "@cedarloom/contracts";
 import * as useCases from "@cedarloom/use-cases";
 import type { Approval } from "@cedarloom/use-cases";
+import { folderArgument } from "./messages.ts";
 import { type Context, EXIT, emit, fail, report, showPlan } from "./output.ts";
 
 const loadPlan = (ctx: Context, path: string): Plan | number => {
@@ -386,19 +387,19 @@ export const profilesApply = async (
   if (useCases.heldBack(findings)) {
     return fail(ctx, "plan", findings, EXIT.refused);
   }
+  const labels = `cedarloom work-items labels${project === undefined ? "" : ` --project ${folderArgument(resolve(project))}`}`;
+  const hint = useCases.hubOn(ctx.config, ctx.app) ? `\nCreate the labels the hub lacks with: ${labels}` : "";
   if (plan === null) {
     emit(
       ctx,
       "plan",
       { planHash: null, plan: null, findings },
-      project === undefined
-        ? "Nothing to change in this machine's rules and settings."
-        : "Nothing to change in this project.",
+      `${project === undefined ? "Nothing to change in this machine's rules and settings." : "Nothing to change in this project."}${hint}`,
     );
     report(ctx, findings);
     return EXIT.ok;
   }
-  return change(ctx, plan, { note: "", data: {}, findings }, yes);
+  return change(ctx, plan, { note: hint, data: {}, findings }, yes);
 };
 
 /** Reports how this machine's Claude Code home, or a project, differs from the profile; exits 1 when it does. */

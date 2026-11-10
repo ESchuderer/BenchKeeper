@@ -44,6 +44,7 @@
       "default": "on",
       "labels": { "triage": { "color": "ededed", "description": "Not looked at yet" } },
       "projectLabel": { "prefix": "area:", "color": "0e8a16" },
+      "projectNames": { "acme/widgets": "widgets-app" },
       "rules": { "pack": "acme.shared", "path": "rules/asking.md" }
     },
     "memory": {

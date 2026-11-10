@@ -99,6 +99,11 @@ const hub = part("hub", {
     100,
   ),
   projectLabel: z.strictObject({ prefix: PlainText.min(1).max(40), color: Color }).optional(),
+  projectNames: sized(z.record(GitHubRepo, Name), 100)
+    .optional()
+    .describe(
+      "A project's name in its label by its origin's GitHub repository, without case; else that repository's name",
+    ),
   rules: Text.optional().describe("The question rule, a machine rules file while this part is on"),
 });
 const memory = part("memory", { scaffold: PackRef, loader: z.boolean() });

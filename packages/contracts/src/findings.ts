@@ -358,6 +358,8 @@ export const Finding = z
     finding("work-items.no-hub", {}),
     /** An issue outside this machine's hub (A3 b): nothing is queued or linked. */
     finding("work-items.not-hub", { repo: z.string(), hub: z.string() }),
+    /** A project whose origin remote names no GitHub repository, or two, so its hub label has no name: nothing is queued. */
+    finding("work-items.no-project-name", { project: z.string() }),
     /** Nothing is stored under the name in the OS credential store (service `cedarloom`). */
     finding("secret.missing", { name: z.string() }),
     /** The OS credential store could not be reached, such as a locked keychain or no Secret Service on Linux. */
@@ -513,6 +515,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "managed.unreadable": { severity: "warning", effort: "manual" },
   "work-items.no-hub": { severity: "error", effort: "command" },
   "work-items.not-hub": { severity: "error", effort: "manual" },
+  "work-items.no-project-name": { severity: "error", effort: "manual" },
   "secret.missing": { severity: "error", effort: "command" },
   "secret.unavailable": { severity: "error", effort: "manual" },
   "secret.not-fine-grained": { severity: "error", effort: "manual" },

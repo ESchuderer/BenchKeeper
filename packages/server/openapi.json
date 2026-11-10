@@ -4645,6 +4645,32 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "work-items.no-project-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "secret.missing"
               },
               "params": {
@@ -10818,6 +10844,32 @@
                 "required": [
                   "repo",
                   "hub"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "work-items.no-project-name"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project"
                 ],
                 "additionalProperties": false
               }

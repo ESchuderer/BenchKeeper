@@ -1,4 +1,5 @@
-import { mkdtempSync, realpathSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { applyPlan, planChoice, previewHubLabels, previewIntent } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
@@ -44,4 +45,32 @@ test("only the labels the hub lacks are previewed, compared without case, and on
   ]);
   applied(state, ok(planChoice(config, { part: "workspace.hub", on: false })));
   expect(await previewHubLabels(config, tracker)).toEqual({ ok: true, value: [] });
+});
+
+test("a project's label is named by the profile for its origin's GitHub repository, else by that repository's name in lower case; a project without one is refused", async () => {
+  const [config, state, project, bare] = [folder("config-"), folder("state-"), folder("project-"), folder("bare-")];
+  applied(state, ok(planChoice(config, { hub: "acme/hub" })));
+  execFileSync("git", ["init", "-q", project]);
+  execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/BuildGuide.git"]);
+  execFileSync("git", ["init", "-q", bare]);
+  const tracker = { labels: async () => ({ ok: true as const, value: [] }) };
+  const projectLabels = async () =>
+    ok(await previewHubLabels(config, tracker, project)).flatMap(({ intent }) =>
+      intent.kind === "create-label" && intent.label.startsWith("project:") ? [[intent.label, intent.color]] : [],
+    );
+  expect(await projectLabels()).toEqual([["project:buildguide", "1d76db"]]);
+
+  const file = join(config, "mine.json");
+  const head = { schemaVersion: 1, kind: "cedarloom.profile", id: "acme.mine", version: "1.0.0", name: "Mine" };
+  const extend = { extends: [{ pack: "cedarloom.core", path: "profiles/default.json" }], minApp: "0.0.0" };
+  const hub = { type: "hub", projectNames: { "ACME/buildguide": "agent-studio" } };
+  const packs = { "cedarloom.core": { bundled: true } };
+  writeFileSync(file, JSON.stringify({ ...head, ...extend, packs, workspace: { hub } }));
+  applied(state, ok(planChoice(config, { file })));
+  expect(await projectLabels()).toEqual([["project:agent-studio", "1d76db"]]);
+
+  expect(await previewHubLabels(config, tracker, bare)).toEqual({
+    ok: false,
+    finding: { code: "work-items.no-project-name", params: { project: bare } },
+  });
 });

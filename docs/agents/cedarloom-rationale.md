@@ -164,6 +164,8 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 `packages/use-cases/src/work-items.ts` (`previewHubLabels`). `cedarloom work-items labels` queues the missing labels of the hub parts in the outbox rather than running `gh label create`: the owner approves each by its hash, it is sent with the hub-issues token and not the user's broad `gh` login, a label the hub has is never edited, and an undo deletes only a label the send created, known by the id the send kept: a label of that name made since is refused. A create that GitHub answers with `already_exists`, as after a lost answer or someone else's create in between, counts as not made, so its undo refuses and the label stays: deleting a label strips it from every issue. BenchKeeper's `/benchkeeper:questions` still creates `deferred` with `gh` when the hub lacks it, as that plugin also runs without CedarLoom.
 
+`--project <folder>` adds the project's `<prefix><name>` label. The name comes from the GitHub repository of the folder's `origin` remote, never the folder's name (worktrees are named after their task), and a folder without exactly one such repository is refused rather than labelled by a guess, as a wrong label shows on the hub to others. `projectNames` sits on the hub part, keyed by repository, because one profile serves every project on a machine; a field of its own lets a child profile add names without restating `projectLabel`.
+
 ### Rate limits
 
 `index.ts` (`limited`). A rate limit is a 429, or a 403 with `x-ratelimit-remaining` 0, a `retry-after` header or, for a secondary limit, only its message (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit).

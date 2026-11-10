@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isMain } from './main.mjs';
-import { lintSkill, ownSkills } from './skill-lint.mjs';
+import { lintAgent, lintSkill, ownAgents, ownSkills } from './skill-lint.mjs';
 
 function skill(name, { fm = `name: ${name}\ndescription: "Does a thing. Use when asked."`, body = '', yaml = 'interface:\n  display_name: "X"\n' } = {}) {
   const dir = join(mkdtempSync(join(tmpdir(), 'lint-')), name);
@@ -45,6 +45,24 @@ test('issue text handed to a worker needs the author filter', () => {
 });
 test('a skill that reads an issue without a worker needs no filter', () => assert.deepEqual(lintSkill(skill('a', { body: 'Read the issue with all its comments.' })), []));
 test('own skills pass', () => assert.deepEqual(ownSkills().flatMap(lintSkill), []));
+test('own agents pass', () => assert.deepEqual(ownAgents().flatMap(lintAgent), []));
+test('a plugin agent needs a name and description, a model alias, and no key plugin agents ignore', () => {
+  const agent = (fm) => {
+    const file = join(mkdtempSync(join(tmpdir(), 'lint-')), 'a.md');
+    writeFileSync(file, `---\n${fm}\n---\n\nBody.\n`);
+    return lintAgent(file).join();
+  };
+  assert.equal(agent('name: a\ndescription: "x"\nmodel: sonnet'), '');
+  assert.match(agent('name: a\nmodel: opus'), /description missing/);
+  assert.match(agent('name: a\ndescription: "x"\nmodel: claude-opus-5-5'), /model "claude-opus-5-5" is not one of/);
+  assert.match(agent('name: a\ndescription: "x"\npermissionMode: acceptEdits'), /permissionMode is ignored/);
+  assert.match(agent('name: a\ndescription: "x"\nhooks:\n  Stop:\n    - x'), /hooks is ignored/);
+  // Values are compared as YAML reads them, and what the lint cannot read fails.
+  assert.equal(agent("name: 'a'\ndescription: \"x: y\"\nmodel: \"opus\""), '');
+  assert.match(agent('name: ""\ndescription: "x"'), /name missing/);
+  assert.match(agent('name: a\ndescription: "x'), /front matter/);
+  assert.match(agent('name: a\ndescription: x: y'), /front matter/);
+});
 test('a Tier line naming the Default tier line ahead of the workflow skill fails', () => {
   assert.match(lintSkill(skill('a', { body: '```text\nTier: <issue tier, else the Default tier line of AGENTS.md, else the workflow skill decides>\n```' })).join(), /Default tier line ahead/);
   assert.deepEqual(lintSkill(skill('a', { body: 'Tier: <issue tier, else leave this line out: the workflow skill decides>' })), []);

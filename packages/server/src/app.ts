@@ -108,6 +108,8 @@ const methods = (app: FastifyInstance): void => {
 
 const SERVER = {
   bodyLimit: BODY_LIMIT,
+  // The longest qualified part id (`workspace.` and two 64-character segments), where Fastify's default is 100.
+  routerOptions: { maxParamLength: 139 },
   frameworkErrors,
   // Fastify's 0 also turns off Node's own limit, and no proxy sits in front.
   requestTimeout: 30_000,

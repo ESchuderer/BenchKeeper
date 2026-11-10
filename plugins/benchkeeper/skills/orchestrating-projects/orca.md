@@ -42,7 +42,7 @@ ORCA orchestration worker-read --dispatch <dispatch id> --limit 50 --json
 gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,mergedAt
 ```
 
-Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent: after starting or messaging workers, end the turn. Never poll, and never run `check --wait` in the background: the guide says Orca wakes you, and a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator. The run's deadline (55 minutes unless the owner named another) is checked at a wake.
+Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent: after starting or messaging workers, end the turn. Never poll, and never run `check --wait` in the background: the guide says Orca wakes you, and a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator. The run's deadline (55 minutes unless the owner named another) is checked at a wake. A Claude Code coordinator also keeps the stall-check cron that the skill's Waiting section describes, so a silent worker is seen without mail.
 
 At each wake-up, including an empty one: `worker-list` for state (act on each row's `projection.attention.requiresAction` and run its literal `projection.nextAction`), then `gh pr list` for merged PRs, then the stall check. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
@@ -63,6 +63,7 @@ The Resume section of the handoff file holds these steps, in this order, the run
 3. `ORCA orchestration run-current --json`
 4. `ORCA orchestration task-list --ready --brief --json`
 5. `ORCA orchestration inbox --terminal run:<run id> --limit 50 --json`: the mail already handled.
+6. Claude Code only: `CronList`; when it no longer shows the run's stall-check cron (a restarted process loses it), create it again as at run start.
 
 ## Clean up
 

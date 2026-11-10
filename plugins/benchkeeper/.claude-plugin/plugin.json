@@ -28,14 +28,17 @@
     "rotateAtTokens": {
       "type": "number",
       "title": "Clear an idle coordinator above this many context tokens",
-      "description": "200000 by default; 0 turns it off. Applies only to a session whose working folder holds the handoff file of /benchkeeper:orchestrating-projects (.benchkeeper/runs/handoff.md). When such a coordinator ends a turn with no background task running and its context is above this size, the plugin clears it with /clear and submits a prompt that resumes it from the file; after a clear or compaction it hands the file back. At most one clear every 10 minutes. Without the file nothing happens.",
-      "default": 200000
+      "description": "200000 by default; 0 turns it off. Applies only to a session whose project folder (where Claude Code started) holds the handoff file of /benchkeeper:orchestrating-projects (.benchkeeper/runs/handoff.md) and, when the file names an Orca terminal, only to that terminal. When such a coordinator ends a turn with no background task running and its context is above this size, the plugin clears it with /clear and submits a prompt that resumes it from the file; after a clear or compaction it hands the file back. At most one clear every 10 minutes. Without the file nothing happens.",
+      "default": 200000,
+      "min": 0
     },
     "rotateAtPercent": {
       "type": "number",
       "title": "Clear an idle coordinator above this percent of the context window",
       "description": "0 (default) is off and rotateAtTokens applies. Above 0, an idle coordinator that keeps the handoff file of /benchkeeper:orchestrating-projects is cleared with /clear and resumed from the file once its context fills this percent of the model's context window, in place of rotateAtTokens.",
-      "default": 0
+      "default": 0,
+      "min": 0,
+      "max": 100
     }
   }
 }

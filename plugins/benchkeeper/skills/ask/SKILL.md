@@ -13,4 +13,4 @@ By default the plugin's hook refuses the question tool and plan mode, and open q
 
 The plugin's hook has already set the window and added the mode above as context. Answer with that line alone. When no such line is there, the hook did not run: say so in one line and name `benchkeeper doctor`, which reports hooks turned off.
 
-Codex runs no hook of this plugin, so there this command changes nothing.
+Codex runs none of the question hooks, so there this command changes nothing.

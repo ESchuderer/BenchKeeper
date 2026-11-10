@@ -26,7 +26,7 @@ const commands = (list: string) => ({
 // The test commands the sessions board counts too (app/src/sessions.mjs).
 const TEST = commands('(?:(?:npm|pnpm|yarn|bun) (?:run )?test(?::\\S+)?|node --test|playwright test|pytest|go test|cargo test|vitest|jest)')
 const LINT = commands('(?:eslint|npm run lint|tsc|ruff|mypy|pyright|go vet|cargo clippy|biome)')
-const EDITS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
+const EDITS = ['Edit', 'Write', 'NotebookEdit'] as const
 // The window /benchkeeper:ask or /benchkeeper:questions opened, as the plugin's hook (ask/ask.mjs) keeps it per process: a module variable outlives /clear too.
 let asking: number | null = null
 

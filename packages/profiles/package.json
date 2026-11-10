@@ -31,6 +31,7 @@
     "@cedarloom/engine": "workspace:*",
     "@cedarloom/git": "workspace:*",
     "@cedarloom/ledger": "workspace:*",
-    "@cedarloom/packs": "workspace:*"
+    "@cedarloom/packs": "workspace:*",
+    "smol-toml": "1.9.1"
   }
 }

@@ -119,6 +119,34 @@
       "template": "ghcr.io/devcontainers/templates/alpine@sha256:0577dbc39d43e6daf0e93477b62e224cca764d3b0d8e37d420c23a07cafe3021",
       "args": { "imageVariant": "3.20" },
       "features": { "ghcr.io/devcontainers/features/github-cli:1": { "version": "latest" } }
+    },
+    "docs": {
+      "type": "mcp",
+      "title": "Acme docs over HTTP",
+      "default": "on",
+      "server": "docs",
+      "source": { "url": "https://mcp.example.com/mcp", "bearer": "DOCS_TOKEN" }
+    },
+    "context7": {
+      "type": "mcp",
+      "title": "Context7 from npm",
+      "default": "off",
+      "server": "context7",
+      "source": { "npm": "@upstash/context7-mcp", "version": "1.0.31", "env": ["CONTEXT7_API_KEY"] }
+    },
+    "mantine": {
+      "type": "mcp",
+      "title": "Mantine from the project's install",
+      "default": "off",
+      "server": "mantine",
+      "source": { "devDependency": "@mantine/mcp-server" }
+    },
+    "fetch": {
+      "type": "mcp",
+      "title": "Fetch from PyPI",
+      "default": "off",
+      "server": "fetch",
+      "source": { "pypi": "mcp-server-fetch", "version": "2025.4.7" }
     }
   }
 }

@@ -19,6 +19,7 @@ const PIPE =
 // An issue's path holds a document's own keys, which may come from elsewhere (an extension's manifest): shown safely.
 const issueList = (issues: { path: string; code: string; char?: string | undefined }[]): string =>
   issues.map((i) => `${shown(i.path, 200) || "(top)"} ${i.char ?? i.code}`).join(", ");
+const indented = (text: string, indent: string): string => `\n${indent}${text.replaceAll("\n", `\n${indent}`)}`;
 // A node's input, or (node null) one of the workflow's own outputs.
 const handleName = (p: { node: string | null; handle: string }): string =>
   p.node === null ? `The workflow output ${p.handle}` : `Input ${p.handle} of node ${p.node}`;
@@ -137,7 +138,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "package.name-taken": (p) =>
     `Node ${p.node} takes the name ${p.name}, which another node or stage of the package takes too; give an agent step another skill, or rename the node.`,
   "package.approval-needed": (p) => {
-    const runs = p.commands.map((command) => `\n      ${command.replaceAll("\n", "\n      ")}`).join("");
+    const runs = p.commands.map((command) => indented(command, "      ")).join("");
     return `${p.plugin}, the workflow ${p.id} at ${p.level}, waits for your approval by name, as its guard and exit hooks run in every Claude Code session and its commands then run unasked: cedarloom workflows install ${p.id} --level ${p.level} --allow ${p.plugin} --yes. ${p.commands.length === 0 ? "It runs no command of its own." : `Its commands:${runs}`}`;
   },
   "package.hooks-missing": (p) =>
@@ -254,6 +255,29 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     const from = p.source === null ? "" : `, from ${p.source}`;
     return `${p.part} (${p.title}) writes ${what.join("; and ")}${from}. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}`;
   },
+  "profile.mcp-approval": (p) => {
+    const files = p.entries.map(({ file }) => file).join(" and ");
+    const codex = p.codex
+      ? ""
+      : " Codex gets no entry, as this project has no .codex/ folder; create one to add it there too.";
+    const http = p.transport === "http";
+    const named = `${p.variables.length === 1 ? "variable" : "variables"} ${p.variables.join(", ")}`;
+    const bearer = p.variables.length === 0 ? "" : `, with your ${named} as its bearer token`;
+    const env = p.variables.length === 0 ? "" : `, with your ${named}`;
+    const unpinned = p.unpinned ? " Unpinned: it runs the newest release at each start." : "";
+    const runs = http
+      ? `Your agents connect to ${p.runs} themselves, outside their sandboxes, and send it what their sessions give its tools${bearer}.`
+      : `It runs ${p.runs} on this machine, outside the agents' sandboxes${env}.${unpinned}`;
+    const added = p.entries.map(({ file, entry }) => `\n      ${file}:${indented(entry, "        ")}`).join("");
+    return `${p.part} (${p.title}) adds the MCP server ${p.server} (${http ? "HTTP" : "stdio"}) to this project's committed ${files}, project scope.${codex} ${runs} Once committed, every claude -p run in the repository, yours and everyone's who clones it, ${http ? "connects to it" : "starts it"} without a trust prompt. It waits for your approval by name: cedarloom profiles apply --project ${folderArgument(p.project)} --allow ${p.part}. It adds:${added}`;
+  },
+  "profile.mcp-entry": (p) => `${p.part} adds the MCP server ${p.server} to ${p.file}:${indented(p.entry, "      ")}`,
+  "profile.mcp-conflict": (p) =>
+    `${p.file} holds the MCP server ${p.server} with another entry than ${p.part} writes, or its servers in a form the plan cannot add to, so the plan writes that server nowhere. Remove or rename that entry, or write the servers as tables, to take the part's.`,
+  "profile.mcp-dependency": (p) =>
+    `${p.part} starts ${p.package} from this project's own install, but package.json has no devDependency ${p.package}, so it adds nothing. Add it pinned, so Dependabot updates it: npm install --save-dev --save-exact ${p.package}`,
+  "profile.project-is-home": (p) =>
+    `${p.project} is your home folder, so its .claude/settings.json and .codex/config.toml are Claude Code's and Codex's user config, which no profile writes. Plan a project folder of its own.`,
   "profile.target-linked": (p) =>
     `${p.part} writes ${p.target}, which a link leads to ${p.path}: outside the project, into its Git folder or onto a file only its own parts write. Remove the link or switch the part off.`,
   "profile.template-failed": (p) =>

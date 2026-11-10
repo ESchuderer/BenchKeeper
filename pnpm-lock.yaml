@@ -265,6 +265,9 @@ importers:
       '@cedarloom/packs':
         specifier: workspace:*
         version: link:../packs
+      smol-toml:
+        specifier: 1.9.1
+        version: 1.9.1
 
   packages/server:
     dependencies:

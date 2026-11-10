@@ -1651,6 +1651,165 @@
               "type"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "mcp"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u180E\\u200B\\u200E\\u200F\\u2028-\\u202E\\u2060-\\u2064\\u2066-\\u2069\\uFEFF\\uFFF9-\\uFFFB]*$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u180E\\u200B\\u200E\\u200F\\u2028-\\u202E\\u2060-\\u2064\\u2066-\\u2069\\uFEFF\\uFFF9-\\uFFFB]*$"
+              },
+              "default": {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "auto",
+                  "off"
+                ],
+                "description": "auto: on when its `when` probe holds"
+              },
+              "when": {
+                "description": "The probe an auto part needs; gates: this machine names a gate workflow source",
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "devcontainer",
+                  "no-devcontainer",
+                  "gates"
+                ]
+              },
+              "requires": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:machine|workspace|project)\\.[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?$"
+                },
+                "uniqueItems": true
+              },
+              "server": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+                "description": "Its name in .mcp.json and .codex/config.toml"
+              },
+              "source": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "url": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "pattern": "^(?:https:\\/\\/[a-z0-9][a-z0-9.-]*|http:\\/\\/(?:localhost|127\\.0\\.0\\.1|\\[::1\\]))(?::\\d{1,5})?(?:\\/[A-Za-z0-9._~%+-]*)*$"
+                      },
+                      "bearer": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+                      }
+                    },
+                    "required": [
+                      "url"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "npm": {
+                        "type": "string",
+                        "maxLength": 214,
+                        "pattern": "^(?!.*\\.(?:tgz|tar|tar\\.gz)$)(?:@[a-z0-9][a-z0-9._-]*\\/)?[a-z0-9][a-z0-9._-]*$"
+                      },
+                      "version": {
+                        "type": "string",
+                        "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?$"
+                      },
+                      "env": {
+                        "description": "Variables the server gets, by name",
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+                        },
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": [
+                      "npm"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "devDependency": {
+                        "type": "string",
+                        "maxLength": 214,
+                        "pattern": "^(?!.*\\.(?:tgz|tar|tar\\.gz)$)(?:@[a-z0-9][a-z0-9._-]*\\/)?[a-z0-9][a-z0-9._-]*$"
+                      },
+                      "env": {
+                        "description": "Variables the server gets, by name",
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+                        },
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": [
+                      "devDependency"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "pypi": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "pattern": "^(?!.*\\.(?:whl|zip|tar|tgz|tar\\.gz)$)[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+                      },
+                      "version": {
+                        "type": "string",
+                        "pattern": "^\\d+(?:\\.\\d+)*(?:(?:a|b|rc)\\d+)?(?:\\.post\\d+)?(?:\\.dev\\d+)?$"
+                      },
+                      "env": {
+                        "description": "Variables the server gets, by name",
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+                        },
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": [
+                      "pypi"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
           }
         ]
       },

@@ -91,19 +91,23 @@ const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
   return { ok: true as const, value: { wanted, off } };
 };
 
-// The settings object with its text's hash; none yet is empty, and a file that is no JSON object is never rewritten.
-const readSettings = (path: string): Result<{ json: Json; before: string | null }> => {
+/**
+ * A settings object with its text and the text's hash; none yet is empty, and a file that is no JSON object is never
+ * rewritten.
+ */
+export const readSettings = (path: string): Result<{ json: Json; text: string | null; before: string | null }> => {
   const file = readOptionalJson(path);
   if (!file.ok) {
     if (file.finding.code !== "document.invalid") return file;
     return refuse({ code: "document.unreadable", params: { path, error: "not JSON" } });
   }
-  if (file.value === null) return { ok: true, value: { json: {}, before: null } };
+  if (file.value === null) return { ok: true, value: { json: {}, text: null, before: null } };
   const read = JsonValue.safeParse(file.value.json);
   if (!read.success || typeof read.data !== "object" || read.data === null || Array.isArray(read.data)) {
     return refuse({ code: "document.unreadable", params: { path, error: "not a JSON object" } });
   }
-  return { ok: true, value: { json: read.data, before: sha256(file.value.text) } };
+  const { text } = file.value;
+  return { ok: true, value: { json: read.data, text, before: sha256(text) } };
 };
 
 // A settings file's write when merging changes it, and the merged value.

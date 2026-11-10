@@ -87,6 +87,7 @@ export {
   ProfileFiles,
   ProfileFile,
   ProfileSelection,
+  QualifiedPartId,
   readProfile,
   SELECTION_SCHEMA_VERSION,
   sealedTarget,

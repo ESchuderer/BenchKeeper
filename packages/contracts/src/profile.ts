@@ -23,7 +23,7 @@ const title = PlainText.min(1).max(200);
 const PART = "[a-z][a-z0-9-]{0,63}(?:\\.[a-z0-9][a-z0-9-]{0,63})?";
 const PartId = z.string().regex(new RegExp(`^${PART}$`));
 /** A part with its level, as `requires` and the selection name it: `machine.rules.global`, `workspace.hub`. */
-const QualifiedPartId = z.string().regex(new RegExp(`^(?:machine|workspace|project)\\.${PART}$`));
+export const QualifiedPartId = z.string().regex(new RegExp(`^(?:machine|workspace|project)\\.${PART}$`));
 const JsonObject = z.record(z.string(), JsonValue);
 // How many values a JSON value holds inside it, at every depth.
 const values = (value: unknown): number =>

@@ -135,9 +135,12 @@ test("the server listens on 127.0.0.1 with the token in the URL fragment, and an
   ]);
   expect((await api({ ...malformed, headers: { origin: "http://attacker.example" } })).status).toBe(403);
   expect((await api({ path: "/api/runs/%zz" })).status).toBe(400);
-  expect((await api({ path: `/api/runs/${"a".repeat(101)}` })).status).toBe(414);
+  expect((await api({ path: `/api/runs/${"a".repeat(140)}` })).status).toBe(414);
   // None of these refusals spent the token.
   await expect(login()).resolves.toMatchObject({ csrf: expect.any(String) });
+  // The longest qualified part id (139 characters) is a valid parameter, not an overlong path.
+  const longest = `workspace.${"a".repeat(64)}.${"b".repeat(64)}`;
+  expect((await api({ method: "PUT", path: `/api/profile/parts/${longest}`, body: { on: true } })).status).toBe(409);
 });
 
 test("the URL token is exchanged once, before it expires, for an HttpOnly SameSite=Strict cookie and a CSRF token", async () => {

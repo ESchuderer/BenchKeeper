@@ -8,6 +8,7 @@ import {
   ImportPreview,
   type Plan,
   ProfileView,
+  QualifiedPartId,
   Refusal,
   type Result,
   Run,
@@ -186,9 +187,9 @@ export const profileRoutes: FastifyPluginAsyncZod<{
     "/api/profile/parts/:part",
     {
       schema: {
-        // Fastify's default maxParamLength: a longer path parameter is answered 414 before any route runs.
+        // The pattern is ASCII only, so its 139 characters are 139 UTF-16 units, the length the router (maxParamLength) measures.
         params: z.strictObject({
-          part: z.string().max(100).describe("The part as level.id, such as machine.rules.global"),
+          part: QualifiedPartId.describe("The part as level.id, such as machine.rules.global"),
         }),
         body: z.strictObject({ on: z.boolean() }),
         // 409 with a run result: refused (the selection file changed meanwhile) or stopped midway.

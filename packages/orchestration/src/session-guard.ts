@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
+import { cleanEnv } from "./env.ts";
 import { githubRepo, type Remotes, TYPED_REMOTE } from "./guard.ts";
 import { programPath } from "./program.ts";
 
@@ -49,9 +50,63 @@ export const folderRemotes: Remotes = (folder, typedUrl) =>
     GIT_CEILING_DIRECTORIES: dirname(folder),
   });
 
-/** The GitHub repositories of a folder's `origin` remote, its fetch and push URLs; none when git cannot read it. */
-export const originRepos = (folder: string, remotes: Remotes = gitRemotes): string[] => {
+// A host alias as ~/.ssh/config names one: nothing ssh reads as an option (-), a token (%) or a shell word in `Match exec`.
+const ALIAS = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,252}$/;
+
+/**
+ * The hostname OpenSSH's config gives a host alias (`ssh -G`); undefined for another word or without ssh.
+ * shortcut: OpenSSH's config only, not core.sshCommand's or PuTTY's; upgrade when an owner's alias lives there.
+ */
+export const sshHostName = (alias: string): string | undefined => {
+  if (!ALIAS.test(alias)) return undefined;
+  const ssh = programPath("ssh", process.env);
+  if (ssh === undefined) return undefined;
+  try {
+    const config = execFileSync(ssh, ["-G", "--", alias], {
+      encoding: "utf8",
+      timeout: 5000,
+      killSignal: "SIGKILL",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+      env: cleanEnv(process.env, process.platform),
+    });
+    // \r?: Win32-OpenSSH may end lines with CRLF.
+    return /^hostname (\S+)\r?$/m.exec(config)?.[1];
+  } catch {
+    return undefined;
+  }
+};
+
+// The GitHub repository of an SSH URL whose host is an alias; ssh.github.com is GitHub's SSH over port 443.
+const aliasedRepo = (url: string, hostOf: (alias: string) => string | undefined): string | null => {
+  let host = "";
+  let path = "";
+  if (url.includes("://")) {
+    const parsed = URL.parse(url);
+    if (parsed === null || !["ssh:", "git+ssh:", "ssh+git:"].includes(parsed.protocol)) return null;
+    host = parsed.hostname;
+    path = parsed.pathname;
+  } else {
+    const scp = /^(?:[^\s/@:]+@)?([^\s/@:]+):(.*)$/.exec(url);
+    if (scp === null) return null;
+    [, host = "", path = ""] = scp;
+  }
+  const name = hostOf(host);
+  if (name === undefined) return null;
+  return githubRepo(`git@${/^ssh\.github\.com$/i.test(name) ? "github.com" : name}:${path}`);
+};
+
+/**
+ * The GitHub repositories of a folder's `origin` remote, its fetch and push URLs; none when git cannot read it. With
+ * `hostOf`, also an SSH URL through a host alias whose hostname `hostOf` names as GitHub's; the guard passes none.
+ */
+export const originRepos = (
+  folder: string,
+  remotes: Remotes = gitRemotes,
+  hostOf?: (alias: string) => string | undefined,
+): string[] => {
   // Pending owner decision: origin only, not a fork's upstream; every remote is [...remotes.values()].flat().
   const urls = remotes(folder)?.get("origin") ?? [];
-  return [...new Set(urls.map(githubRepo).filter((repo) => repo !== null))];
+  const repos = urls.map((url) => githubRepo(url) ?? (hostOf === undefined ? null : aliasedRepo(url, hostOf)));
+  return [...new Set(repos.filter((repo) => repo !== null))];
 };

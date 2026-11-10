@@ -340,7 +340,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "work-items.not-hub": (p) =>
     `${p.repo} is not this machine's hub (${p.hub}); CedarLoom works on hub issues only, so nothing was queued or linked.`,
   "work-items.no-project-name": (p) =>
-    `git found no origin naming exactly one GitHub repository in ${shown(p.project, 300)}, or its name has no letter or digit, so its project label has no name; nothing was queued.`,
+    `git found no origin naming exactly one GitHub repository in ${shown(p.project, 300)} (an SSH host alias counts once \`ssh -G\` names github.com as its hostname), or its name has no letter or digit, so its project label has no name; nothing was queued.`,
   "work-items.label-too-long": (p) =>
     `The project label ${shown(p.label, 300)} is longer than the ${p.limit} characters GitHub takes; shorten the profile's projectLabel prefix or name the project in projectNames. Nothing was queued.`,
   "secret.missing": (p) => `No ${p.name} token is in the OS credential store. ${PIPE}`,

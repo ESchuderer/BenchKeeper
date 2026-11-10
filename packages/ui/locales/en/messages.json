@@ -529,9 +529,9 @@
     ],
     "sessions.count": ["Sessions"],
     "sessions.dataFrom": [
-      "The history starts on ",
+      "Claude Code data starts on ",
       ["first"],
-      ": Claude Code deleted older transcripts before the board read them, so earlier days show less work than there was."
+      ": Claude Code deletes older transcripts, so earlier days show less work than there was."
     ],
     "sessions.days": ["Last ", ["days"], " days"],
     "sessions.daysOf": [["worked"], " of ", ["days"]],
@@ -555,13 +555,13 @@
         { "sessions": ["Sessions"], "busyMs": ["Agent time"], "tokens": ["Tokens"], "other": ["Cost"] }
       ]
     ],
-    "sessions.noData": ["before the history starts"],
+    "sessions.noData": ["before the first Claude Code data"],
     "sessions.none": ["None"],
     "sessions.other": ["Other"],
     "sessions.peak": ["Top line: ", ["value"], " a day"],
     "sessions.period": ["Period"],
     "sessions.project": ["Project"],
-    "sessions.reading": ["Reading the session logs. A first read of a long history takes a few seconds."],
+    "sessions.reading": ["Reading the session logs. A first read of many logs takes a few seconds."],
     "sessions.result": [["tests", "select", { "pass": ["Passed"], "fail": ["Failed"], "other": ["None"] }]],
     "sessions.started": ["Started"],
     "sessions.streak": ["Longest run ", ["streak", "plural", { "one": ["#", " day"], "other": ["#", " days"] }]],

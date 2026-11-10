@@ -12,7 +12,7 @@ import {
   Table,
   Text,
 } from "@mantine/core";
-import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useState } from "react";
+import { type ComponentProps, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useState } from "react";
 import { dayIn, zoneOf } from "@cedarloom/contracts/http";
 import { call } from "./call.ts";
 import { t } from "./i18n.ts";
@@ -60,7 +60,7 @@ const Figure = ({ label, value, note }: { label: string; value: string; note: st
   </Paper>
 );
 
-// The period reaches past the logs the agent tools still keep: its first days have no data, not no work.
+// The period starts before the first Claude Code data: its first days have no data, not no work.
 const before = ({ span, first }: Board): boolean => first !== null && (span[0] ?? first) < first;
 
 const Figures = ({ board }: { board: Board }) => {
@@ -164,13 +164,13 @@ const Bars = ({ stacks, days, at, series }: BarsProps) => {
   });
 };
 
-// The days before the oldest session log, greyed: no data, not no work.
+// The days before the first Claude Code data, greyed: no data, not no work.
 const Before = ({ board: { span, first } }: { board: Board }) => {
   const days = first === null ? 0 : span.filter((day) => day < first).length;
   return days === 0 ? null : <rect width={(days * W) / span.length} height={H} fill="var(--mantine-color-gray-1)" />;
 };
 
-// A day's values per project, or that the logs do not reach it.
+// A day's values per project, or that it is before the first Claude Code data.
 const readoutOf = (board: Board, day: string, values: string[]): string =>
   [values.join(", ") || "0", ...(board.first !== null && day < board.first ? [t("sessions.noData")] : [])].join("; ");
 
@@ -274,8 +274,11 @@ const ConfirmDelete = ({ opened, busy, onConfirm, onCancel }: ConfirmProps): Rea
     onClose={onCancel}
     title={t("sessions.deleteTitle")}
     withCloseButton={false}
-    // A dialog holds no banner landmark, so its header is none.
-    attributes={{ header: { role: "none" } }}
+    // No banner landmark in a dialog; Mantine sets role="dialog" after any attribute, so only renderRoot can replace it.
+    attributes={{
+      header: { role: "none" },
+      content: { renderRoot: (props: ComponentProps<"section">) => <section {...props} role="alertdialog" /> },
+    }}
   >
     <Stack>
       <Text>{t("sessions.deleteBody")}</Text>

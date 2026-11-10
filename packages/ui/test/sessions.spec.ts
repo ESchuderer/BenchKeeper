@@ -45,7 +45,7 @@ test("the board lists a period's sessions, narrows them to one project, and pass
     await expect(rows).toHaveCount(7);
     await accessible(page);
     await main.getByRole("button", { name: "Delete history" }).click();
-    const dialog = page.getByRole("dialog", { name: "Delete the sessions history?" });
+    const dialog = page.getByRole("alertdialog", { name: "Delete the sessions history?" });
     await expect(dialog).toBeVisible();
     await accessible(page);
     await dialog.getByRole("button", { name: "Delete history" }).click();

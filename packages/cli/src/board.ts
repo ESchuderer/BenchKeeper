@@ -26,9 +26,7 @@ const figures = ({ span, project, zone, first, prices, figures: f }: Board): str
   `agent time ${time(f.busyMs)}, tokens ${compact.format(f.tokens)}, cost ${usd(f.costUSD)} (estimates: Claude Code's own, Codex at OpenAI's list prices of ${prices.date}; ${f.uncosted} without a cost)`,
   `days worked ${f.daysWorked} of ${f.days}, longest run ${plural(f.streak, "day")}; tests passed ${share(f.testsPassed)} of ${plural(f.tested, "session")} with a test run`,
   ...(first !== null && (span[0] ?? first) < first
-    ? [
-        `history from ${first}: Claude Code deleted older transcripts before the board read them, so earlier days show less work`,
-      ]
+    ? [`Claude Code data from ${first}: it deletes older transcripts, so earlier days show less work`]
     : []),
 ];
 

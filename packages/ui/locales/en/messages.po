@@ -805,7 +805,7 @@ msgstr "The extension {extension} is not found."
 
 #. js-lingui-explicit-id
 msgid "sessions.reading"
-msgstr "Reading the session logs. A first read of a long history takes a few seconds."
+msgstr "Reading the session logs. A first read of many logs takes a few seconds."
 
 #. js-lingui-explicit-id
 msgid "sessions.period"
@@ -941,11 +941,11 @@ msgstr "Top line: {value} a day"
 
 #. js-lingui-explicit-id
 msgid "sessions.dataFrom"
-msgstr "The history starts on {first}: Claude Code deleted older transcripts before the board read them, so earlier days show less work than there was."
+msgstr "Claude Code data starts on {first}: Claude Code deletes older transcripts, so earlier days show less work than there was."
 
 #. js-lingui-explicit-id
 msgid "sessions.noData"
-msgstr "before the history starts"
+msgstr "before the first Claude Code data"
 
 #. js-lingui-explicit-id
 msgid "sessions.historyNote"

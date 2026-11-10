@@ -51,7 +51,8 @@ export type SessionFigures = z.infer<typeof SessionFigures>;
 /**
  * The sessions board of a period (`days` up to today; null: all time) and a project (null: every one): `span` holds its
  * days in `zone`, oldest first; `first` is the first day of Claude Code data: the oldest Claude Code session the
- * history kept (else the oldest transcript), as Claude Code deletes old transcripts; `projects` are ranked by sessions over all time; `sessions` are newest first; `prices` dates Codex's price table.
+ * history kept (else the oldest transcript), as Claude Code deletes old transcripts; `projects` are ranked by sessions
+ * over all time; `sessions` are newest first; `prices` dates Codex's price table.
  */
 export const SessionsBoard = z
   .strictObject({

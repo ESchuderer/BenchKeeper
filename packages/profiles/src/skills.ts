@@ -1,6 +1,7 @@
 import { isUtf8 } from "node:buffer";
 import { join, sep } from "node:path";
 import { type GitSource, type Result, skillFolder } from "@cedarloom/contracts";
+import { errorCode } from "@cedarloom/engine";
 import { BUNDLED } from "@cedarloom/packs";
 import type { Wanted } from "./owned.ts";
 import { entryFiles, entryOf, filesIn, type Folder, packVersion, type Resolved, skillEntries } from "./resolve.ts";
@@ -90,8 +91,14 @@ const filesOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<F
   const folder = packFolder(resolved, source.pack, fetched);
   const entry = entryOf(source, "skill", folder);
   if (!entry.ok) return entry;
-  const files = folder === undefined ? filesIn(join(BUNDLED, source.pack, source.path)) : entryFiles(source, folder);
-  return { ok: true, value: files };
+  if (folder !== undefined) return { ok: true, value: entryFiles(source, folder) };
+  const root = join(BUNDLED, source.pack, source.path);
+  try {
+    return { ok: true, value: filesIn(root) };
+  } catch (error) {
+    // A damaged install: the manifest lists the skill, but its folder cannot be read.
+    return { ok: false, finding: { code: "document.unreadable", params: { path: root, error: errorCode(error) } } };
+  }
 };
 
 // The pack a skill's files come from as `id@version`, for a project's record; none for a skill from Git or a machine.

@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { applyPlan, planChoice, previewHubLabels, previewIntent } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
 
 const root = testRoot("work-items");
@@ -104,3 +104,34 @@ test("a project's label is named by the profile for its origin's GitHub reposito
   applied(state, ok(planChoice(config, { part: "workspace.hub", on: false })));
   expect(await previewHubLabels(config, tracker, { project: origin() })).toEqual({ ok: true, value: [] });
 });
+
+test.skipIf(process.platform === "win32")(
+  "an SSH host alias origin is read through ssh -G; an alias ssh would read as an option or a token never reaches it",
+  async () => {
+    const [config, state, bin] = [folder("config-"), folder("state-"), folder("bin-")];
+    applied(state, ok(planChoice(config, { hub: "acme/hub" })));
+    const tracker = { labels: async () => ({ ok: true as const, value: [] }) };
+    // Names github.com for any host it is asked about, with Win32-OpenSSH's line ends.
+    writeFileSync(
+      join(bin, "ssh"),
+      `#!/bin/sh\n[ "$1 $2" = "-G --" ] && printf 'user git\\r\\nhostname github.com\\r\\n'\n`,
+      {
+        mode: 0o755,
+      },
+    );
+    vi.stubEnv("PATH", `${bin}${delimiter}${process.env["PATH"] ?? ""}`);
+    try {
+      const aliased = ok(await previewHubLabels(config, tracker, { project: origin("git@github-work:acme/app.git") }));
+      const labels = aliased.map(({ intent }) => ("label" in intent ? intent.label : ""));
+      expect(labels.filter((label) => label.startsWith("project:"))).toEqual(["project:app"]);
+      for (const project of [origin("git@-oProxyCommand=x:acme/app.git"), origin("git@%h:acme/app.git")]) {
+        expect(await previewHubLabels(config, tracker, { project })).toEqual({
+          ok: false,
+          finding: { code: "work-items.no-project-name", params: { project } },
+        });
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  },
+);

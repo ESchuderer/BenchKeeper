@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
+    "@mantine/mcp-server": "9.7.4",
     "@types/node": "26.6.6",
     "@vitest/coverage-v8": "5.0.5",
     "jscpd": "5.4.2",

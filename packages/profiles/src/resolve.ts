@@ -12,6 +12,7 @@ import {
   type ProfileSelection,
   type Result,
   readDocument,
+  semver,
   semverAbove,
 } from "@cedarloom/contracts";
 import { errorCode, parseDocument, readJson } from "@cedarloom/engine";
@@ -197,16 +198,21 @@ export type Probe = PartProbe;
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 
+// A profile file's minApp before the strict parse, as a newer release's file may hold fields this one refuses.
+const minAppOf = (json: unknown): string | undefined => {
+  const head = typeof json === "object" && json !== null ? json : {};
+  const at = semver.safeParse("minApp" in head ? head.minApp : undefined);
+  return "kind" in head && head.kind === "cedarloom.profile" && at.success ? at.data : undefined;
+};
+
 // The selected profile with its parents; a bundled one ships with this release, so only another file can be newer.
 const composedOf = (selection: ProfileSelection | null, app: string): Result<Composed> => {
   const root = rootOf(selection?.profile ?? DEFAULT_PROFILE);
   if (!root.ok) return root;
-  const composed = composeProfile(root.value.json, loadParent);
-  if (!composed.ok) return composed;
-  const { minApp } = composed.value.profile;
-  if (!root.value.bundled && semverAbove(minApp, app))
+  const minApp = root.value.bundled ? undefined : minAppOf(root.value.json);
+  if (minApp !== undefined && semverAbove(minApp, app))
     return refuse({ code: "profile.app-too-old", params: { minApp, app } });
-  return composed;
+  return composeProfile(root.value.json, loadParent);
 };
 
 /** A profile file composed with its parents, only to read: a pack's entry or a file of the owner's, whatever its `minApp`. */

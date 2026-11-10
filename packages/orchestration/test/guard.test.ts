@@ -171,6 +171,29 @@ test("the hook reads the remotes as the guarded command's git does, a session's 
   });
 }, 30_000);
 
+// The repositories of an origin with this one URL, its aliases resolved by `resolver` when given.
+const named = (url: string, resolver?: (alias: string) => string | undefined) =>
+  originRepos("project", () => new Map([["origin", [url]]]), resolver);
+
+test("an SSH host alias origin names the GitHub repository only with a resolver that names github.com as its host", () => {
+  const hosts: Record<string, string> = {
+    "github-work": "github.com",
+    gh443: "ssh.github.com",
+    "gitlab-work": "gitlab.com",
+  };
+  const hostOf = (alias: string) => hosts[alias];
+  expect([
+    named("git@github-work:acme/app.git", hostOf),
+    named("ssh://git@github-work:2222/acme/app.git", hostOf),
+    named("git@gh443:acme/app.git", hostOf),
+    named("git@gitlab-work:acme/app.git", hostOf),
+    named("https://github-work/acme/app.git", hostOf),
+    named("git@github-work:acme/app.git"),
+  ]).toEqual([["acme/app"], ["acme/app"], ["acme/app"], [], [], []]);
+  // A Windows drive is no host, whatever a resolver would answer for it.
+  expect(named("C:/acme/app.git", () => "github.com")).toEqual([]);
+});
+
 test.skipIf(process.platform === "win32")(
   "the hook runs git from an absolute folder of PATH, never one a session planted",
   () => {

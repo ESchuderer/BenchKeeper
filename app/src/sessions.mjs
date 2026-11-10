@@ -395,7 +395,7 @@ export async function scanSessions(ctx, { since, onFile, ledger, onNote } = {}) 
 // first prompt; a worker without a run line counts under run null. A Codex row without an estimated cost adds tokens only: cost stays null until a row has one.
 export function byRun(rows) {
   const runs = new Map();
-  const add = (x, r) => { x.sessions++; x.tokens += r.tokens ?? 0; if (r.costUSD != null) x.costUSD = (x.costUSD ?? 0) + r.costUSD; x.models = [...new Set([...x.models, ...(r.models ?? [])])].sort(); };
+  const add = (x, r) => { x.sessions++; x.tokens += r.tokens ?? 0; if (r.costUSD != null) x.costUSD = (x.costUSD ?? 0) + r.costUSD; x.models = [...new Set([...x.models, ...(r.models ?? [])])].sort((a, b) => a.localeCompare(b)); };
   const blank = (k, v) => ({ [k]: v, sessions: 0, costUSD: null, tokens: 0, models: [] });
   for (const r of rows) {
     if (!r.run && !r.task) continue;

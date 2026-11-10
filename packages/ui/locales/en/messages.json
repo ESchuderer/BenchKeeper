@@ -537,7 +537,7 @@
     "sessions.daysOf": [["worked"], " of ", ["days"]],
     "sessions.daysWorked": ["Days worked"],
     "sessions.deleteBody": [
-      "Sessions whose logs are gone leave the board for good. Sessions whose logs still exist stay, and the history records them again."
+      "Sessions whose logs are gone leave the board for good, and the .bad copy of a damaged history is deleted too. Sessions whose logs still exist stay, and the history records them again."
     ],
     "sessions.deleteHistory": ["Delete history"],
     "sessions.deleteTitle": ["Delete the sessions history?"],

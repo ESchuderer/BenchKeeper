@@ -961,7 +961,7 @@ msgstr "Delete the sessions history?"
 
 #. js-lingui-explicit-id
 msgid "sessions.deleteBody"
-msgstr "Sessions whose logs are gone leave the board for good. Sessions whose logs still exist stay, and the history records them again."
+msgstr "Sessions whose logs are gone leave the board for good, and the .bad copy of a damaged history is deleted too. Sessions whose logs still exist stay, and the history records them again."
 
 #. js-lingui-explicit-id
 msgid "sessions.cancel"

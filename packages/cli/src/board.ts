@@ -73,8 +73,8 @@ export const deleteHistory = (ctx: Context, yes?: true): number => {
   if (yes === true) useCases.deleteHistory(logs);
   const human =
     yes === true
-      ? `Deleted the sessions history ${history}. Sessions whose logs still exist stay on the board, and the history records them again at the next read.`
-      : `Would delete the sessions history ${history}: sessions whose logs are gone leave the board for good; sessions whose logs still exist stay, and the history records them again.\nNothing changed. Run the command again with --yes.`;
+      ? `Deleted the sessions history ${history} and its .bad copy, if any. Sessions whose logs still exist stay on the board, and the history records them again at the next read.`
+      : `Would delete the sessions history ${history} and its .bad copy, if any: sessions whose logs are gone leave the board for good; sessions whose logs still exist stay, and the history records them again.\nNothing changed. Run the command again with --yes.`;
   emit(ctx, "history", { history, deleted: yes === true }, human);
   return EXIT.ok;
 };

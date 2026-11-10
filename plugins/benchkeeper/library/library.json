@@ -57,6 +57,7 @@
       "name": "frontend-design",
       "section": "anthropic",
       "source": "anthropics/skills",
+      "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "New UI or a visual redesign"
     },
@@ -64,8 +65,17 @@
       "name": "mcp-builder",
       "section": "anthropic",
       "source": "anthropics/skills",
+      "license": "Apache-2.0",
       "agents": "both",
       "pickWhen": "The repository builds an MCP server"
+    },
+    {
+      "name": "webapp-testing",
+      "section": "anthropic",
+      "source": "anthropics/skills",
+      "license": "Apache-2.0",
+      "agents": "both",
+      "pickWhen": "The agent checks a running web app in a browser and the machine has Python (the skill drives headless Chromium from Python scripts; it needs pip and a browser download)"
     },
     {
       "name": "experimental-design",

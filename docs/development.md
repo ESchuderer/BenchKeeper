@@ -48,16 +48,11 @@ Set `dev.containers.copyGitConfig` to `false` and `dev.containers.gitCredentialH
 
 ## Agent config
 
-The project skills (`.claude/skills/`, `.agents/skills/`), `skills-lock.json`, `.mcp.json` and `.codex/config.toml` are local to each checkout and not tracked. In a new clone:
+`.mcp.json` is committed: Claude Code's project MCP servers, `playwright` (a browser in the dev container) and `mantine` (Mantine's docs for `packages/ui`: the root devDependency `@mantine/mcp-server`, which needs `pnpm install` first and moves with `@mantine/core` in Dependabot's `cedarloom` group). In an interactive session Claude Code asks before it starts each one ([project scope](https://code.claude.com/docs/en/mcp#project-scope)). The project skills (`.claude/skills/`, `.agents/skills/`), `skills-lock.json` and `.codex/config.toml` are local to each checkout and not tracked. In a new clone:
 
 1. Run the project setup of [setup](setup.md#per-repo) with `--agents claude,codex`. It installs the skills and the lock file and lists them in `.git/info/exclude`.
-2. Write the Playwright MCP server `playwright` into `.mcp.json` (`mcpServers.playwright`: `type` `stdio`, `command` `sh`, `args` `-c` and the line below) and into `.codex/config.toml` (`[mcp_servers.playwright]`, the same `command` and `args`). The line:
+2. For Codex, write both servers into `.codex/config.toml` (`[mcp_servers.playwright]` and `[mcp_servers.mantine]`, each with the `command` and `args` of its `.mcp.json` entry).
+3. Install Mantine's `mantine-form` skill: `<skills> add https://github.com/mantinedev/skills -s mantine-form -a claude-code codex --copy -y`, where `<skills>` is the line `npx benchkeeper@6 skills cli` prints.
+4. Add `/.codex/config.toml`, `/.claude/skills` and `/.agents/skills` to `.git/info/exclude`.
 
-   ```sh
-   root=$(git rev-parse --show-toplevel) && devcontainer up --docker-path podman --workspace-folder "$root" < /dev/null > /dev/null 2>&1 && exec devcontainer exec --docker-path podman --workspace-folder "$root" playwright-mcp --browser chromium --headless
-   ```
-
-3. For the Mantine UI in `packages/ui`: write the Mantine MCP server `mantine` into both files the same way as `playwright` (`command` `npx`, `args` `-y` and `@mantine/mcp-server@<version>`, where `<version>` is the exact `@mantine/core` version in `packages/ui/package.json`; each Mantine upgrade moves it), and install Mantine's `mantine-form` skill: `<skills> add https://github.com/mantinedev/skills -s mantine-form -a claude-code codex --copy -y`, where `<skills>` is the line `npx benchkeeper@6 skills cli` prints.
-4. Add `/.mcp.json`, `/.codex/config.toml`, `/.claude/skills` and `/.agents/skills` to `.git/info/exclude`.
-
-A new worktree (Orca, Claude Code `--worktree`) gets a copy of the paths that `.worktreeinclude` in the primary checkout lists, when Git ignores them there. The project setup of step 1 writes that file with its own list between `# benchkeeper:worktrees` markers and adds `/.worktreeinclude` to `.git/info/exclude`. Add `.mcp.json`, `.codex/config.toml`, `.claude/skills` and `.agents/skills` below the block, one path per line; the setup keeps lines outside it.
+A new worktree (Orca, Claude Code `--worktree`) gets a copy of the paths that `.worktreeinclude` in the primary checkout lists, when Git ignores them there. The project setup of step 1 writes that file with its own list between `# benchkeeper:worktrees` markers and adds `/.worktreeinclude` to `.git/info/exclude`. Add `.codex/config.toml`, `.claude/skills` and `.agents/skills` below the block, one path per line; the setup keeps lines outside it.

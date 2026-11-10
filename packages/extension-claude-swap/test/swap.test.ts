@@ -173,7 +173,8 @@ test("a row without a number is left out, an alias that is no short plain name i
 test("the 5-hour and 7-day windows always show, as unknown without a share and with claude-swap's reset time if any; a model's window needs a share", async () => {
   const partial = firstRow(({ usage, ...row }) => {
     const { sevenDay: _sevenDay, ...rest } = Object(usage);
-    return { ...row, usage: { ...rest, fiveHour: { pct: null, resetsAt: "2026-11-07T12:50:00.157763+00:00" } } };
+    const fiveHour = { pct: null, resetsAt: "2026-11-07T12:50:00.157763+00:00" };
+    return { ...row, usage: { ...rest, fiveHour, scoped: [...rest.scoped, { name: "opus", pct: null }] } };
   });
   const lastGood = firstRow(({ usage: _usage, ...row }) => ({
     ...row,

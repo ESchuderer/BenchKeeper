@@ -71,14 +71,14 @@ const scopedName = (name: unknown): string | undefined =>
 
 /**
  * A window of an account: a share in percent, when it resets, and when claude-swap read it (null: it no longer trusts
- * that share); `usedPercent` is null when claude-swap has no reading of the window at all.
+ * that share); `usedPercent` is null when claude-swap has no share for the window.
  */
 type Window = { window: string; usedPercent: number | null; resetsAt: string | null; readAt: string | null };
 
 /**
  * An account's windows. claude-swap trusts a row's usage only while its `usageStatus` is `ok`: a row it no longer
  * trusts gives its last good windows without a read time. The 5-hour and 7-day windows are always there, unknown
- * without a share.
+ * without a share; a model's window is there only with one.
  */
 const windowsOf = (row: unknown): Window[] => {
   const trusted = at(row, "usageStatus") === "ok";
@@ -95,7 +95,6 @@ const windowsOf = (row: unknown): Window[] => {
   ];
   const windows = named.flatMap(([window, entry]) => {
     const pct = at(entry, "pct");
-    // A model's window shows only with a share; the two every account has show as unknown without one.
     if (window === undefined || (typeof pct !== "number" && window.includes(":"))) return [];
     const resetsAt = textOr(at(entry, "resetsAt"), null);
     const usedPercent = typeof pct === "number" ? Math.min(100, Math.max(0, pct)) : null;

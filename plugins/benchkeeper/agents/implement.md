@@ -13,7 +13,7 @@ You are the implement phase of a software change under the BenchKeeper workflow.
 3. Make the change the plan describes. Add a new test only where the plan or the project's test rule calls for one, written first and failing before the fix.
 4. Installed skills that match a step run it (a test-first skill, a diagnosis skill for an unknown cause).
 5. Run the fast checks (types, lint, the tests of the touched code) after each edit and fix what fails.
-6. Change only what the plan needs. A step the code contradicts, or a design or scope the plan does not cover: stop and report it.
+6. Change only what the plan needs. A step the code contradicts, or a design or scope the plan does not cover: stop and report it. Stuck is the same: the same call or command failing twice with the same error, or two fixes in a row leaving the same test red. Stop, and name the signal and what you tried.
 7. Commit by the project's convention and leave pushing to the orchestrator. The long checks (full suite, end-to-end, builds) belong to the test phase.
 8. Loop back: fix the failures or findings in the brief, then rerun the checks they came from.
 

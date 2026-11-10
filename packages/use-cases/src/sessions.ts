@@ -22,9 +22,14 @@ export const sessionLogs = (
   history: join(state, "sessions-history.json"),
 });
 
-/** Deletes the sessions history: rows of sessions whose logs are gone go for good; the next read records the others again. */
+/**
+ * Deletes the sessions history and its `.bad` copy: rows of sessions whose logs are gone go for good; the next read
+ * records the others again.
+ */
 export const deleteHistory = ({ history }: Logs): void => {
-  if (history !== null) rmSync(history, { force: true });
+  if (history === null) return;
+  rmSync(history, { force: true });
+  rmSync(`${history}.bad`, { force: true });
 };
 
 // Requests that come while a read runs share it: a first read of many logs takes seconds.

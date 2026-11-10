@@ -132,23 +132,26 @@ test("the history keeps a session's figures, never its text, once its log is gon
 test("a history that is not JSON is moved aside as .bad, not overwritten, and the read says so once", async () => {
   const { at, put, repository, logs } = machine();
   const history = join(at, "history.json");
+  const bad = join(at, "history.json.bad");
   const own = { ...logs, history };
   put(SHOP, "-work-shop");
   // A write cut off in the middle.
   writeFileSync(history, '{"version":1,"sessions":[');
-  expect(await readSessions(own)).toEqual({
-    sessions: [{ ...shop, project: repository }],
-    historyMoved: join(at, "history.json.bad"),
-  });
-  expect(readFileSync(join(at, "history.json.bad"), "utf8")).toBe('{"version":1,"sessions":[');
+  expect(await readSessions(own)).toEqual({ sessions: [{ ...shop, project: repository }], historyMoved: bad });
+  expect(readFileSync(bad, "utf8")).toBe('{"version":1,"sessions":[');
   expect(JSON.parse(readFileSync(history, "utf8"))).toEqual({
     version: 1,
     sessions: [{ ...shopRow, project: repository }],
   });
   expect((await readSessions(own)).historyMoved).toBeNull();
   // A byte-order mark, as Windows editors save one, still leaves JSON.
-  writeFileSync(history, `﻿${readFileSync(history, "utf8")}`);
+  writeFileSync(history, `\uFEFF${readFileSync(history, "utf8")}`);
   expect((await readSessions(own)).historyMoved).toBeNull();
+  // A byte that is not UTF-8 inside a string, which would parse as U+FFFD.
+  const stray = Buffer.concat([Buffer.from('{"version":1,"sessions":["'), Buffer.from([0xe1]), Buffer.from('"]}')]);
+  writeFileSync(history, stray);
+  expect((await readSessions(own)).historyMoved).toBe(bad);
+  expect(readFileSync(bad)).toEqual(stray);
 });
 
 // One recorded session with one edit in its JSON, read alone: its test result.

@@ -126,7 +126,7 @@ export const readSessions = async (logs: Logs): Promise<Pick<SessionsBoard, "ses
   const cached = readCache(logs.cache);
   const { files, read } = await summariesOf(logs, cached);
   if (logs.cache !== null && (read > 0 || Object.keys(files).length !== Object.keys(cached).length))
-    writePrivate(logs.cache, { version: VERSION, files });
+    writePrivate(logs.cache, JSON.stringify({ version: VERSION, files }));
   const summaries = Object.values(files).map((entry) => entry.summary);
   const claude = summaries
     .filter((s) => s.agent === "claude-code")

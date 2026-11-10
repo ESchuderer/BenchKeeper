@@ -53,7 +53,7 @@ export type SessionFigures = z.infer<typeof SessionFigures>;
  * days in `zone`, oldest first; `first` is the first day of Claude Code data: the oldest Claude Code session the
  * history kept (else the oldest transcript), as Claude Code deletes old transcripts; `projects` are ranked by sessions
  * over all time; `sessions` are newest first; `prices` dates Codex's price table; `historyMoved`: the file this read
- * moved an unreadable sessions history to, so the board can say so once; null otherwise.
+ * moved a sessions history that is not JSON to, so the board can say so once; null otherwise.
  */
 export const SessionsBoard = z
   .strictObject({

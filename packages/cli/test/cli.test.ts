@@ -744,13 +744,15 @@ test("a token typed on the command line instead of piped in is never repeated in
   expect(keyring.size).toBe(0);
 });
 
-test("board --delete-history shows the delete and changes nothing; with --yes it deletes the history", async () => {
+test("board --delete-history shows the delete and changes nothing; with --yes it deletes the history and its .bad copy", async () => {
   const { state, cli } = setup();
   const history = join(state, "sessions-history.json");
+  const bad = join(state, "sessions-history.json.bad");
   mkdirSync(state, { recursive: true });
   writeFileSync(history, '{"version":1,"sessions":[]}');
+  writeFileSync(bad, '{"version":1,"sessions":[');
   expect(await cli("board", "--delete-history")).toMatchObject({ code: EXIT.ok, err: "" });
-  expect(existsSync(history)).toBe(true);
+  expect([existsSync(history), existsSync(bad)]).toEqual([true, true]);
   expect(await cli("board", "--delete-history", "--yes")).toMatchObject({ code: EXIT.ok, err: "" });
-  expect(existsSync(history)).toBe(false);
+  expect([existsSync(history), existsSync(bad)]).toEqual([false, false]);
 });

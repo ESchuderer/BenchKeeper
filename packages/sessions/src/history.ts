@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { isUtf8 } from "node:buffer";
+import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { AgentSession, type SessionsBoard } from "@cedarloom/contracts";
 import { z } from "zod";
@@ -46,18 +47,10 @@ const sessionOf = (row: Row): AgentSession => ({
 type Kept = { rows: Row[]; moved: string | null };
 
 // A copy of the bytes read, not a rename of the path, so a second reader cannot move the first one's new history over them.
-const moveAside = (file: string, bytes: Buffer): Kept | null => {
-  try {
-    writeFileSync(`${file}.bad`, bytes, { mode: 0o600, flush: true });
-    return { rows: [], moved: `${file}.bad` };
-  } catch {
-    return null;
-  }
-};
+const moveAside = (file: string, bytes: Buffer): Kept | null =>
+  writePrivate(`${file}.bad`, bytes) ? { rows: [], moved: `${file}.bad` } : null;
 
-// Missing: a new history; no JSON (a cut-off write, a stray byte): its bytes copied to `.bad`, replacing an older one,
-// and a new history, as Chromium's JsonPrefStore does. Unreadable now (no permission, a rename on Windows), not copied,
-// or another version's: null, never shown or written over. A row this version cannot read goes at the next write.
+// A file unreadable now or of another version may read later, so it is never written over; one not JSON never will.
 const readHistory = (file: string): Kept | null => {
   let bytes: Buffer;
   try {
@@ -65,10 +58,12 @@ const readHistory = (file: string): Kept | null => {
   } catch (error) {
     return error instanceof Error && "code" in error && error.code === "ENOENT" ? { rows: [], moved: null } : null;
   }
+  // A byte that is not UTF-8 would parse as U+FFFD and garble or drop its row, with no copy of the byte.
+  if (!isUtf8(bytes)) return moveAside(file, bytes);
   let json: unknown;
   try {
     // A byte-order mark, as Windows editors save one, still leaves JSON.
-    json = JSON.parse(bytes.toString("utf8").replace(/^﻿/, ""));
+    json = JSON.parse(bytes.toString("utf8").replace(/^\uFEFF/, ""));
   } catch {
     return moveAside(file, bytes);
   }
@@ -96,7 +91,8 @@ export const withHistory = (
     rows.set(keyOf(row), row);
   }
   // A history that is not JSON is replaced even with no live session, so the next read does not copy it again.
-  if (changed || kept.moved !== null) writePrivate(file, { version: VERSION, sessions: [...rows.values()] });
+  if (changed || kept.moved !== null)
+    writePrivate(file, JSON.stringify({ version: VERSION, sessions: [...rows.values()] }));
   const own = new Set(live.map(keyOf));
   const gone = [...rows.values()].filter((row) => !own.has(keyOf(row))).map(sessionOf);
   return { sessions: [...live, ...gone], historyMoved: kept.moved };

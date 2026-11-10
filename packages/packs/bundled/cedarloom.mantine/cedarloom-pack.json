@@ -14,12 +14,7 @@
     },
     "skills/mantine-form": {
       "kind": "skill",
-      "description": "Mantine's official form skill: the useForm API of @mantine/form",
-      "source": {
-        "git": "https://github.com/mantinedev/skills.git",
-        "ref": "master",
-        "path": "skills/mantine-form"
-      }
+      "description": "Mantine's official form skill, the useForm API of @mantine/form: skills/mantine-form of https://github.com/mantinedev/skills copied unchanged at commit 607846dbc328b6ddc85106d8aad3c080f9f57a1d, with that repository's MIT LICENSE"
     }
   }
 }

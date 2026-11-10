@@ -235,7 +235,7 @@ const profilesGroup = (program: Command, ctx: Ctx, done: Done): void => {
     .option("--project <folder>", "plan this project's level instead of the machine's")
     .option(
       "--allow <part...>",
-      "include a plugin or files part, which --yes alone never does, such as machine.plugin.ponytail",
+      "include a plugin, files or MCP part, which --yes alone never does, such as machine.plugin.ponytail",
     )
     .option("--remove <item...>", "remove an item the plan offers, such as plugin:x@y; none is removed unnamed")
     .option("--yes", "apply the plan as computed now")

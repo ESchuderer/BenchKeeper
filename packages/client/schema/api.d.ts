@@ -2037,6 +2037,55 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "profile.mcp-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                server: string;
+                /** @enum {string} */
+                transport: "stdio" | "http";
+                runs: string;
+                variables: string[];
+                entries: {
+                    file: string;
+                    entry: string;
+                }[];
+                codex: boolean;
+                unpinned: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-entry";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+                entry: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
+            };
+        } | {
+            /** @constant */
             code: "profile.template-failed";
             params: {
                 part: string;
@@ -3278,6 +3327,55 @@ export interface components {
                 source: string | null;
                 programs: string[];
                 configs: string[];
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-approval";
+            params: {
+                part: string;
+                title: string;
+                project: string;
+                server: string;
+                /** @enum {string} */
+                transport: "stdio" | "http";
+                runs: string;
+                variables: string[];
+                entries: {
+                    file: string;
+                    entry: string;
+                }[];
+                codex: boolean;
+                unpinned: boolean;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-entry";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+                entry: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-dependency";
+            params: {
+                part: string;
+                package: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.project-is-home";
+            params: {
+                project: string;
             };
         } | {
             /** @constant */

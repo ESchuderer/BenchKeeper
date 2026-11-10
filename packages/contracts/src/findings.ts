@@ -251,6 +251,34 @@ export const Finding = z
       programs: z.array(z.string()),
       configs: z.array(z.string()),
     }),
+    /**
+     * An MCP part waits for approval by name: what it runs (a command line) or connects to (a URL), the variables it
+     * gets by name, each entry the plan would add with its file's own text, whether the project has `.codex/`, and
+     * whether an npm or PyPI package runs without a version, the newest release at each start.
+     */
+    finding("profile.mcp-approval", {
+      part: z.string(),
+      title: z.string(),
+      project: z.string(),
+      server: z.string(),
+      transport: z.enum(["stdio", "http"]),
+      runs: z.string(),
+      variables: z.array(z.string()),
+      entries: z.array(z.strictObject({ file: z.string(), entry: z.string() })),
+      codex: z.boolean(),
+      unpinned: z.boolean(),
+    }),
+    /** An MCP server entry the plan adds to a file, in the file's own text. */
+    finding("profile.mcp-entry", { part: z.string(), server: z.string(), file: z.string(), entry: z.string() }),
+    /**
+     * A file holds the server's name with another entry than the part's, or its servers in a form the plan cannot add
+     * to, so the plan writes that server to no file.
+     */
+    finding("profile.mcp-conflict", { part: z.string(), server: z.string(), file: z.string() }),
+    /** An MCP part runs a package from the project's install, which package.json does not list as a devDependency. */
+    finding("profile.mcp-dependency", { part: z.string(), package: z.string() }),
+    /** The project folder is the user's home, whose `.claude/` and `.codex/` files are the tools' user config. */
+    finding("profile.project-is-home", { project: z.string() }),
     /** The Dev Containers CLI did not apply a part's Template, which then writes nothing. */
     finding("profile.template-failed", { part: z.string(), template: z.string(), error: z.string() }),
     /** A target two parts write, such as the Dependabot file of two gates parts: the later part and the target. */
@@ -433,6 +461,11 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "profile.approval-needed": { severity: "warning", effort: "command" },
   "profile.options-guarded": { severity: "error", effort: "manual" },
   "profile.target-approval": { severity: "warning", effort: "command" },
+  "profile.mcp-approval": { severity: "warning", effort: "command" },
+  "profile.mcp-entry": { severity: "info", effort: "command" },
+  "profile.mcp-conflict": { severity: "warning", effort: "manual" },
+  "profile.mcp-dependency": { severity: "warning", effort: "manual" },
+  "profile.project-is-home": { severity: "error", effort: "manual" },
   "profile.target-linked": { severity: "error", effort: "manual" },
   "profile.skill-twice": { severity: "error", effort: "manual" },
   "profile.template-failed": { severity: "warning", effort: "manual" },

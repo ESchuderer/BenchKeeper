@@ -132,6 +132,33 @@ const gates = part("gates", {
 const OCI = String.raw`[a-z0-9][a-z0-9.-]{0,252}(?::\d{1,5})?(?:/[a-z0-9][a-z0-9._-]{0,127}){1,10}`;
 const DIGEST = "@sha256:[0-9a-f]{64}";
 const OciRef = z.string().regex(new RegExp(String.raw`^${OCI}(?::\w[\w.-]{0,127}|${DIGEST})?$`));
+// MCP servers, variables by name only: docs/agents/cedarloom-rationale.md#mcp-servers
+const Npm = z
+  .string()
+  .max(214)
+  .regex(/^(?!.*\.(?:tgz|tar|tar\.gz)$)(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/);
+const PyPi = z
+  .string()
+  .max(200)
+  .regex(/^(?!.*\.(?:whl|zip|tar|tgz|tar\.gz)$)[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/);
+const Pep440 = z.string().regex(/^\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?(?:\.post\d+)?(?:\.dev\d+)?$/);
+const Variable = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/);
+const McpUrl = z
+  .string()
+  .max(2048)
+  .regex(
+    /^(?:https:\/\/[a-z0-9][a-z0-9.-]*|http:\/\/(?:localhost|127\.0\.0\.1|\[::1\]))(?::\d{1,5})?(?:\/[A-Za-z0-9._~%+-]*)*$/,
+  );
+const env = distinct(Variable).max(20).optional().describe("Variables the server gets, by name");
+const mcp = part("mcp", {
+  server: Name.describe("Its name in .mcp.json and .codex/config.toml"),
+  source: z.union([
+    z.strictObject({ url: McpUrl, bearer: Variable.optional() }),
+    z.strictObject({ npm: Npm, version: semver.optional(), env }),
+    z.strictObject({ devDependency: Npm, env }),
+    z.strictObject({ pypi: PyPi, version: Pep440.optional(), env }),
+  ]),
+});
 const devcontainer = part("devcontainer", {
   template: z
     .string()
@@ -163,6 +190,7 @@ const whole = {
       tier.whole,
       gates.whole,
       devcontainer.whole,
+      mcp.whole,
     ]),
   ),
 };
@@ -180,6 +208,7 @@ const layer = {
       tier.layer,
       gates.layer,
       devcontainer.layer,
+      mcp.layer,
     ]),
   ),
 };
@@ -222,16 +251,17 @@ const LEVELS = ProfileLevel.options;
 
 // Files only their own parts write: docs/agents/cedarloom-rationale.md#sealed-files
 const SEALED =
-  "not a .claude/settings.json, .claude/settings.local.json, .mcp.json or .cedarloom/profile-files.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
+  "not a .claude/settings.json, .claude/settings.local.json, .mcp.json, .codex/config.toml or .cedarloom/profile-files.json at any depth, nor the manual's AGENTS.md, CLAUDE.md or CLAUDE.local.md";
 const MANUAL = ["agents.md", "claude.md", "claude.local.md"];
 /**
- * Whether a project path is one only its own parts write: Claude Code's settings, an MCP list, the manual's files,
- * CedarLoom's record of the files it wrote.
+ * Whether a project path is one only its own parts write: Claude Code's settings, an MCP list (Codex's config holds
+ * one), the manual's files, CedarLoom's record of the files it wrote.
  */
 export const sealedTarget = (target: string): boolean => {
   const [file = "", folder] = target.toLowerCase().split("/").toReversed();
   if (folder === undefined && MANUAL.includes(file)) return true;
   if (folder === ".cedarloom" && file === "profile-files.json") return true;
+  if (folder === ".codex" && file === "config.toml") return true;
   return file === ".mcp.json" || (folder === ".claude" && ["settings.json", "settings.local.json"].includes(file));
 };
 

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Exit 0 to start the run: no session of this automation is alive, and there is no digest yet or a pull request or an
-# issue of the repositories ($2, comma separated; empty: the one of the checkout) changed since the digest ($1) was
-# written, apart from the digest's own issue ($3) in the checkout's repository.
+# issue of the repositories ($2, comma separated; empty: the origin's repository of the checkout, not gh's default, which
+# in a fork is the parent; no readable origin: gh's default) changed since the digest ($1) was written, apart from the
+# digest's own issue ($3) in the checkout's repository.
 if pgrep -f "automation-[d]aily-digest" >/dev/null; then exit 1; fi
 [ -f "$1" ] || exit 0
 # A checkout gives a committed file a fresh mtime: a digest committed and unchanged since starts at its commit's author time.
@@ -12,7 +13,8 @@ since=$(git -C "$d" -c core.fsmonitor=false ls-files --error-unmatch -- "$b" >/d
 skip=$3
 own=$(git remote get-url origin 2>/dev/null | sed -e 's#/*$##' -e 's#\.git$##' -e 's#^.*[:/]\([^/:]*/[^/]*\)$#\1#' | tr A-Z a-z)
 for r in $(echo "${2:-.}" | tr , ' '); do
-  if [ "$r" = . ]; then set --; else set -- --repo "$r"; fi
+  set --
+  if [ "$r" != . ]; then set -- --repo "$r"; elif [ -n "$own" ]; then set -- --repo "$own"; fi
   jq=length
   if [ -n "$skip" ] && { [ "$r" = . ] || [ "$(echo "$r" | tr A-Z a-z)" = "$own" ]; }; then jq="map(select(.number | tostring != \"$skip\")) | length"; fi
   for kind in pr issue; do

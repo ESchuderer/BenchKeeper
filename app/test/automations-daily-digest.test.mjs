@@ -10,8 +10,9 @@ import { automationTemplate, initRepo } from './helpers.mjs';
 const template = () => automationTemplate('daily-digest');
 
 // The precheck in the template folder with a fake gh on PATH that logs its arguments and prints the number of changed
-// items its list reports (pr and issue answers by repository).
-function precheck(values, answers = {}, digestAge = null) {
+// items its list reports (pr and issue answers by repository). It runs in cwd, by default a folder that is no repository
+// and so has no origin, like an installed precheck in the project folder.
+function precheck(values, answers = {}, digestAge = null, cwd = null) {
   const bin = mkdtempSync(join(tmpdir(), 'bk-dd-bin-'));
   writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> '${bin}/log'\ncase "$*" in\n${Object.entries(answers).map(([k, n]) => `  *"${k}"*) echo ${n} ;;\n`).join('')}  *) echo 0 ;;\nesac\n`, { mode: 0o755 });
   const file = join(bin, 'digest.md');
@@ -20,7 +21,9 @@ function precheck(values, answers = {}, digestAge = null) {
     const t = Date.now() / 1000 - digestAge;
     utimesSync(file, t, t);
   }
-  const r = spawnSync('sh', ['-c', fill(template(), { file, ...values }).precheck], { cwd: genericDir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  // An installed precheck names its helper by absolute path and runs in the project folder.
+  const command = fill(template(), { file, ...values }).precheck.replace('daily-digest/precheck.sh', `"${join(genericDir, 'daily-digest/precheck.sh')}"`);
+  const r = spawnSync('sh', ['-c', command], { cwd: cwd ?? bin, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
   let log = '';
   try { log = readFileSync(join(bin, 'log'), 'utf8'); } catch {}
   return { code: r.status, log: log.trim().split('\n').filter(Boolean) };
@@ -56,6 +59,11 @@ test('daily-digest precheck: runs without a digest, then only when a pull reques
   assert.match(quiet.log[3], /^issue list --repo o\/b /);
   assert.equal(precheck({ repos: 'o/a,o/b' }, { 'issue list --repo o/b': 2 }, 3600).code, 0);
   const here = precheck({}, { 'pr list --state': 1 }, 3600);
-  assert.deepEqual([here.code, here.log.length], [0, 1], 'empty repos: the checkout repository, no --repo');
+  assert.deepEqual([here.code, here.log.length], [0, 1], 'empty repos, no origin: the default repository of gh, no --repo');
+  const fork = mkdtempSync(join(tmpdir(), 'bk-dd-fork-'));
+  initRepo(fork)('remote', 'add', 'origin', 'git@github.com:Owner/Fork.git');
+  const forked = precheck({ issue: '12' }, {}, 3600, fork).log;
+  assert.match(forked[0], /^pr list --repo owner\/fork --state all --search /, 'empty repos: the origin repository, not the default one of gh');
+  assert.match(forked[1], /^issue list --repo owner\/fork .* --jq map\(select\(\.number \| tostring != "12"\)\) \| length$/, 'the digest issue is still left out');
   assert.equal(precheck({}, { 'pr list': 'error' }, 3600).code, 1, 'a failing gh skips the run');
 });

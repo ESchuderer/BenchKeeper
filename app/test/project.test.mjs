@@ -48,7 +48,7 @@ test('shared: AGENTS.md block, CLAUDE.md import, own skill copies, community ski
   assert.ok(cmd.argv.includes('codex') && cmd.cwd === r.dir && cmd.env.DO_NOT_TRACK === '1' && cmd.env.npm_config_registry === 'https://registry.npmjs.org/' && Math.abs(Date.parse(cmd.env.npm_config_before) - (Date.now() - 7 * 864e5)) < 60e3 && cmd.snapshot.includes(join(r.dir, 'skills-lock.json')));
   const state = readState(r.dir);
   assert.deepEqual([state.contentVersion, state.env, state.tier, state.packs], [appVersion, 'host-agent', 'quick', ['frontend']]);
-  assert.deepEqual(state.skills.map((s) => s.name).sort(), ['accessibility', 'designing-technical-uis', 'frontend-design', 'webapp-testing']);
+  assert.deepEqual(state.skills.map((s) => s.name).sort(), ['accessibility', 'designing-technical-uis', 'frontend-design']);
   assert.match(prompts[0].prompt, /setting-up-projects/);
 });
 
@@ -219,7 +219,7 @@ test('.worktreeinclude: every setup gives new worktrees the local files; shared 
   assert.equal(run.status, 'done');
   // The state file, not its folder: handoff and knowledge files there are per worktree. Literal paths, no leading slash, no trailing one.
   assert.deepEqual(listed(), ['.benchkeeper/state.json', 'skills-lock.json', 'CLAUDE.local.md', 'AGENTS.override.md', '.claude/settings.local.json', '.claude/hooks/benchkeeper-guard.mjs',
-    '.claude/skills/designing-technical-uis', '.agents/skills/designing-technical-uis', '.claude/skills/frontend-design', '.agents/skills/frontend-design', '.claude/skills/webapp-testing', '.agents/skills/webapp-testing', '.claude/skills/accessibility', '.agents/skills/accessibility', '.worktreeinclude']);
+    '.claude/skills/designing-technical-uis', '.agents/skills/designing-technical-uis', '.claude/skills/frontend-design', '.agents/skills/frontend-design', '.claude/skills/accessibility', '.agents/skills/accessibility', '.worktreeinclude']);
   assert.ok(!lines().includes('.benchkeeper') && !lines().some((l) => /^[^#].*[*?!]|^\//.test(l)));
   assert.ok(read(join(r.dir, '.git/info/exclude')).split('\n').includes('/.worktreeinclude'));
   assert.equal(r.git('status', '--porcelain').toString(), '');
@@ -378,7 +378,7 @@ test('a community skill is added again from the default branch only when an upda
   const r = repo();
   const first = plan(r, { agents: ['claude'], packs: ['frontend'] }).changes;
   apply(preview(first), r.ctx, { scope: r.dir, select: first.filter((c) => c.kind !== 'command').map((c) => c.id) });
-  for (const n of ['frontend-design', 'accessibility', 'webapp-testing']) { mkdirSync(join(r.dir, '.claude/skills', n), { recursive: true }); writeFileSync(join(r.dir, '.claude/skills', n, 'SKILL.md'), `---\nname: ${n}\n---\n`); }
+  for (const n of ['frontend-design', 'accessibility']) { mkdirSync(join(r.dir, '.claude/skills', n), { recursive: true }); writeFileSync(join(r.dir, '.claude/skills', n, 'SKILL.md'), `---\nname: ${n}\n---\n`); }
   const titles = (answers = {}) => plan(r, answers).changes.filter((c) => c.kind === 'command').map((c) => c.title);
   assert.deepEqual(titles(), []);
   const f = join(r.dir, STATE);

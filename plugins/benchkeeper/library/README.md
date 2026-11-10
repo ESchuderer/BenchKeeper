@@ -19,9 +19,9 @@ Folders next to this file.
 
 | Skills | Source (license) | Agents | Pick when |
 | --- | --- | --- | --- |
-| `frontend-design` | `anthropics/skills` | both | New UI or a visual redesign |
-| `mcp-builder` | `anthropics/skills` | both | The repository builds an MCP server |
-| `webapp-testing` | `anthropics/skills` (Apache-2.0) | both | A running web app checked by Python scripts in headless Chromium: clicks, screenshots, console logs (needs Python, pip and a browser download) |
+| `frontend-design` | `anthropics/skills` (Apache-2.0) | both | New UI or a visual redesign |
+| `mcp-builder` | `anthropics/skills` (Apache-2.0) | both | The repository builds an MCP server |
+| `webapp-testing` | `anthropics/skills` (Apache-2.0) | both | The agent checks a running web app in a browser and the machine has Python (the skill drives headless Chromium from Python scripts; it needs pip and a browser download) |
 
 ## Science
 
@@ -108,8 +108,8 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 | --- | --- | --- |
 | `ponytail` | plugins `ponytail@ponytail`, `ponytail@ponytail` | The smallest complete change per task: a behavior mode for Claude Code and Codex, set to level full. It adds about 1,000 tokens at each session start (its rules and a map of the repository) and about 700 per subagent |
 | `matt-pocock` (workflow owner) | plugins `mattpocock-skills@claude-plugins-official`, `mattpocock-skills@mattpocock`; then `/mattpocock-skills:setup-matt-pocock-skills` (Codex `$mattpocock-skills:setup-matt-pocock-skills`) | The project uses his grilling, spec, tickets, tdd and review skills |
-| `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility`, `webapp-testing` | The repository has a web UI |
-| `testing` | `playwright-best-practices`, `webapp-testing` | The repository has or adds browser tests |
+| `frontend` | `frontend-design`, `designing-technical-uis`, `accessibility` | The repository has a web UI |
+| `testing` | `playwright-best-practices` | The repository has or adds browser tests |
 | `security` | `gha-security-review`, `variant-analysis`, `sharp-edges` | CI workflows, a public API, or security findings to triage |
 | `science` | `experimental-design`, `statistical-analysis`, `uncertainty-and-units`, `scientific-visualization` | Research, measurement or data analysis code |
 | `docs` | `designing-technical-uis`, `mermaid-diagrams` | User-facing docs or diagrams |

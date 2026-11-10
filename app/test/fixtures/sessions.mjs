@@ -26,7 +26,7 @@ export function writeSessions(home, { root = '/work', title = TITLE, now = REF }
     { type: 'mode', mode: 'normal', sessionId: 's1' },
     human('2026-10-20T10:00:00.000Z', 'fix the cart total'),
     { ...common('2026-10-20T10:00:01.000Z'), type: 'attachment', attachment: { type: 'skill_listing', names: ['old-skill'] } },
-    { ...common('2026-10-20T10:00:02.000Z'), type: 'attachment', attachment: { type: 'skill_listing', names: ['mattpocock-skills:tdd', 'ponytail:ponytail', 'benchkeeper:workflow', 'frontend-design', 'designing-technical-uis', 'accessibility', 'webapp-testing'] } },
+    { ...common('2026-10-20T10:00:02.000Z'), type: 'attachment', attachment: { type: 'skill_listing', names: ['mattpocock-skills:tdd', 'ponytail:ponytail', 'benchkeeper:workflow', 'frontend-design', 'designing-technical-uis', 'accessibility'] } },
     assistant('2026-10-20T10:00:03.000Z', 'm1', [{ type: 'text', text: 'Reading the code.\nTier: standard (bug, known cause)\nNext the test.' }, { type: 'tool_use', id: 'k1', name: 'Skill', input: { skill: 'mattpocock-skills:tdd' } }]),
     // One message streams as several lines with the same usage: counted once.
     assistant('2026-10-20T10:00:04.000Z', 'm1', [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'cd app && npm test' } }]),

@@ -221,7 +221,7 @@ test('projectInstalls: per pack and skill the scope hint and the worst state on 
   assert.equal(rows.packs.docs.state, 'not installed');
   assert.deepEqual(rows.packs.ponytail, { scope: 'global', fixed: [], state: 'not installed', owner: false, hint: 'also global' });
   assert.equal(rows.packs['matt-pocock'].owner, true);
-  assert.deepEqual(rows.skills, { 'frontend-design': local, 'designing-technical-uis': local, accessibility: local, 'webapp-testing': local });
+  assert.deepEqual(rows.skills, { 'frontend-design': local, 'designing-technical-uis': local, accessibility: local });
   assert.deepEqual(rows.global, { plugin: [], packs: [], skills: [{ agent: 'Claude Code', count: 0 }] });
   // Codex offers plugins for the user only: that scope is fixed, and the pack is also global.
   const codex = projectInstalls(ctx, dir, { ...a, agents: ['claude', 'codex'] }).packs.ponytail.fixed;
@@ -248,14 +248,12 @@ test('projectInstalls: a pack at global scope reads the user\'s skill folder; a 
     'frontend-design': { state: 'installed', hint: 'also global' },
     'designing-technical-uis': { state: 'not installed', hint: 'also global' },
     accessibility: { state: 'off', hint: 'also global' },
-    'webapp-testing': { state: 'not installed', hint: 'also global' },
   });
   skill('designing-technical-uis');
-  skill('webapp-testing');
   rows = projectInstalls(ctx, dir, a);
   assert.equal(rows.packs.frontend.state, 'installed');
   assert.deepEqual(rows.global.packs, []);
-  assert.deepEqual(rows.global.skills, [{ agent: 'Claude Code', count: 4 }]);
+  assert.deepEqual(rows.global.skills, [{ agent: 'Claude Code', count: 3 }]);
   // Not selected here, installed for the user: the global block lists it.
   rows = projectInstalls(ctx, dir, { ...a, packs: [], disabled: [] });
   const title = libraryWith(ctx).packs.find((p) => p.id === 'frontend').title;

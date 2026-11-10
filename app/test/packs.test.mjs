@@ -19,7 +19,7 @@ test('own packs: save, export, import under a new id, remove', () => {
   assert.deepEqual(libraryWith(ctx).packs.at(-1), { kind: 'benchkeeper-pack', schemaVersion: 1, id: 'ui', title: 'UI', skills: ['accessibility', 'designing-technical-uis'], own: true });
   const file = exportPack(ctx, 'ui');
   assert.equal(importPack(ctx, file, 'ui2').id, 'ui2');
-  assert.equal(importPack(ctx, exportPack(ctx, 'frontend'), 'my-frontend').skills.length, 4);
+  assert.equal(importPack(ctx, exportPack(ctx, 'frontend'), 'my-frontend').skills.length, 3);
   removePack(ctx, 'ui');
   assert.deepEqual(ownPacks(ctx).map((p) => p.id).sort(), ['my-frontend', 'ui2']);
 });

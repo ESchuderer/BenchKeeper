@@ -26,7 +26,6 @@ import { cloneMissing } from './bootstrap.mjs';
 import { projectOrigins } from './origin.mjs';
 import { createPlan, listPresets, presetsWith, recommend, removePreset, savePreset } from './presets.mjs';
 import { exportProfile, importChoices, importPlan, installedPacks, readProfile } from './profile.mjs';
-import { sourceRows } from './frameworks.mjs';
 import { copied, exportPack, importPack, invalidPacks, libraryWith, packScope, packScopes, removePack, savePack, scopeText, skillFolder, userSkillRemove, userSkillWrite, warnings } from './packs.mjs';
 import { addProject, canon, confirmGit, gitCodeConfig, listProjects, packsInUse, projectsUsing, registeredEntry, registryProblem, relocateProject, removeProject, removeSetup, renameProject, scan, scopePlan, setupRemoval, skillUsers, status, unconfirmedGit, unshare, updateAll } from './projects.mjs';
 import { extensionLines, extensionsView } from './extensions.mjs';
@@ -125,14 +124,12 @@ Usage: benchkeeper <command> [options]
                                     restores the files of a run or one of its steps or units
   restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
   projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--machine on|off|none] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
-                    [--agent-file path]
                     [--share|--local] [--caller lint-js|lint-python|sonar]
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude), listed in .worktreeinclude for new worktrees;
                                     --share commits them (AGENTS.md block, CLAUDE.md);
-                                    --caller writes that repo-standards workflow file (never GitHub settings);
-                                    --agent-file picks agent files of a source (skills sources lists them; none clears)
+                                    --caller writes that repo-standards workflow file (never GitHub settings)
   projects create <dir> --preset <id> [--yes] [--all]
                                     a new folder set up from a preset, as a plan with a diff, then registered; refused for a
                                     folder that exists. Then a check recommends skills to turn off and packs to add, each with
@@ -172,7 +169,6 @@ Usage: benchkeeper <command> [options]
   skills edit <name> --file path [--yes]
                                     replaces the SKILL.md of your skill; projects with a copy get it on their next apply
   skills delete <name> [--yes]      removes your skill; refused while a project, own pack or preset names it
-  skills sources [list]             agent-file sources a project picks files from (--agent-file), with the evidence
   skills cli                        checks the registry signatures of the skills CLI release a skill install runs and
                                     prints the environment and npx command to start every skills CLI command with
   projects status [dir]             app version, install level, agents with the BenchKeeper plugin, and the setup state of
@@ -327,7 +323,7 @@ Usage: benchkeeper <command> [options]
                                     ~/.cache/benchkeeper/webhook.log, without the URL
 
 --json (doctor, verify, plan, history, history show, projects plan|list|status|scan|audit|advise,
-        automations list|show|diff|status|export, packs list|show|warnings, skills list|show|sources,
+        automations list|show|diff|status|export, packs list|show|warnings, skills list|show,
         rules list|show|check, extensions list, settings list|get, sessions board|list, sessions cache show, insights,
         profile export, knowledge show, accounts list|status, evals plan|results, inventory, dashboard;
         apply, projects apply|add|remove|rename|relocate|update, settings set, rules enable|disable,
@@ -347,7 +343,7 @@ Env (where the agent runs): container (default; host-agent or host when AGENTS.m
 const OPTIONS = {
   agents: { type: 'string' }, pack: { type: 'string', multiple: true }, yes: { type: 'boolean' }, all: { type: 'boolean' },
   step: { type: 'string' }, unit: { type: 'string' }, 'no-open': { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean', short: 'h' }, version: { type: 'boolean' },
-  env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, 'workflow-load': { type: 'boolean' }, 'no-workflow-load': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, 'agent-file': { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
+  env: { type: 'string' }, sandbox: { type: 'boolean' }, guards: { type: 'boolean' }, 'no-guards': { type: 'boolean' }, 'workflow-load': { type: 'boolean' }, 'no-workflow-load': { type: 'boolean' }, share: { type: 'boolean' }, local: { type: 'boolean' }, skill: { type: 'string', multiple: true }, tier: { type: 'string' }, project: { type: 'string' },
   narrative: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, unattended: { type: 'boolean' }, id: { type: 'string' },
   level: { type: 'string' }, target: { type: 'string', multiple: true }, model: { type: 'string' }, expected: { type: 'string' }, 'should-not': { type: 'boolean' }, transcript: { type: 'string' },
   description: { type: 'string' }, query: { type: 'string' }, run: { type: 'string' }, scope: { type: 'string' },
@@ -444,8 +440,6 @@ function show(c, out) {
   else if (c.diff) out.write(`${(isSettingsFile(c.path) ? redact(c.diff) : c.diff).split('\n').map((l) => `  ${l}`).join('\n')}\n`);
 }
 
-// A source as `skills sources` prints it, with the agent files to pick.
-const rowText = (f) => `${f.id.padEnd(14)} ${f.kind.padEnd(7)} ${f.title} (${f.pin}): ${f.verdict} ${f.hooks}${f.limits ? ` ${f.limits}` : ''} Evaluation: ${f.evaluation} README: ${f.readme}\n${f.files.map((x) => `${''.padEnd(14)} --agent-file ${x.path}: ${x.pickWhen} Source: ${x.url}\n`).join('')}`;
 // The exit code of a thrown error: a name or id that does not exist (status 404) or is malformed (400) is a usage error, a
 // file that cannot be read (unreadable) a read failure; both exit 2.
 const lookupCode = (e) => ([400, 404].includes(e.status) || e.unreadable ? 2 : 1);
@@ -577,7 +571,7 @@ const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`);
 const resultLine = (r) => `${r.target}  ${r.agent} ${r.agentVersion}${r.model ? ` ${r.model}` : ''}  miss ${pct(r.missRate)}  false trigger ${pct(r.falseTriggerRate)}`;
 const indent = (d) => (d ? `${d.trimEnd().split('\n').map((l) => `    ${l}`).join('\n')}\n` : '');
 
-const PLAN_FLAGS = 'agents env sandbox guards no-guards machine workflow-load no-workflow-load share local pack skill tier agent-file caller';
+const PLAN_FLAGS = 'agents env sandbox guards no-guards machine workflow-load no-workflow-load share local pack skill tier caller';
 // The flags each command reads besides --help and --json; a command without an entry is refused as unknown later.
 const FLAGS = {
   ui: 'no-open port', plan: 'agents pack level', apply: 'agents pack level yes all',
@@ -592,7 +586,7 @@ const FLAGS = {
   'projects plan': `${PLAN_FLAGS} project`, 'projects apply': `${PLAN_FLAGS} project yes all`,
   'packs list': '', 'packs show': '', 'packs save': 'skill', 'packs export': '', 'packs import': 'id', 'packs remove': '', 'packs warnings': '',
   'packs scope': 'agents yes all', 'packs enable': `${PLAN_FLAGS} project global yes all`, 'packs disable': `${PLAN_FLAGS} project global yes all`,
-  'skills list': 'project check agents library', 'skills show': '', 'skills sources': '', 'skills cli': '',
+  'skills list': 'project check agents library', 'skills show': '', 'skills cli': '',
   'skills new': 'file description yes all', 'skills edit': 'file yes all', 'skills delete': 'yes all',
   ...Object.fromEntries(['update', 'reset', 'remove', 'adopt', 'add', 'enable', 'disable'].map((s) => [`skills ${s}`, `${PLAN_FLAGS} project check yes all`])),
   'projects create': 'preset yes all', 'presets list': '', 'presets save': 'project', 'presets remove': '',
@@ -728,7 +722,6 @@ async function command(argv, { out, err, ask, ctx }) {
     for (const s of catalog(ctx).skills) out.write(`${s.name.padEnd(30)} ${String(s.projects).padStart(3)} project${s.projects === 1 ? ' ' : 's'}  ${s.source}${s.hidesYours ? '  hides your skill of this name: see benchkeeper doctor' : ''}\n`);
     return 0;
   }
-  if (cmd === 'skills' && arg === 'sources' && [undefined, 'list'].includes(positionals[2])) { out.write(sourceRows().map(rowText).join('')); return 0; }
   if (cmd === 'skills' && arg === 'cli') {
     // The same release, environment and signature check as a skill install of the app.
     const env = npxEnv();
@@ -1093,7 +1086,7 @@ function machineItems(ctx, o, cmd) {
 // extra: more answers (packOn, reset, ...); focus: skill names, the plan then holds only their changes.
 function planProject(ctx, o, dir, { focus, ...extra } = {}) {
   const pctx = projectCtx(ctx, dir);
-  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, machine: o.machine, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, agentFiles: o['agent-file']?.filter((f) => f !== 'none'), ...extra };
+  const answers = { agents: o.agents?.split(','), env: o.env, sandbox: o.sandbox, guards: o['no-guards'] ? false : o.guards ? true : undefined, machine: o.machine, workflowLoad: o['no-workflow-load'] ? false : o['workflow-load'] ? true : undefined, share: o.share ? true : o.local ? false : undefined, packs: o.pack, skills: o.skill, tier: o.tier, callers: o.caller, ...extra };
   // A --skill name that is no skill is refused like an unknown pack; a stored pick that no longer resolves only warns (#915).
   const unknown = (o.skill ?? []).filter((n) => !libraryWith(ctx).skills.some((s) => s.name === n));
   if (unknown.length) throw Object.assign(new Error(`unknown skill ${unknown.join(', ')}, see benchkeeper skills list --library`), { status: 404 });
@@ -1403,7 +1396,6 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     const setting = [...doc.settings, ...(doc.advanced ?? [])].find((x) => x.key === key);
     return setting ? emit({ agent, setting: scrub(setting) }) : fail(`${key} is not a key of ${l.name}'s reference or schema`);
   }
-  if (cmd === 'skills' && arg === 'sources') return surplus(positionals[2] === 'list' ? 3 : 2) ?? emit({ sources: sourceRows() });
   if (cmd === 'projects' && arg === 'scan') {
     const extra = surplus(3); if (extra !== undefined) return extra;
     const broken = registryFail();
@@ -1504,7 +1496,7 @@ async function jsonCommand({ cmd, arg, o, positionals, out, err, ctx }) {
     return emit({ profile: JSON.parse(exportProfile(ctx, { agents: selectedAgents(ctx, o.agents), packs: installedPacks(ctx), origins: o.origins ? projectOrigins(ctx, listProjects(ctx).map((x) => x.path)) : [], warn: (m) => err.write(`${m}\n`) })) });
   }
   if (!known(cmd) || (cmd === 'projects' && !Object.hasOwn(FLAGS, `projects ${arg}`))) return fail(unknownCommand(cmd, arg));
-  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list, show and sources, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
+  return fail('--json works with doctor, verify, plan, projects plan, history and history show, projects list, status, scan, audit and advise, packs list, show and warnings, skills list and show, rules list, show and check, extensions list, settings list and get, sessions board, list and cache, insights, profile export, knowledge show, accounts list and status, evals plan, run and results, inventory, dashboard, and the changing commands apply, projects apply, add, remove, rename, relocate and update, settings set, rules and packs enable and disable, skills update and undo');
 }
 
 const show1 = (v) => (v === undefined ? '-' : typeof v === 'string' ? v : JSON.stringify(v));

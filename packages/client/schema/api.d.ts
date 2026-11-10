@@ -2582,6 +2582,7 @@ export interface components {
                 /** Format: uri */
                 source: string;
             };
+            historyMoved: string | null;
         };
         SchemaVersion: number;
         Sha256: string;
@@ -3873,6 +3874,7 @@ export interface components {
                 /** Format: uri */
                 source: string;
             };
+            historyMoved: string | null;
         };
     };
     responses: never;

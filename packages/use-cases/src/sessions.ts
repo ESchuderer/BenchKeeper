@@ -1,6 +1,6 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentSession, SessionsBoard } from "@cedarloom/contracts";
+import type { SessionsBoard } from "@cedarloom/contracts";
 import { type BoardQuery, boardOf, type Logs, readSessions } from "@cedarloom/sessions";
 import { claudeHome, codexHome } from "./profiles.ts";
 
@@ -28,8 +28,8 @@ export const deleteHistory = ({ history }: Logs): void => {
 };
 
 // Requests that come while a read runs share it: a first read of many logs takes seconds.
-const reading = new Map<string, Promise<AgentSession[]>>();
-const sessionsOf = (logs: Logs): Promise<AgentSession[]> => {
+const reading = new Map<string, ReturnType<typeof readSessions>>();
+const sessionsOf = (logs: Logs): ReturnType<typeof readSessions> => {
   const key = JSON.stringify(logs);
   const running = reading.get(key) ?? readSessions(logs).finally(() => reading.delete(key));
   reading.set(key, running);
@@ -37,5 +37,7 @@ const sessionsOf = (logs: Logs): Promise<AgentSession[]> => {
 };
 
 /** The sessions board of a period and a project, read from the session logs on demand. */
-export const sessionsBoard = async (logs: Logs, query: BoardQuery, now = new Date()): Promise<SessionsBoard> =>
-  boardOf(await sessionsOf(logs), query, now);
+export const sessionsBoard = async (logs: Logs, query: BoardQuery, now = new Date()): Promise<SessionsBoard> => {
+  const { sessions, historyMoved } = await sessionsOf(logs);
+  return { ...boardOf(sessions, query, now), historyMoved };
+};

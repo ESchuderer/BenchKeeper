@@ -6085,6 +6085,12 @@
               "source"
             ],
             "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6096,7 +6102,8 @@
           "projects",
           "figures",
           "sessions",
-          "prices"
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       },
@@ -12145,6 +12152,12 @@
               "source"
             ],
             "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -12156,7 +12169,8 @@
           "projects",
           "figures",
           "sessions",
-          "prices"
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       }

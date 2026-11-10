@@ -544,6 +544,11 @@
     "sessions.empty": ["No session in this period."],
     "sessions.hint": ["Point at a day, or focus the chart and use the arrow keys, to read its values."],
     "sessions.historyDeleted": ["The history is deleted."],
+    "sessions.historyMoved": [
+      "The sessions history could not be read, so it was moved to ",
+      ["file"],
+      ". A new history starts with the sessions whose logs still exist."
+    ],
     "sessions.historyNote": [
       "The history keeps each session's project, start, agent time, tokens, cost and test result on this computer, so the board still counts it after the agent tools delete its log. It keeps no title or other text of a session."
     ],

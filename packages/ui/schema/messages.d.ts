@@ -227,6 +227,7 @@ export interface MessageValues {
   "sessions.empty": Record<never, never>;
   "sessions.hint": Record<never, never>;
   "sessions.historyDeleted": Record<never, never>;
+  "sessions.historyMoved": { file: string | number };
   "sessions.historyNote": Record<never, never>;
   "sessions.metric": Record<never, never>;
   "sessions.metricName": { metric: string };

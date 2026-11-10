@@ -78,11 +78,14 @@ const Figures = ({ board }: { board: Board }) => {
     [t("sessions.testsPassed"), passed, t("sessions.tested", { tested: f.tested })],
   ];
   return (
-    <SimpleGrid cols={{ base: 2, sm: 3 }}>
-      {items.map(([label, value, note]) => (
-        <Figure key={label} label={label} value={value} note={note} />
-      ))}
-    </SimpleGrid>
+    <>
+      {board.historyMoved !== null && <Alert>{t("sessions.historyMoved", { file: board.historyMoved })}</Alert>}
+      <SimpleGrid cols={{ base: 2, sm: 3 }}>
+        {items.map(([label, value, note]) => (
+          <Figure key={label} label={label} value={value} note={note} />
+        ))}
+      </SimpleGrid>
+    </>
   );
 };
 

@@ -21,13 +21,18 @@ const share = (value: number | null): string => (value === null ? "-" : `${Math.
 const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 // Paths and titles come from the session logs: shown with control characters escaped.
-const figures = ({ span, project, zone, first, prices, figures: f }: Board): string[] => [
+const figures = ({ span, project, zone, first, prices, historyMoved, figures: f }: Board): string[] => [
   `${plural(f.sessions, "session")} from ${span[0] ?? "-"} to ${span.at(-1) ?? "-"} (${zone}), ${project === null ? "every project" : shown(project)}`,
   `agent time ${time(f.busyMs)}, tokens ${compact.format(f.tokens)}, cost ${usd(f.costUSD)} (estimates: Claude Code's own, Codex at OpenAI's list prices of ${prices.date}; ${f.uncosted} without a cost)`,
   `days worked ${f.daysWorked} of ${f.days}, longest run ${plural(f.streak, "day")}; tests passed ${share(f.testsPassed)} of ${plural(f.tested, "session")} with a test run`,
   ...(first !== null && (span[0] ?? first) < first
     ? [`Claude Code data from ${first}: it deletes older transcripts, so earlier days show less work`]
     : []),
+  ...(historyMoved === null
+    ? []
+    : [
+        `the sessions history could not be read, so it was moved to ${historyMoved}; a new history starts with the sessions whose logs still exist`,
+      ]),
 ];
 
 const line = (s: Board["sessions"][number], at: Intl.DateTimeFormat): string =>

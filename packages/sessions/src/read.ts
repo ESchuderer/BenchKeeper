@@ -1,6 +1,6 @@
 import { globSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { AgentSession } from "@cedarloom/contracts";
+import type { AgentSession, SessionsBoard } from "@cedarloom/contracts";
 import { z } from "zod";
 import { readClaude } from "./claude.ts";
 import { readCodex } from "./codex.ts";
@@ -119,9 +119,10 @@ const summariesOf = async (logs: Logs, cached: Entries): Promise<{ files: Entrie
 /**
  * Every agent session of this machine, newest first, read from the session logs on demand. A log is parsed once per size
  * and modification time; the cache holds only logs that still exist, so it can be deleted at any time. Sessions whose
- * logs are gone come from the history, which, unlike the cache, cannot be rebuilt.
+ * logs are gone come from the history, which, unlike the cache, cannot be rebuilt; `historyMoved` names the file this
+ * read moved a history that is not JSON to (null: none).
  */
-export const readSessions = async (logs: Logs): Promise<AgentSession[]> => {
+export const readSessions = async (logs: Logs): Promise<Pick<SessionsBoard, "sessions" | "historyMoved">> => {
   const cached = readCache(logs.cache);
   const { files, read } = await summariesOf(logs, cached);
   if (logs.cache !== null && (read > 0 || Object.keys(files).length !== Object.keys(cached).length))
@@ -131,5 +132,6 @@ export const readSessions = async (logs: Logs): Promise<AgentSession[]> => {
     .filter((s) => s.agent === "claude-code")
     .map((s) => rowOf(s, s.tokens, { costUSD: s.costUSD, unpriced: [] }));
   const live = [...claude, ...codexRows(summaries)].filter((row) => row !== null);
-  return withHistory(live, logs.history).toSorted((a, b) => (a.start < b.start ? 1 : -1));
+  const { sessions, historyMoved } = withHistory(live, logs.history);
+  return { sessions: sessions.toSorted((a, b) => (a.start < b.start ? 1 : -1)), historyMoved };
 };

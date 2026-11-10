@@ -52,7 +52,8 @@ export type SessionFigures = z.infer<typeof SessionFigures>;
  * The sessions board of a period (`days` up to today; null: all time) and a project (null: every one): `span` holds its
  * days in `zone`, oldest first; `first` is the first day of Claude Code data: the oldest Claude Code session the
  * history kept (else the oldest transcript), as Claude Code deletes old transcripts; `projects` are ranked by sessions
- * over all time; `sessions` are newest first; `prices` dates Codex's price table.
+ * over all time; `sessions` are newest first; `prices` dates Codex's price table; `historyMoved`: the file this read
+ * moved an unreadable sessions history to, so the board can say so once; null otherwise.
  */
 export const SessionsBoard = z
   .strictObject({
@@ -65,6 +66,7 @@ export const SessionsBoard = z
     figures: SessionFigures,
     sessions: z.array(AgentSession),
     prices: z.strictObject({ date: z.iso.date(), source: z.url() }),
+    historyMoved: z.string().nullable(),
   })
   .register(contracts, { id: "SessionsBoard" });
 export type SessionsBoard = z.infer<typeof SessionsBoard>;

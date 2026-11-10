@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, renameSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import { AgentSession } from "@cedarloom/contracts";
+import { AgentSession, type SessionsBoard } from "@cedarloom/contracts";
 import { z } from "zod";
 import { writePrivate } from "./private-file.ts";
 
@@ -43,33 +43,51 @@ const sessionOf = (row: Row): AgentSession => ({
   unpriced: [],
 });
 
-// Missing, or no JSON as a cut-off write leaves it: a new history. Unreadable now (no permission, a rename on Windows) or
-// another version's: null, never shown or written over. A row this version cannot read goes at the next write.
-const readHistory = (file: string): Row[] | null => {
+type Kept = { rows: Row[]; moved: string | null };
+
+// As Chromium's JsonPrefStore does: its rows stay for recovery by hand, not overwritten; null leaves an unmovable one.
+const moveAside = (file: string): Kept | null => {
+  try {
+    renameSync(file, `${file}.bad`);
+    return { rows: [], moved: `${file}.bad` };
+  } catch {
+    return null;
+  }
+};
+
+// Missing: a new history; no JSON (a cut-off write, a stray byte): moved to `.bad`, replacing an older one, and a new
+// history. Unreadable now (no permission, a rename on Windows) or another version's: null, never shown or written over.
+// A row this version cannot read goes at the next write.
+const readHistory = (file: string): Kept | null => {
   let text: string;
   try {
     text = readFileSync(file, "utf8");
   } catch (error) {
-    return error instanceof Error && "code" in error && error.code === "ENOENT" ? [] : null;
+    return error instanceof Error && "code" in error && error.code === "ENOENT" ? { rows: [], moved: null } : null;
   }
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
-    return [];
+    return moveAside(file);
   }
-  return History.safeParse(json).data?.sessions.flatMap((row) => Row.safeParse(row).data ?? []) ?? null;
+  const rows = History.safeParse(json).data?.sessions.flatMap((row) => Row.safeParse(row).data ?? []);
+  return rows === undefined ? null : { rows, moved: null };
 };
 
 /**
  * The live sessions, and from the history those whose logs are gone; the history then holds each live session's
- * figures as they are now. Read after the logs, so a delete during a long read holds.
+ * figures as they are now. Read after the logs, so a delete during a long read holds. `historyMoved`: the `.bad` file
+ * this read moved a history that is not JSON to, else null.
  */
 // shortcut: no lock, the last of two writers wins and a delete in the milliseconds before a write is undone; lock the file if that shows.
-export const withHistory = (live: AgentSession[], file: string | null): AgentSession[] => {
+export const withHistory = (
+  live: AgentSession[],
+  file: string | null,
+): Pick<SessionsBoard, "sessions" | "historyMoved"> => {
   const kept = file === null ? null : readHistory(file);
-  if (file === null || kept === null) return live;
-  const rows = new Map(kept.map((row) => [keyOf(row), row]));
+  if (file === null || kept === null) return { sessions: live, historyMoved: null };
+  const rows = new Map(kept.rows.map((row) => [keyOf(row), row]));
   let changed = false;
   for (const session of live) {
     const row = rowOf(session);
@@ -78,5 +96,6 @@ export const withHistory = (live: AgentSession[], file: string | null): AgentSes
   }
   if (changed) writePrivate(file, { version: VERSION, sessions: [...rows.values()] });
   const own = new Set(live.map(keyOf));
-  return [...live, ...[...rows.values()].filter((row) => !own.has(keyOf(row))).map(sessionOf)];
+  const gone = [...rows.values()].filter((row) => !own.has(keyOf(row))).map(sessionOf);
+  return { sessions: [...live, ...gone], historyMoved: kept.moved };
 };

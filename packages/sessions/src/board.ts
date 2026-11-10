@@ -48,7 +48,7 @@ export const boardOf = (
   all: readonly AgentSession[],
   { days, project, ...query }: BoardQuery,
   now: Date,
-): SessionsBoard => {
+): Omit<SessionsBoard, "historyMoved"> => {
   // An unknown zone (TZ set but empty gives Etc/Unknown) counts in UTC, and the board says so.
   const zone = zoneOf(query.zone);
   const dayOf = dayIn(zone);

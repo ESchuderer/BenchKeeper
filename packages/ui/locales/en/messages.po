@@ -970,3 +970,7 @@ msgstr "Cancel"
 #. js-lingui-explicit-id
 msgid "sessions.historyDeleted"
 msgstr "The history is deleted."
+
+#. js-lingui-explicit-id
+msgid "sessions.historyMoved"
+msgstr "The sessions history could not be read, so it was moved to {file}. A new history starts with the sessions whose logs still exist."

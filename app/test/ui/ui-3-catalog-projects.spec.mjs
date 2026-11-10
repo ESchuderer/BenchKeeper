@@ -497,7 +497,7 @@ test.describe('views', () => {
     await expect(global).toContainText('BenchKeeper plugin');
     await expect(global.getByRole('switch')).toHaveCount(0);
     await expect(global.getByRole('link', { name: 'Change them in Global setup' })).toHaveAttribute('href', '#/agents');
-    // A skill switched off by keyboard; switched on again, the plan is as before.
+    // A skill switches off and on again by keyboard.
     const skill = page.getByRole('region', { name: 'Skills' }).getByRole('switch').first();
     await skill.focus();
     await page.keyboard.press('Space');

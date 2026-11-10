@@ -4,7 +4,6 @@ import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { agent } from './agents.mjs';
 import { appVersion } from './content.mjs';
-import { keptFrom } from './frameworks.mjs';
 import { containerProjects } from './level.mjs';
 import { PACK_SCOPES, globalSkillPacks, libraryWith, ownPacks, packScope, savePack, scopeText, storedScopes } from './packs.mjs';
 import { addProject, listProjects } from './projects.mjs';
@@ -15,7 +14,7 @@ import { PLUGINS, globalPlan, installedPlugins } from './steps/global.mjs';
 import { projectCtx, projectPlan, readState } from './steps/project.mjs';
 
 const PROFILE_SCHEMA = 1;
-const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled', 'guards', 'workflowLoad', 'agentFiles'];
+const ANSWERS = ['agents', 'env', 'sandbox', 'share', 'packs', 'singles', 'tier', 'paths', 'disabled', 'guards', 'workflowLoad'];
 // The answers of a state file that a profile or a preset keeps.
 export const savedAnswers = (s) => Object.fromEntries(ANSWERS.filter((k) => k in s).map((k) => [k, s[k]]));
 
@@ -55,7 +54,7 @@ export function readProfile(text) {
 }
 
 // Saved answers (a profile's, a preset's) as projectPlan takes them.
-export const planAnswers = (answers) => ({ ...answers, skills: answers.singles, singles: undefined, agentFiles: keptFrom(answers).agentFiles });
+export const planAnswers = (answers) => ({ ...answers, skills: answers.singles, singles: undefined });
 
 // The import plan: the global changes for the profile's agents and packs, plus the project setup of registered paths that
 // exist here and have no state file yet, both against the pack scopes saved here. Paths missing here are listed and skipped,

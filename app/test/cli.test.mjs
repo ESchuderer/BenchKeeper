@@ -161,7 +161,7 @@ test('help per command; an unknown command is one line on stderr', async () => {
     assert.ok(lines.length > 1 && lines.every((l) => l.startsWith('   ') || l.startsWith(`  ${noun} `)), args.join(' '));
     if (verb) assert.ok(lines.filter((l) => !l.startsWith('   ')).every((l) => l.includes(verb)), args.join(' '));
   }
-  assert.match(helpFor(['projects', 'plan']), /^ {2}projects plan\|apply .*\n {20}\[--agent-file path\]\n {20}\[--share\|--local\][^\n]*\n {36}project setup in dir/);
+  assert.match(helpFor(['projects', 'plan']), /^ {2}projects plan\|apply .*\n {20}\[--share\|--local\][^\n]*\n {36}project setup in dir/);
   assert.doesNotMatch(helpFor(['projects', 'plan']), /projects update|Usage:/);
   assert.match(helpFor(['packs', 'remove']), /^ {2}packs \[list\|show/);
   const c = cli();

@@ -471,7 +471,7 @@ test.describe('views', () => {
     await page.unroute(/\/api\/history(\?|$)/);
   });
 
-  test('Project Installs tab: packs, workflow owner, skills and agent files each with a switch, scope hint and state; the global block once with its link; a switch by keyboard changes the plan; 390 px', async ({ page }) => {
+  test('Project Installs tab: packs, workflow owner and skills each with a switch, scope hint and state; the global block once with its link; a switch by keyboard changes the plan; 390 px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await page.goto('/#/projects');
     await page.getByText('Cards', { exact: true }).click();
@@ -497,17 +497,15 @@ test.describe('views', () => {
     await expect(global).toContainText('BenchKeeper plugin');
     await expect(global.getByRole('switch')).toHaveCount(0);
     await expect(global.getByRole('link', { name: 'Change them in Global setup' })).toHaveAttribute('href', '#/agents');
-    // An agent file switched on by keyboard: the plan fetches it; switched off again, nothing is written.
-    const file = page.getByRole('region', { name: 'Agent files' }).getByRole('switch').first();
-    const changes = page.getByRole('region', { name: 'Changes', exact: true });
-    await file.focus();
+    // A skill switched off by keyboard; switched on again, the plan is as before.
+    const skill = page.getByRole('region', { name: 'Skills' }).getByRole('switch').first();
+    await skill.focus();
     await page.keyboard.press('Space');
-    await expect(file).toBeChecked();
-    await expect(changes).toContainText('Agent engineering-frontend-developer');
+    await expect(skill).not.toBeChecked();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await noAxe(page);
     await page.keyboard.press('Space');
-    await expect(file).not.toBeChecked();
+    await expect(skill).toBeChecked();
   });
 
   test('Project page: Change setup is the one button and the other actions sit in the More menu, by keyboard; the packs not in use are a grid of cards, one column at 390 px', async ({ page }) => {
@@ -549,7 +547,6 @@ test.describe('views', () => {
     await page.getByRole('tab', { name: 'Installs' }).click();
     const skill = page.getByRole('region', { name: 'Skills' }).getByRole('switch').first();
     const pack = page.getByRole('region', { name: 'Packs' }).getByRole('switch', { name: 'Frontend' });
-    const file = page.getByRole('region', { name: 'Agent files' }).getByRole('switch').first();
     await expect(skill).toBeChecked();
     // Two quick clicks on one switch: the second lands while the plan loads and is ignored; once the plan is back, a click
     // turns the skill on again and the plan asks for no change.
@@ -574,22 +571,22 @@ test.describe('views', () => {
     const done = new Promise((r) => { finish = r; });
     await page.route(/\/api\/apply$/, (route) => route.fulfill({ json: { job: 'stub-job', total: 1 } }));
     await page.route(/\/api\/job\?id=stub-job$/, async (route) => route.fulfill({ json: await Promise.race([done, { done: false, run: { entries: [] } }]) }));
-    await file.click();
+    await skill.click();
     const changes = page.getByRole('region', { name: 'Changes', exact: true });
     await changes.getByRole('button', { name: /^Apply \d+ changes?$/ }).click();
     await expect(changes.getByRole('region', { name: 'Apply progress' })).toBeFocused();
-    for (const s of [skill, pack, file]) await expect(s).toBeDisabled();
+    for (const s of [skill, pack]) await expect(s).toBeDisabled();
     finish({ done: true, run: { id: 'stub-run', status: 'done', entries: [] }, output: {} });
     await page.getByRole('button', { name: 'Plan again' }).click();
-    for (const s of [skill, pack, file]) await expect(s).toBeEnabled();
-    await expect(file).not.toBeChecked();
+    for (const s of [skill, pack]) await expect(s).toBeEnabled();
+    await expect(skill).toBeChecked();
     await page.unroute(/\/api\/apply$/);
     await page.unroute(/\/api\/job\?id=stub-job$/);
   });
 
   test('Global setup: installed agents as rows, the others folded with every sentence; parts that need attention open; only global items, the pointer to Projects and the Accounts link; each per-project control is in the Installs tab; a part opens by keyboard; 390 px', async ({ page }) => {
     // The per-project controls, each a region of switches in a project's Installs tab and none on the global page.
-    const MOVED = ['Packs', 'Workflow owner', 'Skills', 'Agent files'];
+    const MOVED = ['Packs', 'Workflow owner', 'Skills'];
     await page.setViewportSize({ width: 390, height: 900 });
     await page.goto('/#/agents');
     const main = page.getByRole('main');
@@ -1032,8 +1029,6 @@ test.describe('views', () => {
     // Community skills need npx, which the fixture lacks: no pack here.
     await expect(drawer.getByRole('checkbox', { name: /^Frontend/ })).not.toBeChecked();
     await noAxe(page);
-    // Agent files are a pick of their own; none is preselected.
-    await expect(drawer.getByRole('checkbox', { name: 'engineering-frontend-developer' })).not.toBeChecked();
     // An agent suggests skills only after the user agrees to its session.
     await drawer.getByRole('button', { name: 'Suggest with an agent' }).click();
     const ask = page.getByRole('dialog', { name: 'Start an agent session?' });

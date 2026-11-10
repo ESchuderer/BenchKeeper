@@ -12,10 +12,10 @@ const short = (ref) => ref?.slice(0, 12);
 // and the five facts of the explainer (summary, plain words, impact, default, current). A row with `details` (a pack: the
 // accessible name of its Details button) is one line, the summary beside the switch, the other facts shown on Details. A
 // busy switch ignores clicks but stays focusable (a disabled input loses the keyboard focus).
-export function InstallRow({ label, checked, onChange, disabled, busy, hint, state, fixed = [], facts, why, details, card }) {
+export function InstallRow({ label, checked, onChange, busy, hint, state, fixed = [], facts, details, card }) {
   const [open, setOpen] = useState(false);
   const id = useId();
-  const toggle = <Switch checked={checked} onChange={busy ? () => {} : onChange} disabled={disabled} aria-disabled={busy || undefined} style={busy ? { opacity: 0.6 } : undefined} label={label} />;
+  const toggle = <Switch checked={checked} onChange={busy ? () => {} : onChange} aria-disabled={busy || undefined} style={busy ? { opacity: 0.6 } : undefined} label={label} />;
   const chips = <Group gap={4}><Badge variant="default" size="sm">{hint}</Badge><StateBadge state={state} /></Group>;
   const more = (
     <>
@@ -43,7 +43,6 @@ export function InstallRow({ label, checked, onChange, disabled, busy, hint, sta
         ) : (
           <Group justify="space-between" align="flex-start" gap="xs">{toggle}{chips}</Group>
         )}
-        {why && <Text size="xs">Fixed: {why}.</Text>}
         {fixed.map((f) => <Text key={f.agent} size="xs">{f.agent}: {f.scope === 'global' ? 'also global' : 'only this project'}, fixed: {f.reason}.</Text>)}
         {details ? (
           open && <Stack id={id} gap={4} style={{ overflowWrap: 'anywhere' }}>{card && chips}{more}</Stack>

@@ -1,13 +1,12 @@
 // Coordinator context rotation (orchestrating-projects): when the session's project root holds the coordinator's handoff
 // file and the file names this session's Orca terminal, an idle Stop above the plugin's threshold clears the context
 // with /clear and submits a resume prompt, and a clear or compaction hands the file back to the model, with the git drift
-// since it was written. Otherwise every hook here passes. It reads and writes that one file, reads git and sends nothing.
+// since the coordinator wrote it. Otherwise every hook here passes. It reads and writes that one file, reads git and sends
+// nothing.
 import type { EngineInterface, Register } from 'claude-code'
 
-import { FILE, RUNS, STATUS_ARGS, changedPaths, commitArgs, drift, mine, restored } from './handoff.mjs'
+import { FILE, RUNS, STATUS, STATUS_ARGS, TOP_ARGS, changedPaths, commitArgs, drift, fingerprint, mine, restored, stamped, statusBlock } from './handoff.mjs'
 
-const OPEN = '<!-- benchkeeper:status -->'
-const CLOSE = '<!-- /benchkeeper:status -->'
 // A second /clear while the restore hook of the first still runs cuts that hook off and loses its context.
 const GAP_MS = 10 * 60 * 1000
 const resume = (size: string) => `BenchKeeper cleared this coordinator's context at ${size} to save tokens. Run the Resume steps of the handoff file in your context now, before anything else, then continue from its Next section.`
@@ -23,11 +22,10 @@ let turns = 0
 
 // The text with its status block holding only this line, the block appended when the text has none.
 export function withStatus(text: string, line: string): string {
-  const block = `${OPEN}\n${line}\n${CLOSE}`
-  const start = text.lastIndexOf(OPEN)
-  const end = start < 0 ? -1 : text.indexOf(CLOSE, start)
-  if (end < 0) return `${text.trimEnd()}\n\n${block}\n`
-  return text.slice(0, start) + block + text.slice(end + CLOSE.length)
+  const block = `${STATUS[0]}\n${line}\n${STATUS[1]}`
+  const at = statusBlock(text)
+  if (at === null) return `${text.trimEnd()}\n\n${block}\n`
+  return text.slice(0, at[0]) + block + text.slice(at[1])
 }
 
 const handoff = async ($: EngineInterface) => `${await $.session.root()}/${FILE}`
@@ -59,14 +57,16 @@ const vetted = async ($: EngineInterface) => {
   const text = await own($)
   return text !== null && (await safe($)) ? text : null
 }
-// Any failure of git or a stat means no drift, never a failed restore.
-async function drifted($: EngineInterface) {
+// The drift since the coordinator last wrote the file: the time the status line carries, else the file's mtime. Any
+// failure of git or a stat means no drift, never a failed restore.
+async function drifted($: EngineInterface, text: string) {
   try {
     const root = await $.session.root()
-    const since = (await $.fs.stat(await handoff($))).mtimeMs
-    const [log, status] = await Promise.all([$.process.run(['git', ...commitArgs(since)], { cwd: root }), $.process.run(['git', ...STATUS_ARGS], { cwd: root })])
-    if (log.exitCode !== 0 || status.exitCode !== 0) return ''
-    const stats = await Promise.all(changedPaths(status.stdout).map(async (path) => ({ path, stat: await $.fs.stat(`${root}/${path}`).catch(() => null) })))
+    const since = stamped(text)?.edited ?? (await $.fs.stat(await handoff($))).mtimeMs
+    const run = (args: string[]) => $.process.run(['git', ...args], { cwd: root })
+    const [top, log, status] = await Promise.all([run(TOP_ARGS), run(commitArgs(since)), run(STATUS_ARGS)])
+    if (top.exitCode !== 0 || log.exitCode !== 0 || status.exitCode !== 0) return ''
+    const stats = await Promise.all(changedPaths(status.stdout).map(async (path) => ({ path, stat: await $.fs.stat(`${top.stdout.trim()}/${path}`).catch(() => null) })))
     return drift(since, log.stdout.split('\n').filter(Boolean), stats.filter(({ stat }) => stat !== null && stat.mtimeMs > since).map(({ path }) => path))
   } catch {
     return ''
@@ -74,10 +74,16 @@ async function drifted($: EngineInterface) {
 }
 const stamp = (ms: number) => new Date(ms).toISOString()
 
-// Rewrites the status line of the vetted handoff text.
+// Rewrites the status line of the vetted handoff text. Its last fields carry when the coordinator last wrote the file: the
+// file's mtime, unless the previous status line saw the same text outside the block, then the time that line carried.
 async function status($: EngineInterface, text: string, event: string, tokens: number | undefined) {
   const context = tokens === undefined ? 'unread' : `${tokens} tokens`
-  await $.fs.write(await handoff($), withStatus(text, `${stamp(await $.clock.now())} ${event}; context: ${context}; last clear: ${lastEnd === null ? 'none' : stamp(lastEnd)}`))
+  const path = await handoff($)
+  const [now, { mtimeMs }] = await Promise.all([$.clock.now(), $.fs.stat(path)])
+  const print = fingerprint(text)
+  const previous = stamped(text)
+  const edited = previous !== null && previous.text === print ? previous.edited : mtimeMs
+  await $.fs.write(path, withStatus(text, `${stamp(now)} ${event}; context: ${context}; last clear: ${lastEnd === null ? 'none' : stamp(lastEnd)}; edited: ${stamp(edited)}; text: ${print}`))
 }
 
 // A row of the transcript the person sees and the model does not read.
@@ -145,7 +151,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     const text = await vetted($)
     if (text === null) return result
-    return { ...result, additionalContext: [...(result.additionalContext ?? []), restored(text, await drifted($))] }
+    return { ...result, additionalContext: [...(result.additionalContext ?? []), restored(text, await drifted($, text))] }
   }).catch(($, e, next) => next(e))
 
   on('classic.PreCompact', async ($, e, next) => {

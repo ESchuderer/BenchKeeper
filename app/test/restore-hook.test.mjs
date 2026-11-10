@@ -30,6 +30,23 @@ test('restore hook: hands back the file its terminal owns, cut to stay below 10,
   assert.ok(restore(folder({ text: OWNED + 'x'.repeat(20_000) })).length < 10_000);
 });
 
+test('restore hook: the drift counts from the edited stamp of the status line, with paths from the repository root', () => {
+  // A commit of 2010 and a file changed now in the repository root; the session's folder is sub/, and its handoff file,
+  // written now, carries the coordinator's own last write as 2000.
+  const root = folder();
+  const dated = { ...process.env, GIT_AUTHOR_DATE: '2010-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2010-01-01T00:00:00Z' };
+  writeFileSync(join(root, 'README.md'), 'a');
+  execFileSync('git', ['-C', root, '-c', 'user.name=t', '-c', 'user.email=t@t.test', 'add', 'README.md']);
+  execFileSync('git', ['-C', root, '-c', 'user.name=t', '-c', 'user.email=t@t.test', 'commit', '-q', '-m', 'first'], { env: dated });
+  writeFileSync(join(root, 'README.md'), 'b');
+  mkdirSync(join(root, 'sub', RUNS), { recursive: true });
+  writeFileSync(join(root, 'sub', RUNS, 'handoff.md'), `${OWNED}\n<!-- benchkeeper:status -->\n2026-01-01T00:00:00.000Z compacting; context: 1 tokens; last clear: none; edited: 2000-01-01T00:00:00.000Z; text: 00000000\n<!-- /benchkeeper:status -->\n`);
+  const restored = restore(join(root, 'sub'));
+  assert.match(restored, /\n## Drift since this file was written \(2000-01-01T00:00:00\.000Z, /);
+  assert.match(restored, /\n[0-9a-f]+ 2010-01-01T00:00:00Z first\n/);
+  assert.match(restored, /\n- `README\.md`\n/);
+});
+
 test('restore hook: prints nothing for another terminal, a linked file or folder, a tracked file, a folder outside git, or bad input', () => {
   assert.equal(restore(folder(), { terminal: 'term-b' }), '');
   const linked = folder();

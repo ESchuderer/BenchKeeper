@@ -1,10 +1,10 @@
-// Codex SessionStart after a clear or compaction: hands the coordinator's handoff file back with the git drift since it was
-// written, as the Claude Code module does.
+// Codex SessionStart after a clear or compaction: hands the coordinator's handoff file back with the git drift since the
+// coordinator wrote it, as the Claude Code module does.
 import { execFileSync } from 'node:child_process';
 import { constants, fstatSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { text } from 'node:stream/consumers';
-import { FILE, RUNS, STATUS_ARGS, changedPaths, commitArgs, drift, mine, restored } from './handoff.mjs';
+import { FILE, RUNS, STATUS_ARGS, TOP_ARGS, changedPaths, commitArgs, drift, mine, restored, stamped } from './handoff.mjs';
 
 // git from an absolute folder of PATH, never by its bare name: Windows looks in the working folder, a project, first.
 const git = () =>
@@ -31,15 +31,17 @@ const tracked = (cwd) => {
   }
 };
 
-// Any failure means no drift, never a failed restore, as in the Claude Code module.
-const drifted = (cwd, handle) => {
+// The drift since the coordinator last wrote the file: the time the status line carries, else the file's mtime. Any
+// failure means no drift, never a failed restore, as in the Claude Code module.
+const drifted = (cwd, handle, handoff) => {
   const program = git();
   if (!program) return '';
   const run = (args) => execFileSync(program, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   try {
-    const { mtimeMs } = fstatSync(handle);
-    const paths = changedPaths(run(STATUS_ARGS)).filter((path) => (statSync(join(cwd, path), { throwIfNoEntry: false })?.mtimeMs ?? 0) > mtimeMs);
-    return drift(mtimeMs, run(commitArgs(mtimeMs)).split('\n').filter(Boolean), paths);
+    const since = stamped(handoff)?.edited ?? fstatSync(handle).mtimeMs;
+    const top = run(TOP_ARGS).trim();
+    const paths = changedPaths(run(STATUS_ARGS)).filter((path) => (statSync(join(top, path), { throwIfNoEntry: false })?.mtimeMs ?? 0) > since);
+    return drift(since, run(commitArgs(since)).split('\n').filter(Boolean), paths);
   } catch {
     return '';
   }
@@ -56,7 +58,7 @@ try {
   if (!fstatSync(handle).isFile() || realpathSync(path) !== join(realpathSync(cwd), FILE)) process.exit(0);
   handoff = readFileSync(handle, 'utf8');
   if (!mine(handoff, process.env.ORCA_TERMINAL_HANDLE) || tracked(cwd)) process.exit(0);
-  drifting = drifted(cwd, handle);
+  drifting = drifted(cwd, handle, handoff);
 } catch {
   process.exit(0);
 }

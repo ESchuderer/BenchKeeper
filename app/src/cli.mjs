@@ -899,7 +899,7 @@ async function command(argv, { out, err, ask, ctx }) {
   if (cmd === 'sessions' && arg === 'list') {
     const runs = byRun(await scanSessions(ctx)).filter((x) => o.run === undefined || x.run === o.run);
     if (o.run !== undefined && !runs.length) { out.write(`no sessions of run ${o.run}\n`); return 2; }
-    const line = (x) => `${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${x.costUSD == null ? 'cost not recorded' : `$${x.costUSD.toFixed(2)}`}, ${x.tokens} tokens${x.models.length ? `, models: ${x.models.join(', ')}` : ''}`;
+    const line = (x) => `${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${x.costUSD == null ? 'cost not recorded' : `$${x.costUSD.toFixed(2)}`}, ${x.tokens} tokens${x.models.length ? `, models: ${x.models.join(', ').replace(/[\p{Cc}\p{Cf}]/gu, '')}` : ''}`;
     for (const x of runs) {
       out.write(`run ${x.run ?? 'not recorded'}: ${line(x)}\n`);
       if (o.run !== undefined) for (const t of x.tasks) out.write(`  task ${t.task ?? 'not recorded'}: ${line(t)}\n`);

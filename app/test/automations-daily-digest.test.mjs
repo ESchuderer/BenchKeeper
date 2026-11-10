@@ -77,6 +77,6 @@ test('daily-digest precheck: runs without a digest, then only when a pull reques
   assert.deepEqual(aliased, [`pr list --repo o/r ${noTwelve}`, `issue list --repo o/r ${noTwelve}`, `pr list --repo x/y ${noTwelve}`, `issue list --repo x/y ${noTwelve}`], 'an origin that names no GitHub repository: the digest issue is left out of every listed repository');
   const gitlab = mkdtempSync(join(tmpdir(), 'bk-dd-gitlab-'));
   initRepo(gitlab)('remote', 'add', 'origin', 'git@gitlab.com:team/proj.git');
-  assert.deepEqual(precheck({}, { 'pr list': 1 }, 3600, gitlab), { code: 1, log: [] }, 'empty repos, an origin off github.com: no gh call');
+  assert.match(precheck({}, {}, 3600, gitlab).log[0], /^pr list --state all /, 'empty repos, an origin off github.com: gh\'s default, never its owner/name as a GitHub repository');
   assert.equal(precheck({}, { 'pr list': 'error' }, 3600).code, 1, 'a failing gh skips the run');
 });

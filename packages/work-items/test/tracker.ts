@@ -15,9 +15,13 @@ const OUTAGE = {
   finding: { code: "tracker.unavailable", params: { error: "ETIMEDOUT", retryAfter: null, rateLimitReset: null } },
 } as const;
 
-/** A tracker in memory: issues with labels and comments, and one fault for the next write. */
+/**
+ * A tracker in memory: the hub's labels with their colors, issues with labels and comments, and one fault for the next
+ * write.
+ */
 export class FakeTracker implements Tracker {
   readonly hub = "acme/tracker";
+  readonly hubLabels = new Map<string, string>();
   readonly #issues = new Map<string, Issue>();
   #lastId = 1000;
   fault: Fault | null = null;
@@ -65,17 +69,41 @@ export class FakeTracker implements Tracker {
     });
   }
 
+  async labels(): Promise<Result<string[]>> {
+    return { ok: true, value: [...this.hubLabels.keys()] };
+  }
+
+  async createLabel(label: string, color: string): Promise<Result<boolean>> {
+    return this.#fail(() => {
+      if (this.hubLabels.has(label)) return false;
+      this.hubLabels.set(label, color);
+      return true;
+    });
+  }
+
+  async deleteLabel(label: string): Promise<Result<null>> {
+    return this.#fail(() => {
+      this.hubLabels.delete(label);
+      for (const issue of this.#issues.values()) issue.labels.delete(label);
+      return null;
+    });
+  }
+
   #remote(ref: IssueRef, id: number): RemoteComment {
     return { id, url: `https://github.com/${ref.repo}/issues/${ref.number}#issuecomment-${id}` };
   }
 
   #write<T>(ref: IssueRef, write: (issue: Issue) => T): Result<T> {
+    return this.#fail(() => write(this.issue(ref)));
+  }
+
+  #fail<T>(write: () => T): Result<T> {
     const fault = this.fault;
     this.fault = null;
     if (fault === "refuse")
       return { ok: false, finding: { code: "tracker.refused", params: { status: 404, error: "Not Found" } } };
     if (fault === "outage") return OUTAGE;
-    const value = write(this.issue(ref));
+    const value = write();
     if (fault === "lose-answer") return OUTAGE;
     if (fault === "garble") return { ok: false, finding: { code: "tracker.invalid-answer", params: { error: "id" } } };
     if (fault === "crash") throw new Error("the sender ended");

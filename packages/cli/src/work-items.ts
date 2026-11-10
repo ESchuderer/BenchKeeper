@@ -16,6 +16,12 @@ const issueRef = (value: string): IssueRef => {
 };
 
 const what = (intent: Intent): string => {
+  if (intent.kind === "create-label")
+    return `create label ${shown(intent.label, 100)} (${intent.color}) on ${intent.repo}`;
+  // The undo's preview names its cost: GitHub takes a deleted label off every issue.
+  if (intent.kind === "delete-label") {
+    return `delete label ${shown(intent.label, 100)} from ${intent.repo} and every issue that has it`;
+  }
   const at = `${intent.issue.repo}#${intent.issue.number}`;
   if (intent.kind === "comment") return `comment on ${at}: ${shown(intent.body, 200)}`;
   if (intent.kind === "uncomment") return `delete comment ${intent.comment} of ${at}`;
@@ -78,12 +84,40 @@ const listed = async (ctx: Context, read: Promise<Result<OutboxEntry[]>>, none: 
 };
 
 // The hub's tracker with the hub-issues token from the OS credential store; the token goes to GitHub only.
-const send = async (ctx: Context): Promise<number> => {
+const hubTracker = async (ctx: Context): Promise<Result<ReturnType<typeof githubTracker>>> => {
   const hub = useCases.hubOf(ctx.config);
-  if (!hub.ok) return refused(ctx, "outbox", hub.finding);
+  if (!hub.ok) return hub;
   const token = await useCases.readSecret(useCases.HUB_ISSUES, ctx.io.keyring);
-  if (!token.ok) return refused(ctx, "outbox", token.finding);
-  return listed(ctx, useCases.sendOutbox(ctx.state, githubTracker(hub.value, token.value)), "Nothing was due.");
+  return token.ok ? { ok: true, value: githubTracker(hub.value, token.value) } : token;
+};
+
+const send = async (ctx: Context): Promise<number> => {
+  const tracker = await hubTracker(ctx);
+  if (!tracker.ok) return refused(ctx, "outbox", tracker.finding);
+  return listed(ctx, useCases.sendOutbox(ctx.state, tracker.value), "Nothing was due.");
+};
+
+// The labels of the profile's hub parts that the hub lacks: shown, or with --yes each queued as the owner approved it.
+const labels = async (ctx: Context, yes?: true): Promise<number> => {
+  const tracker = await hubTracker(ctx);
+  if (!tracker.ok) return refused(ctx, "outbox", tracker.finding);
+  const missing = await useCases.previewHubLabels(ctx.config, tracker.value);
+  if (!missing.ok) return refused(ctx, "intent", missing.finding);
+  if (missing.value.length === 0 || yes !== true) {
+    const lines = missing.value.map(({ intent }) => `Would queue: ${what(intent)}.`);
+    const human = lines.length === 0 ? "The hub has every label the profile names." : lines.join("\n");
+    const note = lines.length === 0 ? "" : "\nNothing changed. Run the command again with --yes.";
+    emit(ctx, "intents", { intents: missing.value }, `${human}${note}`);
+    return EXIT.ok;
+  }
+  const entries: OutboxEntry[] = [];
+  for (const { intent, hash } of missing.value) {
+    const queued = await useCases.queueIntent(ctx.state, ctx.config, intent, hash);
+    if (!queued.ok) return refused(ctx, "outbox", queued.finding);
+    entries.push(queued.value);
+  }
+  emit(ctx, "outbox", { entries }, `${entries.map(entryLine).join("\n")}\nSend it with: cedarloom work-items send`);
+  return EXIT.ok;
 };
 
 // Never prints the token, not even in part.
@@ -124,6 +158,11 @@ const writes = (group: Command, ctx: () => Context, done: Done): void => {
     .action(async (at, label, { remove, yes }) =>
       done(await intend(ctx(), { kind: remove === true ? "unlabel" : "label", issue: at, label }, yes)),
     );
+  group
+    .command("labels")
+    .description("queue creating the labels the profile's hub parts name that the hub lacks; with --yes, queue them")
+    .option("--yes", "queue them as shown now")
+    .action(async ({ yes }) => done(await labels(ctx(), yes)));
   group
     .command("undo")
     .description("queue what takes a sent entry back; with --yes, queue it")

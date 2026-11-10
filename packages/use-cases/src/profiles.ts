@@ -105,8 +105,12 @@ const probeOf = (app: string | undefined, config: string, project: string | unde
   };
 };
 
-// The profile this machine's selection names, resolved.
-const selectedProfile = (config: string, app: string | undefined, project: string | undefined): Result<Resolved> => {
+/** The profile this machine's selection names, resolved. */
+export const selectedProfile = (
+  config: string,
+  app: string | undefined,
+  project: string | undefined,
+): Result<Resolved> => {
   const read = readSelection(config);
   return read.ok ? resolveProfile(read.value.selection, APP_VERSION, probeOf(app, config, project)) : read;
 };

@@ -84,6 +84,52 @@ test("a label is found in any case, added by name, and removed by its name in th
   ]);
 });
 
+test("the hub's labels are read across pages, created with their color, deleted by name; one that exists is reported, one gone while the hub answers is done", async () => {
+  const next = { link: `<${API}/labels?per_page=100&page=2>; rel="next"` };
+  const exists = {
+    message: "Validation Failed",
+    errors: [{ resource: "Label", code: "already_exists", field: "name" }],
+  };
+  const invalid = { message: "Validation Failed", errors: [{ resource: "Label", code: "invalid", field: "color" }] };
+  const { requests, tracker } = replay([
+    { status: 200, headers: next, body: [{ name: "bug" }] },
+    { status: 200, body: [{ name: "question" }] },
+    { status: 201, body: { name: "deferred" } },
+    { status: 422, body: exists },
+    { status: 422, body: invalid },
+    { status: 204 },
+    { status: 404, body: fixtures.notFound },
+    { status: 200, body: {} },
+    { status: 404, body: fixtures.notFound },
+    { status: 404, body: fixtures.notFound },
+  ]);
+  expect(await tracker.labels()).toEqual({ ok: true, value: ["bug", "question"] });
+  expect(await tracker.createLabel("deferred", "c5def5", "Owner deferred")).toEqual({ ok: true, value: true });
+  expect(await tracker.createLabel("bug", "d73a4a")).toEqual({ ok: true, value: false });
+  expect(await tracker.createLabel("bug", "d73a4a")).toMatchObject({
+    ok: false,
+    finding: { code: "tracker.refused", params: { status: 422 } },
+  });
+  expect(await tracker.deleteLabel("agent:review")).toEqual({ ok: true, value: null });
+  expect(await tracker.deleteLabel("agent:review")).toEqual({ ok: true, value: null });
+  expect(await tracker.deleteLabel("agent:review")).toMatchObject({
+    ok: false,
+    finding: { code: "tracker.refused", params: { status: 404 } },
+  });
+  expect(requests.map(({ method, url, body }) => [method, url, body])).toEqual([
+    ["GET", `${API}/labels?per_page=100`, undefined],
+    ["GET", `${API}/labels?per_page=100&page=2`, undefined],
+    ["POST", `${API}/labels`, { name: "deferred", color: "c5def5", description: "Owner deferred" }],
+    ["POST", `${API}/labels`, { name: "bug", color: "d73a4a" }],
+    ["POST", `${API}/labels`, { name: "bug", color: "d73a4a" }],
+    ["DELETE", `${API}/labels/agent%3Areview`, undefined],
+    ["DELETE", `${API}/labels/agent%3Areview`, undefined],
+    ["GET", API, undefined],
+    ["DELETE", `${API}/labels/agent%3Areview`, undefined],
+    ["GET", API, undefined],
+  ]);
+});
+
 test("a comment is deleted only on its own issue; what is gone is done while the issue answers, one the token cannot see refuses", async () => {
   const own = { ...fixtures.comments[0], issue_url: `${API}/issues/7` };
   const other = { ...fixtures.comments[0], issue_url: `${API}/issues/8` };

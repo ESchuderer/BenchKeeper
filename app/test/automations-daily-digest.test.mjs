@@ -65,5 +65,8 @@ test('daily-digest precheck: runs without a digest, then only when a pull reques
   const forked = precheck({ issue: '12' }, {}, 3600, fork).log;
   assert.match(forked[0], /^pr list --repo owner\/fork --state all --search /, 'empty repos: the origin repository, not the default one of gh');
   assert.match(forked[1], /^issue list --repo owner\/fork .* --jq map\(select\(\.number \| tostring != "12"\)\) \| length$/, 'the digest issue is still left out');
+  const gitlab = mkdtempSync(join(tmpdir(), 'bk-dd-gitlab-'));
+  initRepo(gitlab)('remote', 'add', 'origin', 'git@gitlab.com:team/proj.git');
+  assert.deepEqual(precheck({}, { 'pr list': 1 }, 3600, gitlab), { code: 1, log: [] }, 'empty repos, an origin off github.com: no gh call');
   assert.equal(precheck({}, { 'pr list': 'error' }, 3600).code, 1, 'a failing gh skips the run');
 });

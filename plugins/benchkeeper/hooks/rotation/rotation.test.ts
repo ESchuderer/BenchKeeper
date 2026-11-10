@@ -51,6 +51,15 @@ function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-
   return { clock, session, files, ran }
 }
 
+// One idle Stop that clears and then submits a resume prompt naming the context size.
+async function clears($: Parameters<Parameters<typeof test>[1]>[0], e: ReturnType<typeof engine>, size: string) {
+  await $.classic.Stop(IDLE)
+  await e.clock.settle()
+  expect(e.ran.length).toBe(2)
+  expect(e.ran[0]).toBe('/clear')
+  expect(e.ran[1]).toContain(size)
+}
+
 test('withStatus replaces the status block or appends one', () => {
   const block = (line: string) => `<!-- benchkeeper:status -->\n${line}\n<!-- /benchkeeper:status -->`
   expect(withStatus('# Handoff\n\n## Next\nx\n', 'one')).toBe(`# Handoff\n\n## Next\nx\n\n${block('one')}\n`)
@@ -70,11 +79,7 @@ test('a clear or compaction hands the file back after the other hooks, and nothi
 
 test('an idle Stop above 200000 tokens clears, then submits the resume prompt, once in 10 minutes', async ($, on) => {
   const e = engine(on)
-  await $.classic.Stop(IDLE)
-  await e.clock.settle()
-  expect(e.ran.length).toBe(2)
-  expect(e.ran[0]).toBe('/clear')
-  expect(e.ran[1]).toContain('250000 tokens')
+  await clears($, e, '250000 tokens')
   expect(e.files[PATH]).toMatch(/clearing at 250000 tokens; context: 250000 tokens; last clear: none\n<!-- \/benchkeeper:status -->\n$/)
   await e.clock.advance(9 * 60_000)
   await $.classic.Stop(IDLE)
@@ -189,11 +194,7 @@ test('a percent of the window replaces the token threshold', { options: { rotate
 
 test('a percent threshold the context reaches clears', { options: { rotateAtPercent: 20 } }, async ($, on) => {
   const e = engine(on)
-  await $.classic.Stop(IDLE)
-  await e.clock.settle()
-  expect(e.ran.length).toBe(2)
-  expect(e.ran[0]).toBe('/clear')
-  expect(e.ran[1]).toContain('25%')
+  await clears($, e, '25%')
 })
 
 test('unread usage is noted once in the transcript and the status block, and nothing is cleared', async ($, on) => {

@@ -37,7 +37,8 @@ export const userSkillDir = (ctx, name) => join(ctx.config, 'skills', name);
 // A skill copied from a folder, not added through the skills CLI, and the folder it is copied from.
 export const copied = (s) => s?.source === 'own' || s?.source === 'user';
 export const skillFolder = (ctx, s) => (s.source === 'user' ? userSkillDir(ctx, s.name) : join(contentDir, 'library', s.name));
-// A copied skill's files (src: its folder) as they are written: text with the path globs of the setup in SKILL.md's front matter,
+// A copied skill's files (src: its folder) as they are written: text with the path globs of the setup first in SKILL.md's front matter
+// (after a block-scalar description it would not parse),
 // and a file that is not UTF-8 text (an image of a user skill) as a byte copy, from, with its bytes.
 // An entry that is not a file (a link to nothing or to a folder) is left out: skippedLinks names it for the plan's warning.
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
@@ -47,7 +48,7 @@ export function ownSkillFiles(src, paths) {
     const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
     // The target of a link, not the link: the copy copies a link as a link.
     if (!Buffer.from(text).equals(bytes)) return { file, from: real(join(src, file)), bytes };
-    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^(description: .*)$/m, `$1\npaths: ${JSON.stringify(paths)}`) : text };
+    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^---(\r?\n)/, (m, eol) => `${m}paths: ${JSON.stringify(paths)}${eol}`) : text };
   });
 }
 

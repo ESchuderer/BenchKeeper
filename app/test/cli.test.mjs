@@ -72,7 +72,7 @@ test('projects plan refuses a --paths without =, with an empty glob, for an unkn
     [[], '=app/**', usage('=app/**')],
     [['designing-technical-uis'], 'designing-technical-uis=app/**,', usage('designing-technical-uis=app/**,')],
     [[], 'nosuch=app/**', 'unknown skill nosuch, see benchkeeper skills list --library'],
-    [['designing-technical-uis'], 'accessibility=app/**', 'paths for accessibility: not a skill of this project (add --skill accessibility)'],
+    [['designing-technical-uis'], 'accessibility=app/**', 'paths for accessibility: not a skill of this project (add it first: benchkeeper skills add accessibility)'],
     [['frontend-design'], 'frontend-design=app/**', 'paths for frontend-design: only own and your skills take paths, frontend-design is installed from anthropics/skills'],
   ];
   for (const [skills, value, message] of cases) {

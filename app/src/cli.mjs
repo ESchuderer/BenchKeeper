@@ -130,8 +130,8 @@ Usage: benchkeeper <command> [options]
                                     ignores (.git/info/exclude), listed in .worktreeinclude for new worktrees;
                                     --share commits them (AGENTS.md block, CLAUDE.md);
                                     --caller writes that repo-standards workflow file (never GitHub settings);
-                                    --paths writes the globs into an own skill's copied SKILL.md (Claude Code loads it only
-                                    for matching files) and keeps them in the state file; skill= takes them out
+                                    --paths writes the globs into an own or your skill's copied SKILL.md (Claude Code loads
+                                    it only for matching files) and keeps them in the state file; skill= takes them out
   projects create <dir> --preset <id> [--yes] [--all]
                                     a new folder set up from a preset, as a plan with a diff, then registered; refused for a
                                     folder that exists. Then a check recommends skills to turn off and packs to add, each with

@@ -401,8 +401,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   const skills = chosenSkills({ ...a, packs: a.packs.filter((id) => packScope(ctx, lib.packs.find((x) => x.id === id)) !== 'global') }, lib);
   for (const n of Object.keys(answers.setPaths ?? {})) {
     const s = skills.find((x) => x.name === n);
-    if (!s) throw new Error(`paths for ${n}: not a skill of this project (add --skill ${n})`);
+    if (!s) throw new Error(`paths for ${n}: not a skill of this project (add it first: benchkeeper skills add ${n})`);
     if (!copied(s)) throw new Error(`paths for ${n}: only own and your skills take paths, ${n} is installed from ${s.source}`);
+    // A second paths: key would make the copy's front matter invalid.
+    if (/^paths:/m.test(readText(join(skillFolder(ctx, s), 'SKILL.md'))?.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '')) throw new Error(`paths for ${n}: its SKILL.md sets paths itself`);
   }
   const rel = (p) => slashRel(dir, p);
 

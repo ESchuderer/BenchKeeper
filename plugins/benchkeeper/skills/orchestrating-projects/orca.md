@@ -64,7 +64,7 @@ The plugin hands the handoff file back after a clear or compaction only in the O
 3. `ORCA orchestration run-current --json`
 4. `ORCA orchestration task-list --ready --brief --json`
 5. `ORCA orchestration inbox --terminal run:<run id> --limit 50 --json`: the mail already handled.
-6. Claude Code only: `CronList`; when it no longer shows the run's stall-check cron (a restarted process loses it), create it again as at run start.
+6. Claude Code only: `CronList`; when it no longer shows the run's stall-check cron (a restarted process loses it, and it expires after 7 days), create it again as at run start.
 
 ## Clean up
 

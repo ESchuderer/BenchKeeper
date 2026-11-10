@@ -1,7 +1,7 @@
 // Codex SessionStart after a clear or compaction: hands the coordinator's handoff file back, as the Claude Code module does.
 import { execFileSync } from 'node:child_process';
 import { constants, fstatSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 import { text } from 'node:stream/consumers';
 import { FILE, RUNS, mine, restored } from './handoff.mjs';
 
@@ -34,11 +34,10 @@ let handoff;
 try {
   const { cwd } = JSON.parse(await text(process.stdin));
   const path = join(cwd, FILE);
-  // The runs folder reached through no link, the file opened without following one and read through that handle, so a
-  // committed file or a link to another file is never read as the handoff.
-  if (realpathSync(dirname(path)) !== join(realpathSync(cwd), RUNS)) process.exit(0);
+  // Opened without following a link where the platform can (Windows cannot), read through that handle, and refused unless
+  // its real path is the one under the real working folder, so a committed file or a link on the way is never read.
   const handle = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-  if (!fstatSync(handle).isFile()) process.exit(0);
+  if (!fstatSync(handle).isFile() || realpathSync(path) !== join(realpathSync(cwd), FILE)) process.exit(0);
   handoff = readFileSync(handle, 'utf8');
   if (!mine(handoff, process.env.ORCA_TERMINAL_HANDLE) || tracked(cwd)) process.exit(0);
 } catch {

@@ -18,6 +18,8 @@ let running = false
 let deciding = false
 let lastEnd: number | null = null
 let noted = false
+// Main-loop turns started in this process: a turn that starts between the decision and the clear makes it stale.
+let turns = 0
 
 // The text with its status block holding only this line, the block appended when the text has none.
 export function withStatus(text: string, line: string): string {
@@ -30,8 +32,10 @@ export function withStatus(text: string, line: string): string {
 
 const handoff = async ($: EngineInterface) => `${await $.session.root()}/${FILE}`
 
-// The handoff file's text when it is this session's, else null.
+// The handoff file's text when it is this session's, else null. A -p child of the coordinator's shell inherits its
+// ORCA_TERMINAL_HANDLE but draws on no surface, so it never counts as the coordinator.
 async function own($: EngineInterface) {
+  if ((await $.session.surfaces()).length === 0) return null
   const text = await $.fs.read(await handoff($)).catch(() => null)
   return text !== null && mine(String(text), await $.env.get('ORCA_TERMINAL_HANDLE')) ? String(text) : null
 }
@@ -66,7 +70,12 @@ async function status($: EngineInterface, text: string, event: string, tokens: n
 // A row of the transcript the person sees and the model does not read.
 const note = ($: EngineInterface, text: string) => $.session.append({ message: { type: 'system', content: [{ type: 'text', text }] } })
 
-async function rotate($: EngineInterface, size: string, now: number) {
+async function rotate($: EngineInterface, size: string, now: number, seen: number, before: number | null) {
+  // A prompt queued during the judged turn (an Orca wake) has started a new one: give up and let its Stop judge again.
+  if (turns !== seen) {
+    lastEnd = before
+    return
+  }
   running = true
   try {
     await $.command.run({ command: 'clear' })
@@ -101,14 +110,22 @@ async function decide($: EngineInterface, atTokens: number, atPercent: number) {
   const size = atPercent > 0 ? `${figure}% of its context window` : `${figure} tokens`
   await status($, text, `clearing at ${size}`, context.tokens).catch(() => undefined)
   // The gap starts now, so a timer that never fires cannot let a second clear through.
+  const before = lastEnd
   lastEnd = now
-  // A command run from the Stop hook would wait on the turn the hook holds: a timer runs it once the hook has returned.
-  $.clock.after(0, () => void rotate($, size, now))
+  // A command run from the Stop hook would wait on the turn the hook holds. The timer runs it once the hook has returned,
+  // a second later, so a prompt queued during the turn starts first and the clear gives up.
+  const seen = turns
+  $.clock.after(1000, () => void rotate($, size, now, seen, before))
 }
 
 export const register: Register = (on, options) => {
   const atTokens = typeof options.rotateAtTokens === 'number' ? options.rotateAtTokens : 200000
   const atPercent = typeof options.rotateAtPercent === 'number' ? options.rotateAtPercent : 0
+
+  on('turn.start', async ($, e, next) => {
+    if (!e.agentId) turns++
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   on('classic.SessionStart', { source: ['clear', 'compact'] }, async ($, e, next) => {
     const result = await next(e)

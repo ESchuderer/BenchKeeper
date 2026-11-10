@@ -9,15 +9,17 @@ const HANDOFF = '# Handoff\nrun r1\nTerminal: term-a\n\n## Next\nwatch #12\n'
 const IDLE = { stop_hook_active: false, background_tasks: [] }
 // Each test loads the plugin afresh, so its module state (running, lastEnd, noted) starts empty.
 
-type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true; git?: number; slow?: Promise<void>; drop?: string }
+type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true; git?: number; slow?: Promise<void>; drop?: string; surfaces?: string[] }
 
-function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link, git = 0, slow, drop }: Setup = {}) {
+function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link, git = 0, slow, drop, surfaces = ['terminal'] }: Setup = {}) {
   const clock = mock.clock(on, { now: 3_600_000 })
   const session = mock.session(on)
   const files: Record<string, string> = file === null ? {} : { [PATH]: file }
   const ran: string[] = []
   mock.env(on, { ORCA_TERMINAL_HANDLE: terminal })
   on('session.root', () => ({ value: ROOT }))
+  on('session.surfaces', () => ({ value: surfaces }) as never)
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('fs.stat', (_, e) => {
     if (e.path === ROOT) return { value: { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: ROOT } }
     if (!(e.path in files)) throw new Error('ENOENT')
@@ -54,7 +56,7 @@ function engine(on: Engine, { file = HANDOFF, tokens = 250000, terminal = 'term-
 // One idle Stop that clears and then submits a resume prompt naming the context size.
 async function clears($: Parameters<Parameters<typeof test>[1]>[0], e: ReturnType<typeof engine>, size: string) {
   await $.classic.Stop(IDLE)
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran.length).toBe(2)
   expect(e.ran[0]).toBe('/clear')
   expect(e.ran[1]).toContain(size)
@@ -83,11 +85,11 @@ test('an idle Stop above 200000 tokens clears, then submits the resume prompt, o
   expect(e.files[PATH]).toMatch(/clearing at 250000 tokens; context: 250000 tokens; last clear: none\n<!-- \/benchkeeper:status -->\n$/)
   await e.clock.advance(9 * 60_000)
   await $.classic.Stop(IDLE)
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran.length).toBe(2)
   await e.clock.advance(2 * 60_000)
   await $.classic.Stop(IDLE)
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran.length).toBe(4)
   expect(e.ran[2]).toBe('/clear')
 })
@@ -100,7 +102,7 @@ test('no clear while not idle, with no task list, in a subagent or without the f
   await $.classic.Stop({ ...IDLE, agent_id: 'a1' })
   delete e.files[PATH]
   await $.classic.Stop(IDLE)
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran).toEqual([])
 })
 
@@ -108,21 +110,32 @@ for (const stop of [{ block: 'keep going' }, { preventContinuation: true } as co
   test(`no clear when another Stop hook answers ${JSON.stringify(stop)}`, async ($, on) => {
     const e = engine(on, { stop })
     await $.classic.Stop(IDLE)
-    await e.clock.settle()
+    await e.clock.advance(1000)
     expect(e.ran).toEqual([])
   })
 }
 
-test('a second Stop while the clear still runs does not clear again', async ($, on) => {
+test('a Stop while the clear still runs does not clear again, also past the 10-minute gap', async ($, on) => {
   let release = () => {}
   const e = engine(on, { hold: new Promise<void>((done) => (release = done)) })
   await $.classic.Stop(IDLE)
-  await e.clock.advance(0)
+  await e.clock.advance(1000)
+  await e.clock.advance(11 * 60_000)
   await $.classic.Stop(IDLE)
+  await e.clock.advance(1000)
   expect(e.ran).toEqual(['/clear'])
   release()
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran.length).toBe(2)
+})
+
+test('a turn that starts before the clear makes it give up, and the next idle Stop clears', async ($, on) => {
+  const e = engine(on)
+  await $.classic.Stop(IDLE)
+  await $.turn.start({ turnId: 't2', text: 'You have 1 orchestration message.' })
+  await e.clock.advance(1000)
+  expect(e.ran).toEqual([])
+  await clears($, e, '250000 tokens')
 })
 
 test('a Stop while another Stop still checks does not schedule a second clear', async ($, on) => {
@@ -132,24 +145,31 @@ test('a Stop while another Stop still checks does not schedule a second clear', 
   const second = $.classic.Stop(IDLE)
   release()
   await Promise.all([first, second])
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran.filter((step) => step === '/clear')).toEqual(['/clear'])
 })
 
 test('a dropped resume prompt is noted in the transcript', async ($, on) => {
   const e = engine(on, { drop: 'queue full' })
   await $.classic.Stop(IDLE)
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran[0]).toBe('/clear')
   expect(e.session.appended().map((row) => row.message.type)).toEqual(['system'])
 })
 
-test('both options at 0 turn the clear off', { options: { rotateAtTokens: 0, rotateAtPercent: 0 } }, async ($, on) => {
-  const e = engine(on)
-  await $.classic.Stop(IDLE)
-  await e.clock.settle()
-  expect(e.ran).toEqual([])
-})
+const unreached: [string, Record<string, number>, Setup][] = [
+  ['below the threshold', {}, { tokens: 150000 }],
+  ['when a percent of the window replaces the token threshold', { rotateAtPercent: 30 }, {}],
+  ['with both options at 0', { rotateAtTokens: 0, rotateAtPercent: 0 }, {}],
+]
+for (const [name, options, setup] of unreached) {
+  test(`no clear ${name}`, { options }, async ($, on) => {
+    const e = engine(on, setup)
+    await $.classic.Stop(IDLE)
+    await e.clock.advance(1000)
+    expect(e.ran).toEqual([])
+  })
+}
 
 const refused: [string, Setup][] = [
   ['names no terminal', { file: HANDOFF.replace('Terminal: term-a\n', '') }],
@@ -157,6 +177,7 @@ const refused: [string, Setup][] = [
   ['is tracked by git', { tracked: true }],
   ['is reached through a link', { link: true }],
   ['sits where git fails', { git: 128 }],
+  ['is read by a session that draws on no surface, a -p child', { surfaces: [] }],
 ]
 for (const [name, setup] of refused) {
   test(`a file that ${name} is not restored, stamped or cleared for`, async ($, on) => {
@@ -165,7 +186,7 @@ for (const [name, setup] of refused) {
     expect((await $.classic.SessionStart({ source: 'clear' })).additionalContext).toEqual(['other'])
     await $.classic.PreCompact({ trigger: 'auto', custom_instructions: null })
     await $.classic.Stop(IDLE)
-    await e.clock.settle()
+    await e.clock.advance(1000)
     expect(e.ran).toEqual([])
     expect(e.files[PATH]).toBe(file)
   })
@@ -174,22 +195,8 @@ for (const [name, setup] of refused) {
 test('a backticked terminal name is this terminal', async ($, on) => {
   const e = engine(on, { file: HANDOFF.replace('term-a', '`term-a`') })
   await $.classic.Stop(IDLE)
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran[0]).toBe('/clear')
-})
-
-test('below the threshold: no clear', async ($, on) => {
-  const e = engine(on, { tokens: 150000 })
-  await $.classic.Stop(IDLE)
-  await e.clock.settle()
-  expect(e.ran).toEqual([])
-})
-
-test('a percent of the window replaces the token threshold', { options: { rotateAtPercent: 30 } }, async ($, on) => {
-  const e = engine(on)
-  await $.classic.Stop(IDLE)
-  await e.clock.settle()
-  expect(e.ran).toEqual([])
 })
 
 test('a percent threshold the context reaches clears', { options: { rotateAtPercent: 20 } }, async ($, on) => {
@@ -201,7 +208,7 @@ test('unread usage is noted once in the transcript and the status block, and not
   const e = engine(on, { tokens: null })
   await $.classic.Stop(IDLE)
   await $.classic.Stop(IDLE)
-  await e.clock.settle()
+  await e.clock.advance(1000)
   expect(e.ran).toEqual([])
   expect(e.session.appended().map((row) => row.message.type)).toEqual(['system'])
   expect(e.files[PATH]).toMatch(/usage unread; context: unread;/)

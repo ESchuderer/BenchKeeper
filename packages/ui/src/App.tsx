@@ -321,11 +321,11 @@ type View = (typeof VIEWS)[number]["id"];
 // The editor and the zod schemas it needs load only when its view opens, so the shell and Runs stay small.
 const WorkflowEditor = lazy(() => import("./workflow/Editor.tsx"));
 
-const content = (view: View, session: Session): ReactNode => {
+const content = (view: View, session: Session, accounts: { version: number; onChanged: () => void }): ReactNode => {
   if (view === "nav.runs") return <Runs session={session} />;
   if (view === "nav.profile") return <Profile api={session.api} />;
   if (view === "nav.import") return <Import api={session.api} />;
-  if (view === "nav.accounts") return <Accounts api={session.api} />;
+  if (view === "nav.accounts") return <Accounts api={session.api} {...accounts} />;
   if (view === "nav.sessions") return <SessionsBoard api={session.api} />;
   if (view === "nav.workflows") {
     return (
@@ -368,6 +368,8 @@ const Footer = (): ReactNode => (
 // Below sm the navigation sits behind a menu button; whichever of the two is out of sight is inert.
 export const App = ({ session }: { session: Session }): ReactNode => {
   const [view, setView] = useState<View>("nav.runs");
+  // Not kept in Accounts: a view left during a change is mounted anew, and must read once the change ends.
+  const [accountsVersion, setAccountsVersion] = useState(0);
   const [opened, { toggle, close }] = useDisclosure();
   // The theme's own sm breakpoint, as AppShell uses it: at exactly 48em the desktop navigation already shows.
   const narrow = useMatches({ base: true, sm: false });
@@ -399,7 +401,10 @@ export const App = ({ session }: { session: Session }): ReactNode => {
         <Title order={2} size="h4" mb="md">
           {t(view)}
         </Title>
-        {content(view, session)}
+        {content(view, session, {
+          version: accountsVersion,
+          onChanged: () => setAccountsVersion((value) => value + 1),
+        })}
       </AppShell.Main>
       <Footer />
     </AppShell>

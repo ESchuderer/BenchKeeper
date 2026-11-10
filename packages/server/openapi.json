@@ -6136,6 +6136,12 @@
               "source"
             ],
             "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6147,7 +6153,8 @@
           "projects",
           "figures",
           "sessions",
-          "prices"
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       },
@@ -12247,6 +12254,12 @@
               "source"
             ],
             "additionalProperties": false
+          },
+          "historyMoved": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -12258,7 +12271,8 @@
           "projects",
           "figures",
           "sessions",
-          "prices"
+          "prices",
+          "historyMoved"
         ],
         "additionalProperties": false
       }
@@ -13708,6 +13722,34 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/history": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Default Response"
           },
           "default": {
             "description": "Default Response",

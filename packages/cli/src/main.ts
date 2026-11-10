@@ -25,7 +25,7 @@ import {
   workflowsOpen,
   workflowsSave,
 } from "./commands.ts";
-import { board } from "./board.ts";
+import { board, deleteHistory } from "./board.ts";
 import { contributedGroups } from "./contributed.ts";
 import { importCommand } from "./imports.ts";
 import { type Context, EXIT, type Io } from "./output.ts";
@@ -347,6 +347,28 @@ const dayCount = (value: string): number => {
   return days;
 };
 
+const boardCommand = (program: Command, ctx: Ctx, done: Done): void => {
+  program
+    .command("board")
+    .description(
+      "the sessions board: agent time, tokens, cost, days worked and tests; writes only its cache and the sessions history",
+    )
+    .option("--days <n>", "the last n days, today included (default: 30)", dayCount)
+    .addOption(new Option("--all", "all time").conflicts("days"))
+    .option("--project <folder>", "one project's sessions, by its folder")
+    .addOption(
+      new Option("--delete-history", "show deleting the sessions history; with --yes, delete it").conflicts([
+        "days",
+        "all",
+        "project",
+      ]),
+    )
+    .option("--yes", "with --delete-history, delete the history")
+    .action(async ({ deleteHistory: remove, yes, ...options }) =>
+      done(remove === true ? deleteHistory(ctx(), yes) : await board(ctx(), options)),
+    );
+};
+
 /** Runs one command line (without the program name) and returns the exit code. */
 export const main = async (argv: string[], io: Io): Promise<number> => {
   let exit: number = EXIT.ok;
@@ -373,13 +395,7 @@ export const main = async (argv: string[], io: Io): Promise<number> => {
     .command("doctor")
     .description("report interrupted runs, store problems, and the extensions' and the profile's checks")
     .action(async () => done(await doctor(ctx())));
-  program
-    .command("board")
-    .description("the sessions board: agent time, tokens, cost, days worked and tests; writes only its cache")
-    .option("--days <n>", "the last n days, today included (default: 30)", dayCount)
-    .addOption(new Option("--all", "all time").conflicts("days"))
-    .option("--project <folder>", "one project's sessions, by its folder")
-    .action(async (options) => done(await board(ctx(), options)));
+  boardCommand(program, ctx, done);
   program
     .command("ui")
     .description("serve the web UI on 127.0.0.1 and print the link that opens it; runs until stopped")

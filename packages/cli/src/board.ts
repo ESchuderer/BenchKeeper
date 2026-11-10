@@ -6,7 +6,7 @@ import { cacheDir } from "./state.ts";
 
 type Board = Awaited<ReturnType<typeof useCases.sessionsBoard>>;
 
-export const logsOf = (ctx: Context): useCases.Logs => useCases.sessionLogs(ctx.io.env, cacheDir(ctx.io.env));
+export const logsOf = (ctx: Context) => useCases.sessionLogs(ctx.io.env, cacheDir(ctx.io.env), ctx.state);
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 const time = (ms: number | null): string => {
@@ -21,13 +21,18 @@ const share = (value: number | null): string => (value === null ? "-" : `${Math.
 const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 // Paths and titles come from the session logs: shown with control characters escaped.
-const figures = ({ span, project, zone, first, prices, figures: f }: Board): string[] => [
+const figures = ({ span, project, zone, first, prices, historyMoved, figures: f }: Board): string[] => [
   `${plural(f.sessions, "session")} from ${span[0] ?? "-"} to ${span.at(-1) ?? "-"} (${zone}), ${project === null ? "every project" : shown(project)}`,
   `agent time ${time(f.busyMs)}, tokens ${compact.format(f.tokens)}, cost ${usd(f.costUSD)} (estimates: Claude Code's own, Codex at OpenAI's list prices of ${prices.date}; ${f.uncosted} without a cost)`,
   `days worked ${f.daysWorked} of ${f.days}, longest run ${plural(f.streak, "day")}; tests passed ${share(f.testsPassed)} of ${plural(f.tested, "session")} with a test run`,
   ...(first !== null && (span[0] ?? first) < first
-    ? [`Claude Code data from ${first}: it deletes older transcripts`]
+    ? [`Claude Code data from ${first}: it deletes older transcripts, so earlier days show less work`]
     : []),
+  ...(historyMoved === null
+    ? []
+    : [
+        `the sessions history could not be read, so it was moved to ${historyMoved}; a new history starts with the sessions whose logs still exist`,
+      ]),
 ];
 
 const line = (s: Board["sessions"][number], at: Intl.DateTimeFormat): string =>
@@ -58,5 +63,18 @@ export const board = async (
   const at = new Intl.DateTimeFormat("sv-SE", { timeZone: value.zone, dateStyle: "short", timeStyle: "short" });
   const lines = [...figures(value), ...value.sessions.map((s) => line(s, at))];
   emit(ctx, "board", { board: value }, lines.join("\n"));
+  return EXIT.ok;
+};
+
+/** Shows deleting the sessions history, or with --yes deletes it. */
+export const deleteHistory = (ctx: Context, yes?: true): number => {
+  const logs = logsOf(ctx);
+  const { history } = logs;
+  if (yes === true) useCases.deleteHistory(logs);
+  const human =
+    yes === true
+      ? `Deleted the sessions history ${history} and its .bad copy, if any. Sessions whose logs still exist stay on the board, and the history records them again at the next read.`
+      : `Would delete the sessions history ${history} and its .bad copy, if any: sessions whose logs are gone leave the board for good; sessions whose logs still exist stay, and the history records them again.\nNothing changed. Run the command again with --yes.`;
+  emit(ctx, "history", { history, deleted: yes === true }, human);
   return EXIT.ok;
 };

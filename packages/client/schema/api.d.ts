@@ -2093,6 +2093,8 @@ export interface components {
                 variables: string[];
                 entries: {
                     file: string;
+                    /** @enum {string} */
+                    change: "add" | "replace";
                     entry: string;
                 }[];
                 codex: boolean;
@@ -2104,12 +2106,22 @@ export interface components {
             params: {
                 part: string;
                 server: string;
+                /** @enum {string} */
+                change: "add" | "replace" | "remove";
                 file: string;
                 entry: string;
             };
         } | {
             /** @constant */
             code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-kept";
             params: {
                 part: string;
                 server: string;
@@ -3387,6 +3399,8 @@ export interface components {
                 variables: string[];
                 entries: {
                     file: string;
+                    /** @enum {string} */
+                    change: "add" | "replace";
                     entry: string;
                 }[];
                 codex: boolean;
@@ -3398,12 +3412,22 @@ export interface components {
             params: {
                 part: string;
                 server: string;
+                /** @enum {string} */
+                change: "add" | "replace" | "remove";
                 file: string;
                 entry: string;
             };
         } | {
             /** @constant */
             code: "profile.mcp-conflict";
+            params: {
+                part: string;
+                server: string;
+                file: string;
+            };
+        } | {
+            /** @constant */
+            code: "profile.mcp-kept";
             params: {
                 part: string;
                 server: string;

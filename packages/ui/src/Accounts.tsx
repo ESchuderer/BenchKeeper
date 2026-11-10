@@ -14,14 +14,19 @@ type Change = { account: number } | { key: Setting; value: number } | { auto: bo
 const nameOf = ({ number, alias }: Account): string =>
   alias === undefined ? String(number) : t("accounts.name", { number, alias });
 
-/** A window's share, when it resets, and whether claude-swap still trusts the share. */
+/** A window's share (unknown when unread), when it resets, and whether claude-swap still trusts the share. */
 const windowOf = ({ window, usedPercent, resetsAt, readAt }: Account["windows"][number]): string => {
   const [span = window, model = "none"] = window.split(":");
-  const parts = [t("accounts.window", { span, model, percent: usedPercent })];
+  const parts = [
+    usedPercent === null
+      ? t("accounts.windowUnknown", { span, model })
+      : t("accounts.window", { span, model, percent: usedPercent }),
+  ];
   // claude-swap's own text: a date the browser cannot read is left out, not thrown.
   if (resetsAt !== null && !Number.isNaN(Date.parse(resetsAt)))
     parts.push(t("accounts.resets", { when: when(resetsAt) }));
-  if (readAt === null) parts.push(t("accounts.stale"));
+  // No share was read, so none is stale.
+  if (readAt === null && usedPercent !== null) parts.push(t("accounts.stale"));
   return parts.join(", ");
 };
 

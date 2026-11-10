@@ -696,6 +696,10 @@ msgid "accounts.window"
 msgstr "{span, select, fiveHour {5 hours} sevenDay {7 days} other {{span}}}{model, select, none {} other { ({model})}}: {percent}%"
 
 #. js-lingui-explicit-id
+msgid "accounts.windowUnknown"
+msgstr "{span, select, fiveHour {5 hours} sevenDay {7 days} other {{span}}}{model, select, none {} other { ({model})}}: unknown"
+
+#. js-lingui-explicit-id
 msgid "accounts.resets"
 msgstr "resets {when}"
 

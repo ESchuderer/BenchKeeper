@@ -42,9 +42,16 @@
             "description": "fiveHour, sevenDay, or sevenDay:<model> for a model's own weekly window"
           },
           "usedPercent": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 100
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "resetsAt": {
             "type": [

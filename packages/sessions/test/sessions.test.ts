@@ -146,6 +146,9 @@ test("a history that is not JSON is moved aside as .bad, not overwritten, and th
     sessions: [{ ...shopRow, project: repository }],
   });
   expect((await readSessions(own)).historyMoved).toBeNull();
+  // A byte-order mark, as Windows editors save one, still leaves JSON.
+  writeFileSync(history, `﻿${readFileSync(history, "utf8")}`);
+  expect((await readSessions(own)).historyMoved).toBeNull();
 });
 
 // One recorded session with one edit in its JSON, read alone: its test result.

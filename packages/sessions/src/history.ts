@@ -1,4 +1,4 @@
-import { readFileSync, renameSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { AgentSession, type SessionsBoard } from "@cedarloom/contracts";
 import { z } from "zod";
@@ -45,31 +45,32 @@ const sessionOf = (row: Row): AgentSession => ({
 
 type Kept = { rows: Row[]; moved: string | null };
 
-// As Chromium's JsonPrefStore does: its rows stay for recovery by hand, not overwritten; null leaves an unmovable one.
-const moveAside = (file: string): Kept | null => {
+// A copy of the bytes read, not a rename of the path, so a second reader cannot move the first one's new history over them.
+const moveAside = (file: string, bytes: Buffer): Kept | null => {
   try {
-    renameSync(file, `${file}.bad`);
+    writeFileSync(`${file}.bad`, bytes, { mode: 0o600, flush: true });
     return { rows: [], moved: `${file}.bad` };
   } catch {
     return null;
   }
 };
 
-// Missing: a new history; no JSON (a cut-off write, a stray byte): moved to `.bad`, replacing an older one, and a new
-// history. Unreadable now (no permission, a rename on Windows) or another version's: null, never shown or written over.
-// A row this version cannot read goes at the next write.
+// Missing: a new history; no JSON (a cut-off write, a stray byte): its bytes copied to `.bad`, replacing an older one,
+// and a new history, as Chromium's JsonPrefStore does. Unreadable now (no permission, a rename on Windows), not copied,
+// or another version's: null, never shown or written over. A row this version cannot read goes at the next write.
 const readHistory = (file: string): Kept | null => {
-  let text: string;
+  let bytes: Buffer;
   try {
-    text = readFileSync(file, "utf8");
+    bytes = readFileSync(file);
   } catch (error) {
     return error instanceof Error && "code" in error && error.code === "ENOENT" ? { rows: [], moved: null } : null;
   }
   let json: unknown;
   try {
-    json = JSON.parse(text);
+    // A byte-order mark, as Windows editors save one, still leaves JSON.
+    json = JSON.parse(bytes.toString("utf8").replace(/^﻿/, ""));
   } catch {
-    return moveAside(file);
+    return moveAside(file, bytes);
   }
   const rows = History.safeParse(json).data?.sessions.flatMap((row) => Row.safeParse(row).data ?? []);
   return rows === undefined ? null : { rows, moved: null };
@@ -78,7 +79,7 @@ const readHistory = (file: string): Kept | null => {
 /**
  * The live sessions, and from the history those whose logs are gone; the history then holds each live session's
  * figures as they are now. Read after the logs, so a delete during a long read holds. `historyMoved`: the `.bad` file
- * this read moved a history that is not JSON to, else null.
+ * this read moved a history that is not JSON aside to, else null.
  */
 // shortcut: no lock, the last of two writers wins and a delete in the milliseconds before a write is undone; lock the file if that shows.
 export const withHistory = (
@@ -94,7 +95,8 @@ export const withHistory = (
     changed ||= !isDeepStrictEqual(rows.get(keyOf(row)), row);
     rows.set(keyOf(row), row);
   }
-  if (changed) writePrivate(file, { version: VERSION, sessions: [...rows.values()] });
+  // A history that is not JSON is replaced even with no live session, so the next read does not copy it again.
+  if (changed || kept.moved !== null) writePrivate(file, { version: VERSION, sessions: [...rows.values()] });
   const own = new Set(live.map(keyOf));
   const gone = [...rows.values()].filter((row) => !own.has(keyOf(row))).map(sessionOf);
   return { sessions: [...live, ...gone], historyMoved: kept.moved };

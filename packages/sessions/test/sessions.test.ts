@@ -115,6 +115,14 @@ test("the history keeps a session's figures, never its text, once its log is gon
   expect(await readSessions(own)).toEqual([{ ...shop, project: repository, end: shop.start }]);
   rmSync(history);
   expect(await readSessions(own)).toEqual([]);
+  // A row this version cannot read (a hand edit) costs only itself.
+  const gone = { agent: "claude-code", id: "0b7c5e1a-0000-4000-8000-000000000001", project: "/work/gone" };
+  const figures = { start: "2026-10-01T08:00:00.000Z", busyMs: 60000, tokens: 1000, costUSD: 0.5, tests: "pass" };
+  const edited = { ...gone, ...figures, id: "0b7c5e1a-0000-4000-8000-000000000002", busyMs: "a" };
+  writeFileSync(history, JSON.stringify({ version: 1, sessions: [{ ...gone, ...figures }, edited] }));
+  expect(await readSessions(own)).toEqual([
+    { ...gone, ...figures, title: null, end: "2026-10-01T08:00:00.000Z", costEstimated: false, unpriced: [] },
+  ]);
   writeFileSync(history, '{"version":2,"sessions":[]}');
   put(SHOP, "-work-shop");
   expect(await readSessions(own)).toEqual([{ ...shop, project: repository }]);

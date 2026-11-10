@@ -19,7 +19,7 @@ type Row = z.infer<typeof Row>;
 
 // A change to what a row holds raises it.
 const VERSION = 1;
-const History = z.object({ version: z.literal(VERSION), sessions: z.array(Row) });
+const History = z.object({ version: z.literal(VERSION), sessions: z.array(z.unknown()) });
 
 const keyOf = ({ agent, id }: Pick<Row, "agent" | "id">): string => `${agent}:${id}`;
 
@@ -43,15 +43,22 @@ const sessionOf = (row: Row): AgentSession => ({
   unpriced: [],
 });
 
-// Missing, or no JSON as a cut-off write leaves it: a new history. Another version's: null, never shown or written over.
+// Missing, or no JSON as a cut-off write leaves it: a new history. Unreadable now (no permission, a rename on Windows) or
+// another version's: null, never shown or written over. A row this version cannot read goes at the next write.
 const readHistory = (file: string): Row[] | null => {
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "ENOENT" ? [] : null;
+  }
   let json: unknown;
   try {
-    json = JSON.parse(readFileSync(file, "utf8"));
+    json = JSON.parse(text);
   } catch {
     return [];
   }
-  return History.safeParse(json).data?.sessions ?? null;
+  return History.safeParse(json).data?.sessions.flatMap((row) => Row.safeParse(row).data ?? []) ?? null;
 };
 
 /**

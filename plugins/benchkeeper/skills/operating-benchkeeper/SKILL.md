@@ -29,7 +29,7 @@ Never run `apply`, `undo`, `restore` or `projects update` against a home folder 
 | Install level, drift, fixes | `doctor [dir] --json` |
 | Files match the ledger, project skills at their pins | `verify [dir] --json` |
 | Global setup | `plan --json`, then `apply --yes` (`--agents a,b`, `--pack p`, `--level lite\|standard\|full`) |
-| One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--guards\|--no-guards`, `--agent-file`, `--caller lint-js\|lint-python\|sonar`) |
+| One project's setup | `projects plan [dir] --json`, then `projects apply [dir] --yes` (`--agents`, `--env container\|host-agent\|sandbox\|host`, `--tier`, `--pack`, `--skill`, `--share\|--local`, `--guards\|--no-guards`, `--caller lint-js\|lint-python\|sonar`) |
 | Answers of a project | `.benchkeeper/state.json`; a changed answer is a new `projects plan` |
 | Registered projects | `projects list --json`, `projects scan <root> --json`, `projects add <dir>` |
 | New project from a preset | `presets list`, `presets save <id> --project dir` (the answers of a set-up project), `presets remove <id>` (moves the file to the backup); `projects create <dir> --preset <id>` with no input prints the plan, then after approval `--yes` applies it and registers the folder (only when the plan wrote `.benchkeeper/state.json`; without it the command exits 1); it then prints recommended skills to turn off and packs to add as a second plan, which `--yes` leaves unselected and `--all` takes whole |

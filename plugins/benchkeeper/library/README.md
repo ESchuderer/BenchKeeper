@@ -115,12 +115,4 @@ Named selections that project setup proposes when "Pick when" matches. A pack wi
 | `data` | `validate-data`, `exploratory-data-analysis`, `statistical-analysis` | The repository imports, analyzes or publishes datasets |
 | `marketing` | `product-marketing`, `copywriting`, `copy-editing`, `seo-audit`, `launch` | A product site, landing pages or a public launch |
 | `operations` | `incident-response`, `compliance-check`, `gdpr-compliant` | A deployed service or regulated product |
-
-## Sources
-
-Agent files a project picks one by one (`--agent-file <path>`), fetched at a pinned commit.
-
-| Source | Agent files | Evaluation |
-| --- | --- | --- |
-| `agency-agents` | `msitarzewski/agency-agents` at `b37b5bb33b78`: `engineering-frontend-developer`, `engineering-backend-architect`, `engineering-technical-writer`, `security-architect`, `testing-accessibility-auditor`, `testing-reality-checker`. Claude Code, Codex (converted to TOML) and GitHub Copilot CLI: Gemini CLI agent files need the project's converter, which this setup does not run. | [agency-agents.md](https://github.com/ESchuderer/BenchKeeper-research/blob/main/evaluations/workflow-frameworks/agency-agents.md) |
 <!-- /generated:catalog -->

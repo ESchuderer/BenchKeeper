@@ -19,11 +19,11 @@ const problems = (chosen: ProfileSelection, app = "0.1.0") => {
   return resolved.ok ? resolved.value.problems : [resolved.finding];
 };
 
-// The default profile's file with another minApp, as a local profile.
-const local = (minApp: string): ProfileSelection => {
+// The default profile's file with another minApp and any extra fields, as a local profile.
+const local = (minApp: string, extra = {}): ProfileSelection => {
   const file = join(mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-profile-")), "mine.json");
   const text = readFileSync(join(BUNDLED, DEFAULT_PROFILE.pack, DEFAULT_PROFILE.path), "utf8");
-  writeFileSync(file, JSON.stringify({ ...JSON.parse(text), minApp }));
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(text), minApp, ...extra }));
   return selection({ profile: { file } });
 };
 
@@ -49,6 +49,11 @@ test.for<[string, ProfileSelection, unknown[]]>([
   [
     "a local profile for a newer CedarLoom",
     local("9.0.0"),
+    [{ code: "profile.app-too-old", params: { minApp: "9.0.0", app: "0.1.0" } }],
+  ],
+  [
+    "a local profile for a newer CedarLoom with a field this one does not know",
+    local("9.0.0", { future: true }),
     [{ code: "profile.app-too-old", params: { minApp: "9.0.0", app: "0.1.0" } }],
   ],
 ])("a selection with %s does not apply", ([, chosen, expected]) => {

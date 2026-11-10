@@ -21,8 +21,13 @@ catalog:
 # in 4.6.6). The override clears the scanner, not the advisory: srt imports zod/v3, which the fix left as it was. The
 # advisory does not reach CedarLoom, whose SandboxManager calls parse nothing with zod (only srt's CLI config loader
 # and its decider client do). srt runs on zod 4 through zod/v3. Drop the override once srt asks for zod 4.
+#
+# shortcut: @mantine/mcp-server 9.7.4 pins @modelcontextprotocol/server 2.1.0, which dependency review refuses for
+# GHSA-46jr-4wx8-v453 and GHSA-jm63-cq47-j5jp (HTTP transport; the server here runs on stdio). 9.8.0 pins 2.3.1, the
+# fix. Drop the override when the lockfile moves @mantine/mcp-server to 9.8.0 or later.
 overrides:
   "@anthropic-ai/sandbox-runtime>zod": "catalog:"
+  "@mantine/mcp-server>@modelcontextprotocol/server": "2.3.1"
 
 # shortcut: thread-stream 4.2.0 (pino, through fastify) names a worker_threads type that @types/node 26 removed, which
 # tsc reports with skipLibCheck off; 4.2.1 has the same one-line fix. Drop the patch when the lockfile moves to 4.2.1.

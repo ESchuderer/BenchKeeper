@@ -358,7 +358,7 @@ export const Finding = z
     finding("work-items.no-hub", {}),
     /** An issue outside this machine's hub (A3 b): nothing is queued or linked. */
     finding("work-items.not-hub", { repo: z.string(), hub: z.string() }),
-    /** A project whose origin remote names no GitHub repository, or two, so its hub label has no name: nothing is queued. */
+    /** A project in which git finds no origin naming exactly one GitHub repository (no such folder, no repository there, git refuses it, or two repositories), or whose name has no letter or digit: its hub label has no name and nothing is queued. */
     finding("work-items.no-project-name", { project: z.string() }),
     /** A project label longer than GitHub takes: nothing is queued. */
     finding("work-items.label-too-long", { label: z.string(), limit: z.int() }),

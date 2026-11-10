@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type Finding, Intent, type OutboxEntry, type Result } from "@cedarloom/contracts";
+import { type Finding, Intent, LABEL_MAX, type OutboxEntry, type Result } from "@cedarloom/contracts";
 import type { z } from "zod";
 import { intentHash, openWorkItemStore, type WorkItemStore } from "@cedarloom/ledger";
 import { folderRemotes, originRepos } from "@cedarloom/orchestration";
@@ -61,21 +61,15 @@ export const hubOn = (config: string, app: string | undefined): boolean => {
   return resolved.ok && hubParts(resolved.value).length > 0;
 };
 
-// The origin's repository and the name it gives, never the folder's name: worktrees are named after their task.
-const originOf = (project: string): Result<{ repo: string; name: string }> => {
+// The origin's repository in lower case, never the folder's name: worktrees are named after their task.
+const originOf = (project: string): Result<string> => {
   const repos = [...new Set(originRepos(project, folderRemotes).map((repo) => repo.toLowerCase()))];
   const [repo = ""] = repos;
-  const name = repo
-    .slice(repo.indexOf("/") + 1)
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/^-|-$/g, "");
-  return repos.length === 1 && name !== ""
-    ? { ok: true, value: { repo, name } }
+  return repos.length === 1
+    ? { ok: true, value: repo }
     : refuse({ code: "work-items.no-project-name", params: { project } });
 };
 
-// GitHub's label name limit, as its label form enforces it; unverified against docs.github.com.
-const LABEL_MAX = 50;
 type Label = [name: string, { color: string; description?: string | undefined }];
 // The origin is read only when a label needs it, so a folder without one is refused only then.
 const wantedLabels = (resolved: Resolved, project: string | undefined): Result<Label[]> => {
@@ -87,12 +81,19 @@ const wantedLabels = (resolved: Resolved, project: string | undefined): Result<L
   if (project === undefined || named.length === 0) return { ok: true, value: own };
   const origin = originOf(project);
   if (!origin.ok) return origin;
-  const { repo, name } = origin.value;
-  const projectLabels = named.map(({ prefix, color, projectNames }): Label => {
-    // A child profile's keys come after its parent's, so the last match is the latest layer's.
-    const listed = Object.entries(projectNames).findLast(([key]) => key.toLowerCase() === repo)?.[1];
-    return [prefix + (listed ?? name), { color }];
-  });
+  const repo = origin.value;
+  // For a repository the profile does not name: its name in lower case with hyphens, "" when no letter or digit is left.
+  const fallback = repo
+    .slice(repo.indexOf("/") + 1)
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+  const names = named.map(({ prefix, color, projectNames }) => ({
+    prefix,
+    color,
+    name: projectNames[repo] ?? fallback,
+  }));
+  if (names.some(({ name }) => name === "")) return refuse({ code: "work-items.no-project-name", params: { project } });
+  const projectLabels = names.map(({ prefix, color, name }): Label => [prefix + name, { color }]);
   const long = projectLabels.find(([label]) => label.length > LABEL_MAX);
   if (long !== undefined)
     return refuse({ code: "work-items.label-too-long", params: { label: long[0], limit: LABEL_MAX } });

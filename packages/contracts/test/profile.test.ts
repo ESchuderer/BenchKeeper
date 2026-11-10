@@ -466,10 +466,11 @@ const hub = (id: string, label: string) => ({
   labels: { [label]: { color: "ffffff" } },
 });
 
-test("a repository spelled twice in projectNames, also in another case, is refused", () => {
-  const names = { "acme/widgets": "widgets-app", "ACME/Widgets": "other" };
-  expect(outcome(readProfile(set(defaults, ["workspace", "hub", "projectNames"], names)))).toEqual([
-    "workspace.hub.projectNames",
+test("a projectNames key is a repository in lower case", () => {
+  const at = ["workspace", "hub", "projectNames"];
+  expect(outcome(readProfile(set(defaults, at, { "acme/widgets.v2": "widgets-app" })))).toBe("ok");
+  expect(outcome(readProfile(set(defaults, at, { "ACME/Widgets": "widgets-app" })))).toEqual([
+    "workspace.hub.projectNames.ACME/Widgets",
   ]);
 });
 

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { applyPlan, planChoice, previewHubLabels, previewIntent } from "@cedarloom/use-cases";
 import { expect, test } from "vitest";
@@ -76,10 +76,14 @@ test("a project's label is named by the profile for its origin's GitHub reposito
     ok: false,
     finding: { code: "work-items.label-too-long", params: { label: `project:${"a".repeat(43)}`, limit: 50 } },
   });
+  // A folder that is no repository itself, inside one: git would find the outer origin.
+  const inside = join(origin("git@github.com:acme/outer.git"), "new-thing");
+  mkdirSync(inside);
   for (const project of [
     origin(),
     origin("git@github.com:acme/_.git"),
     origin("git@github.com:acme/r.git", "git@github.com:acme/s.git"),
+    inside,
   ]) {
     expect(await previewHubLabels(config, tracker, { project })).toEqual({
       ok: false,
@@ -87,11 +91,11 @@ test("a project's label is named by the profile for its origin's GitHub reposito
     });
   }
 
-  // A key names its repository without case; one file spells a repository once (the profile schema refuses two).
+  // A key names its repository in lower case, whatever case the origin spells it in.
   const file = join(config, "mine.json");
   const head = { schemaVersion: 1, kind: "cedarloom.profile", id: "acme.mine", version: "1.0.0", name: "Mine" };
   const extend = { extends: [{ pack: "cedarloom.core", path: "profiles/default.json" }], minApp: "0.0.0" };
-  const projectNames = { "ACME/BuildGuide": "agent-studio" };
+  const projectNames = { "acme/buildguide": "agent-studio" };
   const packs = { "cedarloom.core": { bundled: true } };
   writeFileSync(file, JSON.stringify({ ...head, ...extend, packs, workspace: { hub: { type: "hub", projectNames } } }));
   applied(state, ok(planChoice(config, { file })));

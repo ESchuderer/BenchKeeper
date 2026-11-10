@@ -15,7 +15,7 @@ export const INSTALLED_SCHEMA_VERSION = 1;
 /** The format of the record of update sightings (`extension-updates.json` in the state folder). */
 export const UPDATES_SCHEMA_VERSION = 1;
 
-export const unique = (items: readonly string[]): boolean => new Set(items).size === items.length;
+const unique = (items: readonly string[]): boolean => new Set(items).size === items.length;
 // A list without repeats, in zod and in the JSON Schema document.
 export const distinct = <T extends z.ZodType<string>>(item: T) =>
   z.array(item).refine(unique, "no entry twice").meta({ uniqueItems: true });

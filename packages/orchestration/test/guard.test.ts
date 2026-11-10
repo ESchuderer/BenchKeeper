@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { GuardPolicy } from "@cedarloom/contracts";
 import { folderRemotes, guardCommand, originRepos, type Remotes, TYPED_REMOTE } from "@cedarloom/orchestration";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { z } from "zod";
 
 const Fixtures = z.object({
@@ -156,7 +156,7 @@ test("the hook reads the remotes as the guarded command's git does, a session's 
     try {
       execFileSync("git", ["init", "-q", memory]);
       execFileSync("git", ["-C", memory, "remote", "add", "origin", "git@github.com:acme/memory.git"]);
-      process.env["GIT_DIR"] = join(memory, ".git");
+      vi.stubEnv("GIT_DIR", join(memory, ".git"));
       const run = (text: string) => hook(bash(text, project), policy);
       expect([
         run("git push origin HEAD:main"),
@@ -165,7 +165,7 @@ test("the hook reads the remotes as the guarded command's git does, a session's 
         originRepos(project, folderRemotes),
       ]).toEqual(["refused", "runs", ["acme/memory"], ["acme/app"]]);
     } finally {
-      delete process.env["GIT_DIR"];
+      vi.unstubAllEnvs();
       rmSync(memory, { recursive: true, force: true });
     }
   });

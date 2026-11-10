@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type Result, readDocument } from "./documents.ts";
-import { description, distinct, GitRef, GitUrl, PortablePath, sized, unique } from "./extension.ts";
+import { description, distinct, GitRef, GitUrl, PortablePath, sized } from "./extension.ts";
 import { GitSource, PACK_ID, PackId, skillFolder } from "./pack.ts";
 import { Sha256 } from "./plan.ts";
 import { fileFormats } from "./registry.ts";
@@ -93,21 +93,25 @@ const rulesFile = part("rules", {
   text: Text,
 });
 const userSettings = part("settings", { set: JsonObject.describe("Merged into the agent's user settings") });
+/** GitHub's label name limit, as its label form enforces it; unverified against docs.github.com. */
+export const LABEL_MAX = 50;
+// GitHub names repositories without case: one spelling per repository, so a child profile's key replaces its parent's.
+const LowerGitHubRepo = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]{0,38}\/[a-z0-9._-]{1,100}$/, "a GitHub repository as owner/repo, in lower case");
 const hub = part("hub", {
   labels: sized(
-    z.record(PlainText.min(1).max(50), z.strictObject({ color: Color, description: PlainText.max(100).optional() })),
+    z.record(
+      PlainText.min(1).max(LABEL_MAX),
+      z.strictObject({ color: Color, description: PlainText.max(100).optional() }),
+    ),
     100,
   ),
   projectLabel: z.strictObject({ prefix: PlainText.min(1).max(40), color: Color }).optional(),
-  projectNames: sized(z.record(GitHubRepo, Name), 100)
-    // GitHub names repositories without case, so two spellings of one would leave the label's name to key order.
-    .refine(
-      (names) => unique(Object.keys(names).map((repo) => repo.toLowerCase())),
-      "no repository twice, also in another case",
-    )
+  projectNames: sized(z.record(LowerGitHubRepo, Name), 100)
     .optional()
     .describe(
-      "A project's name in its label by its origin's GitHub repository, without case; else that repository's name in lower case with hyphens",
+      "A project's name in its label by its origin's GitHub repository, as owner/repo in lower case; else that repository's name in lower case with hyphens",
     ),
   rules: Text.optional().describe("The question rule, a machine rules file while this part is on"),
 });

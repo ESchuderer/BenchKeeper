@@ -78,6 +78,7 @@ export {
 export {
   FILES_RECORD,
   FILES_SCHEMA_VERSION,
+  LABEL_MAX,
   PackRef,
   PartProbe,
   Profile,

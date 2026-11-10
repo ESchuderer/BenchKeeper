@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { dirname } from "node:path";
 import { githubRepo, type Remotes, TYPED_REMOTE } from "./guard.ts";
 import { programPath } from "./program.ts";
 
@@ -42,7 +43,11 @@ export const gitRemotes: Remotes = (folder, typedUrl) => remotesIn(folder, typed
  * (docs/agents/git-and-processes.md#git). For the CLI; the guard reads with gitRemotes.
  */
 export const folderRemotes: Remotes = (folder, typedUrl) =>
-  remotesIn(folder, typedUrl, Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))));
+  remotesIn(folder, typedUrl, {
+    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))),
+    // Git never looks above the folder: one that is no repository takes nothing from the repository around it.
+    GIT_CEILING_DIRECTORIES: dirname(folder),
+  });
 
 /** The GitHub repositories of a folder's `origin` remote, its fetch and push URLs; none when git cannot read it. */
 export const originRepos = (folder: string, remotes: Remotes = gitRemotes): string[] => {

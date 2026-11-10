@@ -102,7 +102,7 @@ const hub = part("hub", {
   projectNames: sized(z.record(GitHubRepo, Name), 100)
     .optional()
     .describe(
-      "A project's name in its label by its origin's GitHub repository, without case; else that repository's name",
+      "A project's name in its label by its origin's GitHub repository, without case; else that repository's name in lower case with hyphens",
     ),
   rules: Text.optional().describe("The question rule, a machine rules file while this part is on"),
 });

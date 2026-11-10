@@ -47,30 +47,56 @@ test("only the labels the hub lacks are previewed, compared without case, and on
   expect(await previewHubLabels(config, tracker)).toEqual({ ok: true, value: [] });
 });
 
-test("a project's label is named by the profile for its origin's GitHub repository, else by that repository's name in lower case; a project without one is refused", async () => {
-  const [config, state, project, bare] = [folder("config-"), folder("state-"), folder("project-"), folder("bare-")];
-  applied(state, ok(planChoice(config, { hub: "acme/hub" })));
+// A Git folder whose origin fetches from `fetch` and, when given, pushes to `push`.
+const origin = (fetch?: string, push?: string): string => {
+  const project = folder("project-");
   execFileSync("git", ["init", "-q", project]);
-  execFileSync("git", ["-C", project, "remote", "add", "origin", "git@github.com:acme/BuildGuide.git"]);
-  execFileSync("git", ["init", "-q", bare]);
-  const tracker = { labels: async () => ({ ok: true as const, value: [] }) };
-  const projectLabels = async () =>
-    ok(await previewHubLabels(config, tracker, project)).flatMap(({ intent }) =>
-      intent.kind === "create-label" && intent.label.startsWith("project:") ? [[intent.label, intent.color]] : [],
-    );
-  expect(await projectLabels()).toEqual([["project:buildguide", "1d76db"]]);
+  if (fetch !== undefined) execFileSync("git", ["-C", project, "remote", "add", "origin", fetch]);
+  if (push !== undefined) execFileSync("git", ["-C", project, "remote", "set-url", "--push", "origin", push]);
+  return project;
+};
 
+test("a project's label is named by the profile for its origin's GitHub repository, else by that repository's name in lower case; a project without one is refused", async () => {
+  const [config, state] = [folder("config-"), folder("state-")];
+  applied(state, ok(planChoice(config, { hub: "acme/hub" })));
+  const tracker = { labels: async () => ({ ok: true as const, value: [] }) };
+  const projectLabels = async (project: string) =>
+    ok(await previewHubLabels(config, tracker, { project })).flatMap(({ intent }) =>
+      intent.kind === "create-label" && intent.label.startsWith("project:")
+        ? [[intent.repo, intent.label, intent.color]]
+        : [],
+    );
+  const buildGuide = origin("git@github.com:acme/BuildGuide.git");
+  expect(await projectLabels(buildGuide)).toEqual([["acme/hub", "project:buildguide", "1d76db"]]);
+  expect(await projectLabels(origin("https://github.com/acme/-My_App.v2-.git"))).toEqual([
+    ["acme/hub", "project:my-app-v2", "1d76db"],
+  ]);
+  const long = origin(`git@github.com:acme/${"a".repeat(43)}.git`);
+  expect(await previewHubLabels(config, tracker, { project: long })).toEqual({
+    ok: false,
+    finding: { code: "work-items.label-too-long", params: { label: `project:${"a".repeat(43)}`, max: 50 } },
+  });
+  for (const project of [
+    origin(),
+    origin("git@github.com:acme/_.git"),
+    origin("git@github.com:acme/r.git", "git@github.com:acme/s.git"),
+  ]) {
+    expect(await previewHubLabels(config, tracker, { project })).toEqual({
+      ok: false,
+      finding: { code: "work-items.no-project-name", params: { project } },
+    });
+  }
+
+  // A child profile's keys follow its parent's, so of two keys differing in case the later one names the project.
   const file = join(config, "mine.json");
   const head = { schemaVersion: 1, kind: "cedarloom.profile", id: "acme.mine", version: "1.0.0", name: "Mine" };
   const extend = { extends: [{ pack: "cedarloom.core", path: "profiles/default.json" }], minApp: "0.0.0" };
-  const hub = { type: "hub", projectNames: { "ACME/buildguide": "agent-studio" } };
+  const projectNames = { "acme/buildguide": "parent-name", "ACME/BuildGuide": "agent-studio" };
   const packs = { "cedarloom.core": { bundled: true } };
-  writeFileSync(file, JSON.stringify({ ...head, ...extend, packs, workspace: { hub } }));
+  writeFileSync(file, JSON.stringify({ ...head, ...extend, packs, workspace: { hub: { type: "hub", projectNames } } }));
   applied(state, ok(planChoice(config, { file })));
-  expect(await projectLabels()).toEqual([["project:agent-studio", "1d76db"]]);
+  expect(await projectLabels(buildGuide)).toEqual([["acme/hub", "project:agent-studio", "1d76db"]]);
 
-  expect(await previewHubLabels(config, tracker, bare)).toEqual({
-    ok: false,
-    finding: { code: "work-items.no-project-name", params: { project: bare } },
-  });
+  applied(state, ok(planChoice(config, { part: "workspace.hub", on: false })));
+  expect(await previewHubLabels(config, tracker, { project: origin() })).toEqual({ ok: true, value: [] });
 });

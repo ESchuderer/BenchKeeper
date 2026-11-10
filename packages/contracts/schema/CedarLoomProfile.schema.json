@@ -742,7 +742,7 @@
                 "additionalProperties": false
               },
               "projectNames": {
-                "description": "A project's name in its label by its origin's GitHub repository, without case; else that repository's name",
+                "description": "A project's name in its label by its origin's GitHub repository, without case; else that repository's name in lower case with hyphens",
                 "type": "object",
                 "propertyNames": {
                   "type": "string",

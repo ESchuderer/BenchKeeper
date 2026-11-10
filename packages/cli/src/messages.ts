@@ -341,6 +341,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
     `${p.repo} is not this machine's hub (${p.hub}); CedarLoom works on hub issues only, so nothing was queued or linked.`,
   "work-items.no-project-name": (p) =>
     `The origin remote of ${shown(p.project, 300)} names no GitHub repository, or two, so its project label has no name; nothing was queued.`,
+  "work-items.label-too-long": (p) =>
+    `The project label ${shown(p.label, 300)} is longer than the ${p.max} characters GitHub takes; shorten the profile's projectLabel prefix or name the project in projectNames. Nothing was queued.`,
   "secret.missing": (p) => `No ${p.name} token is in the OS credential store. ${PIPE}`,
   "secret.unavailable": (p) =>
     `The OS credential store did not answer for ${p.name} (${shown(p.error, 300)}). Check that it is unlocked and, on Linux, that a Secret Service such as GNOME Keyring or KWallet runs.`,

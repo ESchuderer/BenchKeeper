@@ -2328,6 +2328,13 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                max: number;
+            };
+        } | {
+            /** @constant */
             code: "secret.missing";
             params: {
                 name: string;
@@ -3645,6 +3652,13 @@ export interface components {
             code: "work-items.no-project-name";
             params: {
                 project: string;
+            };
+        } | {
+            /** @constant */
+            code: "work-items.label-too-long";
+            params: {
+                label: string;
+                max: number;
             };
         } | {
             /** @constant */

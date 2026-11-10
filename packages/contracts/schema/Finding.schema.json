@@ -4517,6 +4517,38 @@
       "properties": {
         "code": {
           "type": "string",
+          "const": "work-items.label-too-long"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "max": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "label",
+            "max"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "params"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
           "const": "secret.missing"
         },
         "params": {

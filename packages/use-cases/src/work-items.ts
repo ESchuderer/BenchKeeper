@@ -74,19 +74,29 @@ const originOf = (project: string): Result<{ repo: string; name: string }> => {
     : refuse({ code: "work-items.no-project-name", params: { project } });
 };
 
+// GitHub's label name limit, as its label form enforces it; unverified against docs.github.com.
+const LABEL_MAX = 50;
 type Label = [name: string, { color: string; description?: string | undefined }];
-// The labels of the hub parts that are on, and with a project its label in each part that names a prefix.
+// The origin is read only when a label needs it, so a folder without one is refused only then.
 const wantedLabels = (resolved: Resolved, project: string | undefined): Result<Label[]> => {
-  const origin = project === undefined ? undefined : originOf(project);
-  if (origin?.ok === false) return origin;
-  const wanted = hubParts(resolved).flatMap(({ labels, projectLabel, projectNames = {} }): Label[] => {
-    const own: Label[] = Object.entries(labels);
-    if (origin === undefined || projectLabel === undefined) return own;
-    const { repo, name } = origin.value;
-    const named = Object.entries(projectNames).find(([key]) => key.toLowerCase() === repo)?.[1];
-    return [...own, [projectLabel.prefix + (named ?? name), { color: projectLabel.color }]];
+  const parts = hubParts(resolved);
+  const own = parts.flatMap(({ labels }): Label[] => Object.entries(labels));
+  const named = parts.flatMap(({ projectLabel, projectNames = {} }) =>
+    projectLabel === undefined ? [] : [{ ...projectLabel, projectNames }],
+  );
+  if (project === undefined || named.length === 0) return { ok: true, value: own };
+  const origin = originOf(project);
+  if (!origin.ok) return origin;
+  const { repo, name } = origin.value;
+  const projectLabels = named.map(({ prefix, color, projectNames }): Label => {
+    // A child profile's keys come after its parent's, so the last match is the latest layer's.
+    const listed = Object.entries(projectNames).findLast(([key]) => key.toLowerCase() === repo)?.[1];
+    return [prefix + (listed ?? name), { color }];
   });
-  return { ok: true, value: wanted };
+  const long = projectLabels.find(([label]) => label.length > LABEL_MAX);
+  if (long !== undefined)
+    return refuse({ code: "work-items.label-too-long", params: { label: long[0], max: LABEL_MAX } });
+  return { ok: true, value: [...own, ...projectLabels] };
 };
 
 /**
@@ -98,11 +108,11 @@ const wantedLabels = (resolved: Resolved, project: string | undefined): Result<L
 export const previewHubLabels = async (
   config: string,
   tracker: Pick<Tracker, "labels">,
-  project?: string,
+  { app, project }: { app?: string | undefined; project?: string | undefined } = {},
 ): Promise<Result<{ intent: Intent; hash: string }[]>> => {
   const hub = hubOf(config);
   if (!hub.ok) return hub;
-  const resolved = selectedProfile(config, undefined, undefined);
+  const resolved = selectedProfile(config, app, undefined);
   if (!resolved.ok) return resolved;
   const wanted = wantedLabels(resolved.value, project);
   if (!wanted.ok) return wanted;

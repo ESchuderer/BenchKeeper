@@ -102,7 +102,7 @@ const send = async (ctx: Context): Promise<number> => {
 const labels = async (ctx: Context, yes?: true, project?: string): Promise<number> => {
   const tracker = await hubTracker(ctx);
   if (!tracker.ok) return refused(ctx, "outbox", tracker.finding);
-  const missing = await useCases.previewHubLabels(ctx.config, tracker.value, project);
+  const missing = await useCases.previewHubLabels(ctx.config, tracker.value, { app: ctx.app, project });
   if (!missing.ok) return refused(ctx, "intent", missing.finding);
   if (missing.value.length === 0 || yes !== true) {
     const lines = missing.value.map(({ intent }) => `Would queue: ${what(intent)}.`);

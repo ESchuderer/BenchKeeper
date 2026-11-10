@@ -20,6 +20,8 @@ export const gitRemotes: Remotes = (folder, typedUrl) => {
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true,
+      // No GIT_* variables: a hook's GIT_DIR would read another repository (docs/agents/git-and-processes.md#git).
+      env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))),
     });
     const remotes = new Map<string, string[]>();
     for (const [, name = "", url = ""] of listed.matchAll(/^(\S+)\t(\S+) \((?:fetch|push)\)$/gm)) {

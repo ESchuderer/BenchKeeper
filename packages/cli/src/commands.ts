@@ -375,6 +375,13 @@ export const workflowsExport = (ctx: Context, ids: string[], folder: string, opt
   return change(ctx, planned.value, { note, data: { folder, workflows: ids }, findings: [] }, yes);
 };
 
+// Last and only after a run that went through, so "the command" of the lines above stays profiles apply.
+const labelsHint = (ctx: Context, project: string | undefined): void => {
+  if (ctx.json || !useCases.hubOn(ctx.config, ctx.app)) return;
+  const folder = project === undefined ? "" : ` --project ${folderArgument(resolve(project))}`;
+  ctx.io.out(`Create the labels the hub lacks with: cedarloom work-items labels${folder}\n`);
+};
+
 /** Shows the profile's plan for this machine, or with --yes applies it as one run. */
 export const profilesApply = async (
   ctx: Context,
@@ -387,19 +394,22 @@ export const profilesApply = async (
   if (useCases.heldBack(findings)) {
     return fail(ctx, "plan", findings, EXIT.refused);
   }
-  const labels = `cedarloom work-items labels${project === undefined ? "" : ` --project ${folderArgument(resolve(project))}`}`;
-  const hint = useCases.hubOn(ctx.config, ctx.app) ? `\nCreate the labels the hub lacks with: ${labels}` : "";
   if (plan === null) {
     emit(
       ctx,
       "plan",
       { planHash: null, plan: null, findings },
-      `${project === undefined ? "Nothing to change in this machine's rules and settings." : "Nothing to change in this project."}${hint}`,
+      project === undefined
+        ? "Nothing to change in this machine's rules and settings."
+        : "Nothing to change in this project.",
     );
     report(ctx, findings);
+    labelsHint(ctx, project);
     return EXIT.ok;
   }
-  return change(ctx, plan, { note: hint, data: {}, findings }, yes);
+  const code = change(ctx, plan, { note: "", data: {}, findings }, yes);
+  if (code === EXIT.ok) labelsHint(ctx, project);
+  return code;
 };
 
 /** Reports how this machine's Claude Code home, or a project, differs from the profile; exits 1 when it does. */

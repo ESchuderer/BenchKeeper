@@ -102,7 +102,7 @@ const GUARDRAILS = [
 const HOME_PATH = /(^|[\s"'=(])(\/(home|Users|root|mnt|Volumes)\/|~\/|[A-Za-z]:\\)/m;
 const SHEBANG = /^#!\s*(\/usr\/bin\/env\s+)?(\S*\/)?(sh|bash|python3?)(\s|$)/;
 // shortcut: a word list over the text, not a parse; a command built at run time slips through. Upgrade with a sandbox that blocks the network (#344 runner).
-const NETWORK = /\b(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|ftp|telnet|nmap|npm|npx|pip3?|apt(-get)?|brew)\b|\bgit(?:[ \t]+(?:-[Cc][ \t]+[^-\s]\S*|--?\w[\w-]*(?:=\S*)?))*[ \t]+(fetch|pull|push|clone|ls-remote)(?=[\s;&|)]|$)|\/dev\/(tcp|udp)\/|https?:\/\/|\b(import|from)\s+(urllib|requests|socket|http|httpx|aiohttp|ftplib|smtplib|ssl)\b/;
+const NETWORK = /\b(curl|wget|nc|ncat|netcat|socat|ssh|scp|sftp|ftp|telnet|nmap|npm|npx|pip3?|apt(-get)?|brew)\b|\bgit(?:[ \t]+(?:-[Cc][ \t]+[^-\s]\S*|--?\w[\w-]*(?:=\S*)?))*[ \t]+(fetch|pull|push|clone|ls-remote)(?![\w.-])|\/dev\/(tcp|udp)\/|https?:\/\/|\b(import|from)\s+(urllib|requests|socket|http|httpx|aiohttp|ftplib|smtplib|ssl)\b/;
 const marker = (id) => `automation-${id}`;
 const re = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // The helpers whose path in the sh text s sits inside single or double quotes. Install and export put a quoted absolute

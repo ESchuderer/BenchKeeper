@@ -5,6 +5,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
+import { parse as parseYaml } from 'yaml';
 import { main } from '../src/cli.mjs';
 import { harnessTest } from '../src/harness.mjs';
 import { exportPack, libraryWith, savePack, scopeWrite, userSkillDir, userSkillRemove, userSkills, userSkillWrite, warnings } from '../src/packs.mjs';
@@ -192,6 +193,18 @@ test('a library skill named like an own skill: doctor and the catalog name the c
   apply(preview(plan({ reset: [name] }).changes), ctx, { scope: dir });
   assert.notEqual(readFileSync(copy, 'utf8'), mine);
   assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'own');
+});
+
+test('--paths gives a user skill with a block-scalar description valid front matter; a skill that sets paths itself is refused', () => {
+  const ctx = ctxAt();
+  const dir = mkdtempSync(join(TMP, 'bk-user-skill-paths-'));
+  execFileSync('git', ['init', '-q', dir]);
+  add(ctx, 'release-notes', '---\nname: release-notes\ndescription: >-\n  Checks release notes.\n  Use when a release is cut.\n---\n\n# release-notes\n');
+  add(ctx, 'changelog', '---\nname: changelog\ndescription: Writes the changelog.\npaths: CHANGELOG.md\n---\n\n# changelog\n');
+  const plan = (skill) => projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host', skills: [skill], setPaths: { [skill]: 'docs/**' } }, plugins: {} });
+  const skillMd = preview(plan('release-notes').changes).find((c) => c.path === join(dir, '.claude/skills/release-notes/SKILL.md'));
+  assert.deepEqual(parseYaml(skillMd.after.match(/^---\n([\s\S]*?)\n---/)[1]), { paths: 'docs/**', name: 'release-notes', description: 'Checks release notes. Use when a release is cut.' });
+  assert.throws(() => plan('changelog'), /sets paths itself/);
 });
 
 test('a link to nothing or to a folder in a user skill is not copied and the project plan warns; the views keep working (#914)', () => {

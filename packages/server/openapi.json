@@ -3630,12 +3630,20 @@
                         "file": {
                           "type": "string"
                         },
+                        "change": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "replace"
+                          ]
+                        },
                         "entry": {
                           "type": "string"
                         }
                       },
                       "required": [
                         "file",
+                        "change",
                         "entry"
                       ],
                       "additionalProperties": false
@@ -3685,6 +3693,14 @@
                   "server": {
                     "type": "string"
                   },
+                  "change": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "replace",
+                      "remove"
+                    ]
+                  },
                   "file": {
                     "type": "string"
                   },
@@ -3695,6 +3711,7 @@
                 "required": [
                   "part",
                   "server",
+                  "change",
                   "file",
                   "entry"
                 ],
@@ -3713,6 +3730,40 @@
               "code": {
                 "type": "string",
                 "const": "profile.mcp-conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-kept"
               },
               "params": {
                 "type": "object",
@@ -9723,12 +9774,20 @@
                         "file": {
                           "type": "string"
                         },
+                        "change": {
+                          "type": "string",
+                          "enum": [
+                            "add",
+                            "replace"
+                          ]
+                        },
                         "entry": {
                           "type": "string"
                         }
                       },
                       "required": [
                         "file",
+                        "change",
                         "entry"
                       ],
                       "additionalProperties": false
@@ -9778,6 +9837,14 @@
                   "server": {
                     "type": "string"
                   },
+                  "change": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "replace",
+                      "remove"
+                    ]
+                  },
                   "file": {
                     "type": "string"
                   },
@@ -9788,6 +9855,7 @@
                 "required": [
                   "part",
                   "server",
+                  "change",
                   "file",
                   "entry"
                 ],
@@ -9806,6 +9874,40 @@
               "code": {
                 "type": "string",
                 "const": "profile.mcp-conflict"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "part": {
+                    "type": "string"
+                  },
+                  "server": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "server",
+                  "file"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "profile.mcp-kept"
               },
               "params": {
                 "type": "object",

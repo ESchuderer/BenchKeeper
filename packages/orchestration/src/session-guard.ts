@@ -55,7 +55,8 @@ const ALIAS = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,252}$/;
 
 /**
  * The hostname OpenSSH's config gives a host alias (`ssh -G`); undefined for another word or without ssh.
- * shortcut: OpenSSH's config only, not core.sshCommand's or PuTTY's; upgrade when an owner's alias lives there.
+ * shortcut: OpenSSH's config only, not core.sshCommand's or PuTTY's, and without git's user and port, so a `Match user`
+ * or port branch can differ; upgrade when an owner's alias lives there.
  */
 export const sshHostName = (alias: string): string | undefined => {
   if (!ALIAS.test(alias)) return undefined;

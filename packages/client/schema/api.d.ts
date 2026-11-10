@@ -2342,7 +2342,7 @@ export interface components {
             title: string;
             description: string | null;
             on: boolean;
-            when: ("orca" | "devcontainer" | "no-devcontainer" | "gates") | null;
+            when: ("orca" | "devcontainer" | "no-devcontainer" | "gates" | "mantine") | null;
         };
         ProfileViewInput: {
             parts: components["schemas"]["ProfilePartInput"][];
@@ -3586,7 +3586,7 @@ export interface components {
             title: string;
             description: string | null;
             on: boolean;
-            when: ("orca" | "devcontainer" | "no-devcontainer" | "gates") | null;
+            when: ("orca" | "devcontainer" | "no-devcontainer" | "gates" | "mantine") | null;
         };
         ProfileView: {
             parts: components["schemas"]["ProfilePart"][];

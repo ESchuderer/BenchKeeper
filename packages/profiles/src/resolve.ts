@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { lstatSync, readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import {
   type Composed,
   composeProfile,
@@ -56,6 +56,25 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
     if (errorCode(error) === "ENOENT") return { ok: true, value: null };
     return refuse({ code: "document.unreadable", params: { path: file, error: errorCode(error) } });
   }
+};
+
+/** A bundled pack's folder entry: its files by their paths in it, with the modes a Git fetch gives; a link refuses it. */
+export const bundledFolder = (ref: Ref): Result<Folder["files"]> => {
+  const root = join(BUNDLED, ref.pack, ref.path);
+  const files: Folder["files"][number][] = [];
+  try {
+    for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
+      const path = join(entry.parentPath, entry.name);
+      if (entry.isDirectory()) continue;
+      if (!entry.isFile())
+        return refuse({ code: "document.unreadable", params: { path, error: "not a regular file" } });
+      const mode = lstatSync(path).mode & 0o100 ? "100755" : "100644";
+      files.push({ path: relative(root, path).split(sep).join("/"), mode, content: readFileSync(path) });
+    }
+  } catch (error) {
+    return refuse({ code: "document.unreadable", params: { path: root, error: errorCode(error) } });
+  }
+  return { ok: true, value: files };
 };
 
 type Entry = PackManifest["entries"][string];
@@ -180,7 +199,7 @@ const problemsOf = (parts: ReadonlyMap<string, Part>, on: ReadonlySet<string>, s
 ];
 
 /** What an `auto` part is on by. */
-export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates";
+export type Probe = "orca" | "devcontainer" | "no-devcontainer" | "gates" | "mantine";
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 

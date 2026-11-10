@@ -34,6 +34,7 @@ import {
   resolveProfile,
   sourceKey,
   sourcesOf,
+  usesMantine,
 } from "@cedarloom/profiles";
 import { bundledExtensions } from "./bundled.ts";
 import type { Fetch } from "./extensions.ts";
@@ -95,12 +96,15 @@ const orcaHere = (app: string | undefined, config: string): boolean => {
   return orca !== undefined && orca.state !== "off" && programFound(orca.manifest, "orca");
 };
 
-// The probes, each asked once and only by a part that needs it: Orca, and whether the project has a dev container.
+// The probes, each asked once and only by a part that needs it: Orca, whether the project has a dev container and
+// whether it uses Mantine.
 const probeOf = (app: string | undefined, config: string, project: string | undefined) => {
   const container = project !== undefined && hasContainer(project);
   let orca: boolean | undefined;
+  let mantine: boolean | undefined;
   return (when: Probe): boolean => {
     if (when === "orca") return (orca ??= orcaHere(app, config));
+    if (when === "mantine") return project !== undefined && (mantine ??= usesMantine(project));
     return project !== undefined && (when === "devcontainer" ? container : when === "no-devcontainer" && !container);
   };
 };

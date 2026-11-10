@@ -11,13 +11,13 @@ description: "Mantine conventions for the family's projects (those on @open-relo
 
 ## Tokens
 
-- Tokens, never raw colors or px: `--page --surface --surface-alt --ink --muted --line --control-line --accent --accent-hover --accent-tint --on-accent --link --error-text --warn-* --select --space-xs..xl --font-size-xs..xl --font-size-field --size-target`.
+- Projects on `@open-reloading/design-tokens`: tokens, never raw colors or px: `--page --surface --surface-alt --ink --muted --line --control-line --accent --accent-hover --accent-tint --on-accent --link --error-text --warn-* --select --space-xs..xl --font-size-xs..xl --font-size-field --size-target`.
 - New styles: CSS modules with `classNames`, never Mantine's private `--_*` variables.
 - Mantine's grays still show in SegmentedControl and Switch tracks and disabled Buttons.
 
 ## Density
 
-- `size="field"` 24 px (property grids), `xs` 30 px (rows, buttons), `sm` 36 px (bars). Under a coarse pointer these become 44 px with 16 px field text; Mantine's `md` does not. Row checkboxes need an explicit 44 px hit area.
+- With `ui.css`: `size="field"` 24 px (property grids), `xs` 30 px (rows, buttons), `sm` 36 px (bars). Under a coarse pointer these become 44 px with 16 px field text; Mantine's `md` does not. Row checkboxes need an explicit 44 px hit area.
 
 ## Component traps
 

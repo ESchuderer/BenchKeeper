@@ -52,13 +52,15 @@ const Marketplace = z.union([
 /** A profile's levels, in their order. */
 export const ProfileLevel = z.enum(["machine", "workspace", "project"]);
 /** What an auto part is on by; gates: this machine names a gate workflow source. */
-export const PartProbe = z.enum(["orca", "devcontainer", "no-devcontainer", "gates"]);
+export const PartProbe = z.enum(["orca", "devcontainer", "no-devcontainer", "gates", "mantine"]);
 
 const common = {
   title,
   description,
   default: z.enum(["on", "auto", "off"]).describe("auto: on when its `when` probe holds"),
-  when: PartProbe.optional().describe("The probe an auto part needs; gates: this machine names a gate workflow source"),
+  when: PartProbe.optional().describe(
+    "The probe an auto part needs; gates: this machine names a gate workflow source; mantine: a package.json in the project names @mantine/core",
+  ),
   requires: distinct(QualifiedPartId).max(20).optional(),
 };
 // Each part type twice: whole, for the composed profile, and as a file states it, every field but `type` optional.

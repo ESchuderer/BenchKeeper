@@ -10,9 +10,9 @@ const HANDOFF = '# Handoff\nrun r1\nTerminal: term-a\n\n## Next\nwatch #12\n'
 const IDLE = { stop_hook_active: false, background_tasks: [] }
 // Each test loads the plugin afresh, so its module state (running, lastEnd, noted) starts empty.
 
-type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true; git?: number; slow?: Promise<void>; drop?: string; surfaces?: string[] }
+type Setup = { file?: string | null; tokens?: number | null; terminal?: string; stop?: { block?: string; preventContinuation?: true }; hold?: Promise<void>; tracked?: boolean; link?: true; git?: number; slow?: Promise<void>; drop?: string; surfaces?: string[]; changed?: { log: string; status: string } }
 
-function engine(on: On, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link, git = 0, slow, drop, surfaces = ['terminal'] }: Setup = {}) {
+function engine(on: On, { file = HANDOFF, tokens = 250000, terminal = 'term-a', stop = {}, hold, tracked = false, link, git = 0, slow, drop, surfaces = ['terminal'], changed = { log: '', status: '' } }: Setup = {}) {
   const clock = mock.clock(on, { now: 3_600_000 })
   const session = mock.session(on)
   const files: Record<string, string> = file === null ? {} : { [PATH]: file }
@@ -23,12 +23,14 @@ function engine(on: On, { file = HANDOFF, tokens = 250000, terminal = 'term-a', 
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('fs.stat', (_, e) => {
     if (e.path === ROOT) return { value: { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: ROOT } }
+    if (e.path === `${ROOT}/src/a.ts`) return { value: { kind: 'file', size: 0, mtimeMs: 2000, isLink: false } }
     if (!(e.path in files)) throw new Error('ENOENT')
-    return { value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false, realPath: link ? '/home/me/notes.md' : e.path } }
+    return { value: { kind: 'file', size: 0, mtimeMs: 1000, isLink: false, realPath: link ? '/home/me/notes.md' : e.path } }
   })
-  on('process.run', async () => {
+  on('process.run', async (_, e) => {
     await slow
-    return { value: { exitCode: git, stdout: tracked ? '.benchkeeper/runs/handoff.md\n' : '', stderr: '' } } as never
+    const stdout = e.argv.includes('log') ? changed.log : e.argv.includes('status') ? changed.status : tracked ? '.benchkeeper/runs/handoff.md\n' : ''
+    return { value: { exitCode: git, stdout, stderr: '' } } as never
   })
   on('fs.read', (_, e) => {
     if (!(e.path in files)) throw new Error('ENOENT')
@@ -78,6 +80,13 @@ test('a clear or compaction hands the file back after the other hooks, and nothi
   }
   delete e.files[PATH]
   expect((await $.classic.SessionStart({ source: 'clear' })).additionalContext).toEqual(['other'])
+})
+
+test('the restored file is followed by the commits and the files changed since it was written', async ($, on) => {
+  engine(on, { changed: { log: 'abc1234 2026-01-01T00:00:00+00:00 add a\n', status: ' M src/a.ts\0' } })
+  const restored = (await $.classic.SessionStart({ source: 'clear' })).additionalContext?.[1] ?? ''
+  expect(restored).toContain('\nabc1234 2026-01-01T00:00:00+00:00 add a\n')
+  expect(restored).toContain('\nsrc/a.ts')
 })
 
 test('an idle Stop above 200000 tokens clears, then submits the resume prompt, once in 10 minutes', async ($, on) => {

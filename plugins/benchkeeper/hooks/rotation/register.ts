@@ -1,10 +1,10 @@
 // Coordinator context rotation (orchestrating-projects): when the session's project root holds the coordinator's handoff
 // file and the file names this session's Orca terminal, an idle Stop above the plugin's threshold clears the context
-// with /clear and submits a resume prompt, and a clear or compaction hands the file back to the model. Otherwise every hook
-// here passes. It reads and writes that one file and sends nothing.
+// with /clear and submits a resume prompt, and a clear or compaction hands the file back to the model, with the git drift
+// since it was written. Otherwise every hook here passes. It reads and writes that one file, reads git and sends nothing.
 import type { EngineInterface, Register } from 'claude-code'
 
-import { FILE, RUNS, mine, restored } from './handoff.mjs'
+import { FILE, RUNS, STATUS_ARGS, changedPaths, commitArgs, drift, mine, restored } from './handoff.mjs'
 
 const OPEN = '<!-- benchkeeper:status -->'
 const CLOSE = '<!-- /benchkeeper:status -->'
@@ -58,6 +58,19 @@ async function safe($: EngineInterface) {
 const vetted = async ($: EngineInterface) => {
   const text = await own($)
   return text !== null && (await safe($)) ? text : null
+}
+// Any failure of git or a stat means no drift, never a failed restore.
+async function drifted($: EngineInterface) {
+  try {
+    const root = await $.session.root()
+    const since = (await $.fs.stat(await handoff($))).mtimeMs
+    const [log, status] = await Promise.all([$.process.run(['git', ...commitArgs(since)], { cwd: root }), $.process.run(['git', ...STATUS_ARGS], { cwd: root })])
+    if (log.exitCode !== 0 || status.exitCode !== 0) return ''
+    const stats = await Promise.all(changedPaths(status.stdout).map(async (path) => ({ path, stat: await $.fs.stat(`${root}/${path}`).catch(() => null) })))
+    return drift(since, log.stdout.split('\n').filter(Boolean), stats.filter(({ stat }) => stat !== null && stat.mtimeMs > since).map(({ path }) => path))
+  } catch {
+    return ''
+  }
 }
 const stamp = (ms: number) => new Date(ms).toISOString()
 
@@ -132,7 +145,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     const text = await vetted($)
     if (text === null) return result
-    return { ...result, additionalContext: [...(result.additionalContext ?? []), restored(text)] }
+    return { ...result, additionalContext: [...(result.additionalContext ?? []), restored(text, await drifted($))] }
   }).catch(($, e, next) => next(e))
 
   on('classic.PreCompact', async ($, e, next) => {

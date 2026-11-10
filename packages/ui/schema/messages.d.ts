@@ -42,6 +42,7 @@ export interface MessageValues {
   "accounts.unset": Record<never, never>;
   "accounts.usage": Record<never, never>;
   "accounts.window": { span: string; model: string; percent: string | number };
+  "accounts.windowUnknown": { span: string; model: string };
   "app.licenses": Record<never, never>;
   "app.title": Record<never, never>;
   "draft.discard": Record<never, never>;

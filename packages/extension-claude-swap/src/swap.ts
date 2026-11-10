@@ -71,9 +71,9 @@ const scopedName = (name: unknown): string | undefined =>
 
 /**
  * A window of an account: a share in percent, when it resets, and when claude-swap read it (null: it no longer trusts
- * that share).
+ * that share); `usedPercent` is null when claude-swap has no reading of the window at all.
  */
-type Window = { window: string; usedPercent: number; resetsAt: string | null; readAt: string | null };
+type Window = { window: string; usedPercent: number | null; resetsAt: string | null; readAt: string | null };
 
 /**
  * An account's windows. claude-swap trusts a row's usage only while its `usageStatus` is `ok`: a row it no longer
@@ -99,7 +99,12 @@ const windowsOf = (row: unknown): Window[] => {
     return [{ window, usedPercent: Math.min(100, Math.max(0, pct)), resetsAt, readAt }];
   });
   // Without last good windows, the two every account has, unread.
-  const unread = ["fiveHour", "sevenDay"].map((window) => ({ window, usedPercent: 0, resetsAt: null, readAt: null }));
+  const unread = ["fiveHour", "sevenDay"].map((window) => ({
+    window,
+    usedPercent: null,
+    resetsAt: null,
+    readAt: null,
+  }));
   return trusted || windows.length > 0 ? windows.slice(0, 16) : unread;
 };
 

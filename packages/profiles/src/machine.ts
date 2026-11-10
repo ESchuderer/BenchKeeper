@@ -91,8 +91,8 @@ const rulesFiles = (resolved: Resolved, home: string, fetched: Fetched) => {
   return { ok: true as const, value: { wanted, off } };
 };
 
-// The settings object with its text's hash; none yet is empty, and a file that is no JSON object is never rewritten.
-const readSettings = (path: string): Result<{ json: Json; before: string | null }> => {
+/** A settings object with its text's hash; none yet is empty, and a file that is no JSON object is never rewritten. */
+export const readSettings = (path: string): Result<{ json: Json; before: string | null }> => {
   const file = readOptionalJson(path);
   if (!file.ok) {
     if (file.finding.code !== "document.invalid") return file;

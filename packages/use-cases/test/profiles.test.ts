@@ -511,6 +511,185 @@ test("a project's plugin waits for its approval with the rules that require it, 
   ]);
 });
 
+const mcpPart = (server: string, source: object) => ({ type: "mcp", title: server, default: "on", server, source });
+const docsServer = mcpPart("docs", { url: "https://mcp.example.com/mcp", bearer: "DOCS_TOKEN" });
+const fetchServer = mcpPart("fetch", { pypi: "mcp-server-fetch", version: "2025.4.7" });
+const MINE = { mine: { type: "stdio", command: "mine" } };
+const OWNERS = { ".mcp.json": JSON.stringify({ mcpServers: MINE }), ".codex/config.toml": 'model = "o3" # mine\n' };
+const DOCS_JSON = {
+  type: "http",
+  url: "https://mcp.example.com/mcp",
+  headers: { Authorization: "Bearer ${DOCS_TOKEN}" },
+};
+const DOCS_TOML = '[mcp_servers.docs]\nurl = "https://mcp.example.com/mcp"\nbearer_token_env_var = "DOCS_TOKEN"';
+const removal = (part: string, server: string, file: string) => ({ part, server, change: "remove", file });
+
+test("an MCP server waits for its approval by name with the parts that require it, then joins the owner's servers", async () => {
+  const line = { inline: "- Ask the docs server.\n" };
+  const box = custom({
+    docs: docsServer,
+    "docs-line": { type: "local-manual", title: "Docs line", default: "on", requires: ["project.docs"], rules: [line] },
+  });
+  const project = projectWith(OWNERS);
+  const waiting = await projectPlan(box, project);
+  const approved = (await projectPlan(box, project, ["project.docs"])).plan;
+  applied(box.state, approved);
+  const local = join(project, "CLAUDE.local.md");
+  expect([
+    waiting.findings,
+    contentOf(waiting.plan, join(project, ".mcp.json")),
+    [waiting.plan, approved].map((plan) => contentOf(plan, local)?.includes("Ask the docs server")),
+    JSON.parse(readFileSync(join(project, ".mcp.json"), "utf8")),
+    readFileSync(join(project, ".codex", "config.toml"), "utf8"),
+    await projectPlan(box, project),
+  ]).toEqual([
+    [
+      {
+        code: "profile.mcp-approval",
+        params: {
+          part: "project.docs",
+          title: "docs",
+          project,
+          server: "docs",
+          transport: "http",
+          runs: "https://mcp.example.com/mcp",
+          variables: ["DOCS_TOKEN"],
+          entries: [
+            { file: ".mcp.json", entry: `"docs": ${JSON.stringify(DOCS_JSON)}` },
+            { file: ".codex/config.toml", entry: DOCS_TOML },
+          ],
+          codex: true,
+        },
+      },
+    ],
+    null,
+    [false, true],
+    { mcpServers: { ...MINE, docs: DOCS_JSON } },
+    `model = "o3" # mine\n\n${DOCS_TOML}\n`,
+    { plan: null, findings: [] },
+  ]);
+});
+
+test("each kind of MCP source runs its exact package, a devDependency only from the project's own install", async () => {
+  const box = custom({
+    context7: mcpPart("context7", { npm: "@upstash/context7-mcp", version: "1.0.31", env: ["CONTEXT7_API_KEY"] }),
+    mantine: mcpPart("mantine", { devDependency: "@mantine/mcp-server" }),
+    fetch: fetchServer,
+  });
+  const allow = ["project.context7", "project.mantine", "project.fetch"];
+  const project = projectWith({
+    "package.json": JSON.stringify({ devDependencies: { "@mantine/mcp-server": "1.2.0" } }),
+  });
+  mkdirSync(join(project, ".codex"));
+  const bare = projectWith({ "package.json": "{}" });
+  const [listed, unlisted] = [(await projectPlan(box, project, allow)).plan, await projectPlan(box, bare, allow)];
+  const servers = (plan: Plan | null, at: string) =>
+    JSON.parse(contentOf(plan, join(at, ".mcp.json")) ?? "{}").mcpServers;
+  expect([
+    servers(listed, project),
+    contentOf(listed, join(project, ".codex", "config.toml")),
+    Object.keys(servers(unlisted.plan, bare)),
+    unlisted.findings.filter(({ code }) => code === "profile.mcp-dependency"),
+  ]).toEqual([
+    {
+      context7: {
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@upstash/context7-mcp@1.0.31"],
+        env: { CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}" },
+      },
+      mantine: { type: "stdio", command: "npx", args: ["--no", "@mantine/mcp-server"] },
+      fetch: { type: "stdio", command: "uvx", args: ["mcp-server-fetch@2025.4.7"] },
+    },
+    '[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp@1.0.31"]\nenv_vars = ["CONTEXT7_API_KEY"]\n\n' +
+      '[mcp_servers.mantine]\ncommand = "npx"\nargs = ["--no", "@mantine/mcp-server"]\n\n' +
+      '[mcp_servers.fetch]\ncommand = "uvx"\nargs = ["mcp-server-fetch@2025.4.7"]\n',
+    ["context7", "fetch"],
+    [{ code: "profile.mcp-dependency", params: { part: "project.mantine", package: "@mantine/mcp-server" } }],
+  ]);
+});
+
+test("an MCP server whose name the owner's file holds with another entry is written to no file", async () => {
+  const box = custom({ docs: docsServer });
+  const theirs = { mcpServers: { docs: { type: "http", url: "https://docs.example.org/mcp" } } };
+  const project = projectWith({ ...OWNERS, ".mcp.json": JSON.stringify(theirs) });
+  const { plan, findings } = await projectPlan(box, project, ["project.docs"]);
+  const files = [join(project, ".mcp.json"), join(project, ".codex", "config.toml")];
+  expect([findings, files.map((path) => contentOf(plan, path))]).toEqual([
+    [{ code: "profile.mcp-conflict", params: { part: "project.docs", server: "docs", file: ".mcp.json" } }],
+    [null, null],
+  ]);
+});
+
+test("MCP parts switched off take out each entry that is as they wrote it, and leave one the owner changed", async () => {
+  const box = custom({ docs: docsServer, fetch: fetchServer });
+  const project = projectWith(OWNERS);
+  applied(box.state, (await projectPlan(box, project, ["project.docs", "project.fetch"])).plan);
+  const changed = { ...DOCS_JSON, url: "https://docs.example.org/mcp" };
+  const { mcpServers } = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf8"));
+  writeFileSync(join(project, ".mcp.json"), JSON.stringify({ mcpServers: { ...mcpServers, docs: changed } }));
+  for (const part of ["project.docs", "project.fetch"])
+    applied(box.state, ok(planChoice(box.config, { part, on: false })));
+  const { plan, findings } = await projectPlan(box, project);
+  applied(box.state, plan);
+  expect([
+    JSON.parse(readFileSync(join(project, ".mcp.json"), "utf8")),
+    readFileSync(join(project, ".codex", "config.toml"), "utf8"),
+    findings,
+  ]).toEqual([
+    { mcpServers: { ...MINE, docs: changed } },
+    'model = "o3" # mine\n',
+    [
+      {
+        code: "profile.mcp-entry",
+        params: { ...removal("project.docs", "docs", ".codex/config.toml"), entry: DOCS_TOML },
+      },
+      {
+        code: "profile.mcp-entry",
+        params: {
+          ...removal("project.fetch", "fetch", ".mcp.json"),
+          entry: '"fetch": {"type":"stdio","command":"uvx","args":["mcp-server-fetch@2025.4.7"]}',
+        },
+      },
+      {
+        code: "profile.mcp-entry",
+        params: {
+          ...removal("project.fetch", "fetch", ".codex/config.toml"),
+          entry: '[mcp_servers.fetch]\ncommand = "uvx"\nargs = ["mcp-server-fetch@2025.4.7"]',
+        },
+      },
+    ],
+  ]);
+});
+
+test("a .mcp.json the plan cannot read stops no plan while every MCP part is off", async () => {
+  const box = custom({
+    docs: docsServer,
+    rest: { type: "local-manual", title: "Rest", default: "on", rules: [{ inline: "- Plan the rest.\n" }] },
+  });
+  applied(box.state, ok(planChoice(box.config, { part: "project.docs", on: false })));
+  const project = projectWith({ ".mcp.json": "{ nope" });
+  const { plan } = await projectPlan(box, project);
+  expect(contentOf(plan, join(project, "CLAUDE.local.md"))?.includes("- Plan the rest.")).toBe(true);
+});
+
+test("an MCP part off by default takes out no entry, not even one as it would write it", async () => {
+  const box = custom({ docs: { ...docsServer, default: "off" } });
+  const project = projectWith({ ".mcp.json": JSON.stringify({ mcpServers: { docs: DOCS_JSON } }) });
+  const { plan, findings } = await projectPlan(box, project);
+  expect([contentOf(plan, join(project, ".mcp.json")), findings]).toEqual([null, []]);
+});
+
+test("a .codex folder a link leads outside the project stops the plan, as Codex's config would land there", async () => {
+  const project = projectWith();
+  const path = join(linkedAt(project, ".codex"), "config.toml");
+  const params = { part: "project", target: ".codex/config.toml", path };
+  expect(await planned(custom({ docs: docsServer }), project)).toEqual({
+    ok: false,
+    finding: { code: "profile.target-linked", params },
+  });
+});
+
 const treeFile = (path: string, content: string) => ({
   path,
   mode: "100644" as const,

@@ -38,7 +38,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Sealed files
 
-`profile.ts` (`SEALED`). Files only their own parts write, at any depth: Claude Code's settings, where a settings part's allowed settings apply, and MCP server lists; a `files` part's text would bring hooks or servers past them. Targets are portable paths, so `./`, `//` and trailing dots cannot spell them another way, and none has a `.git` part. The manual's own files at the project's root are its blocks' alone, so a target never writes them twice in one plan.
+`profile.ts` (`SEALED`). Files only their own parts write, at any depth: Claude Code's settings, where a settings part's allowed settings apply, and MCP server lists (`.mcp.json`, and `.codex/config.toml`, which holds Codex's); a `files` part's text would bring hooks or servers past them. Targets are portable paths, so `./`, `//` and trailing dots cannot spell them another way, and none has a `.git` part. The manual's own files at the project's root are its blocks' alone, so a target never writes them twice in one plan.
 
 ### Reserved config
 
@@ -82,6 +82,23 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 ### Manual
 
 `project.ts` (`manualWrites`). The manual's writes are its two blocks and the CLAUDE.md to make. An owner's CLAUDE.md that does not import AGENTS.md is reported when no local block does, as Claude Code reads AGENTS.md by itself only without a CLAUDE.md (https://code.claude.com/docs/en/memory#agents-md).
+
+### MCP servers
+
+`mcp.ts`, `codex-config.ts`, and the `mcp` part in `packages/contracts/src/profile.ts`. One part is one server.
+- **Project scope only.** The part exists at the project level only, so no profile writes a server into the user's Claude Code or Codex config. It writes `mcpServers.<server>` in `.mcp.json`, and `[mcp_servers.<server>]` in `.codex/config.toml` only where the project has a `.codex/` folder (owner, hub issue 326): creating that folder is how a project takes the Codex entry too, and the approval line says so while it is missing. A link that leads either file anywhere but its own place, such as `.codex` linked to `~/.codex`, or a file the plan cannot read stops the plan while an MCP part is on; with none on, the plan leaves that file alone.
+- **Approval by name.** Adding an entry waits for `--allow project.<id>`, never `--yes` alone, and holds back the parts that require it. The line names what runs (its command line) or what the agents connect to (its URL), the variables by name, and each entry in its file's own text. The server runs, or is reached, outside the agents' sandboxes, and once the file is committed every `claude -p` run in the repository, of anyone who clones it, starts it without the trust dialog ([headless mode](https://code.claude.com/docs/en/headless)). Codex reads a project's `.codex/config.toml` only in a trusted project ([config](https://learn.chatgpt.com/docs/config-file/config-basic)).
+- **What a source may run.** Exactly four kinds, no extra `args`:
+  - `npm`: `npx -y <package>[@<version>]`, the version exact SemVer.
+  - `devDependency`: `npx --no <package>`, which runs only the project's own install: npm assumes `--yes` "when standard input is not a TTY or a CI environment is detected" ([npm exec](https://docs.npmjs.com/cli/v11/commands/npm-exec)), and `--no` refuses the download even then (libnpmexec's code; the page says only that `--no` skips the prompt). package.json must list it under `devDependencies`, pinned, so Dependabot updates it like any other dependency.
+  - `pypi`: `uvx <package>[@<version>]`, the version an exact PEP 440 one, the only form uvx's `@` takes ([uv tools](https://docs.astral.sh/uv/guides/tools/)); the name is lower case, as PyPI compares names without case, and has no extras, version or URL ([name normalization](https://packaging.python.org/en/latest/specifications/name-normalization/)).
+  - `url`: https, plain http only to `localhost`, `127.0.0.1` and `[::1]`, with no user, query or fragment.
+
+  npm names allow no `:`, `#` or second `/`, none starts with `-`, and none ends in `.tgz`, `.tar` or `.tar.gz`, which npm reads as a local tarball: Git, file, URL and tarball specs are refused. PyPI names ending in `.whl`, `.zip`, `.tar`, `.tgz` or `.tar.gz` are refused too, in case uvx reads them as files (unverified).
+- **Variables by name.** `env` and `bearer` name variables; Claude Code's entry reads them as `${NAME}` ([MCP](https://code.claude.com/docs/en/mcp)), Codex's as `env_vars` and `bearer_token_env_var` ([Codex MCP](https://developers.openai.com/codex/mcp)). No value may hold `$`, so a profile's value never starts an expansion of its own.
+- **Conflict, not overwrite.** A file that holds the server's name with another entry keeps it: the plan writes that server to no file and holds the part. A part you switch off takes its entry out of a file only where it is as the part writes it; an entry changed since stays, without a line, as CedarLoom cannot tell its own changed entry from the owner's. Only that explicit off removes: a part off by default, or one held back by a part it requires, never takes anything out, so an owner's own entry of the same name stays. To take a server out, choose `off` for its part, not `default`, which leaves a part that is off by default with its entry in place. A profile's own change to an entry, such as a new pin, reads as a conflict too, so the owner removes the old entry. The planned upgrade is a per-entry record of what CedarLoom wrote, which tells the two apart and reports a changed entry.
+- **TOML.** `.codex/config.toml` is read with smol-toml, and an entry is added or cut as text, so the owner's comments stay; each changed text is parsed again and must differ only in that entry, or the plan keeps the file as it is.
+- **Caveats.** Claude Code reads some variable names as empty in a remote server's URL and headers, such as `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `AWS_BEARER_TOKEN_BEDROCK`, `HTTPS_PROXY` and `NPM_TOKEN` ([MCP](https://code.claude.com/docs/en/mcp)), so a bearer variable needs a name of its own. On native Windows, `npx` and `uvx` may need `cmd /c` to start (unverified).
 
 ### Skills as plugins
 

@@ -41,12 +41,23 @@ const CODEX = ".codex/config.toml";
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
 const pinned = (name: string, version: string | undefined) => (version === undefined ? name : `${name}@${version}`);
-// `npx --no` never downloads, so only the project's own install runs: docs/agents/cedarloom-rationale.md#mcp-servers
+// The project's own install from any folder in it, no `$`: docs/agents/cedarloom-rationale.md#mcp-servers
+const fromInstall = (name: string): string =>
+  [
+    `const{join:j,dirname:u}=require("path"),{readFileSync:r,existsSync:e}=require("fs"),n=${JSON.stringify(name)},`,
+    `k=n.split("/").pop();let d=process.cwd(),p;for(;;d=u(d)){try{p=JSON.parse(r(j(d,"package.json"),"utf8"))}catch{p=0}`,
+    `if(Object.hasOwn(Object(p?.devDependencies),n)&&e(j(d,"node_modules",n,"package.json")))break;`,
+    `if(u(d)==d||e(j(d,".git")))throw Error(n+" is not a devDependency installed here or in a parent folder of the repository")}`,
+    `const m=j(d,"node_modules",n),b=JSON.parse(r(j(m,"package.json"),"utf8")).bin,`,
+    `v=typeof b=="string"?[b]:Object.values(Object(b)),f=new Set(v).size==1?v[0]:Object.hasOwn(Object(b),k)?b[k]:"";`,
+    `if(!f)throw Error(n+" names no bin to run");const c=require("child_process").spawn(process.execPath,[j(m,f)],{stdio:"inherit"});`,
+    `for(const g of["SIGINT","SIGTERM"])process.on(g,()=>c.kill(g));c.on("exit",(x)=>process.exit(x??1))`,
+  ].join("");
 const launchOf = (source: Part["source"]): Launch => {
   if ("url" in source) return { url: source.url, variables: source.bearer === undefined ? [] : [source.bearer] };
   const variables = source.env ?? [];
   if ("npm" in source) return { command: "npx", args: ["-y", pinned(source.npm, source.version)], variables };
-  if ("devDependency" in source) return { command: "npx", args: ["--no", source.devDependency], variables };
+  if ("devDependency" in source) return { command: "node", args: ["-e", fromInstall(source.devDependency)], variables };
   return { command: "uvx", args: [pinned(source.pypi, source.version)], variables };
 };
 

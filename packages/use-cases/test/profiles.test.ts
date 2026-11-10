@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { delimiter, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import type { Finding, Plan } from "@cedarloom/contracts";
 import { createHash } from "node:crypto";
 import {
@@ -641,16 +642,37 @@ test("each kind of MCP source runs its exact package, a devDependency only from 
         args: ["-y", "@upstash/context7-mcp@1.0.31"],
         env: { CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}" },
       },
-      mantine: { type: "stdio", command: "npx", args: ["--no", "@mantine/mcp-server"] },
+      mantine: { type: "stdio", command: "node", args: ["-e", expect.stringContaining('n="@mantine/mcp-server"')] },
       fetch: { type: "stdio", command: "uvx", args: ["mcp-server-fetch@2025.4.7"] },
     },
-    '[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp@1.0.31"]\nenv_vars = ["CONTEXT7_API_KEY"]\n\n' +
-      '[mcp_servers.mantine]\ncommand = "npx"\nargs = ["--no", "@mantine/mcp-server"]\n\n' +
-      '[mcp_servers.fetch]\ncommand = "uvx"\nargs = ["mcp-server-fetch@2025.4.7"]\n',
+    expect.stringMatching(
+      /^\[mcp_servers\.context7\]\ncommand = "npx"\nargs = \["-y", "@upstash\/context7-mcp@1\.0\.31"\]\nenv_vars = \["CONTEXT7_API_KEY"\]\n\n\[mcp_servers\.mantine\]\ncommand = "node"\nargs = \["-e", "[^\n]*n=\\"@mantine\/mcp-server\\",[^\n]*"\]\n\n\[mcp_servers\.fetch\]\ncommand = "uvx"\nargs = \["mcp-server-fetch@2025\.4\.7"\]\n$/,
+    ),
     ["context7", "fetch"],
     [{ code: "profile.mcp-dependency", params: { part: "project.mantine", package: "@mantine/mcp-server" } }],
     [{ code: "profile.mcp-dependency", params: { part: "project.mantine", package: "@mantine/mcp-server" } }],
   ]);
+});
+
+test("a devDependency server started in a workspace member folder runs the install of the project that lists it", async () => {
+  const box = custom({ srv: mcpPart("srv", { devDependency: "@acme/srv" }) });
+  const project = projectWith({
+    "package.json": JSON.stringify({ devDependencies: { "@acme/srv": "1.2.3" } }),
+    // Its exports hold no package.json, as @mantine/mcp-server's do not; the bin named like the package wins, and it
+    // starts only as the main module, as npx runs it.
+    "node_modules/@acme/srv/package.json": JSON.stringify({
+      exports: { ".": "./index.js" },
+      bin: { other: "bin/other.cjs", srv: "bin/srv.cjs" },
+    }),
+    "node_modules/@acme/srv/bin/srv.cjs":
+      '#!/usr/bin/env node\nif (require.main === module) process.stdout.write("srv started\\n");\n',
+    // A member that lists it too, with the install hoisted to the root, as npm workspaces do.
+    "packages/ui/package.json": JSON.stringify({ name: "ui", devDependencies: { "@acme/srv": "1.2.3" } }),
+  });
+  applied(box.state, (await projectPlan(box, project, ["project.srv"])).plan);
+  const { command, args } = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf8")).mcpServers.srv;
+  const run = spawnSync(command, args, { cwd: join(project, "packages", "ui"), encoding: "utf8" });
+  expect([run.status, run.stdout]).toEqual([0, "srv started\n"]);
 });
 
 test("an MCP server whose name the owner's file holds with another entry is written to no file", async () => {

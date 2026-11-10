@@ -23,9 +23,9 @@ catalog:
 # and its decider client do). srt runs on zod 4 through zod/v3. Drop the override once srt asks for zod 4.
 #
 # shortcut: @mantine/mcp-server 9.7.4 pins @modelcontextprotocol/server 2.1.0, which dependency review refuses for
-# GHSA-46jr-4wx8-v453 and GHSA-jm63-cq47-j5jp (HTTP transport; the server here runs on stdio). 9.8.0 pins 2.3.1, the
-# fix. The selector covers releases before 9.8.0 only, so the override goes inert once Dependabot moves the server to
-# 9.8.0 or later; delete it then.
+# GHSA-46jr-4wx8-v453 and GHSA-jm63-cq47-j5jp (HTTP transport; the server here runs on stdio). 9.8.0 pins 2.3.1 (fixed
+# in 2.3.0). The selector covers releases before 9.8.0 only, so the override goes inert once Dependabot moves the server
+# to 9.8.0 or later; delete it then.
 overrides:
   "@anthropic-ai/sandbox-runtime>zod": "catalog:"
   "@mantine/mcp-server@<9.8.0>@modelcontextprotocol/server": "2.3.1"

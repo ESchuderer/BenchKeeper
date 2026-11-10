@@ -44,7 +44,7 @@ updates:
     cooldown:
       default-days: 3
     # A dependency joins the first group that matches: every @mantine/* version update, majors included, comes as one
-    # pull request, as Mantine's upgrade guide moves them together. Before merging it, copy skills/mantine-form of
+    # pull request, so the @mantine/* packages keep one version. Before merging it, copy skills/mantine-form of
     # https://github.com/mantinedev/skills anew into packages/packs/bundled/cedarloom.mantine/skills/mantine-form and
     # update the commit its manifest entry names.
     groups:

@@ -547,6 +547,10 @@ const FETCH_NEXT_RECORD = {
   ".mcp.json": { fetch: { sha256: sha('{"args":["mcp-server-fetch@2025.5.0"],"command":"uvx","type":"stdio"}') } },
   ".codex/config.toml": { fetch: { sha256: sha('{"args":["mcp-server-fetch@2025.5.0"],"command":"uvx"}') } },
 };
+const fetchConflict = (file: string) => ({
+  code: "profile.mcp-conflict",
+  params: { part: "project.fetch", server: "fetch", file },
+});
 // The MCP server entries the project's record names.
 const recordedServers = (project: string) =>
   JSON.parse(readFileSync(join(project, ".cedarloom", "profile-files.json"), "utf8")).servers;
@@ -704,7 +708,7 @@ test("a profile's new pin replaces the MCP entries CedarLoom wrote, reformatted 
   ]);
 });
 
-test("an MCP entry the owner changed after CedarLoom wrote it stays a conflict when the pin moves", async () => {
+test("an MCP entry the owner changed after CedarLoom wrote it, by a value or a comment at a line's end, stays a conflict when the pin moves", async () => {
   const box = custom({ fetch: fetchServer });
   const project = projectWith(OWNERS);
   applied(box.state, (await projectPlan(box, project, ["project.fetch"])).plan);
@@ -712,22 +716,33 @@ test("an MCP entry the owner changed after CedarLoom wrote it stays a conflict w
   const { mcpServers } = JSON.parse(readFileSync(json, "utf8"));
   const changed = { ...mcpServers.fetch, env: { PROXY: "on" } };
   writeFileSync(json, JSON.stringify({ mcpServers: { ...mcpServers, fetch: changed } }));
+  const toml = join(project, ".codex", "config.toml");
+  const pinned = 'args = ["mcp-server-fetch@2025.4.7"]';
+  writeFileSync(toml, readFileSync(toml, "utf8").replace(pinned, `${pinned} # keep until upstream fixes it`));
   profileFile(box.file, { fetch: FETCH_NEXT });
   const { plan, findings } = await projectPlan(box, project, ["project.fetch"]);
-  const files = [json, join(project, ".codex", "config.toml")];
-  expect([findings, files.map((path) => contentOf(plan, path))]).toEqual([
-    [{ code: "profile.mcp-conflict", params: { part: "project.fetch", server: "fetch", file: ".mcp.json" } }],
+  expect([findings, [json, toml].map((path) => contentOf(plan, path))]).toEqual([
+    [fetchConflict(".mcp.json"), fetchConflict(".codex/config.toml")],
     [null, null],
   ]);
 });
 
 test("MCP parts switched off take out the entries CedarLoom wrote, say once that one the owner changed stays, and leave the owner's own", async () => {
   const ctx = { type: "http", url: "https://ctx.example.com/mcp" };
-  const box = custom({ docs: docsServer, fetch: fetchServer, ctx: mcpPart("ctx", { url: ctx.url }) });
+  const lib = { type: "http", url: "https://lib.example.com/mcp" };
+  const box = custom({
+    docs: docsServer,
+    fetch: fetchServer,
+    ctx: mcpPart("ctx", { url: ctx.url }),
+    lib: { ...mcpPart("lib", { url: lib.url }), default: "off" },
+  });
   // The owner's own entry, as the ctx part writes it, which no plan wrote.
   const project = projectWith({ ...OWNERS, ".mcp.json": JSON.stringify({ mcpServers: { ...MINE, ctx } }) });
   applied(box.state, ok(planChoice(box.config, { part: "project.ctx", on: false })));
-  applied(box.state, (await projectPlan(box, project, ["project.docs", "project.fetch"])).plan);
+  applied(box.state, ok(planChoice(box.config, { part: "project.lib", on: true })));
+  applied(box.state, (await projectPlan(box, project, ["project.docs", "project.fetch", "project.lib"])).plan);
+  // Back to its default, off: no explicit off, so the entries CedarLoom wrote for it stay for the other clones.
+  applied(box.state, ok(planChoice(box.config, { part: "project.lib", on: null })));
   const changed = { ...DOCS_JSON, url: "https://docs.example.org/mcp" };
   const json = join(project, ".mcp.json");
   const { mcpServers } = JSON.parse(readFileSync(json, "utf8"));
@@ -751,9 +766,12 @@ test("MCP parts switched off take out the entries CedarLoom wrote, say once that
       entryLine("fetch", "remove", ".mcp.json", fetchJson),
       entryLine("fetch", "remove", ".codex/config.toml", fetchToml),
     ],
-    { mcpServers: { ...MINE, ctx, docs: changed } },
-    'model = "o3" # mine\r\n',
-    undefined,
+    { mcpServers: { ...MINE, ctx, docs: changed, lib } },
+    'model = "o3" # mine\r\n\r\n[mcp_servers.lib]\r\nurl = "https://lib.example.com/mcp"\r\n',
+    {
+      ".mcp.json": { lib: { sha256: sha('{"type":"http","url":"https://lib.example.com/mcp"}') } },
+      ".codex/config.toml": { lib: { sha256: sha('{"url":"https://lib.example.com/mcp"}') } },
+    },
     { plan: null, findings: [] },
   ]);
 });

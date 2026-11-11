@@ -159,8 +159,8 @@ const fetchAll = async (
     findings.push(...got.value.findings);
   }
   const keys = keptKeys(resolved, fetched, project);
-  if (!keys.ok) return keys;
-  const kept = Object.entries(record.value).filter(([key]) => keys.value.has(key));
+  // A project's pack that the machine's plan never reads may be refused: the record then stays whole, with its waits.
+  const kept = Object.entries(record.value).filter(([key]) => !keys.ok || keys.value.has(key));
   const next = { ...Object.fromEntries(kept), ...entries };
   if (!readOnly && canonicalJson(next) !== canonicalJson(record.value)) writeRecord(state, next);
   return { ok: true as const, value: { fetched, findings } };

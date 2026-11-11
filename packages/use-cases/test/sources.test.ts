@@ -150,21 +150,25 @@ test("a pack that moves to a manifest for a newer CedarLoom stops the plan, and 
     const { state, plan } = machineWith({}, { "acme.newer": { git: url, ref: "main" } }, { packs: part });
     const project = mkdtempSync(join(root, "project-"));
     ok(await plan(project));
-    publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries, "9.0.0") });
+    const newer = publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries, "9.0.0") });
     ok(await plan(project));
     vi.setSystemTime(Date.now() + 3 * DAY);
     expect(await plan(project)).toMatchObject({
       ok: false,
       finding: { code: "profile.app-too-old", params: { minApp: "9.0.0", pack: "acme.newer" } },
     });
-    const record: Record<string, { commit: string }> = JSON.parse(
-      readFileSync(join(state, "pack-sources.json"), "utf8"),
-    ).sources;
     // Each source the record follows, by its `sourceKey`, with the commit in use.
-    expect(Object.fromEntries(Object.entries(record).map(([key, { commit }]) => [key, commit]))).toEqual({
-      [JSON.stringify([url, "main", ""])]: used.commit,
-      [JSON.stringify([own, "main", ""])]: text.commit,
-    });
+    const followed = () => {
+      const record: Record<string, { commit: string }> = JSON.parse(
+        readFileSync(join(state, "pack-sources.json"), "utf8"),
+      ).sources;
+      return Object.fromEntries(Object.entries(record).map(([key, { commit }]) => [key, commit]));
+    };
+    const [pack, skillSource] = [JSON.stringify([url, "main", ""]), JSON.stringify([own, "main", ""])];
+    expect(followed()).toEqual({ [pack]: used.commit, [skillSource]: text.commit });
+    // The machine's plan reads no entry of the pack: it goes on, takes the pack's commit, and keeps the skill's source.
+    ok(await plan());
+    expect(followed()).toEqual({ [pack]: newer.commit, [skillSource]: text.commit });
   } finally {
     vi.useRealTimers();
   }

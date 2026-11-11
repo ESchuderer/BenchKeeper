@@ -3,7 +3,7 @@ name: orchestrating-projects
 description: "Runs a coordinator for parallel autonomous issue work: workers on labeled issues with the projects in parallel, each pull request reviewed by a fresh reviewer, merged only where the repository's written policy allows, cleaned up, then the next issues started. Start it on request with the project paths."
 disable-model-invocation: true
 argument-hint: "<project paths>"
-writes: "Specs, prompts and handoff copies in `.benchkeeper/runs/<run id>/`, the coordinator's handoff file `.benchkeeper/runs/handoff.md` and scratch clones of the repositories in the system's temporary folder, deleted when the run closes, and a `.benchkeeper/runs` line in `.git/info/exclude` when git does not ignore it yet; the ref `refs/benchkeeper/policy` in each project; reviewed draft pull requests marked ready; the worktrees and containers of finished workers removed; issue and pull request comments; a merge of the default branch into a pull request's branch, merges, issue closes and local and remote branch deletions only where the project's `docs/agents/orchestration.json` allows; one Escape into a worker's terminal where that policy sets `permissionPrompts` to `decline`; the `daily-digest` automation's digest file when the owner asks for one or the run closes with decisions taken on the owner's behalf that it does not list, committed or posted as one issue comment only when the owner asks, with that automation's checks, never to a public repository. Workers write the branches and pull requests."
+writes: "Specs, prompts, handoff copies and scratch clones in `.benchkeeper/runs/<run id>/` and the coordinator's handoff file `.benchkeeper/runs/handoff.md`, deleted when the run closes, and a `.benchkeeper/runs` line in `.git/info/exclude` when git does not ignore it yet; the ref `refs/benchkeeper/policy` in each project; reviewed draft pull requests marked ready; the worktrees and containers of finished workers removed; issue and pull request comments; a merge of the default branch into a pull request's branch, merges, issue closes and local and remote branch deletions only where the project's `docs/agents/orchestration.json` allows; one Escape into a worker's terminal where that policy sets `permissionPrompts` to `decline`; the `daily-digest` automation's digest file when the owner asks for one or the run closes with decisions taken on the owner's behalf that it does not list, committed or posted as one issue comment only when the owner asks, with that automation's checks, never to a public repository. Workers write the branches and pull requests."
 ---
 
 # Orchestrating projects
@@ -32,14 +32,14 @@ Take each project's policy from the reader, never from the JSON file: `node <ski
 | `issuesPerWorker` | pickable issues of the project that one worker takes as its batch | 1 |
 | `keepRunning` | the run stays open for this project and picks up issues labeled later | false |
 | `permissionPrompts` | `block` or `decline` at a permission dialog in a worker's terminal ([Rules](#rules)) | `block` |
-| `review.depth`, `review.sensitiveDepth` | the review level of a routine and of a sensitive change (`low`, `medium`, `high`, `xhigh`) | `high`, `xhigh` |
+| `review.depth`, `review.sensitiveDepth` | the review level of a routine and of a sensitive change (`low`, `medium`, `high`, `xhigh`) | both `high` |
 | `review.sensitivePaths` | paths that make a change sensitive, besides the built-in classes ([review-and-merge.md](review-and-merge.md#sensitive-or-routine)) | none |
-| `models.worker` | model and effort of a worker session, printed as a table by tier (`quick`, `standard`, `full`, `research`) | quick `sonnet` `high`, standard `opus` `high`, full `opus` `xhigh`, research `fable` `xhigh` |
+| `models.worker` | model and effort of a worker session, printed as a table by tier (`quick`, `standard`, `full`, `research`) | quick `sonnet`, standard and full `opus`, research `fable`, all `high` |
 | `models.phases.<phase>` | model and effort of a worker's phase subagent (`plan`, `implement`, `test`, `review`, `research`), printed only for the phases the policy names; `inherit` is the worker's own model | the workflow skill's: plan, implement and review `opus`, test `sonnet`, research `fable`, each at `high` |
 | `issues.repository`, `issues.labels` | the tracker (`owner/repo`) that holds the project's issues, and labels an issue must carry besides `startLabel` | the project's own repository, no further label |
 | `minPlugin` | the oldest plugin version that may run this policy; on an older plugin the reader exits 1 | any |
 
-A path entry names a file or folder from the repository root and covers it and everything below it; there are no globs. Settings, rulesets, secrets and other people's repositories are the owner's. A policy that is silent on an action means no.
+A path entry names a file or folder from the repository root and covers it and everything below it; there are no globs. Settings, rulesets, secrets and other people's repositories are the owner's. A policy that is silent on an action means no. `xhigh` runs only on the owner's request (policy or session).
 
 ## Loop
 
@@ -47,7 +47,7 @@ A path entry names a file or folder from the repository root and covers it and e
 2. **Spec**: copy [spec-template.md](spec-template.md) into the run folder and fill its fields as its head says. Build every spec from the template; a spec copied or edited from the previous one carries that issue's details into the next.
 3. **Start** one worker per free slot, up to `workersPerProject` and `hostWorkerLimit`. Projects run in parallel; a project with no free slot waits. Before each start, check the branch of each issue: when the issue's branch or an open PR for it (none from a fork) exists, a follow-up goes to the worker that owns it as a runner message, and a new worker starts on that branch only after the owning one is released. Start every worker in its agent's default permission mode: write no flag that bypasses or skips permission prompts, for any agent.
 4. **Watch** until every worker has settled. A worker with no acknowledgement within 60 seconds of its start gets one fresh dispatch from the same spec; a second miss goes to the owner. Each wake-up checks worker messages (a report, a batch's status message, a question), worker state, merged PRs (a PR merged by the owner or a bot settles that issue's work even when its worker never reported) and PRs whose merge waits. Questions and dialogs: [Rules](#rules). A worker whose state reports alive or idle may be waiting at a prompt, so state alone proves nothing: apply the stall check. A coordinator that waits on its own (below) wakes at least every `stallMinutes` / 2.
-5. **React** to each outcome (below), clean up, then return to 1 for every project with a free slot, within both caps. The run closes when no worker is active, no PR waits for a review, a merge or its default-branch watch, and no project has an issue to pick. A project with `keepRunning` keeps the run open until the owner stops it: each wake-up also picks in that project.
+5. **React** to each outcome (below), clean up, then return to 1 for every project with a free slot, within both caps. A waiting follow-up takes a free slot before any pick. The run closes when no worker is active, no PR waits for a review, a merge or its default-branch watch, and no project has an issue to pick. A project with `keepRunning` keeps the run open until the owner stops it: each wake-up also picks in that project.
 6. **Report** per project: issue, outcome, evidence, and what was skipped or not checked.
 
 ### Waiting
@@ -56,7 +56,7 @@ With a runner that wakes the coordinator when mail arrives (Orca), end the turn 
 
 ### Run files
 
-Filled specs, prompts and handoff copies go in `.benchkeeper/runs/<run id>/` of the coordinator's working directory. Confirm it is ignored (`git check-ignore -q .benchkeeper/runs`) before the first write; when it is not, add it to `.git/info/exclude`. Delete the folder and the [scratch folder](review-and-merge.md#scratch-folder) when the run closes, and list in the report any file that could not be deleted.
+Filled specs, prompts, handoff copies and scratch clones go in `.benchkeeper/runs/<run id>/` of the coordinator's working directory. Confirm it is ignored (`git check-ignore -q .benchkeeper/runs`) before the first write; when it is not, add it to `.git/info/exclude`. Delete the folder when the run closes, and list in the report any file that could not be deleted.
 
 ### Handoff file
 

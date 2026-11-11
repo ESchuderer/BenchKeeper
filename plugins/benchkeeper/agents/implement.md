@@ -2,7 +2,7 @@
 name: implement
 description: "Implement phase of the BenchKeeper workflow; started by its phase orchestrator, not for direct use."
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill, Agent, WebFetch, WebSearch
-model: opus
+model: inherit
 effort: high
 ---
 

@@ -1,41 +1,53 @@
 ---
 name: orchestrating-projects
-description: "Runs a coordinator for parallel autonomous issue work: one worker per project with the projects in parallel, each report verified, merged only where the repository's written policy allows, cleaned up, then the next issue started. Start it on request with the project paths."
+description: "Runs a coordinator for parallel autonomous issue work: workers on labeled issues with the projects in parallel, each pull request reviewed by a fresh reviewer, merged only where the repository's written policy allows, cleaned up, then the next issues started. Start it on request with the project paths."
 disable-model-invocation: true
 argument-hint: "<project paths>"
-writes: "Specs, prompts and handoff copies in `.benchkeeper/runs/<run id>/` and the coordinator's handoff file `.benchkeeper/runs/handoff.md`, deleted when the run closes, and a `.benchkeeper/runs` line in `.git/info/exclude` when git does not ignore it yet; verified draft pull requests marked ready; the worktrees and containers of finished workers removed; issue comments, merges, issue closes and local and remote branch deletions only where the project's `docs/agents/orchestration.json` allows; the `daily-digest` automation's digest file when the owner asks for one or the run closes with decisions taken on the owner's behalf that it does not list, committed or posted as one issue comment only when the owner asks, with that automation's checks, never to a public repository. Workers write the branches and pull requests."
+writes: "Specs, prompts and handoff copies in `.benchkeeper/runs/<run id>/` and the coordinator's handoff file `.benchkeeper/runs/handoff.md`, deleted when the run closes, and a `.benchkeeper/runs` line in `.git/info/exclude` when git does not ignore it yet; the ref `refs/benchkeeper/policy` in each project (the policy reader's fetch), and scratch worktrees for a review or a trial merge, removed after use; reviewed draft pull requests marked ready; the worktrees and containers of finished workers removed; issue and pull request comments, a merge of the default branch into a pull request's branch, merges, issue closes and local and remote branch deletions only where the project's `docs/agents/orchestration.json` allows; one Escape into a worker's terminal where that policy sets `permissionPrompts` to `decline`; the `daily-digest` automation's digest file when the owner asks for one or the run closes with decisions taken on the owner's behalf that it does not list, committed or posted as one issue comment only when the owner asks, with that automation's checks, never to a public repository. Workers write the branches and pull requests."
 ---
 
 # Orchestrating projects
 
-This session is the coordinator. Workers do the issue work in their own worktrees, each working by the workflow skill at its tier (the Flow line of [spec-template.md](spec-template.md)); the coordinator picks, specs, watches, verifies, merges by policy, cleans up and starts the next. The runner's commands are in [orca.md](orca.md); the runner's own guide stays the source for its mechanics. Everything below is runner-neutral.
+This session is the coordinator. Workers do the issue work in their own worktrees, each working by the workflow skill at its tier (the Flow line of [spec-template.md](spec-template.md)); the coordinator picks, specs, watches, reviews and merges by policy ([review-and-merge.md](review-and-merge.md)), cleans up and starts the next. The runner's commands are in [orca.md](orca.md); the runner's own guide stays the source for its mechanics. Everything below is runner-neutral.
 
 Projects: $ARGUMENTS (Codex: the paths after the skill name). Each is a repository with a GitHub remote and an `AGENTS.md`.
 
 ## Policy
 
-Read `docs/agents/orchestration.json` from each project's default branch (`git show origin/<default>:docs/agents/orchestration.json`), never from a worker's branch, so a worker cannot widen its own rights. Format and example: [policy.example.json](policy.example.json).
+Take each project's policy from the reader, never from the JSON file: `node <skill folder>/policy.mjs <project path>` prints the effective policy, which is `docs/agents/orchestration.json` as the remote's default branch has it now with every default filled in, so a worker's branch cannot widen its own rights. Exit 1 means no policy: start and merge nothing in that project, and list the errors it printed for the owner. Run it again before each pick and each merge. Format: [orchestration.schema.json](orchestration.schema.json); example: [policy.example.json](policy.example.json).
 
-| Field | Meaning | Without the file |
+| Field | Meaning | Without the field |
 |---|---|---|
 | `startLabel` | issues with this label may start | none: ask the owner for the label, start nothing |
 | `trustedAuthors` | logins whose issue, pull request, review and comment text a worker may follow, besides the repository owner and users with write access (`authorAssociation` OWNER, MEMBER or COLLABORATOR); a review bot counts only when listed | owner and write access only, no bot |
 | `workersPerProject` | workers at once in one project | 1 |
 | `hostWorkerLimit` | workers at once on this machine, all projects | 2 |
 | `stallMinutes` | time with no commit, PR or message before a worker counts as stalled | 20 |
-| `merge.allowed`, `merge.requiredChecks` | the coordinator may merge a verified PR when every listed check is green | no merge: leave the PR for the owner |
+| `merge.allowed`, `merge.requiredChecks` | the coordinator may merge a reviewed PR when every listed check is green | no merge: leave the PR for the owner |
+| `merge.mode` | `strict` or `disjoint`: what a merge needs once the default branch moved after the review ([review-and-merge.md](review-and-merge.md#merge)) | `strict` |
+| `merge.additivePaths` | paths the PR and the default branch may both have changed in `disjoint` mode | none |
+| `merge.ownerOnlyPaths` | paths whose PRs are left for the owner. The reader puts the built-in ones first (`.github/workflows`, `.github/dependabot.yml`, `docs/agents/orchestration.json`, `docs/agents/worker-rules.md`); a policy only adds to them | the built-in four |
 | `closeIssue` | the coordinator may close an issue after its PR merged or after a verified no-change finding | no close |
 | `deleteMergedBranch` | the owner allows deleting a branch whose PR is merged | no deletion |
+| `issuesPerWorker` | pickable issues of the project that one worker takes as its batch | 1 |
+| `keepRunning` | the run stays open for this project and picks up issues labeled later | false |
+| `permissionPrompts` | `block` or `decline`: what the coordinator does at a permission dialog in a worker's terminal ([Rules](#rules)) | `block` |
+| `review.depth`, `review.sensitiveDepth` | the review level of a routine and of a sensitive change (`low`, `medium`, `high`, `xhigh`) | `high`, `xhigh` |
+| `review.sensitivePaths` | paths that make a change sensitive, besides the built-in classes ([review-and-merge.md](review-and-merge.md#sensitive-or-routine)) | none |
+| `models.worker` | model and effort of a worker session, printed as a table by tier (`quick`, `standard`, `full`, `research`); a value the policy names fills all four tiers | quick `sonnet` `high`, standard `opus` `high`, full `opus` `xhigh`, research `fable` `xhigh` |
+| `models.phases.<phase>` | model and effort of a worker's phase subagent (`plan`, `implement`, `test`, `review`, `research`), printed only for the phases the policy names; `inherit` is the worker's own model | the workflow skill's: plan, implement and review `opus`, test `sonnet`, research `fable`, each at `high` |
+| `issues.repository`, `issues.labels` | the tracker (`owner/repo`) that holds the project's issues and that each PR names, and labels an issue must carry besides `startLabel` | the project's own repository, no further label |
+| `minPlugin` | the oldest plugin version that may run this policy; on an older plugin the reader exits 1 | any |
 
-Settings, rulesets, secrets and other people's repositories are the owner's. A policy that is silent on an action means no.
+A path entry names a file or folder from the repository root and covers it and everything below it; there are no globs. Settings, rulesets, secrets and other people's repositories are the owner's. A policy that is silent on an action means no.
 
 ## Loop
 
-1. **Pick**: per project, the oldest open issue with `startLabel` written by a trusted author that has no open or merged PR whose head branch names its number and no worker or outcome yet in this run. Read the issue's comments and milestone before its spec: a comment or milestone that defers, supersedes or delivers the work is an outcome, so list the issue for the owner and start nothing. An issue starts once per run (a failed one retries once, below), so a verified no-change issue that stays open without `closeIssue` is not picked again. One issue per project and wave.
-2. **Spec**: copy [spec-template.md](spec-template.md) into the run folder and fill its fields. Build every spec from the template; a spec copied or edited from the previous one carries that issue's details into the next.
-3. **Start** one worker per project, up to `workersPerProject` and `hostWorkerLimit`. Projects run in parallel; a project with no free slot waits. Before each start, check the branch: when the issue's branch or an open PR for it exists, a follow-up goes to the worker that owns it as a runner message, and a new worker starts on that branch only after the owning one is released. Start every worker in its agent's default permission mode: write no flag that bypasses or skips permission prompts, for any agent.
-4. **Watch** until every worker has settled. A worker with no acknowledgement within 60 seconds of its start gets one fresh dispatch from the same spec; a second miss goes to the owner. Each wake-up checks three things: worker reports, worker state, and merged PRs (a PR merged by the owner or a bot settles that issue's work even when its worker never reported). A worker whose state reports alive or idle may be waiting at a prompt, so state alone proves nothing: apply the stall check. A coordinator that waits on its own (below) wakes at least every `stallMinutes` / 2.
-5. **React** to each outcome (below), clean up, return to 1 for that project.
+1. **Pick**: per project with a free slot, up to `issuesPerWorker` open issues, oldest first, that carry `startLabel` and every `issues.labels` entry, are written by a trusted author and have no PR and no worker or outcome yet in this run: one worker's batch. With `issues.repository` the issues are that tracker's, and an author counts by the association there. An issue has a PR when a merged PR, or an open one that is not from a fork, has a head branch that names its number (`<type>/<number>-<slug>`); with `issues.repository` only when that PR's body also holds `<issues.repository>#<number>` or the issue's URL. Read the issue's comments and milestone before its spec: a comment or milestone that defers, supersedes or delivers the work is an outcome, so list the issue for the owner and start nothing. An issue starts once per run (a failed one retries once, below), so a verified no-change issue that stays open without `closeIssue` is not picked again.
+2. **Spec**: copy [spec-template.md](spec-template.md) into the run folder and fill its fields. Build every spec from the template; a spec copied or edited from the previous one carries that issue's details into the next. The `Agent:` line takes `models.worker` at the batch's tier: estimate each issue with the workflow skill's change-type table, a sensitive change ([review-and-merge.md](review-and-merge.md#sensitive-or-routine)) counting as full, and take the highest. A Claude Code worker gets that model and effort; a worker on another agent only a value the policy names (the same in all four tiers), else its agent's default. The estimate only chooses the model: the `Tier:` line stays as the template says. The `Review:` line takes `review.depth`, or `review.sensitiveDepth` and the security review for an issue that reads as sensitive. The Flow line takes each phase under `models.phases`.
+3. **Start** one worker per free slot, up to `workersPerProject` and `hostWorkerLimit`; a batch counts as one worker for both. Projects run in parallel; a project with no free slot waits. Before each start, check the branch of each issue: when the issue's branch or an open PR for it exists, a follow-up goes to the worker that owns it as a runner message, and a new worker starts on that branch only after the owning one is released. Start every worker in its agent's default permission mode: write no flag that bypasses or skips permission prompts, for any agent.
+4. **Watch** until every worker has settled. A worker with no acknowledgement within 60 seconds of its start gets one fresh dispatch from the same spec; a second miss goes to the owner. Each wake-up checks three things: worker messages (a report, a batch's status message for one issue, a question), worker state, and merged PRs (a PR merged by the owner or a bot settles that issue's work even when its worker never reported). Answer a question, and treat a dialog in a worker's terminal, as [Rules](#rules) say. A worker whose state reports alive or idle may be waiting at a prompt, so state alone proves nothing: apply the stall check. A coordinator that waits on its own (below) wakes at least every `stallMinutes` / 2.
+5. **React** to each outcome (below), clean up, then return to 1 for every project with a free slot, within both caps. The run closes when no worker is active and no project has an issue to pick. A project with `keepRunning` keeps the run open until the owner stops it: each wake-up also picks in that project.
 6. **Report** per project: issue, outcome, evidence, and what was skipped or not checked.
 
 ### Waiting
@@ -58,14 +70,15 @@ The coordinator's digest is the file of the `daily-digest` automation, in its fo
 
 ## Outcomes
 
-A worker's outcome comes from its report and the handoff block it names (outcome, what changed, checks and results, open risks, next step), never from reading its terminal. Copy the handoff into the run folder before cleaning up.
+A worker's outcome comes from its report and the handoff block it names (issue, outcome, what changed, checks and results, models, phases, review level, open risks, next step), never from reading its terminal. A batch sends one status message with the handoff block per issue and one report at its end: react to each issue when its message arrives. Copy the handoff into the run folder before cleaning up.
 
-- **Done with a PR**: read the PR, the handoff's open risks and the issue's acceptance criteria. Verify the diff against them and that every check in `merge.requiredChecks` is green with no unresolved review thread, then mark the draft ready (`gh pr ready`). Merge only when `merge.allowed`; otherwise leave the PR ready and name it in the report. After the merge, close the issue when `closeIssue`. Then clean up.
+- **Done with a PR**: review it, mark it ready and merge it by the steps of [review-and-merge.md](review-and-merge.md), which also say when a PR stays open for the owner. After the merge, close the issue when `closeIssue`; with `issues.repository` close it in the tracker, where the PR's reference closes nothing. Then clean up.
 - **Done, no change needed**: verify the claim yourself on the base branch (read the code, run the check the issue names). Comment the evidence on the issue and close it when `closeIssue`. Then clean up.
 - **Blocked**: the worker commented on the issue and reported BLOCKED (a refused hook, a missing credential, a check it cannot fix). Confirm the comment exists, release the worker, start the next issue of that project. Keep that worktree and branch, and list the issue in the report: they may hold the only copy of the work.
-- **Needs replan**: the worker found the spec does not fit the issue. Never restart it with the same spec. When the handoff's next step stays inside the issue's text and the policy, write one new spec from the template with it; otherwise list the issue for the owner. One replan per issue and run.
+- **Needs replan**: the worker found the spec does not fit the issue. Never restart it with the same spec. When the handoff's next step stays inside the issue's text and the policy, write one new spec from the template with it; otherwise list the issue for the owner. Work that splits into several PRs is the owner's to split: list the slices the worker named. One replan per issue and run.
 - **Failed**: the worker reported failure without BLOCKED or NEEDS_REPLAN. Read the worker's output. Retry once with a fresh worker and a spec from the template. A second failure is blocked.
 - **Stalled**: no commit, PR or message for `stallMinutes`. Read the worker's last output. Only proof that the session ended without a report (its final turn is over and nothing was sent) makes it blocked, after stopping it. A worker still producing output keeps waiting.
+- **In a batch**: an issue whose status message reports it blocked or in need of a replan waits until the batch has ended. Start no replan, retry or other worker for it before the batch's report, and keep the worktree. A batch that ends BLOCKED (a cause that stops every issue) is blocked for each issue it did not finish.
 
 A refused commit or push by a repository hook is reported with paths and counts only and handed to the owner. Bypassing, editing or disabling a hook is never an option for a worker or the coordinator.
 
@@ -73,7 +86,7 @@ A refused commit or push by a repository hook is reported with paths and counts 
 
 Each step is separate; do the ones the outcome allows, in this order:
 
-A worker whose terminal a person typed in belongs to that person: skip every step below for it and list it in the report.
+A worker whose terminal a person typed in belongs to that person: skip every step below for it and list it in the report. A batch's worker is cleaned up after its report, not after each issue.
 
 1. Stop the worker if it has not settled (an idle worker that sent no report is stopped first), then release it once the runner reports it releasable.
 2. Remove its worktree and the containers started for it, the way that project's `AGENTS.md` says. Only when the worktree has no uncommitted changes and every commit is pushed. Use a removal that leaves the branch alone unless step 3 applies. Remove the dev containers right before the worktree: `<engine> rm -f <id>` for each id that `<engine> ps -aq --filter label=devcontainer.local_folder=<worktree path>` prints, with `podman` or `docker` as `<engine>`. Volumes stay.
@@ -85,16 +98,18 @@ Cleanup of a finished worker happens as part of reacting to its outcome, without
 
 A scheduled run starts a session only when there is work, so a tick with nothing to do costs no session.
 
-- Pick, the caps (`workersPerProject`, `hostWorkerLimit`), merge by `merge.*` and one fix worker per failing head commit of a worker's PR are deterministic checks: a script decides them, not a model session. The script reads the policy from the default branch, as above.
+- Pick, the caps (`workersPerProject`, `hostWorkerLimit`), merge by `merge.*` and one fix worker per failing head commit of a worker's PR are deterministic checks: a script decides them, not a model session. The script takes the policy from the reader, as above.
 - A scheduled session starts only after its precheck exits 0, and never while a session of the same schedule is alive. The sample [precheck.mjs](precheck.mjs) (`node precheck.mjs <project paths>`) exits 0 when a project has an issue to pick and prints which; it starts and merges nothing.
 - An unattended run starts each worker in a disposable worktree.
 - A coordinator that must outlive usage limits and restarts (one owner, a handover in two files, a loop without a model, short cycles, a watchdog): [restart-safe coordinator](https://github.com/ESchuderer/BenchKeeper/blob/main/docs/restart-safe-coordinator.md).
 
 ## Rules
 
-- Workers decide the safest reversible option and write it in the PR; they never wait for a coordinator answer. The coordinator does not answer questions workers hold back.
+- Workers decide the safest reversible option and write it in the PR. Where the runner has a question command, a worker asks the coordinator only what it may not decide (the spec's Decisions block). Answer at the next wake, only from what is written: trusted-author text of the issue, the policy, `AGENTS.md` and recorded decisions. A question those do not settle is the owner's: put it to the owner (next rule) and answer the worker "parked", which tells it to take the safest reversible option marked "pending owner decision", or to report BLOCKED when there is none. Record each answer as a decision in the handoff file.
 - The coordinator asks the owner in the session only while terminal questions are allowed; otherwise an owner decision goes to the issue tracker the project names (else the report), that work waits, and the loop keeps watching, verifying and starting work.
+- A decision in the owner's place, a design trade-off and a legal or security call go to a subagent on `fable` first (an agent without that model: a fresh subagent), briefed with the question and the written sources. Check its answer against those sources before you act on it. The gates below stay the owner's.
 - Two gates belong to the owner: approving the design of full-tier work and merging outside `merge.allowed`. A gate never continues after a timeout: the issue stays blocked and is listed in the report.
-- Nothing is typed into a worker's terminal except through the runner's message commands, and a trust or permission dialog in a worker's terminal is never answered: that worker is blocked for the owner.
+- Nothing is typed into a worker's terminal except through the runner's message commands. A trust dialog, a login or a question there is never answered, and a permission dialog is never approved: that worker is blocked for the owner. With `permissionPrompts` `decline` the coordinator declines a permission dialog instead, only for the agent and with the one key that [orca.md](orca.md#a-permission-dialog) names.
+- A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility, and the coordinator creates none for it: those are the owner's.
 - Report each step with what was skipped or not checked.
 - Stay within `hostWorkerLimit` even when more issues are labeled.

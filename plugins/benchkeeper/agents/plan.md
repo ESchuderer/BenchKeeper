@@ -2,7 +2,7 @@
 name: plan
 description: "Plan phase of the BenchKeeper workflow; started by its phase orchestrator, not for direct use."
 tools: Read, Grep, Glob, Bash, Skill, WebFetch, WebSearch
-model: opus
+model: inherit
 effort: high
 ---
 

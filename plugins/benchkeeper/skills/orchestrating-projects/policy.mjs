@@ -113,12 +113,12 @@ const unreadable = (message) => ({ policy: null, errors: [{ rule: 'unreadable', 
 // The effective policy of the project in dir. A project without the file gets the defaults, which start and merge nothing.
 export function read(dir, run = sh) {
   try { run(dir, 'git', ['fetch', '--quiet', '--no-tags', 'origin', `+HEAD:${REF}`]); } catch (e) {
-    return unreadable(e.code === 'ENOENT' ? 'the folder does not exist, or git is not installed' : 'not a git repository with a remote named origin that answers');
+    return unreadable(e.code === 'ENOENT' ? 'the folder does not exist, or git is not installed' : "git could not fetch origin's HEAD: no git repository here, no remote named origin, no answer from it, or no default branch there");
   }
   let text;
   try {
-    // ls-tree decides whether the file exists, so a show that fails is never read as "no file", which would mean the defaults.
-    if (!run(dir, 'git', ['ls-tree', '--name-only', REF, '--', FILE]).trim()) return effective({});
+    // ls-tree decides whether the file exists, so a show that fails is never read as "no file", which would mean the defaults. --full-tree: the path counts from the repository root, as in the show, also when dir is a folder below it.
+    if (!run(dir, 'git', ['ls-tree', '--full-tree', '--name-only', REF, '--', FILE]).trim()) return effective({});
     text = run(dir, 'git', ['show', `${REF}:${FILE}`]);
   } catch { return unreadable(`git could not read ${FILE} from origin's default branch`); }
   let doc;

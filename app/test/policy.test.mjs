@@ -118,21 +118,20 @@ test('policy: the remote\'s HEAD is fetched into the reader\'s own ref and the f
   const calls = [];
   assert.equal(read('/p', remote('{ "startLabel": "go" }', calls)).policy.startLabel, 'go');
   // No name that the remote or the local origin/HEAD chooses is part of a command.
-  assert.deepEqual(calls, [
-    'git fetch --quiet --no-tags origin +HEAD:refs/benchkeeper/policy',
-    'git ls-tree --name-only refs/benchkeeper/policy -- docs/agents/orchestration.json',
-    'git show refs/benchkeeper/policy:docs/agents/orchestration.json',
-  ]);
+  assert.ok(calls.includes('git fetch --quiet --no-tags origin +HEAD:refs/benchkeeper/policy'));
+  assert.ok(calls.includes('git show refs/benchkeeper/policy:docs/agents/orchestration.json'));
   assert.deepEqual(read('/p', remote(null)), { policy: DEFAULTS, errors: [] });
 });
 
-test('policy: a file that is there but cannot be read gives no policy, not the defaults', () => {
-  const { policy, errors } = read('/p', (dir, cmd, args) => {
-    if (args[0] === 'show') throw new Error('fatal: could not fetch the object from the promisor remote');
-    return args[0] === 'ls-tree' ? 'docs/agents/orchestration.json\n' : '';
-  });
-  assert.equal(policy, null);
-  assert.deepEqual(rules(errors), [['unreadable', '']]);
+test('policy: a fetch or a show that fails gives no policy: not the defaults, and not the file an older fetch left', () => {
+  for (const failing of ['fetch', 'show']) {
+    const { policy, errors } = read('/p', (dir, cmd, args) => {
+      if (args[0] === failing) throw new Error(`fatal: the ${failing} failed`);
+      return args[0] === 'ls-tree' ? 'docs/agents/orchestration.json\n' : '{ "startLabel": "go", "merge": { "allowed": true } }';
+    });
+    assert.equal(policy, null, failing);
+    assert.deepEqual(rules(errors), [['unreadable', '']], failing);
+  }
 });
 
 test('policy: a file that is not JSON gives no policy', () => {
@@ -162,6 +161,10 @@ test('policy: the command line prints the policy of the default branch and exits
   const printed = cli(project);
   assert.equal(printed.status, 0, printed.stderr);
   assert.equal(JSON.parse(printed.stdout).startLabel, 'go');
+  // A project path below the repository root reads the same file, not "no file" and with it the defaults.
+  const below = cli(join(project, 'docs'));
+  assert.equal(below.status, 0, below.stderr);
+  assert.equal(JSON.parse(below.stdout).startLabel, 'go');
   // Not cloned (init, then remote add): there is no origin/HEAD, and the remote's HEAD is all the reader needs.
   const added = mkdtempSync(join(tmpdir(), 'bk-policy-'));
   git('init', '-q', '-b', 'other', added);

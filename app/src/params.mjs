@@ -10,13 +10,16 @@ export const FILES = { policy: ['docs/agents/orchestration.json'] };
 // Every rule an error can name; the tests keep one invalid fixture for each.
 export const RULES = ['bad-json', 'not-object', 'type', 'length', 'range', 'enum', 'pattern', 'unknown-key', 'missing-key'];
 // Imported when the module loads: the content lies in the package (content/) or in the clone (plugins/benchkeeper/), so no static path names it.
-const VALIDATE = { policy: (await import(pathToFileURL(join(contentDir, 'skills/orchestrating-projects/policy.mjs')).href)).validate };
+// A stale content folder without the reader must not keep the app from starting: only the editor then fails, and says why.
+const reader = await import(pathToFileURL(join(contentDir, 'skills/orchestrating-projects/policy.mjs')).href).catch(() => ({}));
+const VALIDATE = { policy: reader.validate };
 
 // text: the file's content, null when it does not exist. Returns the document as parsed and the errors; no input is changed.
 export function load(family, text) {
   if (text == null) return { doc: null, errors: [] };
   let doc;
   try { doc = JSON.parse(text); } catch { return { doc: null, errors: [{ rule: 'bad-json', path: '', message: 'is not valid JSON' }] }; }
+  if (typeof VALIDATE[family] !== 'function') throw new Error(`the content in ${contentDir} has no policy reader: update it`);
   return { doc, errors: VALIDATE[family](doc) };
 }
 // The one way a document is written back: two-space indent, key order as read.

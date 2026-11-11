@@ -16,7 +16,7 @@ What: <the decision in one sentence; link the plan or report>
 | Owner steps | <bench, deploy, login, purchase; or none> |
 | Cost | <sessions and an estimate; mark unverified> |
 | Undo | <how each part is reversed> |
-| Answer | comment "a", "b" or free text, or run /benchkeeper:questions |
+| Answer | <in the hub repository: run /benchkeeper:questions; in any other: comment "a", "b" or free text on this issue> |
 
 | Option | What happens | Trade-off |
 |---|---|---|

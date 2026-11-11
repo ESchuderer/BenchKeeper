@@ -32,6 +32,7 @@
     "check:baselines": "node scripts/quality.mjs baselines",
     "mutate": "stryker run",
     "smoke": "node scripts/smoke.mjs",
+    "check:clean-install": "node scripts/clean-install.mjs",
     "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {

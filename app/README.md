@@ -309,6 +309,7 @@ In the dev container:
 
 - `npm test`: unit tests against temporary home directories with stubbed agent commands
 - `npm run smoke`: start, plan, apply and ledger write
+- `npm run check:clean-install`: with an empty home in a temporary folder, project setup applied twice to two fixture projects changes nothing the second time, and the coordinator's policy reader and precheck run there; `npm test` runs it too
 - `npm run build && npm run test:ui`: the web UI against a fixture home, axe in light and dark mode
 
 ## Release

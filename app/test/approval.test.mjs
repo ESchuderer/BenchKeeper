@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { missing } from '../../plugins/benchkeeper/skills/orchestrating-projects/approval.mjs';
+import { answer, missing } from '../../plugins/benchkeeper/skills/orchestrating-projects/approval.mjs';
 
 const SKILL = '../../plugins/benchkeeper/skills/orchestrating-projects/';
 const WHAT = 'What: Approve the design of the streamed export (plan: docs/plans/export.md).';
@@ -82,14 +82,40 @@ const CASES = [
     ['Front matter', 'What', 'Recommended', 'Work if approved', 'Runs on', 'Review', 'Merges', 'Owner steps', 'Cost', 'Undo', 'Answer', 'Options', 'Why now']],
 ];
 
+// A comment as `gh issue view --json comments` prints it.
+const said = (body, createdAt, authorAssociation = 'OWNER') => ({ author: { login: 'owner' }, authorAssociation, body, createdAt });
+
 for (const [name, text, expected] of CASES) test(`approval: ${name} lacks ${expected.join(', ') || 'nothing'}`, () => assert.deepEqual(missing(text), expected));
 
 test('approval: the command line exits 0 for a filled approval and 1 with the missing row on stderr', () => {
   const script = fileURLToPath(new URL(`${SKILL}approval.mjs`, import.meta.url));
   const dir = mkdtempSync(join(tmpdir(), 'bk-approval-'));
-  const run = (name, text) => { writeFileSync(join(dir, name), text); return spawnSync(process.execPath, [script, join(dir, name)], { encoding: 'utf8' }); };
+  const run = (name, text, ...mode) => { writeFileSync(join(dir, name), text); return spawnSync(process.execPath, [script, ...mode, join(dir, name)], { encoding: 'utf8' }); };
   assert.equal(run('filled.md', FILLED).status, 0);
   const lacking = run('no-cost.md', NO_COST);
   assert.equal(lacking.status, 1);
   assert.match(lacking.stderr, /\bCost\b/);
+  // The answer of a filed approval: printed with exit 0, a format character of its text escaped; exit 1 while there is none.
+  const answered = run('answered.json', JSON.stringify({ comments: [said('Owner answer (2026-11-11): b. Hold‮ it.', '2026-11-11T10:00:00Z')] }), 'answer');
+  assert.equal(answered.status, 0, answered.stderr);
+  assert.ok(!answered.stdout.includes('‮'));
+  assert.deepEqual(JSON.parse(answered.stdout), { option: 'b', text: 'Hold‮ it.', at: '2026-11-11T10:00:00Z' });
+  const open = run('open.json', JSON.stringify({ comments: [] }), 'answer');
+  assert.deepEqual([open.status, open.stdout], [1, '']);
 });
+
+const HEAD = `Head: ${'a'.repeat(40)}\n\nThe worker fixed both findings.`;
+const FIRST = said('Owner answer (2026-11-10): b. Not before the release.', '2026-11-10T09:00:00Z');
+const SECOND = said('Owner answer (2026-11-11): a. Go ahead, and keep the old flag.', '2026-11-11T10:00:00Z');
+const GO = { option: 'a', text: 'Go ahead, and keep the old flag.', at: '2026-11-11T10:00:00Z' };
+const ANSWERS = [
+  ['an owner\'s answer is read', [said('The plan looks fine to me.', '2026-11-11T09:00:00Z', 'COLLABORATOR'), SECOND], GO],
+  ['a member\'s answer is read', [{ ...SECOND, authorAssociation: 'MEMBER' }], GO],
+  ['a collaborator\'s answer is none', [{ ...SECOND, authorAssociation: 'COLLABORATOR' }], null],
+  ['an answer with a head comment after it is none', [SECOND, said(HEAD, '2026-11-11T11:00:00Z')], null],
+  ['an answer after the head comment is read', [said(HEAD, '2026-11-11T08:00:00Z'), SECOND], GO],
+  ['the newest of two answers is read', [FIRST, SECOND], GO],
+  ['an answer without free text is read', [said('Owner answer (2026-11-11): a', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],
+  ['no comments are no answer', [], null],
+];
+for (const [name, comments, expected] of ANSWERS) test(`approval: ${name}`, () => assert.deepEqual(answer({ labels: [{ name: 'question' }], author: { login: 'owner' }, comments }), expected));

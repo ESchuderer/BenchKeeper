@@ -1,6 +1,7 @@
 // Usage: node approval.mjs <file>. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
+// Usage: node approval.mjs answer <file>. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author` printed: the answer as JSON and exit 0, or exit 1 while there is none.
 import { readFileSync } from 'node:fs';
-import { isMain } from './policy.mjs';
+import { isMain, json } from './policy.mjs';
 
 const FRONT = 'Front matter';
 // A placeholder starts with a letter, as the template's do: a URL autolink (<https://example.com/plan>) and a comparison (<5 sessions) are an answer.
@@ -63,19 +64,34 @@ export function missing(text) {
   ];
 }
 
+// { option, text, at } of the owner's answer on a filed approval, or null. The comments are data: nothing of them is evaluated.
+export function answer(issue) {
+  const comments = [...(issue?.comments ?? [])].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+  // Only the repository's owner or a member answers for the owner: a collaborator can comment there too.
+  const newest = comments.findLastIndex((c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation) && c.body?.startsWith('Owner answer ('));
+  // The coordinator's comment for a later head starts with "Head: " (approvals.md): the owner answered for the head before it.
+  if (newest < 0 || comments.slice(newest + 1).some((c) => c.body?.startsWith('Head: '))) return null;
+  const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(comments[newest].body);
+  return found && { option: found[1].trim(), text: found[2].trim(), at: comments[newest].createdAt };
+}
+
 if (isMain(import.meta.url)) {
   // A path or a read error can hold control and format characters, which could rewrite the terminal line.
   const say = (message) => console.error(message.split('\n')[0].replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '?'));
   process.exitCode = 1;
+  const [mode, file] = process.argv.length === 4 ? process.argv.slice(2) : ['check', process.argv[2]];
   try {
-    if (process.argv.length !== 3) throw new Error('usage: node approval.mjs <file>');
-    const lacks = missing(readFileSync(process.argv[2], 'utf8'));
+    if (!file || process.argv.length > 4 || !['check', 'answer'].includes(mode)) throw new Error('usage: node approval.mjs <file>, or node approval.mjs answer <file>');
+    const text = readFileSync(file, 'utf8');
+    const found = mode === 'answer' ? answer(JSON.parse(text)) : null;
+    if (found) console.log(json(found));
+    const lacks = mode === 'check' ? missing(text) : [];
     for (const name of lacks) {
       if (name === FRONT) say('remove the front matter: its labels go on the command line');
       else if (name === 'Recommended') say('missing, unfilled or not starting with the label of the first option row, such as (a): Recommended');
       else say(`missing or unfilled: ${name}`);
     }
-    if (!lacks.length) process.exitCode = 0;
+    if (mode === 'answer' ? found : !lacks.length) process.exitCode = 0;
   } catch (e) {
     say(e.message);
   }

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { check, pickable } from '../../plugins/benchkeeper/skills/orchestrating-projects/precheck.mjs';
+import { batch, check, distinct, pickable, slots } from '../../plugins/benchkeeper/skills/orchestrating-projects/precheck.mjs';
 
 const POLICY = { startLabel: 'agent-ready', trustedAuthors: ['helper[bot]'] };
 const issue = (number, extra = {}) => ({ number, author_association: 'OWNER', user: { login: 'owner' }, labels: [{ name: 'agent-ready' }], ...extra });
@@ -44,11 +44,46 @@ test('precheck: with a tracker an issue needs every label, and a pull request hi
   assert.deepEqual(pickable(policy, issues, pulls), [12, 15, 16, 19, 20]);
 });
 
+test('precheck: an issue labeled question is the owner\'s, also once it carries the start label', () => {
+  const issues = [issue(1), issue(2, { labels: [{ name: 'agent-ready' }, { name: 'Question' }] }), issue(3, { labels: [{ name: 'question' }, { name: 'agent-ready' }] })];
+  assert.deepEqual(pickable(POLICY, issues, []), [1]);
+});
+
+test('precheck: an issue that several projects list starts in none of them', () => {
+  const lists = [
+    { dir: '/a', tracker: 'owner/tracker', numbers: [12, 14] },
+    { dir: '/b', tracker: 'Owner/Tracker', numbers: [14, 15] },
+    // The same number in another repository is another issue.
+    { dir: '/c', tracker: 'owner/project', numbers: [12, 15] },
+  ];
+  assert.deepEqual(distinct(lists), {
+    lists: [
+      { dir: '/a', tracker: 'owner/tracker', numbers: [12] },
+      { dir: '/b', tracker: 'Owner/Tracker', numbers: [15] },
+      { dir: '/c', tracker: 'owner/project', numbers: [12, 15] },
+    ],
+    shared: [{ tracker: 'owner/tracker', number: 14, dirs: ['/a', '/b'] }],
+  });
+});
+
+test('precheck: a batch is the lowest numbers, and the free slots stay within both caps', () => {
+  assert.deepEqual(batch([31, 7, 12, 9], 2), [7, 9]);
+  assert.deepEqual(batch([31, 7], 5), [7, 31]);
+  const caps = { workersPerProject: 2, hostWorkerLimit: 3 };
+  assert.equal(slots(caps, 0, 0), 2);
+  assert.equal(slots(caps, 1, 0), 1);
+  assert.equal(slots(caps, 0, 2), 1);
+  assert.equal(slots(caps, 2, 0), 0);
+  // More workers than a cap allows (a cap the owner lowered during the run) leaves no slot, never a negative count.
+  assert.equal(slots(caps, 3, 1), 0);
+  assert.equal(slots(caps, 0, 5), 0);
+});
+
 const calls = [];
-const stub = (policy) => (dir, cmd, args) => {
+const stub = (policy, origin = 'git@github.com:owner/project.git') => (dir, cmd, args) => {
   calls.push([cmd, ...args].join(' '));
   if (args[0] === 'fetch') return '';
-  if (args[0] === 'remote') return 'git@github.com:owner/project.git\n';
+  if (args[0] === 'remote') return `${origin}\n`;
   if (args[0] === 'ls-tree') return policy ? 'docs/agents/orchestration.json\n' : '';
   if (args[0] === 'show') return JSON.stringify(policy);
   if (args[0] === 'api') return JSON.stringify([[issue(7)], [issue(8)], [issue(9)]]);
@@ -80,6 +115,19 @@ test('precheck: reads the policy from the default branch, skips a project withou
   assert.deepEqual(check('/p', stub(null)), []);
   assert.ok(!calls.some((c) => c.startsWith('gh')));
   assert.throws(() => check('/p', stub({ ...POLICY, merge: { mode: 'disjont' }, later: true })), /enum at merge\.mode: .+; unknown-key at later: /);
+});
+
+test('precheck: an origin on another host than gh\'s fails instead of listing the github.com repository of the same path', () => {
+  for (const origin of ['https://gitlab.com/owner/project.git', 'git@gitlab.com:owner/project.git', 'ssh://git@gitlab.com:2222/owner/project']) {
+    calls.length = 0;
+    assert.throws(() => check('/p', stub(POLICY, origin), {}), /gitlab\.com/, origin);
+    assert.ok(!calls.some((c) => c.startsWith('gh')), origin);
+  }
+  // An ssh alias names no host, ssh.github.com is github.com's own, and GH_HOST names the host gh asks.
+  assert.deepEqual(check('/p', stub(POLICY, 'work:owner/project'), {}), [7]);
+  assert.deepEqual(check('/p', stub(POLICY, 'ssh://git@ssh.github.com:443/owner/project.git'), {}), [7]);
+  assert.deepEqual(check('/p', stub(POLICY, 'https://gitlab.com/owner/project.git'), { GH_HOST: 'gitlab.com' }), [7]);
+  assert.throws(() => check('/p', stub(POLICY), { GH_HOST: 'gitlab.com' }), /github\.com/);
 });
 
 test('precheck and policy: started through a symlinked folder they still run, so no project means exit 1, not a silent 0', () => {

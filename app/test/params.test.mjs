@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { contentDir } from '../src/content.mjs';
-import { FILES, RULES, SCHEMA_VERSION, format, load } from '../src/params.mjs';
+import { FILES, RULES, format, load } from '../src/params.mjs';
 import { addProject } from '../src/projects.mjs';
 import { api } from '../src/server.mjs';
+import { validate } from '../../plugins/benchkeeper/skills/orchestrating-projects/policy.mjs';
 import { jobDone } from './fakes/job.mjs';
 
 const fixtures = fileURLToPath(new URL('./fixtures/params/policy/invalid/', import.meta.url));
@@ -32,6 +33,17 @@ test('every rule has an invalid fixture', () => {
   assert.deepEqual([...named].filter((r) => !RULES.includes(r)), []);
 });
 
+test('the coordinator\'s reader names the same rule and path as the editor for every invalid fixture', () => {
+  const named = (errors) => errors.map((e) => [e.rule, e.path]);
+  for (const name of readdirSync(fixtures)) {
+    const text = readFileSync(join(fixtures, name), 'utf8');
+    let doc;
+    // Text that is not JSON never reaches the reader's validate.
+    try { doc = JSON.parse(text); } catch { continue; }
+    assert.deepEqual(named(validate(doc)), named(load('policy', text).errors), name);
+  }
+});
+
 test('the shipped policy example passes, and so does a policy without schemaVersion', () => {
   const example = readFileSync(join(contentDir, 'skills/orchestrating-projects/policy.example.json'), 'utf8');
   assert.deepEqual(load('policy', example).errors, []);
@@ -44,28 +56,24 @@ test('errors name the path of a nested key and of an array item', () => {
   assert.deepEqual(errors.map((e) => [e.rule, e.path]), [['type', 'trustedAuthors[0]'], ['range', 'hostWorkerLimit'], ['length', 'merge.requiredChecks[1]']]);
 });
 
-test('unknown keys and // comment keys survive a round trip', () => {
-  const text = '{ "schemaVersion": 1, "//": "kept as written", "futureKey": { "any": ["thing"] }, "merge": { "//allowed": "owner only", "allowed": false } }';
-  const first = load('policy', text).doc;
+test('// comment keys pass at every level and survive a round trip', () => {
+  const text = '{ "schemaVersion": 1, "//": "kept as written", "merge": { "//allowed": "owner only", "allowed": false } }';
+  const { doc: first, errors } = load('policy', text);
+  assert.deepEqual(errors, []);
   const second = load('policy', format(first)).doc;
   assert.deepEqual(second, first);
   assert.equal(format(second), format(first));
   assert.equal(first['//'], 'kept as written');
-  assert.deepEqual(first.futureKey, { any: ['thing'] });
   assert.equal(first.merge['//allowed'], 'owner only');
 });
 
-test('the loader stays under 300 lines and its schemaVersion is the content one', () => {
+test('the loader stays under 300 lines', () => {
   assert.ok(readFileSync(new URL('../src/params.mjs', import.meta.url), 'utf8').trimEnd().split('\n').length <= 300);
-  assert.equal(SCHEMA_VERSION('policy'), 1);
-  // Tied to the content contract once the content file exists.
-  const content = join(contentDir, 'content.json');
-  if (existsSync(content)) assert.equal(SCHEMA_VERSION('policy'), JSON.parse(readFileSync(content, 'utf8')).schemaVersion);
 });
 
 test('editor routes: absent while the preference editors is off; on, the policy with its errors, a live check, a plan applied and undone', async () => {
   const ctx = context({ home: tmp(), run: (argv) => (argv[1] === '--version' ? { code: 127, stdout: '' } : { code: 0, stdout: '' }) });
-  const policy = '{\n  "schemaVersion": 1,\n  "// note": "kept",\n  "workersPerProject": 2,\n  "later": true\n}\n';
+  const policy = '{\n  "schemaVersion": 1,\n  "// note": "kept",\n  "workersPerProject": 2\n}\n';
   const file = FILES.policy[0];
   const dir = project({ [file]: policy });
   addProject(ctx, dir);
@@ -86,7 +94,7 @@ test('editor routes: absent while the preference editors is off; on, the policy 
   assert.deepEqual(routes['POST /api/params-check']({ dir, file, text: '{' }).errors.map((e) => e.rule), ['bad-json']);
   assert.equal(status(() => routes['POST /api/params-check']({ dir, file: 'package.json', text: '{}' })), 400);
   assert.equal(status(() => routes['POST /api/params-check']({ dir, file, text: 3 })), 400);
-  // Refused while the loader finds an error; a valid text is written as typed, its comment and unknown keys included.
+  // Refused while the loader finds an error; a valid text is written as typed, its comment keys included.
   assert.throws(() => routes['POST /api/params-plan']({ dir, file, text: policy.replace('2', '"2"') }), /type at workersPerProject/);
   const next = policy.replace('2', '3');
   const plan = routes['POST /api/params-plan']({ dir, file, text: next });

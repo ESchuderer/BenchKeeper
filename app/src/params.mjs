@@ -1,5 +1,5 @@
 // The orchestrator policy as validated JSON. Its schema ships in <content>/schemas/. The loader returns the parsed
-// document untouched, so unknown keys and "//" comment keys survive a round trip; it reads no step order, the
+// document untouched, so "//" comment keys survive a round trip; it reads no step order, the
 // coordinating session decides that.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,29 +9,34 @@ import { readText } from './fsx.mjs';
 export const FILES = { policy: ['docs/agents/orchestration.json'] };
 const SCHEMA_FILE = { policy: 'orchestration' };
 // Every rule an error can name; the tests keep one invalid fixture for each.
-export const RULES = ['bad-json', 'not-object', 'schema-version', 'type', 'length', 'range'];
+export const RULES = ['bad-json', 'not-object', 'type', 'length', 'range', 'enum', 'pattern', 'unknown-key'];
 
 const schemas = {};
 const schemaOf = (family) => (schemas[family] ??= JSON.parse(readFileSync(join(contentDir, 'schemas', `${SCHEMA_FILE[family]}.schema.json`), 'utf8')));
-export const SCHEMA_VERSION = (family) => schemaOf(family).properties.schemaVersion.const;
+export const SCHEMA_VERSION = (family) => Math.max(...schemaOf(family).properties.schemaVersion.enum);
 
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-// The JSON Schema keywords the shipped schema uses, nothing more. Each error names the rule it breaks.
+// The JSON Schema keywords the shipped schema uses, nothing more. Each error names the rule it breaks. The coordinator's reader has its own copy (policy.mjs of the orchestrating-projects skill); a test holds both to the same rule and path.
 function check(s, v, path, out) {
   const fail = (rule, message) => out.push({ rule, path, message });
-  // const is only used by schemaVersion.
-  if ('const' in s && !same(s.const, v)) return fail('schema-version', `must be ${JSON.stringify(s.const)}`);
+  if (s.enum && !s.enum.includes(v)) return fail('enum', `must be one of ${s.enum.map((x) => JSON.stringify(x)).join(', ')}`);
   const want = s.type;
   if (want && kind(v) !== want && !(want === 'number' && kind(v) === 'integer')) return fail('type', `must be ${want}, not ${kind(v)}`);
   if (typeof v === 'string' && s.minLength && v.length < s.minLength) fail('length', `must have at least ${s.minLength} characters`);
+  if (typeof v === 'string' && s.pattern && !new RegExp(s.pattern, 'u').test(v)) fail('pattern', `must match ${s.pattern}`);
   if (typeof v === 'number') {
     if (s.minimum != null && v < s.minimum) fail('range', `must be at least ${s.minimum}`);
     if (s.maximum != null && v > s.maximum) fail('range', `must be at most ${s.maximum}`);
   }
   if (Array.isArray(v)) v.forEach((x, i) => check(s.items, x, `${path}[${i}]`, out));
-  else if (kind(v) === 'object') for (const [k, sub] of Object.entries(s.properties ?? {})) if (k in v) check(sub, v[k], path ? `${path}.${k}` : k, out);
+  else if (kind(v) === 'object') {
+    const at = (k) => (path ? `${path}.${k}` : k);
+    const known = s.properties ?? {};
+    for (const [k, sub] of Object.entries(known)) if (k in v) check(sub, v[k], at(k), out);
+    // additionalProperties is only ever false, and the one patternProperties entry ("^//", a comment) takes any value.
+    if (s.additionalProperties === false) for (const k of Object.keys(v)) if (!Object.hasOwn(known, k) && !Object.keys(s.patternProperties ?? {}).some((p) => new RegExp(p, 'u').test(k))) out.push({ rule: 'unknown-key', path: at(k), message: 'is not a key the schema names (a comment key starts with //)' });
+  }
 }
 
 // text: the file's content, null when it does not exist. Returns the document as parsed and the errors; no input is changed.
@@ -59,7 +64,7 @@ export function checkText(file, text) {
   if (typeof text !== 'string') throw new Error('text must be a string');
   return load(family, text).errors;
 }
-// A plan that writes the text as typed, so unknown and "//" keys stay; refused while the loader finds an error. A whole-file
+// A plan that writes the text as typed, so "//" comment keys stay; refused while the loader finds an error. A whole-file
 // write (after, not edit): the apply refuses it when the file changed after the plan.
 export function paramsChange(dir, file, text) {
   const errors = checkText(file, text);

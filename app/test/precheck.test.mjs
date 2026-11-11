@@ -19,21 +19,44 @@ test('precheck: picks labeled issues by trusted authors that have no open or mer
     issue(5, { pull_request: {} }),
     issue(6),
   ];
-  assert.deepEqual(pickable(POLICY, issues, ['fix/6-crash', 'feat/16-x']), [1, 3]);
+  assert.deepEqual(pickable(POLICY, issues, [{ headRefName: 'fix/6-crash' }, { headRefName: 'feat/16-x' }]), [1, 3]);
   assert.deepEqual(pickable({}, issues, []), []);
   assert.deepEqual(pickable(null, issues, []), []);
 });
 
+test('precheck: with a tracker an issue needs every label, and a pull request hides it only when its body names the tracker issue', () => {
+  const policy = { startLabel: 'agent-ready', issues: { repository: 'owner/tracker', labels: ['project-a'] } };
+  const labels = [{ name: 'agent-ready' }, { name: 'project-a' }];
+  const issues = [issue(12, { labels }), issue(13), issue(14, { labels }), issue(15, { labels })];
+  const pulls = [
+    { headRefName: 'fix/12-an-old-branch-of-the-project', body: 'Fixes #12' },
+    { headRefName: 'feat/12-other', body: 'Part of owner/tracker#123 and co-owner/tracker#12.' },
+    { headRefName: 'fix/14-crash', body: 'Closes owner/tracker#14.' },
+    { headRefName: 'fix/15-x', body: null },
+  ];
+  assert.deepEqual(pickable(policy, issues, pulls), [12, 15]);
+});
+
+const calls = [];
+const stub = (policy) => (dir, cmd, args) => {
+  calls.push([cmd, ...args].join(' '));
+  if (args[0] === 'symbolic-ref') return 'origin/main\n';
+  if (args[0] === 'fetch') return '';
+  if (args[0] === 'show') { if (!policy) throw new Error('no file'); return JSON.stringify(policy); }
+  if (args[0] === 'api') return JSON.stringify([[issue(7)], [issue(8)], [issue(9)]]);
+  return JSON.stringify([{ headRefName: 'feat/8-x', state: 'OPEN' }, { headRefName: 'feat/7-x', state: 'CLOSED' }, { headRefName: 'fix/9-y', state: 'MERGED' }]);
+};
+
+test('precheck: with a tracker the issues are listed there with every label, and the pull requests with their bodies', () => {
+  calls.length = 0;
+  // Issues 7 to 9 lack the label project-a.
+  assert.deepEqual(check('/p', stub({ ...POLICY, issues: { repository: 'owner/tracker', labels: ['project-a'] } })), []);
+  assert.ok(calls.includes('gh api --paginate --slurp repos/owner/tracker/issues?state=open&per_page=100&labels=agent-ready,project-a'));
+  assert.ok(calls.includes('gh pr list --state all --limit 1000 --json headRefName,state,body'));
+});
+
 test('precheck: reads the policy from the default branch and skips a project without one', () => {
-  const calls = [];
-  const stub = (policy) => (dir, cmd, args) => {
-    calls.push([cmd, ...args].join(' '));
-    if (args[0] === 'symbolic-ref') return 'origin/main\n';
-    if (args[0] === 'fetch') return '';
-    if (args[0] === 'show') { if (!policy) throw new Error('no file'); return JSON.stringify(policy); }
-    if (args[0] === 'api') return JSON.stringify([[issue(7)], [issue(8)], [issue(9)]]);
-    return JSON.stringify([{ headRefName: 'feat/8-x', state: 'OPEN' }, { headRefName: 'feat/7-x', state: 'CLOSED' }, { headRefName: 'fix/9-y', state: 'MERGED' }]);
-  };
+  calls.length = 0;
   assert.deepEqual(check('/p', stub(POLICY)), [7]);
   assert.ok(calls.includes('git show origin/main:docs/agents/orchestration.json'));
   assert.ok(calls.some((c) => c.startsWith('gh api') && c.includes('labels=agent-ready')));
@@ -42,10 +65,10 @@ test('precheck: reads the policy from the default branch and skips a project wit
   assert.ok(!calls.some((c) => c.startsWith('gh')));
 });
 
-test('precheck: started through a symlinked folder it still runs, so no project means exit 1, not a silent 0', () => {
-  // Exit 0 means "there is an issue to pick": a guard that skipped the command line would start every scheduled run.
+test('precheck and policy: started through a symlinked folder they still run, so no project means exit 1, not a silent 0', () => {
+  // Exit 0 means "there is an issue to pick" or "here is the policy": a guard that skipped the command line would start every scheduled run.
   const real = realpathSync(fileURLToPath(new URL('../../plugins/benchkeeper/skills/orchestrating-projects', import.meta.url)));
   const link = join(mkdtempSync(join(tmpdir(), 'bk-precheck-')), 'link');
   symlinkSync(real, link, 'dir');
-  for (const dir of [real, link]) assert.equal(spawnSync(process.execPath, [join(dir, 'precheck.mjs')]).status, 1, dir);
+  for (const dir of [real, link]) for (const script of ['precheck.mjs', 'policy.mjs']) assert.equal(spawnSync(process.execPath, [join(dir, script)]).status, 1, join(dir, script));
 });

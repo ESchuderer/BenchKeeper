@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isMain } from './main.mjs';
@@ -45,6 +45,10 @@ test('issue text handed to a worker needs the author filter', () => {
 });
 test('a skill that reads an issue without a worker needs no filter', () => assert.deepEqual(lintSkill(skill('a', { body: 'Read the issue with all its comments.' })), []));
 test('own skills pass', () => assert.deepEqual(ownSkills().flatMap(lintSkill), []));
+// The vendored mantine-form is left out: 'own skills pass' fails once it is linted.
+test("own skills include a bundled pack's skills", () => {
+  assert.ok(ownSkills().some((dir) => dir.endsWith(['cedarloom.mantine', 'skills', 'mantine-family'].join(sep))));
+});
 test('own agents pass', () => assert.deepEqual(ownAgents().flatMap(lintAgent), []));
 test('a plugin agent needs a name and description, a model alias, and no key plugin agents ignore', () => {
   const agent = (fm) => {

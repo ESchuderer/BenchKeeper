@@ -4,6 +4,7 @@
     "**/dist/**",
     "**/node_modules/**",
     "**/schema/**",
+    "**/packs/bundled/cedarloom.mantine/skills/mantine-form/**",
     "**/test/fixtures/**/*.json",
     "**/openapi.json",
     "**/package.json",

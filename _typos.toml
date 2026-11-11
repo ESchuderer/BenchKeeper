@@ -11,6 +11,6 @@ Axe = "Axe"
 [default.extend-identifiers]
 ariaLabelledByElements = "ariaLabelledByElements"
 
-# Recorded session logs: ids, not words.
+# Recorded session logs: ids, not words. Mantine's skill: copied unchanged, so its spelling is upstream's.
 [files]
-extend-exclude = ["packages/sessions/test/fixtures/"]
+extend-exclude = ["packages/sessions/test/fixtures/", "packages/packs/bundled/cedarloom.mantine/skills/mantine-form/"]

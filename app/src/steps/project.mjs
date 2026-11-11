@@ -13,7 +13,7 @@ import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { machineEnv, ownEnv, withVars } from '../machine.mjs';
 import { getBlock, marks, mergeJson, parseJson, setBlock } from '../merge.mjs';
-import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, skillFolder, skippedLinks, warnings } from '../packs.mjs';
+import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, setsPaths, skillFolder, skippedLinks, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
 import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
@@ -403,8 +403,8 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const s = skills.find((x) => x.name === n);
     if (!s) throw new Error(`paths for ${n}: not a skill of this project (add it first: benchkeeper skills add ${n})`);
     if (!copied(s)) throw new Error(`paths for ${n}: only own and your skills take paths, ${n} is installed from ${s.source}`);
-    // A second paths: key would make the copy's front matter invalid.
-    if (/^paths:/m.test(readText(join(skillFolder(ctx, s), 'SKILL.md'))?.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '')) throw new Error(`paths for ${n}: its SKILL.md sets paths itself`);
+    // An empty value clears a stored entry, which such a skill must still be able to do.
+    if (answers.setPaths[n] && setsPaths(readText(join(skillFolder(ctx, s), 'SKILL.md')))) throw new Error(`paths for ${n}: its SKILL.md sets paths itself`);
   }
   const rel = (p) => slashRel(dir, p);
 
@@ -741,7 +741,9 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const links = skippedLinks(skillFolder(ctx, s));
     return links.length ? [`${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: ${links.join(', ')} ${links.length > 1 ? 'are links' : 'is a link'} to nothing or to a folder, so ${links.length > 1 ? 'they are' : 'it is'} not copied: replace ${links.length > 1 ? 'each' : 'it'} with the file or remove it`] : [];
   });
-  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...(!a.share && commitsAgentsMd(ctx, dir) ? [besideCommitted(a.agents)] : []), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
+  // A stored paths entry is not written once the skill's SKILL.md sets paths itself: the plan says how to clear it.
+  const pathsWarnings = skills.filter((s) => copied(s) && !a.disabled.includes(s.name) && a.paths[s.name] && setsPaths(readText(join(skillFolder(ctx, s), 'SKILL.md')))).map((s) => `${s.source === 'user' ? 'your skill' : 'skill'} ${s.name}: its SKILL.md sets paths itself, so the paths kept for it here (${a.paths[s.name]}) are not written: take them out with --paths ${s.name}=`);
+  return { changes: checkPlan(changes), answers: a, prompts: promptsFor(a, dir), skills: { added: names.filter((n) => !before.includes(n)), removed }, warnings: [...warnings(names.filter((n) => !a.disabled.includes(n)), lib), ...lost, ...clashes, ...envWarning, ...linkWarnings, ...pathsWarnings, ...(!a.share && commitsAgentsMd(ctx, dir) ? [besideCommitted(a.agents)] : []), ...(codexOverride ? [`Codex reads ${OVERRIDE} instead of AGENTS.md: its copy of AGENTS.md is rebuilt only by projects apply in this checkout, not by Update all; move your lines into AGENTS.md and remove the file to read AGENTS.md itself`] : [])] };
 }
 
 export const quote = (s) => `'${s.replaceAll("'", "'\\''")}'`;

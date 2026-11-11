@@ -135,6 +135,15 @@
         "https://code.visualstudio.com/download",
         "docs/setup.md#per-repo"
       ]
+    },
+    {
+      "name": "Orca",
+      "url": "https://github.com/stablyai/orca",
+      "for": "optional, the runner the `orchestrating-projects` skill needs (CLI `orca`)",
+      "evidence": [
+        "https://github.com/stablyai/orca",
+        "plugins/benchkeeper/skills/orchestrating-projects/orca.md"
+      ]
     }
   ],
   "parallelTools": [

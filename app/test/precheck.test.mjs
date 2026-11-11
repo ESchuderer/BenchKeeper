@@ -45,11 +45,17 @@ test('precheck: with a tracker an issue needs every label, and a pull request hi
 const calls = [];
 const stub = (policy) => (dir, cmd, args) => {
   calls.push([cmd, ...args].join(' '));
-  if (args[0] === 'symbolic-ref') return 'refs/remotes/origin/main\n';
   if (args[0] === 'fetch') return '';
-  if (args[0] === 'show') { if (!policy) throw new Error('no file'); return JSON.stringify(policy); }
+  if (args[0] === 'ls-tree') return policy ? 'docs/agents/orchestration.json\n' : '';
+  if (args[0] === 'show') return JSON.stringify(policy);
   if (args[0] === 'api') return JSON.stringify([[issue(7)], [issue(8)], [issue(9)]]);
-  return JSON.stringify([{ headRefName: 'feat/8-x', state: 'OPEN' }, { headRefName: 'feat/7-x', state: 'CLOSED' }, { headRefName: 'fix/9-y', state: 'MERGED' }]);
+  // 7: a closed pull request and an open one from a fork, which anyone can open; 8: an open one of the project; 9: a merged one from a fork.
+  return JSON.stringify([
+    { headRefName: 'feat/8-x', state: 'OPEN', isCrossRepository: false },
+    { headRefName: 'feat/7-x', state: 'CLOSED', isCrossRepository: false },
+    { headRefName: 'fix/7-x', state: 'OPEN', isCrossRepository: true },
+    { headRefName: 'fix/9-y', state: 'MERGED', isCrossRepository: true },
+  ]);
 };
 
 test('precheck: with a tracker the issues are listed there with every label, and the pull requests with their bodies', () => {
@@ -57,13 +63,13 @@ test('precheck: with a tracker the issues are listed there with every label, and
   // Issues 7 to 9 lack the label project-a.
   assert.deepEqual(check('/p', stub({ ...POLICY, issues: { repository: 'owner/tracker', labels: ['project-a'] } })), []);
   assert.ok(calls.includes('gh api --paginate --slurp repos/owner/tracker/issues?state=open&per_page=100&labels=agent-ready,project-a'));
-  assert.ok(calls.includes('gh pr list --state all --limit 1000 --json headRefName,state,body'));
+  assert.ok(calls.includes('gh pr list --state all --limit 1000 --json headRefName,state,isCrossRepository,body'));
 });
 
 test('precheck: reads the policy from the default branch, skips a project without one and names why the reader rejects one', () => {
   calls.length = 0;
   assert.deepEqual(check('/p', stub(POLICY)), [7]);
-  assert.ok(calls.includes('git show refs/remotes/origin/main:docs/agents/orchestration.json'));
+  assert.ok(calls.includes('git show refs/benchkeeper/policy:docs/agents/orchestration.json'));
   assert.ok(calls.some((c) => c.startsWith('gh api') && c.includes('labels=agent-ready')));
   calls.length = 0;
   assert.deepEqual(check('/p', stub(null)), []);

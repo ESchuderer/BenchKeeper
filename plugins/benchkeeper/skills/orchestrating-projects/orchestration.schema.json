@@ -5,6 +5,7 @@
   "additionalProperties": false,
   "patternProperties": { "^//": {} },
   "properties": {
+    "$schema": { "type": "string" },
     "schemaVersion": { "enum": [1, 2] },
     "startLabel": { "type": "string", "minLength": 1 },
     "trustedAuthors": { "type": "array", "items": { "type": "string", "minLength": 1 } },

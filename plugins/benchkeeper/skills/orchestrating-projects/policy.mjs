@@ -1,7 +1,7 @@
 // Reader of a project's coordinator policy: prints the effective policy (the file with every default filled in) as JSON, exit 0.
 // Usage: node policy.mjs <project path>
 // Without a policy it prints each error on stderr and exits 1, and nothing may start in that project: the schema rejects the file (a key or a
-// schemaVersion it does not name included), minPlugin is newer than this plugin, or origin's default branch has no plain name. The file is read from origin's default branch, never from a checked-out branch.
+// schemaVersion it does not name included), minPlugin is newer than this plugin, or the file cannot be read. The file is read from the branch origin's HEAD names right now, never from a checked-out branch.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -16,12 +16,19 @@ const shipped = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)
 // content.json lies two folders up in the plugin and in the app's packed content; a skill folder copied alone (an agent without plugins) has none, so its version is unknown.
 const pluginVersion = () => { try { const v = shipped('../../content.json').contentVersion; return /^\d+\.\d+\.\d+$/.test(v) ? v : null; } catch { return null; } };
 
+// Started from a hook or `git rebase --exec`, these variables name another repository and carry that command's -c settings: neither reaches git here, and git fails instead of asking (as repoEnv in the app's src/git.mjs).
+const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|NAMESPACE|PREFIX)$/;
+const CONFIG_VARS = /^GIT_CONFIG_(PARAMETERS|COUNT|KEY_\d+|VALUE_\d+)$/;
+const childEnv = () => {
+  const fromHook = Object.keys(process.env).some((k) => REPO_VARS.test(k));
+  return { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !REPO_VARS.test(k) && !(fromHook && CONFIG_VARS.test(k)))), GIT_TERMINAL_PROMPT: '0' };
+};
 // 64 MB: a thousand pull requests with their bodies do not fit Node's default of 1 MB.
-export const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
+export const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, env: childEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
 
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);
 
-// The JSON Schema keywords the shipped schema uses, nothing more. The app's editor has its own copy (app/src/params.mjs); a test holds both to the same rule and path.
+// The JSON Schema keywords the shipped schema uses, nothing more.
 function check(s, v, path, out) {
   const fail = (rule, message) => out.push({ rule, path, message });
   if (s.enum && !s.enum.includes(v)) return fail('enum', `must be one of ${s.enum.map((x) => JSON.stringify(x)).join(', ')}`);
@@ -46,11 +53,13 @@ function check(s, v, path, out) {
   }
 }
 
-// The errors of a parsed policy file against the shipped schema, each { rule, path, message }.
+// The errors of a parsed policy file, each { rule, path, message }. The app's policy editor checks with this function too, so both refuse the same files.
 export function validate(doc) {
   if (kind(doc) !== 'object') return [{ rule: 'not-object', path: '', message: 'must be a JSON object' }];
   const errors = [];
   check(shipped('./orchestration.schema.json'), doc, '', errors);
+  // On a tracker, startLabel is no label of the project's own: two projects with it alone would pick the same issue.
+  if (!errors.length && doc.issues?.repository && doc.issues.labels.every((label) => label === doc.startLabel)) errors.push({ rule: 'length', path: 'issues.labels', message: 'must have at least 1 entry besides startLabel' });
   return errors;
 }
 
@@ -97,26 +106,21 @@ export function effective(doc, version = pluginVersion()) {
   };
 }
 
-// The remote chooses its default branch's name: one that git could read as an option or a revision expression reaches no git command.
-const PLAIN_BRANCH = /^(?!-)(?!.*(?:\.\.|@\{))[^\s\p{Cc}~^:?*\[\\]+$/u;
+// The reader's own ref for the remote's HEAD: the default branch as the remote has it now, not as a stale or locally moved origin/HEAD names it, and no name the remote chooses becomes an argument.
+const REF = 'refs/benchkeeper/policy';
+const unreadable = (message) => ({ policy: null, errors: [{ rule: 'unreadable', path: '', message }] });
 
 // The effective policy of the project in dir. A project without the file gets the defaults, which start and merge nothing.
 export function read(dir, run = sh) {
-  let branch;
-  try { branch = /^refs\/remotes\/origin\/(.+)\n?$/.exec(run(dir, 'git', ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.[1]; } catch {
-    // Not cloned (git init, then remote add): the remote names its default branch, and origin/HEAD stays unset.
-    let listed;
-    try { listed = run(dir, 'git', ['ls-remote', '--symref', 'origin', 'HEAD']); } catch (e) {
-      throw new Error(e.code === 'ENOENT' ? 'the folder does not exist, or git is not installed' : 'not a git repository with a remote named origin that answers');
-    }
-    branch = /^ref: refs\/heads\/([^\t\n]+)\tHEAD$/m.exec(listed)?.[1];
+  try { run(dir, 'git', ['fetch', '--quiet', '--no-tags', 'origin', `+HEAD:${REF}`]); } catch (e) {
+    return unreadable(e.code === 'ENOENT' ? 'the folder does not exist, or git is not installed' : 'not a git repository with a remote named origin that answers');
   }
-  if (!branch || !PLAIN_BRANCH.test(branch)) return { policy: null, errors: [{ rule: 'default-branch', path: '', message: 'origin names no default branch, or one whose name git could read as an option or a revision' }] };
-  // Full names at both ends: the fetch writes this ref whatever refspec origin has, and no local branch or tag called origin/<branch> can stand in for it.
-  const ref = `refs/remotes/origin/${branch}`;
-  run(dir, 'git', ['fetch', '--quiet', '--no-tags', 'origin', `+refs/heads/${branch}:${ref}`]);
   let text;
-  try { text = run(dir, 'git', ['show', `${ref}:${FILE}`]); } catch { return effective({}); }
+  try {
+    // ls-tree decides whether the file exists, so a show that fails is never read as "no file", which would mean the defaults.
+    if (!run(dir, 'git', ['ls-tree', '--name-only', REF, '--', FILE]).trim()) return effective({});
+    text = run(dir, 'git', ['show', `${REF}:${FILE}`]);
+  } catch { return unreadable(`git could not read ${FILE} from origin's default branch`); }
   let doc;
   try { doc = JSON.parse(text); } catch { return { policy: null, errors: [{ rule: 'bad-json', path: '', message: 'is not valid JSON' }] }; }
   return effective(doc);

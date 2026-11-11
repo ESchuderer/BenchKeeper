@@ -1,7 +1,7 @@
 // Sample precheck for a scheduled coordinator run: exit 0 when a project has an issue to pick, else 1. Read only.
 // Usage: node precheck.mjs <project paths...>
 // Pickable: open, carries the policy's startLabel and every issues.labels entry, written by a trusted author, and no open or merged pull request has a head
-// branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand). The policy comes from the reader (policy.mjs).
+// branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand; an open one from a fork does not count, since anyone can open it). The policy comes from the reader (policy.mjs).
 // With issues.repository the issues are that tracker's, whose numbers can equal those of the project's own old branches: a pull request then counts only when its body also holds <owner/repo>#<number> or the issue's URL.
 import { errorLine, isMain, read, sh } from './policy.mjs';
 
@@ -33,7 +33,8 @@ export function check(dir, run = sh) {
   const tracker = policy.issues.repository;
   const labels = [policy.startLabel, ...policy.issues.labels].map(encodeURIComponent).join(',');
   const issues = JSON.parse(run(dir, 'gh', ['api', '--paginate', '--slurp', `repos/${tracker ?? '{owner}/{repo}'}/issues?state=open&per_page=100&labels=${labels}`])).flat();
-  const pulls = JSON.parse(run(dir, 'gh', ['pr', 'list', '--state', 'all', '--limit', '1000', '--json', `headRefName,state${tracker ? ',body' : ''}`])).filter((p) => p.state !== 'CLOSED');
+  const pulls = JSON.parse(run(dir, 'gh', ['pr', 'list', '--state', 'all', '--limit', '1000', '--json', `headRefName,state,isCrossRepository${tracker ? ',body' : ''}`]))
+    .filter((p) => p.state === 'MERGED' || (p.state !== 'CLOSED' && !p.isCrossRepository));
   return pickable(policy, issues, pulls);
 }
 

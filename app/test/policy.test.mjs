@@ -30,11 +30,10 @@ const DEFAULTS = {
   },
 };
 const rules = (errors) => errors.map((e) => [e.rule, e.path]);
-// A repository that was not cloned: no origin/HEAD, the remote's default branch is trunk and holds this policy file.
-const notCloned = (file, calls = []) => (dir, cmd, args) => {
+// git as the reader runs it: the remote's default branch holds this policy file, or none (null).
+const remote = (file, calls = []) => (dir, cmd, args) => {
   calls.push([cmd, ...args].join(' '));
-  if (args[0] === 'symbolic-ref') throw new Error('fatal: ref refs/remotes/origin/HEAD is not a symbolic ref');
-  if (args[0] === 'ls-remote') return 'ref: refs/heads/trunk\tHEAD\n0123456789abcdef0123456789abcdef01234567\tHEAD\n';
+  if (args[0] === 'ls-tree') return file == null ? '' : 'docs/agents/orchestration.json\n';
   return args[0] === 'show' ? file : '';
 };
 
@@ -115,35 +114,29 @@ test('policy: a skill folder copied alone, as for an agent without plugins, chec
   assert.deepEqual(rules(gated.errors), [['range', 'minPlugin']]);
 });
 
-test('policy: a repository that was not cloned asks the remote for its default branch and leaves origin/HEAD unset', () => {
+test('policy: the remote\'s HEAD is fetched into the reader\'s own ref and the file is read from that ref; no file means the defaults', () => {
   const calls = [];
-  assert.equal(read('/p', notCloned('{ "startLabel": "go" }', calls)).policy.startLabel, 'go');
-  // Both ends of the fetch are full ref names, and the policy is read from the ref the fetch wrote.
-  assert.ok(calls.includes('git fetch --quiet --no-tags origin +refs/heads/trunk:refs/remotes/origin/trunk'));
-  assert.ok(calls.includes('git show refs/remotes/origin/trunk:docs/agents/orchestration.json'));
-  assert.deepEqual(calls.filter((c) => /set-head|update-ref|symbolic-ref \S+ \S/.test(c)), []);
+  assert.equal(read('/p', remote('{ "startLabel": "go" }', calls)).policy.startLabel, 'go');
+  // No name that the remote or the local origin/HEAD chooses is part of a command.
+  assert.deepEqual(calls, [
+    'git fetch --quiet --no-tags origin +HEAD:refs/benchkeeper/policy',
+    'git ls-tree --name-only refs/benchkeeper/policy -- docs/agents/orchestration.json',
+    'git show refs/benchkeeper/policy:docs/agents/orchestration.json',
+  ]);
+  assert.deepEqual(read('/p', remote(null)), { policy: DEFAULTS, errors: [] });
 });
 
-test('policy: a default branch name that git could read as an option or a revision gives no policy, and no fetch or show gets it', () => {
-  for (const branch of ['--upload-pack=/tmp/x', '-q', 'a..b', 'a b', 'a:b', 'a~1', 'a^', 'a?', 'a*', 'a[b', 'a\\b', 'a\u0001b', 'a@{1}']) {
-    // Named by origin/HEAD of a clone, then by the remote of a repository that was not cloned.
-    for (const answer of [{ 'symbolic-ref': `refs/remotes/origin/${branch}\n` }, { 'ls-remote': `ref: refs/heads/${branch}\tHEAD\n` }]) {
-      const calls = [];
-      const { policy, errors } = read('/p', (dir, cmd, args) => {
-        calls.push([cmd, ...args].join(' '));
-        if (args[0] in answer) return answer[args[0]];
-        if (args[0] === 'symbolic-ref') throw new Error('fatal: ref refs/remotes/origin/HEAD is not a symbolic ref');
-        return '{ "startLabel": "go" }';
-      });
-      assert.equal(policy, null, branch);
-      assert.deepEqual(rules(errors), [['default-branch', '']], branch);
-      assert.deepEqual(calls.filter((c) => /^git (fetch|show)\b/.test(c)), [], branch);
-    }
-  }
+test('policy: a file that is there but cannot be read gives no policy, not the defaults', () => {
+  const { policy, errors } = read('/p', (dir, cmd, args) => {
+    if (args[0] === 'show') throw new Error('fatal: could not fetch the object from the promisor remote');
+    return args[0] === 'ls-tree' ? 'docs/agents/orchestration.json\n' : '';
+  });
+  assert.equal(policy, null);
+  assert.deepEqual(rules(errors), [['unreadable', '']]);
 });
 
 test('policy: a file that is not JSON gives no policy', () => {
-  const { policy, errors } = read('/p', notCloned('{ "startLabel": '));
+  const { policy, errors } = read('/p', remote('{ "startLabel": '));
   assert.equal(policy, null);
   assert.deepEqual(rules(errors), [['bad-json', '']]);
 });
@@ -160,7 +153,7 @@ test('policy: the command line prints the policy of the default branch and exits
   commit('{ "merge": { "mode": "disjont" } }');
   const project = join(mkdtempSync(join(tmpdir(), 'bk-policy-')), 'project');
   git('clone', '-q', origin, project);
-  const cli = (dir) => spawnSync(process.execPath, [fileURLToPath(new URL('../../plugins/benchkeeper/skills/orchestrating-projects/policy.mjs', import.meta.url)), dir], { encoding: 'utf8' });
+  const cli = (dir, env = {}) => spawnSync(process.execPath, [fileURLToPath(new URL('../../plugins/benchkeeper/skills/orchestrating-projects/policy.mjs', import.meta.url)), dir], { encoding: 'utf8', env: { ...process.env, ...env } });
   const rejected = cli(project);
   assert.deepEqual([rejected.status, rejected.stdout], [1, '']);
   assert.match(rejected.stderr, /^enum at merge\.mode: /);
@@ -169,12 +162,21 @@ test('policy: the command line prints the policy of the default branch and exits
   const printed = cli(project);
   assert.equal(printed.status, 0, printed.stderr);
   assert.equal(JSON.parse(printed.stdout).startLabel, 'go');
-  // Not cloned (init, then remote add): git's own answer names the default branch, and origin/HEAD stays unset.
+  // Not cloned (init, then remote add): there is no origin/HEAD, and the remote's HEAD is all the reader needs.
   const added = mkdtempSync(join(tmpdir(), 'bk-policy-'));
   git('init', '-q', '-b', 'other', added);
   git('-C', added, 'remote', 'add', 'origin', origin);
   const asked = cli(added);
   assert.equal(asked.status, 0, asked.stderr);
   assert.equal(JSON.parse(asked.stdout).startLabel, 'go');
-  assert.throws(() => git('-C', added, 'symbolic-ref', 'refs/remotes/origin/HEAD'));
+  // Started from a hook, GIT_DIR names another repository (here origin, which has no remote): the project's policy is still the one read.
+  const hooked = cli(project, { GIT_DIR: join(origin, '.git') });
+  assert.equal(hooked.status, 0, hooked.stderr);
+  assert.equal(JSON.parse(hooked.stdout).startLabel, 'go');
+  // The owner moves the default branch: the clone's origin/HEAD still names main, the reader reads the remote's HEAD.
+  git('checkout', '-q', '-b', 'next');
+  commit('{ "startLabel": "next" }');
+  const moved = cli(project);
+  assert.equal(moved.status, 0, moved.stderr);
+  assert.equal(JSON.parse(moved.stdout).startLabel, 'next');
 });

@@ -1,55 +1,23 @@
-// The orchestrator policy as validated JSON. Its schema ships in the coordinator's skill, <content>/skills/orchestrating-projects/,
-// beside the reader that checks with it. The loader returns the parsed document untouched, so "//" comment keys survive a
-// round trip; it reads no step order, the coordinating session decides that.
-import { readFileSync } from 'node:fs';
+// The orchestrator policy as validated JSON. The check is the coordinator's own, policy.mjs beside its schema in
+// <content>/skills/orchestrating-projects/, so the editor refuses exactly the files the coordinator's reader refuses. The loader
+// returns the parsed document untouched, so "//" comment keys survive a round trip; it reads no step order, the coordinating session decides that.
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { contentDir } from './content.mjs';
 import { readText } from './fsx.mjs';
 
 export const FILES = { policy: ['docs/agents/orchestration.json'] };
-const SCHEMA_FILE = { policy: 'skills/orchestrating-projects/orchestration.schema.json' };
 // Every rule an error can name; the tests keep one invalid fixture for each.
 export const RULES = ['bad-json', 'not-object', 'type', 'length', 'range', 'enum', 'pattern', 'unknown-key', 'missing-key'];
-
-const schemas = {};
-const schemaOf = (family) => (schemas[family] ??= JSON.parse(readFileSync(join(contentDir, SCHEMA_FILE[family]), 'utf8')));
-
-const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);
-
-// The JSON Schema keywords the shipped schema uses, nothing more. Each error names the rule it breaks. The coordinator's reader has its own copy (policy.mjs of the orchestrating-projects skill); a test holds both to the same rule and path.
-function check(s, v, path, out) {
-  const fail = (rule, message) => out.push({ rule, path, message });
-  if (s.enum && !s.enum.includes(v)) return fail('enum', `must be one of ${s.enum.map((x) => JSON.stringify(x)).join(', ')}`);
-  const want = s.type;
-  if (want && kind(v) !== want && !(want === 'number' && kind(v) === 'integer')) return fail('type', `must be ${want}, not ${kind(v)}`);
-  if (typeof v === 'string' && s.minLength && v.length < s.minLength) fail('length', `must have at least ${s.minLength} characters`);
-  if (typeof v === 'string' && s.pattern && !new RegExp(s.pattern, 'u').test(v)) fail('pattern', `must match ${s.pattern}`);
-  if (typeof v === 'number') {
-    if (s.minimum != null && v < s.minimum) fail('range', `must be at least ${s.minimum}`);
-    if (s.maximum != null && v > s.maximum) fail('range', `must be at most ${s.maximum}`);
-  }
-  if (Array.isArray(v)) {
-    if (s.minItems && v.length < s.minItems) fail('length', `must have at least ${s.minItems} entries`);
-    v.forEach((x, i) => check(s.items, x, `${path}[${i}]`, out));
-  } else if (kind(v) === 'object') {
-    const at = (k) => (path ? `${path}.${k}` : k);
-    const known = s.properties ?? {};
-    for (const [k, sub] of Object.entries(known)) if (k in v) check(sub, v[k], at(k), out);
-    // additionalProperties is only ever false, and the one patternProperties entry ("^//", a comment) takes any value.
-    if (s.additionalProperties === false) for (const k of Object.keys(v)) if (!Object.hasOwn(known, k) && !Object.keys(s.patternProperties ?? {}).some((p) => new RegExp(p, 'u').test(k))) out.push({ rule: 'unknown-key', path: at(k), message: 'is not a key the schema names (a comment key starts with //)' });
-    for (const [k, needs] of Object.entries(s.dependentRequired ?? {})) if (k in v) for (const n of needs) if (!(n in v)) out.push({ rule: 'missing-key', path: at(n), message: `is needed when ${k} is set` });
-  }
-}
+// Imported when the module loads: the content lies in the package (content/) or in the clone (plugins/benchkeeper/), so no static path names it.
+const VALIDATE = { policy: (await import(pathToFileURL(join(contentDir, 'skills/orchestrating-projects/policy.mjs')).href)).validate };
 
 // text: the file's content, null when it does not exist. Returns the document as parsed and the errors; no input is changed.
 export function load(family, text) {
   if (text == null) return { doc: null, errors: [] };
   let doc;
   try { doc = JSON.parse(text); } catch { return { doc: null, errors: [{ rule: 'bad-json', path: '', message: 'is not valid JSON' }] }; }
-  if (kind(doc) !== 'object') return { doc, errors: [{ rule: 'not-object', path: '', message: 'must be a JSON object' }] };
-  const errors = [];
-  check(schemaOf(family), doc, '', errors);
-  return { doc, errors };
+  return { doc, errors: VALIDATE[family](doc) };
 }
 // The one way a document is written back: two-space indent, key order as read.
 export const format = (doc) => `${JSON.stringify(doc, null, 2)}\n`;

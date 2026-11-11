@@ -9,7 +9,6 @@ import { contentDir } from '../src/content.mjs';
 import { FILES, RULES, format, load } from '../src/params.mjs';
 import { addProject } from '../src/projects.mjs';
 import { api } from '../src/server.mjs';
-import { validate } from '../../plugins/benchkeeper/skills/orchestrating-projects/policy.mjs';
 import { jobDone } from './fakes/job.mjs';
 
 const fixtures = fileURLToPath(new URL('./fixtures/params/policy/invalid/', import.meta.url));
@@ -33,24 +32,14 @@ test('every rule has an invalid fixture', () => {
   assert.deepEqual([...named].filter((r) => !RULES.includes(r)), []);
 });
 
-test('the coordinator\'s reader names the same rule and path as the editor for every invalid fixture', () => {
-  const named = (errors) => errors.map((e) => [e.rule, e.path]);
-  for (const name of readdirSync(fixtures)) {
-    const text = readFileSync(join(fixtures, name), 'utf8');
-    let doc;
-    // Text that is not JSON never reaches the reader's validate.
-    try { doc = JSON.parse(text); } catch { continue; }
-    assert.deepEqual(named(validate(doc)), named(load('policy', text).errors), name);
-  }
-});
-
 const PATH_LISTS = [['merge', 'ownerOnlyPaths'], ['merge', 'additivePaths'], ['review', 'sensitivePaths']];
 const NO_PATHS = ['', '/x', '../x', 'x/..', 'a/*', 'a\\b', './x', 'x//y', 'x/./y', ' x', 'x ', 'x /y', '.', 'x\ny', 'x\0y'];
-// One refused document per row, with the one rule and path that both the editor and the coordinator's reader name for it.
+// One refused document per row, with the one rule and path named for it. The loader checks with the coordinator's reader, so both refuse these.
 const REFUSED = [
   ...PATH_LISTS.flatMap(([group, list]) => NO_PATHS.map((path) => [{ [group]: { [list]: [path] } }, 'pattern', `${group}.${list}[0]`])),
   ...['owner/tracker/docs', 'owner/tra cker', 'owner/..', 'tracker'].map((repository) => [{ issues: { repository, labels: ['project-a'] } }, 'pattern', 'issues.repository']),
   [{ issues: { repository: 'owner/tracker', labels: [] } }, 'length', 'issues.labels'],
+  [{ startLabel: 'go', issues: { repository: 'owner/tracker', labels: ['go', 'go'] } }, 'length', 'issues.labels'],
   [{ models: { phases: { review: { model: 'some-model-20260101' } } } }, 'enum', 'models.phases.review.model'],
   [{ review: { depth: 'max' } }, 'enum', 'review.depth'],
   [{ review: { sensitiveDepth: 'max' } }, 'enum', 'review.sensitiveDepth'],
@@ -63,25 +52,22 @@ const REFUSED = [
   [{ models: { phases: { plan: { modle: 'opus' } } } }, 'unknown-key', 'models.phases.plan.modle'],
 ];
 
-test('each refused value is named with its rule and path, by the editor and by the coordinator\'s reader', () => {
-  const named = (errors) => errors.map((e) => [e.rule, e.path]);
+test('each refused value is named with its rule and path', () => {
   for (const [doc, rule, path] of REFUSED) {
     const text = JSON.stringify(doc);
-    assert.deepEqual(named(load('policy', text).errors), [[rule, path]], `editor: ${text}`);
-    assert.deepEqual(named(validate(doc)), [[rule, path]], `reader: ${text}`);
+    assert.deepEqual(load('policy', text).errors.map((e) => [e.rule, e.path]), [[rule, path]], text);
   }
   // The longest name and the characters of a full model name stay allowed.
-  for (const model of ['opus[1m]', 'vendor.family-4-5-v1:0', 'team/model@2026-01-01', 'p'.repeat(128)]) {
-    assert.deepEqual(load('policy', JSON.stringify({ models: { worker: { model } } })).errors, [], model);
-    assert.deepEqual(validate({ models: { worker: { model } } }), [], model);
-  }
+  for (const model of ['opus[1m]', 'vendor.family-4-5-v1:0', 'team/model@2026-01-01', 'p'.repeat(128)]) assert.deepEqual(load('policy', JSON.stringify({ models: { worker: { model } } })).errors, [], model);
+  // A tracker label besides startLabel is the project's own.
+  assert.deepEqual(load('policy', '{"startLabel":"go","issues":{"repository":"owner/tracker","labels":["go","project-a"]}}').errors, []);
 });
 
 test('the shipped policy example passes, and so does a policy without schemaVersion', () => {
   const example = readFileSync(join(contentDir, 'skills/orchestrating-projects/policy.example.json'), 'utf8');
   assert.deepEqual(load('policy', example).errors, []);
-  // A policy written before schemaVersion existed stays valid.
-  assert.deepEqual(load('policy', '{"merge":{"allowed":false}}').errors, []);
+  // A policy written before schemaVersion existed stays valid, also with the $schema hint an editor reads.
+  assert.deepEqual(load('policy', '{"$schema":"https://example.com/orchestration.schema.json","merge":{"allowed":false}}').errors, []);
 });
 
 test('errors name the path of a nested key and of an array item', () => {

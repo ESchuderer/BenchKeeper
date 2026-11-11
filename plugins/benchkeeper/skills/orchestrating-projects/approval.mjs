@@ -5,11 +5,12 @@ import { isMain } from './policy.mjs';
 const FRONT = 'Front matter';
 // A placeholder starts with a letter, as the template's do: a URL autolink (<https://example.com/plan>) and a comparison (<5 sessions) are an answer.
 const PLACEHOLDER = /<(?![a-z][a-z0-9+.-]*:\S)[a-z][^<>]*>/i;
-// These leave the answer open, with or without punctuation after them; "none" is an answer, which the template offers for Owner steps.
-const OPEN = /^(tbd|todo|n\/a)[^\p{L}\p{N}]*$/iu;
-// What the owner sees of a cell: an HTML comment, an entity and a link target show no text, and emphasis, strike and code marks are no text.
+// These leave the answer open, with or without punctuation or invisible characters around them; "none" is an answer, which the template offers for Owner steps.
+const OPEN = /^[^\p{L}\p{N}]*(tbd|todo|n\/a)[^\p{L}\p{N}]*$/iu;
+// What the owner sees of a cell: an HTML comment, a closing tag, an entity and a link target show no text, and emphasis, strike and code marks are no text.
 const shown = (cell) => cell
   .replace(/<!--.*?(-->|$)/g, '')
+  .replace(/<\/[a-z][^<>]*>/gi, '')
   .replace(/&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/gi, ' ')
   .replace(/\]\([^)]*\)/g, ']')
   .replace(/[*_~`]/g, '')
@@ -38,6 +39,8 @@ if (!ROWS.length) throw new Error('approval-template.md holds no Approval table'
 
 // The names of the parts that keep the text from being posted: a part that is absent, empty or still holds a <...> placeholder, a Recommended row that names another option than the first, and front matter left in.
 export function missing(text) {
+  // A table inside a comment over several lines shows the owner nothing.
+  text = text.replace(/<!--[\s\S]*?(-->|$)/g, '');
   const line = (label) => filled(new RegExp(`^${label}:(.*)$`, 'm').exec(text)?.[1].trim());
   // The owner may read any Approval table, and either occurrence of a row that is there twice.
   const approval = tables(text, 'Approval').flat();

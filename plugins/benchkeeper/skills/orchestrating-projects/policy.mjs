@@ -8,8 +8,8 @@ const FILE = 'docs/agents/orchestration.json';
 const OWNER_ONLY = ['.github', 'CODEOWNERS', 'docs/CODEOWNERS', FILE, 'docs/agents/worker-rules.md'];
 // A path with one of these names as a segment is the owner's at any depth: Claude Code also loads the skills of a .claude folder below the root, and they decide what agents may do.
 const OWNER_ONLY_NAMES = ['.claude', '.mcp.json'];
-// A worker session's model and effort by the tier of its task.
-const TIERS = { quick: ['sonnet', 'high'], standard: ['opus', 'high'], full: ['opus', 'xhigh'], research: ['fable', 'xhigh'] };
+// A worker session's model and effort by the tier of its task. Every default effort is high: a higher one costs much more and is the owner's to ask for, in the policy.
+const TIERS = { quick: ['sonnet', 'high'], standard: ['opus', 'high'], full: ['opus', 'high'], research: ['fable', 'high'] };
 
 const shipped = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
 // content.json lies two folders up in the plugin and in the app's packed content; a skill folder copied alone (an agent without plugins) has none, so its version is unknown.
@@ -114,7 +114,7 @@ export function effective(doc, version = pluginVersion()) {
       issuesPerWorker: doc.issuesPerWorker ?? 1,
       keepRunning: doc.keepRunning ?? false,
       permissionPrompts: doc.permissionPrompts ?? 'block',
-      review: { depth: review.depth ?? 'high', sensitiveDepth: review.sensitiveDepth ?? 'xhigh', sensitivePaths: review.sensitivePaths ?? [] },
+      review: { depth: review.depth ?? 'high', sensitiveDepth: review.sensitiveDepth ?? 'high', sensitivePaths: review.sensitivePaths ?? [] },
       issues: { repository: issues.repository ?? null, labels: issues.labels ?? [] },
       minPlugin: doc.minPlugin ?? null,
       models: {

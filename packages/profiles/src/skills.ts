@@ -66,17 +66,19 @@ export const sourcesOf = (
   fetched: Fetched,
   level: Level,
   every = false,
-): { source: GitSource; pack: boolean }[] => {
+): Result<{ source: GitSource; pack: boolean }[]> => {
   const skills = listed(resolved, fetched, level);
-  return [
+  if (!skills.ok) return skills;
+  const sources = [
     ...Object.values(resolved.profile.packs).flatMap((source) => ("bundled" in source ? [] : [{ source, pack: true }])),
-    ...(skills.ok ? skills.value : [])
+    ...skills.value
       .filter(({ part }) => every || resolved.on.has(part))
       .flatMap(({ source }) => {
         const git = gitOf(resolved, source, fetched);
         return git === undefined ? [] : [{ source: git, pack: false }];
       }),
   ];
+  return { ok: true, value: sources };
 };
 
 // The files a skill installs: its Git source's folder, else its pack entry's folder in a fetched or bundled pack.

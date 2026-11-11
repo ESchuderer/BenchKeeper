@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plan } from "@cedarloom/contracts";
 import type { Tree } from "@cedarloom/git";
@@ -34,8 +34,8 @@ const fetchPublished: Fetch = async ({ url, ref }) => {
   return { ok: false, finding: { code: "git.failed", params: { step: "fetch", error: "no such ref" } } };
 };
 
-// A machine whose selection names a local profile with these machine parts and packs.
-const machineWith = (machine: object, packs: object = {}) => {
+// A machine whose selection names a local profile with these machine parts, packs and project parts.
+const machineWith = (machine: object, packs: object = {}, project: object = {}) => {
   const [config, state, home, user, files] = ["config-", "state-", "home-", "user-", "files-"].map((name) =>
     mkdtempSync(join(root, name)),
   );
@@ -43,10 +43,13 @@ const machineWith = (machine: object, packs: object = {}) => {
     throw new Error("no folders");
   const head = { schemaVersion: 1, kind: "cedarloom.profile", id: "acme.mine", version: "1.0.0", name: "Mine" };
   const file = join(files, "mine.json");
-  writeFileSync(file, JSON.stringify({ ...head, minApp: "0.0.0", agents: ["claude-code"], packs, machine }));
+  writeFileSync(file, JSON.stringify({ ...head, minApp: "0.0.0", agents: ["claude-code"], packs, machine, project }));
   const selection = { schemaVersion: 1, kind: "cedarloom.profile-selection", profile: { file }, select: {} };
   writeFileSync(join(config, "profile.json"), JSON.stringify(selection));
-  return { state, home, plan: () => planProfile(config, state, { home, user }, { fetch: fetchPublished }) };
+  // The machine's level, or a project folder's.
+  const plan = (folder?: string) =>
+    planProfile(config, state, { home, user }, { fetch: fetchPublished, project: folder });
+  return { state, home, plan };
 };
 const skill = (source: object) => ({ "skill.text": { type: "skill", title: "Text", default: "on", source } });
 const paths = (plan: Plan | null) => plan?.operations.map((op) => [op.kind, "path" in op ? op.path : null]);
@@ -84,14 +87,14 @@ test("a followed skill takes its first commit at once, a new one 3 days after it
   }
 });
 
-const manifestOf = (id: string, entries: object) =>
+const manifestOf = (id: string, entries: object, minApp = "0.0.0") =>
   JSON.stringify({
     schemaVersion: 1,
     kind: "cedarloom.pack",
     id,
     version: "1.0.0",
     name: id,
-    minApp: "0.0.0",
+    minApp,
     entries,
   });
 test.for<[string, Record<string, string>, string[], string, boolean]>([
@@ -134,6 +137,37 @@ test("a skill entry that may run, reached through a pack that follows a branch, 
     ok: false,
     finding: { code: "profile.pack-unpinned", params: { source: url, path: "skills/tool/run.sh" } },
   });
+});
+
+test("a pack that moves to a manifest for a newer CedarLoom stops the plan, and the record keeps its skill's source", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const [url, own] = ["https://git.example.org/acme/newer.git", "https://git.example.org/acme/newer-skill.git"];
+    const entries = { "skills/text": { kind: "skill", source: { git: own, ref: "main" } } };
+    const used = publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries) });
+    const text = publish(own, { "SKILL.md": "x\n" });
+    const part = { type: "packs", title: "Packs", default: "on", packs: ["acme.newer"] };
+    const { state, plan } = machineWith({}, { "acme.newer": { git: url, ref: "main" } }, { packs: part });
+    const project = mkdtempSync(join(root, "project-"));
+    ok(await plan(project));
+    publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries, "9.0.0") });
+    ok(await plan(project));
+    vi.setSystemTime(Date.now() + 3 * DAY);
+    expect(await plan(project)).toMatchObject({
+      ok: false,
+      finding: { code: "profile.app-too-old", params: { minApp: "9.0.0", pack: "acme.newer" } },
+    });
+    const record: Record<string, { commit: string }> = JSON.parse(
+      readFileSync(join(state, "pack-sources.json"), "utf8"),
+    ).sources;
+    // Each source the record follows, by its `sourceKey`, with the commit in use.
+    expect(Object.fromEntries(Object.entries(record).map(([key, { commit }]) => [key, commit]))).toEqual({
+      [JSON.stringify([url, "main", ""])]: used.commit,
+      [JSON.stringify([own, "main", ""])]: text.commit,
+    });
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("while a new commit waits and the one in use cannot be fetched, the plan stops and names the source", async () => {

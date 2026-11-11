@@ -50,6 +50,14 @@ const CASES = [
   ['a placeholder left in Runs on', swap('test sonnet high', 'test <model effort>'), ['Runs on']],
   ['a cell without a letter or digit', swap(COST, '| Cost | ? |'), ['Cost']],
   ['a cell that only defers', swap(COST, '| Cost | TBD |'), ['Cost']],
+  ['an entity as a cell', swap(COST, '| Cost | &nbsp; |'), ['Cost']],
+  ['an HTML comment as a cell', swap(COST, '| Cost | <!-- tbd --> |'), ['Cost']],
+  ['a link without text as a cell', swap(COST, '| Cost | [](x) |'), ['Cost']],
+  ['a deferral in bold', swap(COST, '| Cost | **TBD** |'), ['Cost']],
+  ['a deferral with a full stop', swap(COST, '| Cost | tbd. |'), ['Cost']],
+  ['a cell that says todo', swap(COST, '| Cost | TODO |'), ['Cost']],
+  ['a Recommended row that names another option than the first', swap('| Recommended | (a) Stream the export, confidence high |', '| Recommended | (b) Hold, confidence high |'), ['Recommended']],
+  ['a second Approval table with an empty row', `${FILLED}\n| Approval | |\n|---|---|\n| Cost | |\n`, ['Cost']],
   ['a row twice, once empty', swap(COST, `| Cost | |\n${COST}`), ['Cost']],
   ['no What line', swap(`${WHAT}\n`, ''), ['What']],
   ['a placeholder as What', swap(WHAT, 'What: <the decision in one sentence>'), ['What']],
@@ -62,9 +70,9 @@ const CASES = [
   ['a placeholder in the options table', swap('| More code to review |', '| <trade-off> |'), ['Options']],
   ['an option without What happens', swap(HOLD, '| (b) Hold | | The export stays slow |'), ['Options']],
   ['front matter left in', `---\nlabels: question, ready-for-human\n---\n\n${FILLED}`, ['Front matter']],
-  // Every part of the template that holds a placeholder: only its Answer row is text to keep.
+  // Every part of the template holds a placeholder: the Answer row depends on where the issue lands.
   ['the unfilled template', readFileSync(new URL(`${SKILL}approval-template.md`, import.meta.url), 'utf8'),
-    ['Front matter', 'What', 'Recommended', 'Work if approved', 'Runs on', 'Review', 'Merges', 'Owner steps', 'Cost', 'Undo', 'Options', 'Why now']],
+    ['Front matter', 'What', 'Recommended', 'Work if approved', 'Runs on', 'Review', 'Merges', 'Owner steps', 'Cost', 'Undo', 'Answer', 'Options', 'Why now']],
 ];
 
 for (const [name, text, expected] of CASES) test(`approval: ${name} lacks ${expected.join(', ') || 'nothing'}`, () => assert.deepEqual(missing(text), expected));

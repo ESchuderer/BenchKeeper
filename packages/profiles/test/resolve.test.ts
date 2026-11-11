@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProfileSelection } from "@cedarloom/contracts";
 import { BUNDLED } from "@cedarloom/packs";
-import { DEFAULT_PROFILE, resolveProfile } from "@cedarloom/profiles";
+import { DEFAULT_PROFILE, filesIn, resolveProfile } from "@cedarloom/profiles";
 import { expect, test } from "vitest";
 
 const selection = (fields: Partial<ProfileSelection>): ProfileSelection => ({
@@ -67,4 +67,15 @@ test.for<[string, ProfileSelection, unknown[]]>([
 
 test("a bundled profile ships with its release, so a development build reads it", () => {
   expect(problems(selection({}), "0.0.0")).toEqual([]);
+});
+
+test.skipIf(process.platform === "win32")("a folder's file its owner may run comes with Git's mode 100755", () => {
+  const folder = mkdtempSync(join(process.env["RUNNER_TEMP"] ?? tmpdir(), "cedarloom-files-"));
+  writeFileSync(join(folder, "a.md"), "text\n");
+  writeFileSync(join(folder, "run.sh"), "#!/bin/sh\n", { mode: 0o755 });
+  const files = filesIn(folder).toSorted((a, b) => a.path.localeCompare(b.path));
+  expect(files.map(({ path, mode }) => [path, mode])).toEqual([
+    ["a.md", "100644"],
+    ["run.sh", "100755"],
+  ]);
 });

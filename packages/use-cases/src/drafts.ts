@@ -1,18 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  type Stats,
-  statSync,
-  unlinkSync,
-} from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, rmSync, statSync, unlinkSync } from "node:fs";
 import { basename, join, resolve, sep } from "node:path";
 import {
   type Draft,
@@ -25,7 +12,7 @@ import {
   WorkflowDefinition,
   WorkflowId,
 } from "@cedarloom/contracts";
-import { errorCode, tempPath, writeAtomic } from "@cedarloom/engine";
+import { errorCode, readRegular, tempPath, writeAtomic } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { parseDocument } from "./use-cases.ts";
 
@@ -82,35 +69,12 @@ export const listDrafts = (state: string): DraftInfo[] => {
   return drafts.toSorted((a, b) => b.savedAt.localeCompare(a.savedAt) || a.id.localeCompare(b.id));
 };
 
-// No link and no wait on a FIFO: docs/agents/git-and-processes.md#files
-const READ = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
-
-// The file's status and, under the draft limit, its bytes, from one open file; undefined: none there; null: no file.
-export const load = (path: string): { info: Stats; bytes: Buffer | null } | null | undefined => {
-  let file: number;
-  try {
-    file = openSync(path, READ);
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return undefined;
-    // ELOOP: a link, which O_NOFOLLOW does not open; EISDIR: a folder, where the platform refuses to open one.
-    if (["ELOOP", "EISDIR"].includes(errorCode(error))) return null;
-    throw error;
-  }
-  try {
-    const info = fstatSync(file);
-    if (!info.isFile()) return null;
-    return { info, bytes: info.size > DRAFT_LIMIT ? null : readFileSync(file) };
-  } finally {
-    closeSync(file);
-  }
-};
-
 /** A draft with its workflow; refused when there is none, when it is over the limit, or when it is no workflow. */
 export const readDraft = (state: string, id: string): Result<Draft> => {
   const path = pathOf(state, id);
-  let found: ReturnType<typeof load>;
+  let found: ReturnType<typeof readRegular>;
   try {
-    found = load(path);
+    found = readRegular(path, DRAFT_LIMIT);
   } catch (error) {
     const params = { path: join(FOLDER, basename(path)), error: errorCode(error) };
     return { ok: false, finding: { code: "document.unreadable", params } };
@@ -128,7 +92,7 @@ export const readDraft = (state: string, id: string): Result<Draft> => {
 
 // The replaced draft's hash; a link, FIFO or oversize file at the name is no draft and goes, so the save can link in.
 const current = (path: string): string | null => {
-  const found = load(path);
+  const found = readRegular(path, DRAFT_LIMIT);
   if (found === undefined) return null;
   if (found !== null && found.bytes !== null) return sha256(found.bytes);
   rmSync(path, { force: true });

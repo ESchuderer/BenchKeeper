@@ -28,10 +28,10 @@ A path entry names a file or a folder, relative to the repository root, and cove
 
 | Field | Meaning | Without the field | Source run |
 |---|---|---|---|
-| `models.worker` | `{ "model", "effort" }` of every worker session of this project | by the task's tier: quick `sonnet` high, standard `opus` high, full or sensitive `opus` xhigh, research `fable` xhigh | `fable` in five named projects, by tier in the others |
+| `models.worker` | `{ "model", "effort" }` of every worker session of this project | by the task's tier: quick `sonnet`, standard and full `opus`, research `fable`, each at `high`; a sensitive change counts as full | `fable` in five named projects, by tier in the others |
 | `models.phases.<phase>` | `{ "model", "effort" }` of a phase subagent: `plan`, `implement`, `test`, `review`, `research` | plan, implement and review `opus`, test `sonnet`, research `fable`, each at `high` (the aliases of `skills/workflow/software.md:15-18` and `skills/workflow/research.md:7`, the effort of `agents/<phase>.md:6`) | those defaults; `inherit` in the `fable` projects |
 | `review.depth` | the level of Claude Code's `/code-review` for a routine change: `low`, `medium`, `high` or `xhigh` | `high` | `high` |
-| `review.sensitiveDepth` | that level for a sensitive change, which also gets a security review | `xhigh` | `xhigh` |
+| `review.sensitiveDepth` | that level for a sensitive change, which also gets a security review | `high` | `xhigh` |
 | `review.sensitivePaths` | paths that make a change sensitive, besides the built-in classes | none | per project |
 | `merge.mode` | `strict` or `disjoint` (see [Merge](#merge)) | `strict` | `disjoint` |
 | `merge.additivePaths` | paths the pull request and the default branch may both have changed in `disjoint` mode | none | registries and generated schemas |
@@ -46,7 +46,9 @@ Models are named by Claude Code's aliases, which Claude Code moves to newer vers
 
 `review.depth` is independent of `models.phases.review`, which names the reviewer's model and effort. An agent without `/code-review` runs the review passes of `skills/workflow/software.md:8`, where the depth only decides whether the security pass runs. `max` is not a policy value: that depth runs only when the owner asks for it in the session.
 
-A change is sensitive when its diff touches a `review.sensitivePaths` entry or an owner-only path, or when it belongs to a risky class of the workflow skill (`skills/workflow/SKILL.md:23`) or changes CI, guards, data formats, money, or what agents are told and allowed (`AGENTS.md`, `.claude`, `docs/agents`). A change the reviewer cannot place is sensitive.
+Every default effort and review level is `high`, sensitive work included, which keeps its security review. `xhigh` runs only on the owner's request, in the policy or in the session, because of what it costs (owner, 2026-11-11).
+
+A change is sensitive when its diff touches a `review.sensitivePaths` entry or an owner-only path, or when it belongs to a risky class of the workflow skill (`skills/workflow/SKILL.md:23`) or changes CI, guards, data formats, money, what agents are told and allowed (`AGENTS.md`, `.claude`, `docs/agents`), or what runs on the host for a worktree or a trial (`orca.yaml`, `.devcontainer`). A change the reviewer cannot place is sensitive.
 
 ## Rules and their homes
 
@@ -57,7 +59,7 @@ A change is sensitive when its diff touches a `review.sensitivePaths` entry or a
 | The worker's model and effort follow the task, leaning to the stronger model | policy `models.worker`, its default table in `SKILL.md`, the `Agent:` line of the spec (`spec-template.md:25`) | exists |
 | A strong model only in named projects | each project's own policy names `models.worker` | exists |
 | Each phase has its model and effort | the workflow skill names each phase's alias where it starts the phase (`skills/workflow/software.md:15-18` for the four phases of a change) and the session passes it in the call. The agent files then say `inherit` (`agents/<phase>.md:5`), so a phase the policy sets to `inherit` runs on the worker's model. Policy `models.phases`, passed in the spec's Flow line | exists |
-| Implementation runs at `xhigh` on security, data formats, guards and money | skill text (`skills/workflow/software.md:13`) | exists |
+| Implementation runs at `high` on security, data formats, guards and money too: a call raises the effort only where the spec or the user names one | skill text (`skills/workflow/software.md:13`) | exists |
 | Mechanical reading (log and CI output, inventories) may run on `haiku`, which never edits | skill text, step 5 of `skills/workflow/SKILL.md` | exists |
 | A decision in the owner's place, a design trade-off and a legal or security call go to a subagent on `fable`, and the coordinator checks its answer | skill text, Rules of `SKILL.md` | exists |
 | Reports name the concrete model behind each alias, and a worker's report names each phase it ran, the loops back and the tokens where its session shows them | the coordinator's handoff file (`SKILL.md:63`); `Models:` and `Phases:` lines in the worker's handoff block (`spec-template.md:55-56`) | exists |
@@ -66,11 +68,12 @@ A change is sensitive when its diff touches a `review.sensitivePaths` entry or a
 
 | Rule | Home | State |
 |---|---|---|
-| Depth by change class: routine `high`, sensitive `xhigh` plus a security review; the report names the depth and why. The level is always passed: `/code-review` without one reuses the level typed last on that machine (the command's own description in Claude Code 2.1.316) | policy `review.*`; a `Review:` line in the spec for the worker's own review (`spec-template.md:18`, `skills/workflow/software.md:8`); the coordinator's review step (`review-and-merge.md:38`, `review-and-merge.md:46`) | exists |
-| A fresh reviewer per pull request that did not write the change gets the issue, its acceptance criteria, the decisions that apply and the diff, and reads implementer statements as claims | agent default (`agents/review.md:11`); the coordinator starts it per pull request (`review-and-merge.md:44`), where before change 3 it verified the diff itself | exists |
-| Blocking and Important findings are settled and reviewed again; Minor ones are listed | skill text (`skills/workflow/full-tier.md:14`); the coordinator sends findings to the owning worker as a follow-up (`review-and-merge.md:64`) | exists |
-| Every fix after a review gets a scoped re-review of the changed lines. A push to the branch after the review is such a fix, whoever made it | skill text (`skills/workflow/full-tier.md:14` has the scoped re-review, `review-and-merge.md:65` the coordinator's) | exists |
-| Two rounds with findings: the phase that failed reruns on a stronger model. A third failing round is a question for the owner, never a fourth try | skill text (`skills/workflow/full-tier.md:14` has the ladder for a worker's own review, `review-and-merge.md:66-67` for the coordinator's, `skills/workflow/software.md:20` the stronger model for a stuck phase) | exists |
+| Depth by change class: `review.depth` for a routine change, `review.sensitiveDepth` plus a security review for a sensitive one, both `high` by default; the report names the depth and why. The level is always passed: `/code-review` without one reuses the level typed last on that machine (the command's own description in Claude Code 2.1.316) | policy `review.*`; a `Review:` line in the spec for the worker's own review (`spec-template.md:18`, `skills/workflow/software.md:8`); the coordinator's review step (`review-and-merge.md:41`, `review-and-merge.md:49`) | exists |
+| A fresh reviewer per pull request that did not write the change gets the issue, its acceptance criteria, the decisions that apply and the diff, and reads implementer statements as claims | agent default (`agents/review.md:11`); the coordinator starts it per pull request (`review-and-merge.md:47`), where before change 3 it verified the diff itself | exists |
+| The reviewer and the coordinator read a pull request in a clone made with `--no-checkout` in the coordinator's run folder, through git only (`diff`, `show <head>:<path>`, `grep`): no file of the pull request is on disk for a session to load as instructions, no session starts there, and no worker's sandbox can write the folder, as it can the temporary folder | skill text (`review-and-merge.md:12-30`) | exists |
+| Blocking and Important findings are settled and reviewed again; Minor ones are listed | skill text (`skills/workflow/full-tier.md:14`); the coordinator sends findings to the owning worker as a follow-up (`review-and-merge.md:78`) | exists |
+| Every fix after a review gets a scoped re-review of the changed lines. A push to the branch after the review is such a fix, whoever made it | skill text (`skills/workflow/full-tier.md:14` has the scoped re-review, `review-and-merge.md:79` the coordinator's) | exists |
+| Two rounds with findings: the phase that failed reruns on a stronger model. A third failing round is a question for the owner, never a fourth try | skill text (`skills/workflow/full-tier.md:14` has the ladder for a worker's own review, `review-and-merge.md:80-81` for the coordinator's, `skills/workflow/software.md:20` the stronger model for a stuck phase) | exists |
 
 The source run let a small fix after agreement (about 20 lines, with its test) merge without another round. That is not taken over: the merge is pinned to a head the reviewer read ([Merge](#merge)), and a scoped re-review reads only the changed lines.
 
@@ -82,9 +85,9 @@ The coordinator merges, never a worker (`spec-template.md:27`), and only where t
 
 | Rule | Home | State |
 |---|---|---|
-| `strict`: the head that merges contains the tip of the default branch, and the required checks are green on that head. Where it does not, the coordinator updates the branch with a merge of the default branch (`gh pr update-branch`), waits for the checks and tests again, until it holds. A conflict goes to the owning worker as a follow-up (`review-and-merge.md:110`) | policy `merge.mode`, skill text | exists |
+| `strict`: the head that merges contains the tip of the default branch, and the required checks are green on that head. Where it does not, the coordinator updates the branch with a merge of the default branch (`gh pr update-branch`), waits for the checks and tests again, until it holds. A conflict goes to the owning worker as a follow-up (`review-and-merge.md:128`) | policy `merge.mode`, skill text | exists |
 | The merge is pinned to the reviewed head, or to a head reached from it by clean merges of the default branch only: each merge's first parent is the head accepted before it, its second parent is on the default branch, and its tree is the one `git merge-tree --write-tree` gives for those two parents. Any other head holds lines nobody reviewed, a worker's conflict resolution among them, and gets the scoped re-review first | skill text; the check is a function of change 5 | skill text exists, the function in change 5 |
-| `disjoint`: when the default branch moved only by commits that share no file with the pull request, and a trial merge in the scratch clone passes the project's changed-files check, the green head merges without another update; a pull request comment says so | policy `merge.mode`, skill text | exists |
+| `disjoint`: when the default branch moved only by commits that share no file with the pull request, and a trial merge passes the project's changed-files check, the green head merges without another update; a pull request comment says so. The trial is the one step that checks files out and runs the pull request's code: it gets a clone of its own that serves nothing after (`review-and-merge.md:129-140`) | policy `merge.mode`, skill text | exists |
 | Shared files are tolerated in `disjoint` mode when all of them are under `merge.additivePaths` and the trial merge also regenerates the generated files with no diff | policy `merge.additivePaths`, skill text | exists |
 | A data removal or a wide refactor merges `strict` in either mode: a consumer can break without a shared file | skill text | exists |
 | The pull request title is checked against the project's convention, as the default branch's `AGENTS.md` has it, before the merge: the squash commit takes it | skill text | exists |
@@ -100,12 +103,11 @@ The coordinator merges, never a worker (`spec-template.md:27`), and only where t
 | Settings, rulesets and secrets are never touched | skill text (`SKILL.md:42`) | exists |
 | A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility; a pull request whose purpose is a release is left open | the spec's "You may not" line, skill text | exists |
 
-Built-in owner-only paths:
+Built-in owner-only paths and names (the owner's decision of 2026-11-11; there is no switch):
 
-- `.github/workflows` and `.github/dependabot.yml` (owner, 2026-11-11).
+- All of `.github`, and `CODEOWNERS` and `docs/CODEOWNERS`. Workflows run the scripts and actions under `.github`, and the CODEOWNERS files say who must review.
 - `docs/agents/orchestration.json` and `docs/agents/worker-rules.md`, the two files the coordinator takes its rights and rules from.
-- Pending the owner's decision: `.claude` and `.mcp.json`, at any depth: a path with one of the two names as a segment, which the reader prints as `merge.ownerOnlyNames` beside the paths. Claude Code also loads the skills of a `.claude` folder below the root once a session works there ([skills](https://code.claude.com/docs/en/skills)); for `.mcp.json` the documentation names the project root only, and a nested one is included as the narrower reading. Settings, hooks, skills and agents there decide what every later worker may do, since workers start from the default branch, and a project's hook or MCP server runs in `claude -p` without a trust dialog (`docs/security.md:295-296`). Naming only the settings and hook files would not do: a project skill's `allowed-tools` and `hooks` and a project agent's `permissionMode` act the same way ([skills](https://code.claude.com/docs/en/skills), [sub-agents](https://code.claude.com/docs/en/sub-agents)).
-- Pending the owner's decision: the rest of `.github`, and `CODEOWNERS` and `docs/CODEOWNERS`. Workflows run the scripts and actions under `.github`, and the CODEOWNERS files say who must review.
+- `.claude` and `.mcp.json`, at any depth: a path with one of the two names as a segment, which the reader prints as `merge.ownerOnlyNames` beside the paths. Claude Code also loads the skills of a `.claude` folder below the root once a session works there ([skills](https://code.claude.com/docs/en/skills)); for `.mcp.json` the documentation names the project root only, and a nested one is included as the narrower reading. Settings, hooks, skills and agents there decide what every later worker may do, since workers start from the default branch, and a project's hook or MCP server runs in `claude -p` without a trust dialog (`docs/security.md:295-296`). Naming only the settings and hook files would not do: a project skill's `allowed-tools` and `hooks` and a project agent's `permissionMode` act the same way ([skills](https://code.claude.com/docs/en/skills), [sub-agents](https://code.claude.com/docs/en/sub-agents)).
 
 Without these a worker's pull request could widen its own rights, and the coordinator would merge it (`docs/security.md:348` relies on the default branch for the same reason). They cannot be switched off, and a policy list only adds to them, so a silent policy means no here too. The cost is that every pull request under these paths waits for the owner.
 
@@ -117,7 +119,7 @@ Without these a worker's pull request could widen its own rights, and the coordi
 | One branch and one pull request per issue; the issue sizes the pull request | skill text, spec | exists |
 | The worker sends a status message with the handoff block of each issue when its pull request is up, so review and merge do not wait for the batch, and one report at the end | spec Batch and Report blocks (`spec-template.md:40`, `spec-template.md:50`), `orca.md` Worker reports (`orca.md:43`) and its check, which reads status messages (`orca.md:60-61`) | exists |
 | A follow-up for an earlier issue of the batch: the worker commits its current work, switches to that issue's branch, fixes, pushes and returns | spec, the Batch block (`spec-template.md:40`) and the branch lines of the Authority block (`spec-template.md:24-27`), which named one branch before change 3 | exists |
-| An issue of the batch that is blocked or needs a replan: the worker commits and pushes its work on that branch, reports the issue in its status message and goes on with the next. The coordinator's replan or retry for it waits until the batch has ended, and the worktree stays (before change 3 the outcomes assumed one issue per worker). A cause that would stop every issue (a refused hook, a missing credential) ends the batch as BLOCKED | spec (`spec-template.md:40`, `spec-template.md:44-46`), skill text (`spec-template.md:70-71`) | exists |
+| An issue of the batch that is blocked or needs a replan: the worker commits and pushes its work on that branch, reports the issue in its status message and goes on with the next. The coordinator's replan or retry for it waits until the batch has ended, and the worktree stays (before change 3 the outcomes assumed one issue per worker). A cause that would stop every issue (a refused hook, a missing credential) ends the batch as BLOCKED | spec (`spec-template.md:40`, `spec-template.md:44-46`), skill text (`spec-template.md:70-72`) | exists |
 
 A batch counts as one worker for both caps and runs on the model of its highest tier. The owner makes a batch of related issues by labeling them together; grouping by subject is no decision of the script that picks (`SKILL.md:100`). The source run also let small related issues share one pull request. That is not taken over: Pick knows an issue has a pull request by the head branch that names its number (`pickable` in `precheck.mjs`), so a shared pull request would let the second issue be picked again.
 
@@ -276,11 +278,11 @@ A project that keeps its version 1 file gets these new defaults (owner, 2026-11-
 
 | Change | Direction |
 |---|---|
-| Workers run the model of their tier, where they ran the agent's default | cost: `opus` for standard and full work, `fable` at `xhigh` for research; quick work moves to `sonnet` |
-| Each pull request gets a fresh reviewer at `high`, or `xhigh` plus a security review, and every fix a scoped re-review | cost, more checks |
+| Workers run the model of their tier, where they ran the agent's default | cost: `opus` for standard and full work, `fable` for research, each at `high`; quick work moves to `sonnet` |
+| Each pull request gets a fresh reviewer at `high`, a sensitive change also a security review, and every fix a scoped re-review | cost, more checks |
 | A decision in the owner's place goes to a `fable` subagent first | cost |
 | A merge needs a head that contains the tip of the default branch and is green there, a checked title, and the default branch's CI watched before the next merge | narrower |
-| Pull requests that change workflow files, `dependabot.yml`, the policy or the project's worker rules are left for the owner; pending the owner's decision, also the rest of `.github`, the CODEOWNERS files, and `.claude` and `.mcp.json` at any depth | narrower |
+| Pull requests that change anything under `.github`, `CODEOWNERS` or `docs/CODEOWNERS`, the policy, the project's worker rules, or `.claude` or `.mcp.json` at any depth are left for the owner | narrower |
 | A pull request whose purpose is a release is left open | narrower |
 | An open pull request from a fork no longer marks its issue as taken, so the issue can start | wider pick, same merge rights |
 | Every worker's spec and every subagent brief carry the plugin's worker rules | narrower |

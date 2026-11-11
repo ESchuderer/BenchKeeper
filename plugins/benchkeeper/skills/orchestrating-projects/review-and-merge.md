@@ -1,6 +1,6 @@
 # Review and merge
 
-The coordinator's steps for a worker's pull request, in this order. Policy fields are the reader's output ([SKILL.md](SKILL.md#policy)). `<n>` is the pull request's number, `<owner/repo>` the project's repository, `<project path>` its checkout, `<scratch path>` the absolute path of a new folder in the run folder.
+The coordinator's steps for a worker's pull request, in this order. Policy fields are the reader's output ([SKILL.md](SKILL.md#policy)). `<owner/repo>`, `<branch>` and `<default branch>` are the names of the worker's spec, `<project path>` is the project's checkout, `<scratch path>` the absolute path of a new folder in the run folder. `<n>` is the number of the pull request whose head is `<branch>` and that is not from a fork: take it from `gh pr list -R <owner/repo> --head <branch> --state open --json number,headRefName,isCrossRepository`, never from the worker's message. Without such a pull request there is nothing to review: list the issue for the owner.
 
 ## Sensitive or routine
 
@@ -63,7 +63,7 @@ Without `merge.allowed`, leave the pull request ready and name it in the report.
 
    `rev-list` prints one line per commit, oldest first: the commit, then its parents. Each line needs exactly two parents, the first one being the head accepted before it (the reviewed head on the first line). `merge-base` must exit 0, so the second parent is on the default branch. `merge-tree` must exit 0 and print the tree that `rev-parse` prints. A head that fails one of these holds lines nobody reviewed: a worker's own conflict resolution has the right parents and another tree. It gets a scoped re-review first ([Rounds](#rounds)).
 2. **Up to date.** The default branch moved after the review when `git -C <project path> merge-base --is-ancestor origin/<default branch> <head>` exits 1. Then, by `merge.mode`:
-   - `strict`, and in either mode a data removal or a wide refactor (a consumer can break without a shared file): update the branch with a merge of the default branch, `gh pr update-branch <n> -R <owner/repo>`, never with `--rebase`. Wait for the checks on the update commit (`gh pr checks <n> -R <owner/repo> --watch`) and run step 1 again for the new head. When the update fails on a conflict (how `gh` words that is unverified: read its error), send the conflict to the owning worker as a follow-up: its resolution is a push after the review ([Rounds](#rounds)).
+   - `strict`, and in either mode a data removal or a wide refactor (a consumer can break without a shared file): update the branch with a merge of the default branch, `gh pr update-branch <n> -R <owner/repo>`, never with `--rebase`. Wait for the checks on the update commit (`gh pr checks <n> -R <owner/repo> --watch`) and run step 1 again for the new head. When the update fails, do not merge. A conflict goes to the owning worker as a follow-up: its resolution is a push after the review ([Rounds](#rounds)). How `gh` reports a conflict is unverified: a failure you cannot read as one leaves the pull request ready for the owner, named in the report.
    - `disjoint`: the head merges without an update when the two file lists below share no file, or only files under `merge.additivePaths`, and a trial merge passes.
 
      ```text
@@ -71,11 +71,11 @@ Without `merge.allowed`, leave the pull request ready and name it in the report.
      git -C <project path> diff --name-only --no-renames <head>...origin/<default branch>
      git -C <project path> worktree add --detach <scratch path> <head>
      git -C <scratch path> merge --no-edit origin/<default branch>
-     git -C <scratch path> status --porcelain -- <additive paths>
+     git -C <scratch path> status --porcelain
      git -C <project path> worktree remove --force <scratch path>
      ```
 
-     The trial merge is never pushed. It passes when the merge has no conflict and the project's changed-files check passes in the scratch worktree, run as `AGENTS.md` says. With shared files, also run the commands that regenerate the generated files there: `status` must then print nothing. Say that the pull request merges without an update, with both commits and the check, in a comment (`gh pr comment <n> -R <owner/repo> --body-file <file>`). Anything else, a trial that cannot run included, takes the `strict` step.
+     The trial merge is never pushed. It passes when the merge has no conflict and the project's changed-files check passes in the scratch worktree, run as `AGENTS.md` says. With shared files, also run the commands that regenerate the generated files there: `status` must then list no file under a `merge.additivePaths` entry. Say that the pull request merges without an update, with both commits and the check, in a comment (`gh pr comment <n> -R <owner/repo> --body-file <file>`). Anything else, a trial that cannot run included, takes the `strict` step.
 3. **Title.** The squash commit takes the pull request's title: check it against the project's convention (`AGENTS.md`, else the history). A title that does not fit goes to the owning worker as a follow-up.
 4. **Merge** with the pin: `gh pr merge <n> -R <owner/repo> --squash --match-head-commit <head>`. Use another method only when `AGENTS.md` names it (`--merge` or `--rebase` in place of `--squash`). Never pass `--admin`, `--auto` or `--delete-branch`: Clean up deletes a branch by `deleteMergedBranch`.
 5. **Watch the default branch** before the next merge in this project. Find the runs of the merge commit (`gh pr view <n> -R <owner/repo> --json mergeCommit`) with `gh run list -R <owner/repo> --branch <default branch> --commit <merge commit> --json databaseId,status,conclusion,workflowName`, and wait for each with `gh run watch <run id> -R <owner/repo> --interval 30 --exit-status`. A run that a newer one replaced is covered by the newer one. A red default branch is fixed before the next merge: merge nothing more in this project and put the failing run to the owner ([SKILL.md](SKILL.md#rules)).

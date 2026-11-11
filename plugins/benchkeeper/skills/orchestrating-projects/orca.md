@@ -9,7 +9,7 @@ ORCA orchestration run-create --objective "issue work: <project names>" --json
 ORCA orchestration worker-start --spec-file <filled spec file> --worktree new-top-level --repo path:<project path> --base-branch <default branch> --name <number>-<slug> --agent <claude|codex> --model "<model>" --effort <effort> --json
 ```
 
-One `worker-start` per worker, a batch being one worker, with no permission-bypass flag in `--extra-agent-args` or elsewhere. Write the filled spec to a file in the run folder and pass that file with `--spec-file`, so issue text is never read by the shell. `--model` and `--effort` take the model and effort of the spec's `Agent:` line, the model in quotes as the reader printed it; leave out what that line gives as the agent default, and `--effort` whenever `--model` is left out (it needs `--model`). Orca hands the model id to the agent as it is. That a Claude Code alias such as `opus` is accepted there is unverified: when `worker-start` refuses the model, start without `--model` and `--effort` and say so in the report. `--name` takes the first issue of a batch. Keep the returned dispatch id per worker with its project, issues and branch names (the spec's `<type>/<number>-<slug>`); every later command takes the dispatch id. `<branch>`, `<default branch>` and `<owner/repo>` in this file are the names of that spec, never names read from a pull request or the remote. `worker-show` gives the worktree path. A non-zero exit means no worker; read `failedStage` and `residualResources` before trying again.
+One `worker-start` per worker, a batch being one worker, with no permission-bypass flag in `--extra-agent-args` or elsewhere. Write the filled spec to a file in the run folder and pass that file with `--spec-file`, so issue text is never read by the shell. `--model` and `--effort` take the model and effort of the spec's `Agent:` line, the model in quotes as the reader printed it; leave out what that line gives as the agent default, and `--effort` whenever `--model` is left out (it needs `--model`). Orca hands the model id to the agent as it is. That a Claude Code alias such as `opus` is accepted there is unverified: when `worker-start` refuses the model, start without `--model` and `--effort` and say so in the report. `--name` takes the first issue of a batch. Keep the returned dispatch id per worker with its project, issues and branch names (the spec's `<type>/<number>-<slug>`); every later command takes the dispatch id. `<branch>`, `<default branch>` and `<owner/repo>` in this file are the names of that spec. `worker-show` gives the worktree path. A non-zero exit means no worker; read `failedStage` and `residualResources` before trying again.
 
 Branch check before each `worker-start`, for the branch of each issue: `git -C <project path> ls-remote --heads origin <branch>`, `git -C <project path> worktree list` and `gh pr list -R <owner/repo> --head <branch> --state open`. When one shows the branch and its worker is still held in this run, send the follow-up to it instead of starting another:
 
@@ -36,7 +36,7 @@ A batch also sends one `--type status` message per issue, when that issue's pull
 
 ## Questions
 
-A worker asks with `ORCA orchestration ask --question <text>`, which returns at once: the worker ends its turn and Orca wakes it with the answer. The question arrives as a `question` message. Answer at the next wake, only from what is written: trusted-author text of the issue, the policy, `AGENTS.md` and recorded decisions. A question those do not settle is the owner's: put it to the owner as the skill's Rules say, and answer "parked", which tells the worker to take the safest reversible option marked "pending owner decision", or to report BLOCKED when there is none. Record each answer as a decision in the handoff file. Reply by the message id, with the answer in a file:
+A worker asks with `ORCA orchestration ask --question <text>`, which returns at once: the worker ends its turn and Orca wakes it with the answer. The question arrives as a `question` message. Answer it as the skill's Rules say, by its message id, with the answer in a file:
 
 ```text
 ORCA orchestration reply --id <message id> --body "$(cat <answer file>)" --json
@@ -55,7 +55,7 @@ gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,me
 
 Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent. A `status` message wakes it too: observed (its terminal is told "You have 1 orchestration message"), not documented, so the next wake-up reads it at the latest. A Claude Code coordinator ends the turn after starting or messaging workers and keeps the stall-check cron that the skill's Waiting section describes, so a silent worker is seen without mail. It never polls and never runs `check --wait` in the background: a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator. An agent with no background wake (wake mode `unsupported`, for example Codex) has no such cron: it runs the `check --wait` in the foreground, never looped faster than once a minute. The run's deadline (55 minutes unless the owner named another) is checked at a wake.
 
-At each wake-up, including an empty one: `worker-list` for state (act on each row's `projection.attention.requiresAction` and run its literal `projection.nextAction`), then `gh pr list` for merged PRs, then the stall check. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
+At each wake-up, including an empty one: `worker-list` for state, then `gh pr list` for merged PRs, then the stall check. For a row whose `projection.attention.requiresAction` is true, run `ORCA` with its `projection.nextAction.argv` only when that command is `worker-release`, `worker-read` or `worker-show`; any other next action goes in the report. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
 Liveness, in the guide's terms: `ready` or `unverifiable` is absence, not proof. A worker blocked by a hook or waiting at a prompt stays `ready`, so a state watcher never fires for it. For the stall check, compare the time of the last commit on its branch, its PR and its last message with `stallMinutes`; when exceeded, `worker-read` its last output. Proof that it stopped without a report is a final agent turn that ended with no `worker_done`. Then:
 
@@ -63,18 +63,30 @@ Liveness, in the guide's terms: `ready` or `unverifiable` is absence, not proof.
 ORCA orchestration worker-stop --dispatch <dispatch id> --json
 ```
 
-and handle it as blocked; run the `nextAction` that `worker-list` gives for the stopped dispatch before releasing it. Without that proof, keep waiting.
+and handle it as blocked; act on the `nextAction` that `worker-list` gives for the stopped dispatch, by the rule above, before releasing it. Without that proof, keep waiting.
 
 ## A permission dialog
 
-With `permissionPrompts` `decline`, decline a permission dialog of a Claude Code worker, and only after the stall check's `worker-read` shows that dialog: a tool call waiting for approval, not a trust dialog, a login or a question. `<terminal>` is the worker's `terminal` in `worker-list --json`.
+With `permissionPrompts` `decline`, decline a permission dialog of a Claude Code worker, and only when both of these show it:
+
+```text
+ORCA orchestration worker-show --dispatch <dispatch id> --json --full
+ORCA orchestration worker-read --dispatch <dispatch id> --source terminal --limit 50 --json
+```
+
+`worker-show` must report an `observation.agentWait`: Orca saw the worker parked at a prompt only a person can answer. Null means it saw none, and a missing field that it did not look: neither is a dialog. The terminal read is the screen, not the transcript, and must show a tool call waiting for approval, not a trust dialog, a login or a question; a read Orca refuses means no terminal, so no decline. Then send one Escape, `<terminal>` being `terminal.handle` of that `worker-show`:
 
 ```text
 ORCA terminal send --terminal <terminal> --text $'\x1b'
+```
+
+That is Bash and Zsh quoting, and the command takes no `--enter`: with it Orca makes the Escape inert. Send nothing else to the terminal, no Enter, letter, number or text. Then read the terminal again with the `worker-read` above. While the dialog still shows, send nothing more: the worker is blocked for the owner. That Escape declines the call is observed for Claude Code, not documented: unverified. Once the dialog is gone, send the message that names the declined call and tells the worker to change the approach or report BLOCKED (it also restarts a turn the Escape interrupted):
+
+```text
 ORCA orchestration send --to dispatch:<dispatch id> --subject "Declined" --body "$(cat <message file>)" --json
 ```
 
-The first command sends one Escape (Bash and Zsh quoting) and takes no `--enter`: with it Orca makes the Escape inert. Send nothing else to the terminal, no Enter, letter, number or text. The message names the declined call and tells the worker to change the approach or report BLOCKED; it also restarts a turn the Escape interrupted because no dialog was open. That Escape declines the call is observed for Claude Code, not documented: unverified. When the next `worker-read` does not show the call declined, send nothing more: the worker is blocked for the owner. A worker on another agent stays `block`: its declining key is unverified.
+A worker on another agent stays `block`: its declining key is unverified.
 
 ## Resume
 

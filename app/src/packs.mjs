@@ -44,7 +44,7 @@ export const skillFolder = (ctx, s) => (s.source === 'user' ? userSkillDir(ctx, 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 export const skippedLinks = (src) => listFiles(src).filter((file) => !isFile(join(src, file)));
 // A second paths: key would make the copy's front matter invalid, so a SKILL.md that sets paths itself keeps its own.
-export const setsPaths = (text) => /^paths:/m.test(text?.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '');
+export const setsPaths = (text) => /^paths:(\s|$)/m.test(text?.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '');
 export function ownSkillFiles(src, paths) {
   return listFiles(src).filter((file) => isFile(join(src, file))).map((file) => {
     const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');

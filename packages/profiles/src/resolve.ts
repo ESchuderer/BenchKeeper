@@ -15,7 +15,7 @@ import {
   semver,
   semverAbove,
 } from "@cedarloom/contracts";
-import { errorCode, parseDocument, readJson } from "@cedarloom/engine";
+import { errorCode, parseDocument, readJson, readRegular } from "@cedarloom/engine";
 import { BUNDLED } from "@cedarloom/packs";
 
 type Ref = { pack: string; path: string };
@@ -61,13 +61,18 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
 };
 
 /** The files below a folder by their paths in it; a link is no file, so nothing outside it is read. */
-// shortcut: every file gets mode 100644, as no bundled skill ships a script; read the executable bit once one does.
 export const filesIn = (folder: string): Folder["files"] =>
   readdirSync(folder, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .map((entry) => {
+    .flatMap((entry) => {
       const path = join(entry.parentPath, entry.name);
-      return { path: relative(folder, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
+      // shortcut: no size limit, as before; a cap needs a decision first: skip or refuse an oversized file.
+      const found = readRegular(path, Number.POSITIVE_INFINITY);
+      // Gone or no regular file since the listing: skipped, as a link is.
+      if (found === undefined || found === null || found.bytes === null) return [];
+      // Git's rule: a file its owner may run is 100755.
+      const mode = (found.info.mode & 0o100) === 0 ? "100644" : "100755";
+      return [{ path: relative(folder, path).split(sep).join("/"), mode, content: found.bytes }];
     });
 
 type Entry = PackManifest["entries"][string];

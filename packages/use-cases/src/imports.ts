@@ -15,10 +15,10 @@ import {
   WORKFLOW_SCHEMA_VERSION,
   WorkflowDefinition,
 } from "@cedarloom/contracts";
-import { errorCode } from "@cedarloom/engine";
+import { errorCode, readRegular } from "@cedarloom/engine";
 import { fetchTree, type Store, type Tree } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
-import { DRAFT_LIMIT, load } from "./drafts.ts";
+import { DRAFT_LIMIT } from "./drafts.ts";
 import type { Fetch } from "./extensions.ts";
 import { fileOf, linkIn, readStored, unstorable } from "./store.ts";
 import { parseDocument, storeOf } from "./use-cases.ts";
@@ -57,7 +57,7 @@ const inFolder =
     try {
       const link = path.includes("/") ? linkIn(folder, path.slice(0, path.lastIndexOf("/"))) : undefined;
       if (link !== undefined) return refuse({ code: "apply.symlink", params: { path: link } });
-      const found = load(file);
+      const found = readRegular(file, DRAFT_LIMIT);
       if (found === undefined) return unreadable(file, "ENOENT");
       if (found === null) return unreadable(file, "not a file");
       return found.bytes === null ? unreadable(file, "EFBIG") : decoded(file, found.bytes);

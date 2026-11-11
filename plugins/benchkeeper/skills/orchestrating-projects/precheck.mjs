@@ -2,15 +2,15 @@
 // Usage: node precheck.mjs <project paths...>
 // Pickable: open, carries the policy's startLabel and every issues.labels entry, written by a trusted author, and no open or merged pull request has a head
 // branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand). The policy comes from the reader (policy.mjs).
-// With issues.repository the issues are that tracker's, whose numbers can equal those of the project's own old branches: a pull request then counts only when its body also holds <owner/repo>#<number>.
+// With issues.repository the issues are that tracker's, whose numbers can equal those of the project's own old branches: a pull request then counts only when its body also holds <owner/repo>#<number> or the issue's URL.
 import { errorLine, isMain, read, sh } from './policy.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
-// True when the body holds ref as its own token: owner/repo#12 is not found in co-owner/repo#12 or in owner/repo#123. GitHub ignores case in owner/repo.
-const refers = (body, ref) => {
-  const literal = ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(?<![\\w/.-])${literal}(?!\\d)`, 'i').test(body ?? '');
+// True when the body names the tracker's issue as its own token, as owner/repo#12 or by its URL: not co-owner/repo#12, other/owner/repo#12 or issue 123. GitHub ignores case in owner/repo.
+const refers = (body, tracker, number) => {
+  const repo = tracker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:(?<![\\w/.-])${repo}#|https?://(?:www\\.)?github\\.com/${repo}/issues/)${number}(?!\\d)`, 'i').test(body ?? '');
 };
 
 export function pickable(policy, issues, pulls) {
@@ -21,7 +21,7 @@ export function pickable(policy, issues, pulls) {
   return issues
     .filter((i) => !i.pull_request && (TRUSTED.includes(i.author_association) || trusted.has(i.user?.login)))
     .filter((i) => labels.every((label) => i.labels.some((l) => l.name === label)))
-    .filter((i) => !pulls.some((p) => p.headRefName.includes(`/${i.number}-`) && (!tracker || refers(p.body, `${tracker}#${i.number}`))))
+    .filter((i) => !pulls.some((p) => p.headRefName.includes(`/${i.number}-`) && (!tracker || refers(p.body, tracker, i.number))))
     .map((i) => i.number);
 }
 
@@ -38,6 +38,7 @@ export function check(dir, run = sh) {
 }
 
 if (isMain(import.meta.url)) {
+  if (process.argv.length < 3) console.error('usage: node precheck.mjs <project paths...>');
   let found = false;
   for (const dir of process.argv.slice(2)) {
     try {

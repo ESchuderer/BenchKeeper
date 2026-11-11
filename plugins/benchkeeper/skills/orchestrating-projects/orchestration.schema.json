@@ -19,9 +19,10 @@
       "type": "object",
       "additionalProperties": false,
       "patternProperties": { "^//": {} },
+      "dependentRequired": { "repository": ["labels"] },
       "properties": {
         "repository": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/(?!\\.\\.?$)[A-Za-z0-9._-]+$" },
-        "labels": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "labels": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
       }
     },
     "models": {
@@ -34,7 +35,7 @@
           "additionalProperties": false,
           "patternProperties": { "^//": {} },
           "properties": {
-            "model": { "type": "string", "minLength": 1 },
+            "model": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/\\[\\]-]{0,127}$" },
             "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] }
           }
         },
@@ -59,7 +60,7 @@
       "properties": {
         "depth": { "enum": ["low", "medium", "high", "xhigh"] },
         "sensitiveDepth": { "enum": ["low", "medium", "high", "xhigh"] },
-        "sensitivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!/)(?![\\s\\S]*(?:^|/)\\.\\.(?:/|$))[^\\\\*]+$" } }
+        "sensitivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s))*/?$" } }
       }
     },
     "merge": {
@@ -70,8 +71,8 @@
         "allowed": { "type": "boolean" },
         "requiredChecks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "mode": { "enum": ["strict", "disjoint"] },
-        "additivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!/)(?![\\s\\S]*(?:^|/)\\.\\.(?:/|$))[^\\\\*]+$" } },
-        "ownerOnlyPaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!/)(?![\\s\\S]*(?:^|/)\\.\\.(?:/|$))[^\\\\*]+$" } }
+        "additivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s))*/?$" } },
+        "ownerOnlyPaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s))*/?$" } }
       }
     },
     "closeIssue": { "type": "boolean" },

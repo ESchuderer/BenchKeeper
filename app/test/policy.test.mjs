@@ -66,10 +66,10 @@ test('policy: a key the schema does not name gives no policy, a // comment key p
 });
 
 test('policy: a tracker without a label gives no policy', () => {
-  for (const issues of [{ repository: 'owner/tracker' }, { repository: 'owner/tracker', labels: [] }]) {
+  for (const [issues, rule] of [[{ repository: 'owner/tracker' }, 'missing-key'], [{ repository: 'owner/tracker', labels: [] }, 'length']]) {
     const { policy, errors } = effective({ issues }, '6.26.0');
     assert.equal(policy, null);
-    assert.deepEqual(rules(errors), [['length', 'issues.labels']]);
+    assert.deepEqual(rules(errors), [[rule, 'issues.labels']]);
   }
   assert.deepEqual(effective({ issues: { repository: 'owner/tracker', labels: ['project-a'] } }, '6.26.0').policy.issues, { repository: 'owner/tracker', labels: ['project-a'] });
 });
@@ -99,8 +99,9 @@ test('policy: a path entry that leaves the repository, starts at its root or hol
   const { policy, errors } = effective(JSON.parse(readFileSync(new URL('./fixtures/params/policy/invalid/pattern.json', import.meta.url), 'utf8')), '6.26.0');
   assert.equal(policy, null);
   assert.deepEqual(rules(errors), [['pattern', 'merge.ownerOnlyPaths[0]'], ['pattern', 'merge.ownerOnlyPaths[1]'], ['pattern', 'merge.ownerOnlyPaths[2]']]);
-  // A folder with a closing slash, a file below a folder and a name that only starts with two dots are paths.
-  assert.deepEqual(effective({ merge: { additivePaths: ['schemas/', 'docs/registry.json', '..cache'] } }, '6.26.0').policy.merge.additivePaths, ['schemas/', 'docs/registry.json', '..cache']);
+  // A folder with a closing slash, a file below a folder, names that start with dots and a name with a space inside are paths.
+  const paths = ['schemas/', 'docs/registry.json', '..cache', '.claude', '.github/workflows', 'docs/release notes.md'];
+  assert.deepEqual(effective({ merge: { additivePaths: paths } }, '6.26.0').policy.merge.additivePaths, paths);
 });
 
 test('policy: a skill folder copied alone, as for an agent without plugins, checks with its own schema; minPlugin cannot be checked there and gives no policy', async () => {
@@ -114,11 +115,31 @@ test('policy: a skill folder copied alone, as for an agent without plugins, chec
   assert.deepEqual(rules(gated.errors), [['range', 'minPlugin']]);
 });
 
-test('policy: a repository that was not cloned asks the remote for its default branch and writes no reference', () => {
+test('policy: a repository that was not cloned asks the remote for its default branch and leaves origin/HEAD unset', () => {
   const calls = [];
   assert.equal(read('/p', notCloned('{ "startLabel": "go" }', calls)).policy.startLabel, 'go');
-  assert.ok(calls.includes('git show origin/trunk:docs/agents/orchestration.json'));
-  assert.deepEqual(calls.filter((c) => /set-head|update-ref|symbolic-ref (?!--short )/.test(c)), []);
+  // Both ends of the fetch are full ref names, and the policy is read from the ref the fetch wrote.
+  assert.ok(calls.includes('git fetch --quiet --no-tags origin +refs/heads/trunk:refs/remotes/origin/trunk'));
+  assert.ok(calls.includes('git show refs/remotes/origin/trunk:docs/agents/orchestration.json'));
+  assert.deepEqual(calls.filter((c) => /set-head|update-ref|symbolic-ref \S+ \S/.test(c)), []);
+});
+
+test('policy: a default branch name that git could read as an option or a revision gives no policy, and no fetch or show gets it', () => {
+  for (const branch of ['--upload-pack=/tmp/x', '-q', 'a..b', 'a b', 'a:b', 'a~1', 'a^', 'a?', 'a*', 'a[b', 'a\\b', 'a\u0001b', 'a@{1}']) {
+    // Named by origin/HEAD of a clone, then by the remote of a repository that was not cloned.
+    for (const answer of [{ 'symbolic-ref': `refs/remotes/origin/${branch}\n` }, { 'ls-remote': `ref: refs/heads/${branch}\tHEAD\n` }]) {
+      const calls = [];
+      const { policy, errors } = read('/p', (dir, cmd, args) => {
+        calls.push([cmd, ...args].join(' '));
+        if (args[0] in answer) return answer[args[0]];
+        if (args[0] === 'symbolic-ref') throw new Error('fatal: ref refs/remotes/origin/HEAD is not a symbolic ref');
+        return '{ "startLabel": "go" }';
+      });
+      assert.equal(policy, null, branch);
+      assert.deepEqual(rules(errors), [['default-branch', '']], branch);
+      assert.deepEqual(calls.filter((c) => /^git (fetch|show)\b/.test(c)), [], branch);
+    }
+  }
 });
 
 test('policy: a file that is not JSON gives no policy', () => {

@@ -27,20 +27,25 @@ test('precheck: picks labeled issues by trusted authors that have no open or mer
 test('precheck: with a tracker an issue needs every label, and a pull request hides it only when its body names the tracker issue', () => {
   const policy = { startLabel: 'agent-ready', issues: { repository: 'owner/tracker', labels: ['project-a'] } };
   const labels = [{ name: 'agent-ready' }, { name: 'project-a' }];
-  const issues = [issue(12, { labels }), issue(13), issue(14, { labels }), issue(15, { labels })];
+  const issues = [issue(12, { labels }), issue(13), ...[14, 15, 16, 17, 18, 19, 20].map((n) => issue(n, { labels }))];
   const pulls = [
     { headRefName: 'fix/12-an-old-branch-of-the-project', body: 'Fixes #12' },
     { headRefName: 'feat/12-other', body: 'Part of owner/tracker#123 and co-owner/tracker#12.' },
     { headRefName: 'fix/14-crash', body: 'Closes owner/tracker#14.' },
     { headRefName: 'fix/15-x', body: null },
+    { headRefName: 'fix/16-x', body: 'See other/owner/tracker#16' },
+    { headRefName: 'fix/17-x', body: 'Closes Owner/Tracker#17' },
+    { headRefName: 'fix/18-x', body: 'Closes https://github.com/owner/tracker/issues/18' },
+    { headRefName: 'fix/19-x', body: 'After https://github.com/owner/tracker/issues/190 and https://github.com/owner/tracker/pull/19' },
+    { headRefName: 'fix/20-x', body: 'Closes https://github.com/other/tracker/issues/20' },
   ];
-  assert.deepEqual(pickable(policy, issues, pulls), [12, 15]);
+  assert.deepEqual(pickable(policy, issues, pulls), [12, 15, 16, 19, 20]);
 });
 
 const calls = [];
 const stub = (policy) => (dir, cmd, args) => {
   calls.push([cmd, ...args].join(' '));
-  if (args[0] === 'symbolic-ref') return 'origin/main\n';
+  if (args[0] === 'symbolic-ref') return 'refs/remotes/origin/main\n';
   if (args[0] === 'fetch') return '';
   if (args[0] === 'show') { if (!policy) throw new Error('no file'); return JSON.stringify(policy); }
   if (args[0] === 'api') return JSON.stringify([[issue(7)], [issue(8)], [issue(9)]]);
@@ -58,7 +63,7 @@ test('precheck: with a tracker the issues are listed there with every label, and
 test('precheck: reads the policy from the default branch, skips a project without one and names why the reader rejects one', () => {
   calls.length = 0;
   assert.deepEqual(check('/p', stub(POLICY)), [7]);
-  assert.ok(calls.includes('git show origin/main:docs/agents/orchestration.json'));
+  assert.ok(calls.includes('git show refs/remotes/origin/main:docs/agents/orchestration.json'));
   assert.ok(calls.some((c) => c.startsWith('gh api') && c.includes('labels=agent-ready')));
   calls.length = 0;
   assert.deepEqual(check('/p', stub(null)), []);

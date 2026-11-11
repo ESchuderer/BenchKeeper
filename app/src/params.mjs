@@ -9,7 +9,7 @@ import { readText } from './fsx.mjs';
 export const FILES = { policy: ['docs/agents/orchestration.json'] };
 const SCHEMA_FILE = { policy: 'skills/orchestrating-projects/orchestration.schema.json' };
 // Every rule an error can name; the tests keep one invalid fixture for each.
-export const RULES = ['bad-json', 'not-object', 'type', 'length', 'range', 'enum', 'pattern', 'unknown-key'];
+export const RULES = ['bad-json', 'not-object', 'type', 'length', 'range', 'enum', 'pattern', 'unknown-key', 'missing-key'];
 
 const schemas = {};
 const schemaOf = (family) => (schemas[family] ??= JSON.parse(readFileSync(join(contentDir, SCHEMA_FILE[family]), 'utf8')));
@@ -28,13 +28,16 @@ function check(s, v, path, out) {
     if (s.minimum != null && v < s.minimum) fail('range', `must be at least ${s.minimum}`);
     if (s.maximum != null && v > s.maximum) fail('range', `must be at most ${s.maximum}`);
   }
-  if (Array.isArray(v)) v.forEach((x, i) => check(s.items, x, `${path}[${i}]`, out));
-  else if (kind(v) === 'object') {
+  if (Array.isArray(v)) {
+    if (s.minItems && v.length < s.minItems) fail('length', `must have at least ${s.minItems} entries`);
+    v.forEach((x, i) => check(s.items, x, `${path}[${i}]`, out));
+  } else if (kind(v) === 'object') {
     const at = (k) => (path ? `${path}.${k}` : k);
     const known = s.properties ?? {};
     for (const [k, sub] of Object.entries(known)) if (k in v) check(sub, v[k], at(k), out);
     // additionalProperties is only ever false, and the one patternProperties entry ("^//", a comment) takes any value.
     if (s.additionalProperties === false) for (const k of Object.keys(v)) if (!Object.hasOwn(known, k) && !Object.keys(s.patternProperties ?? {}).some((p) => new RegExp(p, 'u').test(k))) out.push({ rule: 'unknown-key', path: at(k), message: 'is not a key the schema names (a comment key starts with //)' });
+    for (const [k, needs] of Object.entries(s.dependentRequired ?? {})) if (k in v) for (const n of needs) if (!(n in v)) out.push({ rule: 'missing-key', path: at(n), message: `is needed when ${k} is set` });
   }
 }
 

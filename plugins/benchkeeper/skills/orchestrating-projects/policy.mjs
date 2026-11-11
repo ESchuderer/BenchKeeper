@@ -1,7 +1,7 @@
 // Reader of a project's coordinator policy: prints the effective policy (the file with every default filled in) as JSON, exit 0.
 // Usage: node policy.mjs <project path>
 // Without a policy it prints each error on stderr and exits 1, and nothing may start in that project: the schema rejects the file (a key or a
-// schemaVersion it does not name included), or minPlugin is newer than this plugin. The file is read from origin's default branch, never from a checked-out branch.
+// schemaVersion it does not name included), minPlugin is newer than this plugin, or origin's default branch has no plain name. The file is read from origin's default branch, never from a checked-out branch.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,13 +33,16 @@ function check(s, v, path, out) {
     if (s.minimum != null && v < s.minimum) fail('range', `must be at least ${s.minimum}`);
     if (s.maximum != null && v > s.maximum) fail('range', `must be at most ${s.maximum}`);
   }
-  if (Array.isArray(v)) v.forEach((x, i) => check(s.items, x, `${path}[${i}]`, out));
-  else if (kind(v) === 'object') {
+  if (Array.isArray(v)) {
+    if (s.minItems && v.length < s.minItems) fail('length', `must have at least ${s.minItems} entries`);
+    v.forEach((x, i) => check(s.items, x, `${path}[${i}]`, out));
+  } else if (kind(v) === 'object') {
     const at = (k) => (path ? `${path}.${k}` : k);
     const known = s.properties ?? {};
     for (const [k, sub] of Object.entries(known)) if (k in v) check(sub, v[k], at(k), out);
     // additionalProperties is only ever false, and the one patternProperties entry ("^//", a comment) takes any value.
     if (s.additionalProperties === false) for (const k of Object.keys(v)) if (!Object.hasOwn(known, k) && !Object.keys(s.patternProperties ?? {}).some((p) => new RegExp(p, 'u').test(k))) out.push({ rule: 'unknown-key', path: at(k), message: 'is not a key the schema names (a comment key starts with //)' });
+    for (const [k, needs] of Object.entries(s.dependentRequired ?? {})) if (k in v) for (const n of needs) if (!(n in v)) out.push({ rule: 'missing-key', path: at(n), message: `is needed when ${k} is set` });
   }
 }
 
@@ -58,12 +61,9 @@ const plain = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !k.sta
 // { policy, errors }: the policy with every default filled in, or null with the errors. Fields are read by name, whatever the file's schemaVersion.
 export function effective(doc, version = pluginVersion()) {
   const errors = validate(doc);
-  if (!errors.length) {
-    // Without a label of its own, two projects on one tracker would pick the same issue.
-    if (doc.issues?.repository && !doc.issues.labels?.length) errors.push({ rule: 'length', path: 'issues.labels', message: 'must have at least 1 entry when issues.repository is set' });
-    if (doc.minPlugin && !version) errors.push({ rule: 'range', path: 'minPlugin', message: 'cannot be checked: the version of this plugin is unknown (no content.json two folders above the skill)' });
-    else if (doc.minPlugin && older(version, doc.minPlugin)) errors.push({ rule: 'range', path: 'minPlugin', message: `must be at most ${version}, the version of this plugin` });
-  }
+  // The one check the schema cannot hold: it depends on the plugin that reads the file, which the app's editor does not judge.
+  if (!errors.length && doc.minPlugin && !version) errors.push({ rule: 'range', path: 'minPlugin', message: 'cannot be checked: the version of this plugin is unknown (no content.json two folders above the skill)' });
+  else if (!errors.length && doc.minPlugin && older(version, doc.minPlugin)) errors.push({ rule: 'range', path: 'minPlugin', message: `must be at most ${version}, the version of this plugin` });
   if (errors.length) return { policy: null, errors };
   const { merge = {}, review = {}, issues = {}, models = {} } = doc;
   return {
@@ -97,18 +97,26 @@ export function effective(doc, version = pluginVersion()) {
   };
 }
 
+// The remote chooses its default branch's name: one that git could read as an option or a revision expression reaches no git command.
+const PLAIN_BRANCH = /^(?!-)(?!.*(?:\.\.|@\{))[^\s\p{Cc}~^:?*\[\\]+$/u;
+
 // The effective policy of the project in dir. A project without the file gets the defaults, which start and merge nothing.
 export function read(dir, run = sh) {
-  let head;
-  try { head = run(dir, 'git', ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).trim(); } catch {
-    // Not cloned (git init, then remote add): the remote names its default branch, and no reference is written here.
-    const named = /^ref: refs\/heads\/(\S+)\tHEAD$/m.exec(run(dir, 'git', ['ls-remote', '--symref', 'origin', 'HEAD']));
-    if (!named) throw new Error('origin names no default branch');
-    head = `origin/${named[1]}`;
+  let branch;
+  try { branch = /^refs\/remotes\/origin\/(.+)\n?$/.exec(run(dir, 'git', ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.[1]; } catch {
+    // Not cloned (git init, then remote add): the remote names its default branch, and origin/HEAD stays unset.
+    let listed;
+    try { listed = run(dir, 'git', ['ls-remote', '--symref', 'origin', 'HEAD']); } catch (e) {
+      throw new Error(e.code === 'ENOENT' ? 'the folder does not exist, or git is not installed' : 'not a git repository with a remote named origin that answers');
+    }
+    branch = /^ref: refs\/heads\/([^\t\n]+)\tHEAD$/m.exec(listed)?.[1];
   }
-  run(dir, 'git', ['fetch', '--quiet', 'origin', head.replace(/^origin\//, '')]);
+  if (!branch || !PLAIN_BRANCH.test(branch)) return { policy: null, errors: [{ rule: 'default-branch', path: '', message: 'origin names no default branch, or one whose name git could read as an option or a revision' }] };
+  // Full names at both ends: the fetch writes this ref whatever refspec origin has, and no local branch or tag called origin/<branch> can stand in for it.
+  const ref = `refs/remotes/origin/${branch}`;
+  run(dir, 'git', ['fetch', '--quiet', '--no-tags', 'origin', `+refs/heads/${branch}:${ref}`]);
   let text;
-  try { text = run(dir, 'git', ['show', `${head}:${FILE}`]); } catch { return effective({}); }
+  try { text = run(dir, 'git', ['show', `${ref}:${FILE}`]); } catch { return effective({}); }
   let doc;
   try { doc = JSON.parse(text); } catch { return { policy: null, errors: [{ rule: 'bad-json', path: '', message: 'is not valid JSON' }] }; }
   return effective(doc);

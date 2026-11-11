@@ -47,7 +47,7 @@ ORCA orchestration reply --id <message id> --body "$(cat <answer file>)" --json
 ```text
 ORCA orchestration check --types "worker_done,escalation,question,status" --json
 ORCA orchestration check --wait --types "worker_done,escalation,question,status" --timeout-ms <stallMinutes / 2 in ms, at least 60000> --json
-ORCA orchestration worker-list --run <run_id> --json
+ORCA orchestration worker-list --run <run_id> --json --full
 ORCA orchestration worker-show --dispatch <dispatch id> --json
 ORCA orchestration worker-read --dispatch <dispatch id> --limit 50 --json
 gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,mergedAt
@@ -55,7 +55,7 @@ gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,me
 
 Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent. A `status` message wakes it too: observed (its terminal is told "You have 1 orchestration message"), not documented, so the next wake-up reads it at the latest. A Claude Code coordinator ends the turn after starting or messaging workers and keeps the stall-check cron that the skill's Waiting section describes, so a silent worker is seen without mail. It never polls and never runs `check --wait` in the background: a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator. An agent with no background wake (wake mode `unsupported`, for example Codex) has no such cron: it runs the `check --wait` in the foreground, never looped faster than once a minute. The run's deadline (55 minutes unless the owner named another) is checked at a wake.
 
-At each wake-up, including an empty one: `worker-list` for state, then `gh pr list` for merged PRs, then the stall check. For a row whose `projection.attention.requiresAction` is true, run `ORCA` with its `projection.nextAction.argv` only when that command is `worker-release`, `worker-read` or `worker-show`; any other next action goes in the report. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
+At each wake-up, including an empty one: `worker-list` for state, with `--full` because the concise rows carry no `projection`, then `gh pr list` for merged PRs, then the stall check. For a row whose `projection.attention.requiresAction` is true, run `ORCA` with its `projection.nextAction.argv` only when that command is `worker-release`, `worker-read` or `worker-show`; any other next action goes in the report. A wake-up that runs none of them lets a failed or finished worker go unseen. Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
 Liveness, in the guide's terms: `ready` or `unverifiable` is absence, not proof. A worker blocked by a hook or waiting at a prompt stays `ready`, so a state watcher never fires for it. For the stall check, compare the time of the last commit on its branch, its PR and its last message with `stallMinutes`; when exceeded, `worker-read` its last output. Proof that it stopped without a report is a final agent turn that ended with no `worker_done`. Then:
 
@@ -67,7 +67,7 @@ and handle it as blocked; act on the `nextAction` that `worker-list` gives for t
 
 ## A permission dialog
 
-With `permissionPrompts` `decline`, decline a permission dialog of a Claude Code worker, and only when both of these show it:
+At the stall check, with `permissionPrompts` `decline`, decline a permission dialog of a Claude Code worker, and only when both of these show it:
 
 ```text
 ORCA orchestration worker-show --dispatch <dispatch id> --json --full

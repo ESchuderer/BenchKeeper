@@ -24,11 +24,9 @@ const childEnv = () => {
     GIT_TERMINAL_PROMPT: '0',
     // A worker shares the git directory: a replace ref it wrote must not swap the policy file for another.
     GIT_NO_REPLACE_OBJECTS: '1',
-    // An unattended run must fail at an unknown host key or a key phrase, not wait for an answer; the user's own ssh command stays.
-    GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes -o ConnectTimeout=30',
   };
 };
-// 64 MB: a thousand pull requests with their bodies do not fit Node's default of 1 MB. Two minutes: a stalled transfer ends.
+// 64 MB: a thousand pull requests with their bodies do not fit Node's default of 1 MB. Two minutes: a stalled transfer or a prompt ssh waits at ends.
 export const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, env: childEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20, timeout: 120_000 });
 
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);

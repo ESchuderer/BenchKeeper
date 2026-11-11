@@ -2,7 +2,7 @@
 
 A coordinator run needs rules for models, reviews, merges, owner-only changes, batches and worker conduct. This note gives each rule one home (a policy field, skill text, the worker rule file or an agent default), so that a project gets the same run by installing the plugin and committing its policy, its worker rules and its Claude Code settings.
 
-This is the design. The State column says what exists and which change adds the rest ([Changes](#changes)). The rules come from a coordinator run over several repositories from 2026-11-04 to 2026-11-11, called "the source run" below. File names are relative to `plugins/benchkeeper/`, except those that start with `app/`, `packages/` or `docs/` and `release-please-config.json`, which are from the repository root; `SKILL.md` without a folder is `skills/orchestrating-projects/SKILL.md`, and `spec-template.md` and `orca.md` are in the same folder.
+This is the design. The State column says what exists and which change adds the rest ([Changes](#changes)); each change updates that column and the line references it moves. The rules come from a coordinator run over several repositories from 2026-11-04 to 2026-11-11, called "the source run" below. File names are relative to `plugins/benchkeeper/`, except those that start with `app/`, `packages/` or `docs/` and `release-please-config.json`, which are from the repository root; `SKILL.md` without a folder is `skills/orchestrating-projects/SKILL.md`, and `spec-template.md` and `orca.md` are in the same folder.
 
 ## What a project commits
 
@@ -18,7 +18,7 @@ The plugin's `rules/worker.md` always applies, and the project's file only adds 
 
 ## Policy version 2
 
-Version 2 adds optional fields to version 1 and changes none (`SKILL.md:19-28`). A version 1 file stays valid and means the defaults below. Fields are read by name, whatever the file's `schemaVersion`; version 2 marks a file that uses the new ones, so the policy editor of an older app refuses it instead of ignoring them.
+Version 2 adds optional fields to version 1 and changes none (`SKILL.md:19-28`). A version 1 file stays valid and means the defaults below. Fields are read by name, whatever the file's `schemaVersion`, so a narrowing field also binds in a file that does not say 2. The marker serves older apps: setup and the example write 2, and an older app's policy editor refuses such a file instead of ignoring its new fields; a file that keeps 1 and adds new fields gets no such refusal.
 
 One reader script beside `precheck.mjs` prints the effective policy of a project: the file from the default branch, defaults filled in. The coordinator and `precheck.mjs` both take the policy from it, so a model never interprets the JSON itself. A file the schema rejects, or a `schemaVersion` the reader does not know, starts and merges nothing in that project, and the reader names each error. A key the schema does not name, at any nesting level, is such an error, except one that starts with `//`, which is a comment: a misspelled field never silently means its default.
 
@@ -35,14 +35,14 @@ A path entry names a file or a folder, relative to the repository root, and cove
 | `review.sensitivePaths` | paths that make a change sensitive, besides the built-in classes | none | per project |
 | `merge.mode` | `strict` or `disjoint` (see [Merge](#merge)) | `strict` | `disjoint` |
 | `merge.additivePaths` | paths the pull request and the default branch may both have changed in `disjoint` mode | none | registries and generated schemas |
-| `merge.ownerOnlyPaths` | further paths whose pull requests are left for the owner, besides the built-in ones ([Owner-only](#owner-only)) | none; the policy that setup writes lists `.claude` | none |
+| `merge.ownerOnlyPaths` | further paths whose pull requests are left for the owner, besides the built-in ones ([Owner-only](#owner-only)) | none | none |
 | `issuesPerWorker` | pickable issues of this project that one worker takes, oldest first | 1 | up to 5 |
 | `keepRunning` | the run stays open for this project and picks up issues labeled later | false | true |
 | `permissionPrompts` | `block` or `decline` (see [Reconciliations](#reconciliations)) | `block` | `decline` |
 | `minPlugin` | the oldest plugin version that may run this policy | any | none |
 | `issues.repository`, `issues.labels` | the tracker repository, and labels an issue must carry besides `startLabel` (see [The issue source](#the-issue-source)) | the project's own repository, no further label | one tracker, a label per project |
 
-Models are named by Claude Code's aliases, which Claude Code moves to newer versions ([model configuration](https://code.claude.com/docs/en/model-config)). `models.worker` also takes a full model name, where an alias lags or a measurement must stay reproducible. A phase takes an alias or `inherit`, the worker's own model, which is how a full model name reaches a phase: a subagent call takes an alias only (observed in Claude Code 2.1.316, unverified against its documentation). The defaults apply to Claude Code workers. A worker on another agent runs that agent's default unless the policy names a model. The coordinator estimates the tier from the issue with the workflow skill's change-type table only to choose the model; the worker still classifies its own work. The coordinator's own model is the one its session was started with, so the policy does not name it.
+Models are named by Claude Code's aliases, which Claude Code moves to newer versions ([model configuration](https://code.claude.com/docs/en/model-config)). `models.worker` also takes a full model name, where an alias lags or a measurement must stay reproducible. A phase takes an alias or `inherit`, the worker's own model, which is how a full model name reaches a phase: a subagent call takes an alias only ([sub-agents](https://code.claude.com/docs/en/sub-agents)). The coordinator's own reviewer is no subagent of the worker: for it `inherit` means the model that pull request's worker was started with when that is an alias, else `opus`. The defaults apply to Claude Code workers. A worker on another agent runs that agent's default unless the policy names a model. The coordinator estimates the tier from the issue with the workflow skill's change-type table only to choose the model; the worker still classifies its own work. The coordinator's own model is the one its session was started with, so the policy does not name it.
 
 `review.depth` is independent of `models.phases.review`, which names the reviewer's model and effort. An agent without `/code-review` runs the review passes of `skills/workflow/software.md:8`, where the depth only decides whether the security pass runs. `max` is not a policy value: that depth runs only when the owner asks for it in the session.
 
@@ -82,13 +82,13 @@ The coordinator merges, never a worker (`spec-template.md:18`), and only where t
 
 | Rule | Home | State |
 |---|---|---|
-| `strict`: when the default branch moved after the review, the coordinator updates the branch with a merge of the default branch (`gh pr update-branch`), and the required checks are green on that update commit. A conflict goes to the owning worker as a follow-up (`SKILL.md:36`) | policy `merge.mode`, skill text | change 3 |
+| `strict`: the head that merges contains the tip of the default branch, and the required checks are green on that head. Where it does not, the coordinator updates the branch with a merge of the default branch (`gh pr update-branch`), waits for the checks and tests again, until it holds. A conflict goes to the owning worker as a follow-up (`SKILL.md:36`) | policy `merge.mode`, skill text | change 3 |
 | The merge is pinned to the reviewed head, or to a head reached from it by clean merges of the default branch only: each merge's first parent is the head accepted before it, its second parent is on the default branch, and its tree is the one `git merge-tree --write-tree` gives for those two parents. Any other head holds lines nobody reviewed, a worker's conflict resolution among them, and gets the scoped re-review first | skill text; the check is a function of change 5 | change 3 |
 | `disjoint`: when the default branch moved only by commits that share no file with the pull request, and a local trial merge passes the project's changed-files check, the green head merges without another update; a pull request comment says so | policy `merge.mode`, skill text | change 3 |
 | Shared files are tolerated in `disjoint` mode when all of them are under `merge.additivePaths` and the trial merge also regenerates the generated files with no diff | policy `merge.additivePaths`, skill text | change 3 |
 | A data removal or a wide refactor merges `strict` in either mode: a consumer can break without a shared file | skill text | change 3 |
-| The pull request title is checked against the project's convention before the merge: the squash commit takes it | skill text | change 3 |
-| Squash with that pin (`gh pr merge --squash --match-head-commit <sha>`, [gh manual](https://cli.github.com/manual/gh_pr_merge)), unless `AGENTS.md` names another method | skill text | change 3 |
+| The pull request title is checked against the project's convention, as the default branch's `AGENTS.md` has it, before the merge: the squash commit takes it | skill text | change 3 |
+| Squash with that pin (`gh pr merge --squash --match-head-commit <sha>`, [gh manual](https://cli.github.com/manual/gh_pr_merge)), unless the default branch's `AGENTS.md` names another method | skill text | change 3 |
 | One merge at a time per project; the default branch's CI is watched after each, and a red default branch is fixed before the next merge (`rules/project.md:11`). A queued run that a newer one replaced is covered by the newer one | skill text | change 3 |
 | A branch is brought up to date by merging the default branch in, never by rebasing or force-pushing | spec (`spec-template.md:18`) for force-push; worker rule file for rebase | change 4 |
 
@@ -100,7 +100,14 @@ The coordinator merges, never a worker (`spec-template.md:18`), and only where t
 | Settings, rulesets and secrets are never touched | skill text (`SKILL.md:30`) | exists |
 | A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility; a pull request whose purpose is a release is left open | the spec's "You may not" line, skill text | change 3 |
 
-Built-in owner-only paths: `.github/workflows` and `.github/dependabot.yml` (owner, 2026-11-11), and the two files the coordinator takes its rights and rules from, `docs/agents/orchestration.json` and `docs/agents/worker-rules.md`. Without the last two, a worker's pull request could widen the policy and the coordinator would merge it (`docs/security.md:348` relies on the default branch for the same reason). They cannot be switched off: a policy list only adds to them. The policy that setup writes also lists `.claude`, whose settings hold hooks and which plugins are enabled; the owner may take that entry out.
+Built-in owner-only paths:
+
+- `.github/workflows` and `.github/dependabot.yml` (owner, 2026-11-11).
+- `docs/agents/orchestration.json` and `docs/agents/worker-rules.md`, the two files the coordinator takes its rights and rules from.
+- Pending the owner's decision: `.claude` and `.mcp.json`. Settings, hooks, skills and agents there decide what every later worker may do, since workers start from the default branch, and a project's hook or MCP server runs in `claude -p` without a trust dialog (`docs/security.md:295-296`). A narrower list would not do: a project skill's `allowed-tools` and `hooks` and a project agent's `permissionMode` act the same way ([skills](https://code.claude.com/docs/en/skills), [sub-agents](https://code.claude.com/docs/en/sub-agents)).
+- Pending the owner's decision: the rest of `.github`, and `CODEOWNERS` and `docs/CODEOWNERS`. Workflows run the scripts and actions under `.github`, and the CODEOWNERS files say who must review.
+
+Without these a worker's pull request could widen its own rights, and the coordinator would merge it (`docs/security.md:348` relies on the default branch for the same reason). They cannot be switched off, and a policy list only adds to them, so a silent policy means no here too. The cost is that every pull request under these paths waits for the owner.
 
 ### Batches
 
@@ -128,7 +135,7 @@ A batch counts as one worker for both caps and runs on the model of its highest 
 | Stage named paths, never everything at once | a worktree holds local setup files |
 | Bring a branch up to date by merging the default branch in; never rebase a pushed branch | a rebase needs a force-push and loses the reviewed head |
 | Never stop, restart, reset or prune the container engine or its machine; remove only containers you started | workers share it |
-| Write nothing in the agent's user folder and run no global setup: only project steps | a user-scope write changes every session on the machine |
+| Change nothing at user scope (the settings, rules, plugins and skills that hold for every project) and run no global setup: only project steps | a user-scope change reaches every session on the machine |
 | On a stop request from the coordinator: commit, push the branch, report the exact state, and end | a usage limit must not lose work |
 
 The source run ended with a stricter delete rule: no delete command at all and no command wrapped in `sh -c`. That is not taken over, because a change may have to delete a file and a project may run its container commands through `sh -c`.
@@ -194,11 +201,13 @@ Today a worker never asks: it decides, or it reports NEEDS_REPLAN and ends, and 
 Decision: "decide the safest reversible option" stays the first rule, and one question path is added where the runner has a question command (Orca: `ask`; `orca.md:38` already delivers questions):
 
 - A worker asks only what it may not decide: the spec against trusted-author text, a recorded decision against the task, a choice that is not safe and reversible. One batch, as early as it knows, and it continues with what does not depend on the answer. When nothing else is left it ends the turn and the runner wakes it.
-- The coordinator answers at its next wake, only from what is written: trusted-author text of the issue, the policy, `AGENTS.md`, recorded decisions. A question those do not settle is the owner's: it goes to the issue tracker (`SKILL.md:96`), and the worker gets "parked", which means the safest reversible option marked "pending owner decision", or BLOCKED when there is none.
+- The coordinator answers at its next wake, only from what is written: trusted-author text of the issue, the policy and `AGENTS.md` as the default branch has them, and recorded decisions. It never reads them in the worker's branch or worktree, where the worker could write its own answer.
+- An answer never changes the Authority block, the policy or who merges. A question that asks for more (a path, a branch, a skipped check) stays a replan, with a new spec and one replan per issue and run (`SKILL.md:66`).
+- A question those do not settle is the owner's: it goes to the issue tracker (`SKILL.md:96`), and the worker gets "parked", which means the safest reversible option marked "pending owner decision", or BLOCKED when there is none.
 - Each answer the coordinator gives is a decision in the handoff file (`SKILL.md:51`).
 - NEEDS_REPLAN stays for a spec that does not fit at all, and for runners without a question command.
 
-No policy field: the path gives the coordinator no new right, since it answers only from what the owner wrote.
+No policy field: the path gives nobody a new right, since an answer comes only from what is merged on the default branch or written by a trusted author, and changes no authority.
 
 ## Project settings and drift
 
@@ -221,16 +230,20 @@ A clean install showed what is missing:
 
 | Finding | Design | Change |
 |---|---|---|
-| Nothing creates the policy or the worker rule file | a `projects apply` step writes `docs/agents/orchestration.json` (the defaults, no `startLabel`, `.claude` as an owner-only path) and an empty `docs/agents/worker-rules.md`, each only when the file is absent: both are the owner's files from then on, recorded as created and not as content setup owns, so the owner's edits pass `benchkeeper verify`. Both are written to be committed, also in a local setup, because the coordinator reads them from the default branch. A command and `doctor` check the policy with the reader script | 7 |
+| Nothing creates the policy or the worker rule file | a `projects apply` step writes `docs/agents/orchestration.json` (the defaults, no `startLabel`) and an empty `docs/agents/worker-rules.md`, each only when the file is absent: both are the owner's files from then on, recorded as created and not as content setup owns, so the owner's edits pass `benchkeeper verify`. Both are written to be committed, also in a local setup, because the coordinator reads them from the default branch. A command and `doctor` check the policy with the reader script | 7 |
 | A new install gets the released plugin, which can be far behind the default branch and still carry the same version | policy `minPlugin`: the reader starts nothing when the plugin's `contentVersion` (`content.json`) is older. Between releases the default branch carries the released version (`release-please-config.json`), so the minimum can only name a release | 2 |
-| The same version string names different content | Claude Code takes a plugin's version from its manifest first and keeps the cached copy while that string is unchanged ([plugin loading](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version)). An update therefore needs one of three things, and the owner chooses: the version moves with every content change; the manifest names no version, so Claude Code takes the commit; or setup records the content's commit beside the version and compares that | 8 |
+| The same version string names different content | Claude Code takes a plugin's version from its manifest first and keeps the cached copy while that string is unchanged ([plugin loading](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version)). An update therefore needs one of three things, and the owner chooses: the version moves with every content change; the manifest and the marketplace entry name no version and the source is a git one, so Claude Code takes the commit; or setup records the content's commit beside the version and compares that | 8 |
 | `precheck.mjs` needs `refs/remotes/origin/HEAD`, which a repository that was not cloned lacks and an older clone holds stale, and the example's label differs from the triage label | the reader fetches the remote's `HEAD` into a ref of its own (`refs/benchkeeper/policy`) and reads the file from there, so the local reference is not used and no name the remote chooses becomes a git argument. The example uses `ready-for-agent`, the label of the `issue-triage` automation | 2 |
 | Setup knows the user and the local plugin scope only | a shared setup (`projects apply --share`) enables the plugin in the committed `.claude/settings.json` and installs it at project scope, and `doctor` counts that scope. The pin is limited by Claude Code (trial below) | 8 |
 | The run's issues live in one tracker repository, with a label per project | policy `issues.repository` and `issues.labels` (below) | 2, 3 |
-| A project setup must never write user scope | `setting-up-projects` runs `projects apply` only, never the global `apply`, and the worker rule file forbids writes to the agent's user folder. One exception stays until change 8: `projects apply` adds a pack's marketplace for the user and installs a pack's plugin at the pack's scope, which is the user's unless the pack says otherwise (`app/src/steps/project.mjs:511-512`, `app/src/packs.mjs:113-116`) | 4 |
-| Setup's output is the same for every stack | not part of the coordinator workflow: proposed as work of its own | none |
+| A project setup must never write user scope | `setting-up-projects` runs `projects apply` only, never the global `apply`, and the worker rule file forbids changes at user scope. One exception stays until change 8: `projects apply` adds a pack's marketplace for the user and installs a pack's plugin at the pack's scope, which is the user's unless the pack says otherwise (`app/src/steps/project.mjs:511-512`, `app/src/packs.mjs:115-118`) | 4 |
+| Setup's output is the same for every stack, and the stack skills the setup skill chooses are recorded nowhere | not part of the coordinator workflow: proposed as work of its own | none |
+| `projects apply` and the setup skill are documented in two orders, which give two results, and the skill's `AGENTS.md` edit fails `benchkeeper verify` afterwards | work of its own (setup order and ledger). This design adds no such edit: its files are created by `projects apply` and recorded as created | none |
+| The setup skill is user-invoked: a worker or a headless session cannot run it | what this design adds to setup (the policy, the worker rule file, the issue template) is written by `projects apply`, which runs headless; the skill only names those steps. Making the skill's other steps headless is work of its own | 6, 7 |
+| The prerequisites do not name Orca (`docs/setup.md:11-21`) | they name it as the runner the coordinator skill needs | 4 |
+| Without a release, none of this reaches an install | the release is the owner's. Change 3 lands before the release that carries change 2, because the precheck and the coordinator disagree in between | none |
 
-The rest of the owner's list needs no change. Permissions: the guards' deny rules; allow rules are not written, because they widen what a session does without asking. Model, effort and environment: the owner's own entries in the committed settings, which Claude Code applies on every machine and setup leaves alone; they are the project's values, not defaults that could fall behind. Hooks: the guard hook.
+The rest of what setup is to keep current per project (permissions, model, plugins, hooks, environment) needs no change. Permissions: the guards' deny rules; allow rules are not written, because they widen what a session does without asking. Model, effort and environment: the owner's own entries in the committed settings, which Claude Code applies on every machine and setup leaves alone; they are the project's values, not defaults that could fall behind. Hooks: the guard hook.
 
 ### What a commit pin can do
 
@@ -252,7 +265,9 @@ The documentation also keeps one record of fetched marketplaces per user and fet
 
 - Trust: issue text counts by its author's association in the tracker, pull request and review text by the association in the project. Everyone with write access to the tracker can therefore direct work in each project that names it. That is the risk the owner takes with this field.
 - Pick: the tracker's numbers can equal numbers of the project's own old branches, so an issue has a pull request only when a head branch names its number (`pickable` in `precheck.mjs`) and that pull request's body refers to it as `owner/repo#number` or by its URL. An open pull request from a fork never counts, with or without a tracker: anyone can open one.
-- Close: that reference closes nothing by itself; `closeIssue` allows the coordinator's close in the tracker.
+- Reference: "has a pull request" rests on text the worker writes, so the coordinator checks the body for the reference before it marks the pull request ready.
+- Close: a bare reference closes nothing; `closeIssue` allows the coordinator's close in the tracker. A closing keyword (`Fixes owner/repo#12`) closes the issue when the pull request merges, in another repository too and whatever `closeIssue` says ([linking a pull request to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue)): the spec forbids one, and the same check before ready looks for it.
+- One project per issue: a label per project does not make the labels distinct. In a run, an issue that matches more than one project starts nowhere and is listed for the owner (the pick function of change 5).
 - Naming: the policy and the pull requests name the tracker, so a public project whose tracker must stay unnamed cannot use an issue source.
 
 ## What changes for a version 1 policy
@@ -261,11 +276,13 @@ A project that keeps its version 1 file gets these new defaults (owner, 2026-11-
 
 | Change | Direction |
 |---|---|
-| Workers run the model of their tier, where they ran the agent's default | cost: `opus` for standard and full work |
+| Workers run the model of their tier, where they ran the agent's default | cost: `opus` for standard and full work, `fable` at `xhigh` for research; quick work moves to `sonnet` |
 | Each pull request gets a fresh reviewer at `high`, or `xhigh` plus a security review, and every fix a scoped re-review | cost, more checks |
 | A decision in the owner's place goes to a `fable` subagent first | cost |
-| A merge needs the default branch merged in and green on that head when it moved after the review, a checked title, and the default branch's CI watched before the next merge | narrower |
-| Pull requests that change workflow files, `dependabot.yml`, the policy or the project's worker rules are left for the owner | narrower |
+| A merge needs a head that contains the tip of the default branch and is green there, a checked title, and the default branch's CI watched before the next merge | narrower |
+| Pull requests that change workflow files, `dependabot.yml`, the policy or the project's worker rules are left for the owner; pending the owner's decision, also the rest of `.github`, the CODEOWNERS files, `.claude` and `.mcp.json` | narrower |
+| A pull request whose purpose is a release is left open | narrower |
+| An open pull request from a fork no longer marks its issue as taken, so the issue can start | wider pick, same merge rights |
 | Every worker's spec and every subagent brief carry the plugin's worker rules | narrower |
 | A file with a key the schema does not name starts nothing until the key is fixed | narrower |
 | A worker may ask the coordinator what it may not decide | same rights, fewer restarts |
@@ -277,10 +294,10 @@ No default lets the coordinator merge more than today: the merged head is one a 
 ## Changes
 
 1. This note.
-2. Policy schema version 2: the schema, which moves into the skill folder so that a skill folder copied alone can check a policy, `policy.example.json`, the app's policy check (`app/src/params.mjs`, which needs the keywords for fixed values, patterns and unknown keys), the reader script that prints the effective policy, and `precheck.mjs`, which takes the policy from the reader and lists issues from the tracker the policy names.
+2. Policy schema version 2: the schema, which moves into the skill folder so that a skill folder copied alone can check a policy, `policy.example.json`, the app's policy check (`app/src/params.mjs`, which calls the reader's validation instead of walking the schema itself), the reader script that prints the effective policy, and `precheck.mjs`, which takes the policy from the reader and lists issues from the tracker the policy names.
 3. `SKILL.md`, `spec-template.md` and `orca.md` use the fields: models, review depth and rounds, merge mode, owner-only paths, batches, keep running, the issue source, the question path and `permissionPrompts`. The phase agents say `inherit`, and `skills/workflow/software.md` names each phase's alias and the review level. The line references of `docs/security.md` follow.
-4. `rules/worker.md`, the workflow skill's ladder and `haiku` lines, the CI line of `rules/project.md`, and the rule in `setting-up-projects` that it runs project steps only.
-5. The decisions `SKILL.md:88` gives to a script (pick, caps, merge mode, owner-only paths) as functions beside `precheck.mjs`, with fixed cases in the app's tests, and a clean-install check as a script: an empty config folder, two fixture projects, setup applied twice with no second change, the policy check and the precheck.
-6. One approval layout (model, effort, review, merges, cost) for the owner gates of `SKILL.md:97`, the `questions` skill and an issue template that `setting-up-projects` installs. It follows change 3, whose models it shows.
+4. `rules/worker.md`, the workflow skill's ladder and `haiku` lines, the CI line of `rules/project.md`, the rule in `setting-up-projects` that it runs project steps only, and Orca in the prerequisites.
+5. The decisions `SKILL.md:88` gives to a script (pick, with an issue that matches several projects starting nowhere, caps, merge mode, the pin, owner-only paths) as functions beside `precheck.mjs`, with fixed cases in the app's tests, and a clean-install check as a script: an empty config folder, two fixture projects, setup applied twice with no second change, the policy check and the precheck.
+6. One approval layout (model, effort, review, merges, cost) for the owner gates of `SKILL.md:97`, the `questions` skill and an issue template that `projects apply` writes. It follows change 3, whose models it shows.
 7. `projects apply` writes the policy and the project's worker rule file when they are absent, a command checks a policy, and `doctor` checks the policy and compares the installed plugin with `minPlugin`.
 8. The plugin at project scope: enabled in the committed settings, installed and updated for that scope, version and commit recorded, `doctor` counting the scope. It changes what a repository's committed settings install and depends on how the plugin's version moves, so its design waits for the owner.

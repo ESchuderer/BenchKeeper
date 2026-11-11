@@ -14,7 +14,7 @@ Projects: $ARGUMENTS (Codex: the paths after the skill name). Each is a reposito
 
 ## Policy
 
-Take each project's policy from the reader, never from the JSON file: `node <skill folder>/policy.mjs <project path>` prints the effective policy, `docs/agents/orchestration.json` as the remote's default branch has it now with every default filled in. Run it again before each pick, merge, issue close, branch deletion and decline. Exit 1 means no policy: none of them in that project, whoever started the run, and list the errors it printed for the owner. Format: [orchestration.schema.json](orchestration.schema.json); example: [policy.example.json](policy.example.json).
+Take each project's policy from the reader, never from the JSON file: `node <skill folder>/policy.mjs <project path>` prints the effective policy, `docs/agents/orchestration.json` as the remote's default branch has it now with every default filled in. Run it again before each pick, merge, issue close, branch deletion and decline. Exit 1 means no policy: none of them in that project, whoever started the run, and list the errors it printed for the owner. A skill folder copied without the plugin starts no worker ([spec-template.md](spec-template.md)). Format: [orchestration.schema.json](orchestration.schema.json); example: [policy.example.json](policy.example.json).
 
 | Field | Meaning | Without the field |
 |---|---|---|

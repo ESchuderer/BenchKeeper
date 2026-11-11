@@ -1,7 +1,4 @@
-// Reader of a project's coordinator policy: prints the effective policy (the file with every default filled in) as JSON, exit 0.
-// Usage: node policy.mjs <project path>
-// Without a policy it prints each error on stderr and exits 1, and nothing may start in that project: the schema rejects the file (a key or a
-// schemaVersion it does not name included), minPlugin is newer than this plugin, or the file cannot be read. The file is read from the branch origin's HEAD names right now, never from a checked-out branch.
+// Usage: node policy.mjs <project path>. Prints the project's effective coordinator policy as JSON; a file the schema rejects, a minPlugin newer than this plugin or an unreadable file prints each error and exits 1, and nothing may start there.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -21,12 +18,32 @@ const REPO_VARS = /^GIT_(DIR|WORK_TREE|COMMON_DIR|INDEX_FILE|OBJECT_DIRECTORY|AL
 const CONFIG_VARS = /^GIT_CONFIG_(PARAMETERS|COUNT|KEY_\d+|VALUE_\d+)$/;
 const childEnv = () => {
   const fromHook = Object.keys(process.env).some((k) => REPO_VARS.test(k));
-  return { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !REPO_VARS.test(k) && !(fromHook && CONFIG_VARS.test(k)))), GIT_TERMINAL_PROMPT: '0' };
+  return {
+    // GH_REPO would list another repository's issues than the origin the policy came from.
+    ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'GH_REPO' && !REPO_VARS.test(k) && !(fromHook && CONFIG_VARS.test(k)))),
+    GIT_TERMINAL_PROMPT: '0',
+    // A worker shares the git directory: a replace ref it wrote must not swap the policy file for another.
+    GIT_NO_REPLACE_OBJECTS: '1',
+    // An unattended run must fail at an unknown host key or a key phrase, not wait for an answer; the user's own ssh command stays.
+    GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes -o ConnectTimeout=30',
+  };
 };
-// 64 MB: a thousand pull requests with their bodies do not fit Node's default of 1 MB.
-export const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, env: childEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
+// 64 MB: a thousand pull requests with their bodies do not fit Node's default of 1 MB. Two minutes: a stalled transfer ends.
+export const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, env: childEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20, timeout: 120_000 });
 
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);
+
+const KEYWORDS = ['$schema', 'title', 'type', 'enum', 'minLength', 'pattern', 'minimum', 'maximum', 'minItems', 'items', 'properties', 'additionalProperties', 'patternProperties', 'dependentRequired'];
+// A schema edit that uses a keyword check() does not implement must fail every check, never pass files the schema refuses.
+function supported(s, at = 'the schema') {
+  const bad = Object.keys(s).find((k) => !KEYWORDS.includes(k))
+    ?? ('additionalProperties' in s && s.additionalProperties !== false ? 'additionalProperties other than false' : undefined)
+    ?? (Object.values(s.patternProperties ?? {}).some((sub) => Object.keys(sub).length) ? 'patternProperties with rules' : undefined);
+  if (bad) throw new Error(`${at} uses ${bad}, which the policy check does not implement`);
+  for (const [k, sub] of Object.entries(s.properties ?? {})) supported(sub, `${at}.${k}`);
+  if (s.items) supported(s.items, `${at}[]`);
+  return s;
+}
 
 // The JSON Schema keywords the shipped schema uses, nothing more.
 function check(s, v, path, out) {
@@ -47,8 +64,9 @@ function check(s, v, path, out) {
     const at = (k) => (path ? `${path}.${k}` : k);
     const known = s.properties ?? {};
     for (const [k, sub] of Object.entries(known)) if (k in v) check(sub, v[k], at(k), out);
-    // additionalProperties is only ever false, and the one patternProperties entry ("^//", a comment) takes any value.
-    if (s.additionalProperties === false) for (const k of Object.keys(v)) if (!Object.hasOwn(known, k) && !Object.keys(s.patternProperties ?? {}).some((p) => new RegExp(p, 'u').test(k))) out.push({ rule: 'unknown-key', path: at(k), message: 'is not a key the schema names (a comment key starts with //)' });
+    // The key is the file's text: control and format characters could rewrite the terminal line or cut the message.
+    const shown = (k) => at(k.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '?'));
+    if (s.additionalProperties === false) for (const k of Object.keys(v)) if (!Object.hasOwn(known, k) && !Object.keys(s.patternProperties ?? {}).some((p) => new RegExp(p, 'u').test(k))) out.push({ rule: 'unknown-key', path: shown(k), message: 'is not a key the schema names (a comment key starts with //)' });
     for (const [k, needs] of Object.entries(s.dependentRequired ?? {})) if (k in v) for (const n of needs) if (!(n in v)) out.push({ rule: 'missing-key', path: at(n), message: `is needed when ${k} is set` });
   }
 }
@@ -57,9 +75,9 @@ function check(s, v, path, out) {
 export function validate(doc) {
   if (kind(doc) !== 'object') return [{ rule: 'not-object', path: '', message: 'must be a JSON object' }];
   const errors = [];
-  check(shipped('./orchestration.schema.json'), doc, '', errors);
-  // On a tracker, startLabel is no label of the project's own: two projects with it alone would pick the same issue.
-  if (!errors.length && doc.issues?.repository && doc.issues.labels.every((label) => label === doc.startLabel)) errors.push({ rule: 'length', path: 'issues.labels', message: 'must have at least 1 entry besides startLabel' });
+  check(supported(shipped('./orchestration.schema.json')), doc, '', errors);
+  // On a tracker, startLabel is no label of the project's own: two projects with it alone would pick the same issue. GitHub compares label names without case.
+  if (!errors.length && doc.issues?.repository && doc.issues.labels.every((label) => label.toLowerCase() === doc.startLabel?.toLowerCase())) errors.push({ rule: 'length', path: 'issues.labels', message: 'must have at least 1 entry besides startLabel' });
   return errors;
 }
 
@@ -112,7 +130,8 @@ const unreadable = (message) => ({ policy: null, errors: [{ rule: 'unreadable', 
 
 // The effective policy of the project in dir. A project without the file gets the defaults, which start and merge nothing.
 export function read(dir, run = sh) {
-  try { run(dir, 'git', ['fetch', '--quiet', '--no-tags', 'origin', `+HEAD:${REF}`]); } catch (e) {
+  // The fetch touches only the reader's ref: no submodules, and not the FETCH_HEAD a session in this worktree may rely on.
+  try { run(dir, 'git', ['fetch', '--quiet', '--no-tags', '--no-recurse-submodules', '--no-write-fetch-head', 'origin', `+HEAD:${REF}`]); } catch (e) {
     return unreadable(e.code === 'ENOENT' ? 'the folder does not exist, or git is not installed' : "git could not fetch origin's HEAD: no git repository here, no remote named origin, no answer from it, or no default branch there");
   }
   let text;

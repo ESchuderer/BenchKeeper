@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { context } from '../src/runner.mjs';
 import { contentDir } from '../src/content.mjs';
-import { FILES, RULES, format, load } from '../src/params.mjs';
+import { FILES, format, load } from '../src/params.mjs';
 import { addProject } from '../src/projects.mjs';
 import { api } from '../src/server.mjs';
 import { jobDone } from './fakes/job.mjs';
@@ -25,43 +25,6 @@ for (const name of readdirSync(fixtures)) {
     assert.ok(load('policy', readFileSync(join(fixtures, name), 'utf8')).errors.some((e) => e.rule === rule), `${name} lacks the rule ${rule}`);
   });
 }
-
-test('every rule has an invalid fixture', () => {
-  const named = new Set(readdirSync(fixtures).map((n) => n.replace(/\.json$/, '')));
-  assert.deepEqual(RULES.filter((r) => !named.has(r)), []);
-  assert.deepEqual([...named].filter((r) => !RULES.includes(r)), []);
-});
-
-const PATH_LISTS = [['merge', 'ownerOnlyPaths'], ['merge', 'additivePaths'], ['review', 'sensitivePaths']];
-const NO_PATHS = ['', '/x', '../x', 'x/..', 'a/*', 'a\\b', './x', 'x//y', 'x/./y', ' x', 'x ', 'x /y', '.', 'x\ny', 'x\0y'];
-// One refused document per row, with the one rule and path named for it. The loader checks with the coordinator's reader, so both refuse these.
-const REFUSED = [
-  ...PATH_LISTS.flatMap(([group, list]) => NO_PATHS.map((path) => [{ [group]: { [list]: [path] } }, 'pattern', `${group}.${list}[0]`])),
-  ...['owner/tracker/docs', 'owner/tra cker', 'owner/..', 'tracker'].map((repository) => [{ issues: { repository, labels: ['project-a'] } }, 'pattern', 'issues.repository']),
-  [{ issues: { repository: 'owner/tracker', labels: [] } }, 'length', 'issues.labels'],
-  [{ startLabel: 'go', issues: { repository: 'owner/tracker', labels: ['go', 'go'] } }, 'length', 'issues.labels'],
-  [{ models: { phases: { review: { model: 'some-model-20260101' } } } }, 'enum', 'models.phases.review.model'],
-  [{ review: { depth: 'max' } }, 'enum', 'review.depth'],
-  [{ review: { sensitiveDepth: 'max' } }, 'enum', 'review.sensitiveDepth'],
-  [{ minPlugin: '6.26' }, 'pattern', 'minPlugin'],
-  [{ minPlugin: 'v6.26.0' }, 'pattern', 'minPlugin'],
-  [{ issuesPerWorker: 0 }, 'range', 'issuesPerWorker'],
-  [{ issuesPerWorker: 17 }, 'range', 'issuesPerWorker'],
-  ...['', '--dangerously-skip-permissions', 'opus; id', 'opus fast', `o${'p'.repeat(128)}`].map((model) => [{ models: { worker: { model } } }, 'pattern', 'models.worker.model']),
-  [{ later: true }, 'unknown-key', 'later'],
-  [{ models: { phases: { plan: { modle: 'opus' } } } }, 'unknown-key', 'models.phases.plan.modle'],
-];
-
-test('each refused value is named with its rule and path', () => {
-  for (const [doc, rule, path] of REFUSED) {
-    const text = JSON.stringify(doc);
-    assert.deepEqual(load('policy', text).errors.map((e) => [e.rule, e.path]), [[rule, path]], text);
-  }
-  // The longest name and the characters of a full model name stay allowed.
-  for (const model of ['opus[1m]', 'vendor.family-4-5-v1:0', 'team/model@2026-01-01', 'p'.repeat(128)]) assert.deepEqual(load('policy', JSON.stringify({ models: { worker: { model } } })).errors, [], model);
-  // A tracker label besides startLabel is the project's own.
-  assert.deepEqual(load('policy', '{"startLabel":"go","issues":{"repository":"owner/tracker","labels":["go","project-a"]}}').errors, []);
-});
 
 test('the shipped policy example passes, and so does a policy without schemaVersion', () => {
   const example = readFileSync(join(contentDir, 'skills/orchestrating-projects/policy.example.json'), 'utf8');

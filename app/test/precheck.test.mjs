@@ -18,8 +18,10 @@ test('precheck: picks labeled issues by trusted authors that have no open or mer
     issue(4, { labels: [{ name: 'other' }] }),
     issue(5, { pull_request: {} }),
     issue(6),
+    // GitHub compares label names without case.
+    issue(7, { labels: [{ name: 'Agent-Ready' }] }),
   ];
-  assert.deepEqual(pickable(POLICY, issues, [{ headRefName: 'fix/6-crash' }, { headRefName: 'feat/16-x' }]), [1, 3]);
+  assert.deepEqual(pickable(POLICY, issues, [{ headRefName: 'fix/6-crash' }, { headRefName: 'feat/16-x' }]), [1, 3, 7]);
   assert.deepEqual(pickable({}, issues, []), []);
   assert.deepEqual(pickable(null, issues, []), []);
 });

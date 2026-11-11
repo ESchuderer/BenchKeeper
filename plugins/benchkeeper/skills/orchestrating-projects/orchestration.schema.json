@@ -61,7 +61,7 @@
       "properties": {
         "depth": { "enum": ["low", "medium", "high", "xhigh"] },
         "sensitiveDepth": { "enum": ["low", "medium", "high", "xhigh"] },
-        "sensitivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s))*/?$" } }
+        "sensitivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s))*/?$" } }
       }
     },
     "merge": {
@@ -72,8 +72,8 @@
         "allowed": { "type": "boolean" },
         "requiredChecks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "mode": { "enum": ["strict", "disjoint"] },
-        "additivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s))*/?$" } },
-        "ownerOnlyPaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}]+(?<!\\s))*/?$" } }
+        "additivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s))*/?$" } },
+        "ownerOnlyPaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s))*/?$" } }
       }
     },
     "closeIssue": { "type": "boolean" },

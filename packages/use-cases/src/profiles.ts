@@ -159,7 +159,7 @@ const fetchAll = async (
     findings.push(...got.value.findings);
   }
   const keys = keptKeys(resolved, fetched, project);
-  // A project's pack that the machine's plan never reads may be refused: the record then stays whole, with its waits.
+  // A pack of the other level, which this plan never reads, may be refused: the record then stays whole, with its waits.
   const kept = Object.entries(record.value).filter(([key]) => !keys.ok || keys.value.has(key));
   const next = { ...Object.fromEntries(kept), ...entries };
   if (!readOnly && canonicalJson(next) !== canonicalJson(record.value)) writeRecord(state, next);

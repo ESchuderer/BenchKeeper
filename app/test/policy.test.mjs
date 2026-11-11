@@ -104,7 +104,7 @@ test('policy: a path entry that leaves the repository, starts at its root or hol
 });
 
 const PATH_LISTS = [['merge', 'ownerOnlyPaths'], ['merge', 'additivePaths'], ['review', 'sensitivePaths']];
-const NO_PATHS = ['', '/x', '../x', 'x/..', 'a/*', 'a\\b', './x', 'x//y', 'x/./y', ' x', 'x ', 'x /y', '.', 'x\ny', 'x\0y', 'infra​', 'x y', 'a‮b'];
+const NO_PATHS = ['', '/x', '../x', 'x/..', 'a/*', 'a\\b', './x', 'x//y', 'x/./y', ' x', 'x ', 'x /y', '.', 'x\ny', 'x\0y', 'infra\u200B', 'x\u00A0y', 'a\u202Eb'];
 // One refused document per row, with the one rule and path named for it.
 const REFUSED = [
   ...PATH_LISTS.flatMap(([group, list]) => NO_PATHS.map((path) => [{ [group]: { [list]: [path] } }, 'pattern', `${group}.${list}[0]`])),

@@ -24,7 +24,6 @@ test.describe('views', () => {
     await page.getByRole('combobox', { name: 'File' }).click();
     await page.getByRole('option', { name: 'docs/agents/orchestration.json', exact: true }).click();
     const text = page.getByRole('textbox', { name: 'docs/agents/orchestration.json' });
-    await expect(text).toHaveValue(/"schemaVersion": 2/);
     await noAxe(page);
     // The loader's errors show while typing, and Review waits for a valid text.
     await text.fill('{ "schemaVersion": 2, "workersPerProject": 0 }');

@@ -1,8 +1,6 @@
-// Sample precheck for a scheduled coordinator run: exit 0 when a project has an issue to pick, else 1. Read only.
-// Usage: node precheck.mjs <project paths...>
-// Pickable: open, carries the policy's startLabel and every issues.labels entry, written by a trusted author, and no open or merged pull request has a head
-// branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand; an open one from a fork does not count, since anyone can open it). The policy comes from the reader (policy.mjs).
-// With issues.repository the issues are that tracker's, whose numbers can equal those of the project's own old branches: a pull request then counts only when its body also holds <owner/repo>#<number> or the issue's URL.
+// Usage: node precheck.mjs <project paths...>. Sample precheck for a scheduled coordinator run: exit 0 when a project has an issue to pick, else 1. It starts and merges nothing.
+// Pickable: open, carries startLabel and every issues.labels entry, written by a trusted author, and no pull request for it: none merged or open in the repository with a head branch <type>/<number>-<slug> (an open one from a fork does not count, since anyone can open it).
+// A tracker's numbers (issues.repository) can equal those of the project's own old branches: a pull request then counts only when its body also holds <owner/repo>#<number> or the issue's URL.
 import { errorLine, isMain, read, sh } from './policy.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
@@ -20,7 +18,7 @@ export function pickable(policy, issues, pulls) {
   const tracker = policy.issues?.repository;
   return issues
     .filter((i) => !i.pull_request && (TRUSTED.includes(i.author_association) || trusted.has(i.user?.login)))
-    .filter((i) => labels.every((label) => i.labels.some((l) => l.name === label)))
+    .filter((i) => labels.every((label) => i.labels.some((l) => l.name.toLowerCase() === label.toLowerCase())))
     .filter((i) => !pulls.some((p) => p.headRefName.includes(`/${i.number}-`) && (!tracker || refers(p.body, tracker, i.number))))
     .map((i) => i.number);
 }

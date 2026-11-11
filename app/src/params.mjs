@@ -1,17 +1,12 @@
-// The orchestrator policy as validated JSON. The check is the coordinator's own, policy.mjs beside its schema in
-// <content>/skills/orchestrating-projects/, so the editor refuses exactly the files the coordinator's reader refuses. The loader
-// returns the parsed document untouched, so "//" comment keys survive a round trip; it reads no step order, the coordinating session decides that.
+// The orchestrator policy as validated JSON, checked by the coordinator's own reader (policy.mjs in the content), so the editor refuses exactly the files the reader refuses; the document is returned as parsed, so "//" comment keys survive a round trip.
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { contentDir } from './content.mjs';
 import { readText } from './fsx.mjs';
 
 export const FILES = { policy: ['docs/agents/orchestration.json'] };
-// Every rule an error can name; the tests keep one invalid fixture for each.
-export const RULES = ['bad-json', 'not-object', 'type', 'length', 'range', 'enum', 'pattern', 'unknown-key', 'missing-key'];
-// Imported when the module loads: the content lies in the package (content/) or in the clone (plugins/benchkeeper/), so no static path names it.
-// A stale content folder without the reader must not keep the app from starting: only the editor then fails, and says why.
-const reader = await import(pathToFileURL(join(contentDir, 'skills/orchestrating-projects/policy.mjs')).href).catch(() => ({}));
+// No static path names the content (content/ in the package, plugins/benchkeeper/ in a clone); a content folder whose reader does not load must not keep the app from starting, so only the editor fails, with the reason.
+const reader = await import(pathToFileURL(join(contentDir, 'skills/orchestrating-projects/policy.mjs')).href).catch((e) => ({ failed: e.message.split('\n')[0] }));
 const VALIDATE = { policy: reader.validate };
 
 // text: the file's content, null when it does not exist. Returns the document as parsed and the errors; no input is changed.
@@ -19,7 +14,7 @@ export function load(family, text) {
   if (text == null) return { doc: null, errors: [] };
   let doc;
   try { doc = JSON.parse(text); } catch { return { doc: null, errors: [{ rule: 'bad-json', path: '', message: 'is not valid JSON' }] }; }
-  if (typeof VALIDATE[family] !== 'function') throw new Error(`the content in ${contentDir} has no policy reader: update it`);
+  if (typeof VALIDATE[family] !== 'function') throw new Error(`the content in ${contentDir} has no usable policy reader (${reader.failed ?? 'policy.mjs exports no validate'}): update it`);
   return { doc, errors: VALIDATE[family](doc) };
 }
 // The one way a document is written back: two-space indent, key order as read.

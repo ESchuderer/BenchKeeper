@@ -1,5 +1,5 @@
 import { isUtf8 } from "node:buffer";
-import { existsSync, lstatSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
   FILES_RECORD,
@@ -9,7 +9,7 @@ import {
   sealedTarget,
   targetClass,
 } from "@cedarloom/contracts";
-import { readJson } from "@cedarloom/engine";
+import { readRegular } from "@cedarloom/engine";
 import { repositoryOf } from "@cedarloom/git";
 import { sha256 } from "@cedarloom/ledger";
 import { fileWrite, mergeSets, onDisk, textOf, unknownApprovals, waiting, withPlugins, within } from "./machine.ts";
@@ -202,15 +202,15 @@ export const hasContainer = (project: string): boolean =>
 // A package.json that names @mantine/core in its dependencies, dev or peer dependencies. Only a regular file up to 1 MiB
 // is read, as a FIFO would block the plan and a link to /dev/zero would fill memory (docs/agents/git-and-processes.md).
 const namesMantine = (folder: string): boolean => {
-  const path = join(folder, "package.json");
+  let json: unknown;
   try {
-    const stat = lstatSync(path, { throwIfNoEntry: false });
-    if (!stat?.isFile() || stat.size > 1024 * 1024) return false;
+    const bytes = readRegular(join(folder, "package.json"), 1024 * 1024)?.bytes ?? null;
+    if (bytes === null) return false;
+    // A byte-order mark, as Windows editors save one, still leaves JSON.
+    json = JSON.parse(bytes.toString("utf8").replace(/^\uFEFF/, ""));
   } catch {
     return false;
   }
-  const file = readJson(path);
-  const json = file.ok ? file.value.json : null;
   if (typeof json !== "object" || json === null) return false;
   return ["dependencies", "devDependencies", "peerDependencies"].some((key) => {
     const listed: unknown = Object.hasOwn(json, key) ? Reflect.get(json, key) : null;

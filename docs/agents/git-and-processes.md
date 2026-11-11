@@ -20,7 +20,7 @@ Read this before changing code that runs git or another program. Each item names
 ## Files
 
 - **Case and device names.** macOS and Windows file systems join names that differ only in case, and Windows opens a device for a name such as `con` or `nul`. Drafts are one lower-case file per workflow id behind a prefix (`pathOf` in `packages/use-cases/src/drafts.ts`).
-- **Links and FIFOs.** An open follows a symbolic link and waits on a FIFO. Reads that must do neither open with `O_NOFOLLOW` and `O_NONBLOCK` (`READ` in `packages/use-cases/src/drafts.ts`). Windows has neither flag, and making a link there takes admin rights or developer mode.
+- **Links and FIFOs.** An open follows a symbolic link and waits on a FIFO. Reads that must do neither open with `O_NOFOLLOW` and `O_NONBLOCK` (`readRegular` in `packages/engine/src/files.ts`). Windows has neither flag, and making a link there takes admin rights or developer mode.
 - **Flushing a folder** fails on Windows, which cannot open one; NTFS journals the rename instead (`flushFolder` in `packages/engine/src/files.ts`).
 
 CedarLoom's Windows-only branches run only in the Windows leg of its test job (`.github/workflows/cedarloom.yml`). The legacy app runs on Windows only in the `app-windows-smoke` job (start, plan, apply).

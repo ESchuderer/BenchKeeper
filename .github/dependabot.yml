@@ -1,4 +1,4 @@
-# Version updates for the `uses:` pins (SHA plus version comment) and the npm packages of the site, the app, .github/pnpm and
+# Version updates for the `uses:` pins (SHA plus version comment; the app's workflow templates too) and the npm packages of the site, the app, .github/pnpm and
 # .github/codex.
 # Not covered, bumped by hand: the actionlint image digest in checks.yml, node-version (checks, pages and npm workflows) and
 # the Node image and pnpm of .devcontainer/Dockerfile, which follow NODE_VERSION of cedarloom.yml and .github/pnpm (Node 26;
@@ -10,8 +10,10 @@
 # in .github/codex.
 version: 2
 updates:
+  # The second folder holds the workflow templates the app writes into a project: outside `/`, Dependabot reads every
+  # .yml file of the folder itself (file_fetcher.rb of dependabot-core's github_actions), so their pins move with ours.
   - package-ecosystem: github-actions
-    directory: /
+    directories: ['/', '/app/src/baseline/templates/ci']
     schedule:
       interval: weekly
     cooldown:
@@ -19,6 +21,9 @@ updates:
     groups:
       actions:
         patterns: ['*']
+  # @playwright/test is in no group here or in the two npm entries below: the dev container installs the same version's
+  # browser, and the version pins check fails until the three package files and .devcontainer/Dockerfile agree. Its
+  # own pull requests say a release is out; raise it by hand in one pull request, which closes them.
   - package-ecosystem: npm
     directory: /web
     schedule:
@@ -28,6 +33,7 @@ updates:
     groups:
       web:
         update-types: [minor, patch]
+        exclude-patterns: ['@playwright/test']
   - package-ecosystem: npm
     directory: /app
     schedule:
@@ -37,6 +43,7 @@ updates:
     groups:
       app:
         update-types: [minor, patch]
+        exclude-patterns: ['@playwright/test']
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -54,7 +61,7 @@ updates:
         patterns: ['@mantine/*']
       cedarloom:
         update-types: [minor, patch]
-        exclude-patterns: ['@mantine/*']
+        exclude-patterns: ['@mantine/*', '@playwright/test']
   - package-ecosystem: npm
     directory: /.github/pnpm
     schedule:

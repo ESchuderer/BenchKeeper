@@ -42,9 +42,9 @@
     "@cedarloom/server": "workspace:*",
     "@cedarloom/ui": "workspace:*",
     "@cedarloom/use-cases": "workspace:*",
-    "@commander-js/extra-typings": "15.0.0",
+    "@commander-js/extra-typings": "15.1.0",
     "@napi-rs/keyring": "2.1.2",
-    "commander": "15.0.0"
+    "commander": "15.1.0"
   },
   "devDependencies": {
     "@cedarloom/ledger": "workspace:*",

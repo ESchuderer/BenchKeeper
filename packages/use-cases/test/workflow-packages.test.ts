@@ -136,7 +136,8 @@ test("installing at another level rebuilds the package in place, naming a packag
     ok: false,
     finding: { code: "package.not-installed", params: { id: "v" } },
   });
-});
+  // Five plans applied: over the default 5 s on the Windows runner.
+}, 30_000);
 
 // A link to it stays put when Homebrew moves the running Node.js to a new versioned folder.
 test.skipIf(process.platform === "win32")(

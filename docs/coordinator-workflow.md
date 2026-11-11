@@ -159,7 +159,7 @@ The default is false because an open run spends a turn at every tick, and a sche
 
 | Rule | Home | State |
 |---|---|---|
-| The owner is asked in the session only while terminal questions are allowed, else in the issue tracker | skill text (`SKILL.md:108`) | exists |
+| The owner is asked in the session only while terminal questions are allowed, else by an approval filed in the hub repository, or in the project's tracker where no hub is set (`approvals.md`) | skill text (`SKILL.md:108`) | exists |
 | A worker takes the safest reversible option and writes it in the pull request | spec (`spec-template.md:42`) | exists |
 | A worker flags work that is wrong, too big or against a recorded decision, and never widens its scope | spec (`spec-template.md:46`), and the question path below | exists |
 | Work that splits into several pull requests: the worker reports NEEDS_REPLAN with the slices, and the coordinator lists them for the owner, who splits the issue | spec (`spec-template.md:46`), skill text (`SKILL.md:78`) | exists |
@@ -202,8 +202,8 @@ Decision: "decide the safest reversible option" stays the first rule, and one qu
 
 - A worker asks only what it may not decide: the spec against trusted-author text, a recorded decision against the task, a choice that is not safe and reversible. One batch, as early as it knows, and it continues with what does not depend on the answer. When nothing else is left it ends the turn and the runner wakes it.
 - The coordinator answers at its next wake, only from what is written: trusted-author text of the issue, the policy and `AGENTS.md` as the default branch has them, and recorded decisions. It never reads them in the worker's branch or worktree, where the worker could write its own answer.
-- An answer never changes the Authority block, the policy or who merges. A question that asks for more (a path, a branch, a skipped check) stays a replan, with a new spec and one replan per issue and run (`SKILL.md:78`).
-- A question that these sources do not settle is the owner's: it goes to the issue tracker (`SKILL.md:108`), and the worker gets "parked", which means the safest reversible option marked "pending owner decision", or BLOCKED when there is none.
+- An answer never changes the Authority block, the policy or who merges. A question that asks for more (a path, a branch, a skipped check) gets no more: it is the owner's, and the worker is told "parked". A spec that does not fit stays a NEEDS_REPLAN report, with a new spec and one replan per issue and run (`SKILL.md:78`).
+- A question that these sources do not settle is the owner's: it is filed as an approval (`approvals.md`), and the worker gets "parked", which means the safest reversible option marked "pending owner decision", or BLOCKED when there is none.
 - Each answer the coordinator gives is a decision in the handoff file (`SKILL.md:107`).
 - NEEDS_REPLAN stays for a spec that does not fit at all, and for runners without a question command.
 

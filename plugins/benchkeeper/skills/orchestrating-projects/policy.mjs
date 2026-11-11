@@ -131,15 +131,21 @@ const unreadable = (message) => ({ policy: null, errors: [{ rule: 'unreadable', 
 
 // The effective policy of the project in dir. A project without the file gets the defaults, which start and merge nothing.
 export function read(dir, run = sh) {
-  // The fetch touches only the reader's ref: no submodules, and not the FETCH_HEAD a session in this worktree may rely on.
-  try { run(dir, 'git', ['fetch', '--quiet', '--no-tags', '--no-recurse-submodules', '--no-write-fetch-head', 'origin', `+HEAD:${REF}`]); } catch (e) {
+  let commit;
+  try {
+    // The commit is asked of the remote and both reads name it: a worker shares this git directory and could move the reader's ref between the fetch and the read.
+    commit = /^([0-9a-f]{40}|[0-9a-f]{64})\tHEAD$/m.exec(run(dir, 'git', ['ls-remote', 'origin', 'HEAD']))?.[1];
+    // The fetch touches only the reader's ref: no submodules, and not the FETCH_HEAD a session in this worktree may rely on.
+    run(dir, 'git', ['fetch', '--quiet', '--no-tags', '--no-recurse-submodules', '--no-write-fetch-head', 'origin', `+HEAD:${REF}`]);
+  } catch (e) {
     return unreadable(e.code === 'ENOENT' ? 'the folder does not exist, or git is not installed' : "git could not fetch origin's HEAD: no git repository here, no remote named origin, no answer from it, or no default branch there");
   }
+  if (!commit) return unreadable("origin names no commit as its HEAD");
   let text;
   try {
     // ls-tree decides whether the file exists, so a show that fails is never read as "no file", which would mean the defaults. --full-tree: the path counts from the repository root, as in the show, also when dir is a folder below it.
-    if (!run(dir, 'git', ['ls-tree', '--full-tree', '--name-only', REF, '--', FILE]).trim()) return effective({});
-    text = run(dir, 'git', ['show', `${REF}:${FILE}`]);
+    if (!run(dir, 'git', ['ls-tree', '--full-tree', '--name-only', commit, '--', FILE]).trim()) return effective({});
+    text = run(dir, 'git', ['show', `${commit}:${FILE}`]);
   } catch { return unreadable(`git could not read ${FILE} from origin's default branch`); }
   let doc;
   try { doc = JSON.parse(text); } catch { return { policy: null, errors: [{ rule: 'bad-json', path: '', message: 'is not valid JSON' }] }; }

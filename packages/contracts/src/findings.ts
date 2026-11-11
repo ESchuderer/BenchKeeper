@@ -94,6 +94,8 @@ export const Finding = z
     /** The guard's or the exit hook's bundle, which every package carries, is missing from the CLI's hooks folder. */
     finding("package.hooks-missing", { path: z.string() }),
     finding("package.not-installed", { id: z.string() }),
+    /** A stored workflow whose `minApp` is above this CedarLoom: no package of it is built. */
+    finding("package.app-too-old", { id: z.string(), minApp: z.string(), app: z.string() }),
     /** Two workflow ids fold to one plugin name: `id` is the workflow whose package the plugin holds. */
     finding("package.plugin-taken", { plugin: z.string(), id: z.string() }),
     /**
@@ -196,7 +198,8 @@ export const Finding = z
       path: z.string(),
       kind: z.enum(["rules", "template", "profile", "skill"]),
     }),
-    finding("profile.app-too-old", { minApp: z.string(), app: z.string() }),
+    /** `pack` names the Git pack whose manifest asks for the newer CedarLoom; absent for the profile file itself. */
+    finding("profile.app-too-old", { minApp: z.string(), app: z.string(), pack: z.string().optional() }),
     /** A part the selection or a `requires` names that the profile does not hold, both as `level.id`. */
     finding("profile.part-unknown", { part: z.string(), by: z.string() }),
     finding("profile.part-requires", { part: z.string(), requires: z.string() }),
@@ -439,6 +442,7 @@ export const findingInfo: Record<FindingCode, FindingInfo> = {
   "package.approval-needed": { severity: "warning", effort: "command" },
   "package.hooks-missing": { severity: "error", effort: "command" },
   "package.not-installed": { severity: "error", effort: "manual" },
+  "package.app-too-old": { severity: "error", effort: "manual" },
   "package.plugin-taken": { severity: "error", effort: "manual" },
   "package.levels-mixed": { severity: "warning", effort: "command" },
   "package.codex-missing": { severity: "info", effort: "command" },

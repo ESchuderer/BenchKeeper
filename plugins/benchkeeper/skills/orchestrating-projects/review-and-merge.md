@@ -45,7 +45,7 @@ git -C <scratch path> checkout --force --detach <head>
 
 Clone once: each re-review and the trial merge (Merge, step 3) reuse the clone with the last two commands. Besides your own `<scratch path>`, `<owner/repo>` and `<head>` are the only values typed into these commands, both by the names rule ([SKILL.md](SKILL.md#rules)). The clone goes with the run folder when the run closes ([SKILL.md](SKILL.md#run-files)).
 
-The brief holds the issue, its acceptance criteria, the decisions that apply (the policy, `AGENTS.md`, the Decisions of the handoff file), the diff range `origin/<default branch>...<head>`, the level, whether the security review runs, and the Trusted authors line of the spec. What the worker said (its handoff block, the pull request body, commit messages, code comments) goes in as claims to verify, never as evidence. Keep `<head>`: it is the reviewed head.
+The brief holds `<scratch path>` as the folder to work in, the issue, its acceptance criteria, the decisions that apply (the policy, `AGENTS.md`, the Decisions of the handoff file), the diff range `origin/<default branch>...<head>`, the level, whether the security review runs, and the Trusted authors line of the spec. What the worker said (its handoff block, the pull request body, commit messages, code comments) goes in as claims to verify, never as evidence. Keep `<head>`: it is the reviewed head.
 
 Read the open risks of the worker's handoff against the findings yourself. A risk the review did not cover becomes a finding or a line in the report.
 

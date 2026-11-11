@@ -139,40 +139,55 @@ test("a skill entry that may run, reached through a pack that follows a branch, 
   });
 });
 
-test("a pack that moves to a manifest for a newer CedarLoom stops the plan, and the record keeps its skill's source", async () => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  try {
-    const [url, own] = ["https://git.example.org/acme/newer.git", "https://git.example.org/acme/newer-skill.git"];
-    const entries = { "skills/text": { kind: "skill", source: { git: own, ref: "main" } } };
-    const used = publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries) });
-    const text = publish(own, { "SKILL.md": "x\n" });
-    const part = { type: "packs", title: "Packs", default: "on", packs: ["acme.newer"] };
-    const { state, plan } = machineWith({}, { "acme.newer": { git: url, ref: "main" } }, { packs: part });
-    const project = mkdtempSync(join(root, "project-"));
-    ok(await plan(project));
-    const newer = publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries, "9.0.0") });
-    ok(await plan(project));
-    vi.setSystemTime(Date.now() + 3 * DAY);
-    expect(await plan(project)).toMatchObject({
-      ok: false,
-      finding: { code: "profile.app-too-old", params: { minApp: "9.0.0", pack: "acme.newer" } },
-    });
-    // Each source the record follows, by its `sourceKey`, with the commit in use.
-    const followed = () => {
-      const record: Record<string, { commit: string }> = JSON.parse(
-        readFileSync(join(state, "pack-sources.json"), "utf8"),
-      ).sources;
-      return Object.fromEntries(Object.entries(record).map(([key, { commit }]) => [key, commit]));
-    };
-    const [pack, skillSource] = [JSON.stringify([url, "main", ""]), JSON.stringify([own, "main", ""])];
-    expect(followed()).toEqual({ [pack]: used.commit, [skillSource]: text.commit });
-    // The machine's plan reads no entry of the pack: it goes on, takes the pack's commit, and keeps the skill's source.
-    ok(await plan());
-    expect(followed()).toEqual({ [pack]: newer.commit, [skillSource]: text.commit });
-  } finally {
-    vi.useRealTimers();
-  }
-});
+// A skill of the pack acme.newer, whose entry has a Git source of its own: through a project's packs part, or a machine's.
+const NEWER = {
+  project: [{}, { packs: { type: "packs", title: "Packs", default: "on", packs: ["acme.newer"] } }],
+  machine: [skill({ pack: "acme.newer", path: "skills/text" }), {}],
+} as const;
+test.for(["project", "machine"] as const)(
+  "a pack that moves to a manifest for a newer CedarLoom stops the %s's plan, and the record keeps its skill's source",
+  async (level) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const [url, own] = [
+        `https://git.example.org/acme/${level}.git`,
+        `https://git.example.org/acme/${level}-skill.git`,
+      ];
+      const entries = { "skills/text": { kind: "skill", source: { git: own, ref: "main" } } };
+      const used = publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries) });
+      const text = publish(own, { "SKILL.md": "x\n" });
+      const { state, plan } = machineWith(
+        NEWER[level][0],
+        { "acme.newer": { git: url, ref: "main" } },
+        NEWER[level][1],
+      );
+      const project = level === "project" ? mkdtempSync(join(root, "project-")) : undefined;
+      ok(await plan(project));
+      const newer = publish(url, { "cedarloom-pack.json": manifestOf("acme.newer", entries, "9.0.0") });
+      ok(await plan(project));
+      vi.setSystemTime(Date.now() + 3 * DAY);
+      expect(await plan(project)).toMatchObject({
+        ok: false,
+        finding: { code: "profile.app-too-old", params: { minApp: "9.0.0", pack: "acme.newer" } },
+      });
+      // Each source the record follows, by its `sourceKey`, with the commit in use.
+      const followed = () => {
+        const record: Record<string, { commit: string }> = JSON.parse(
+          readFileSync(join(state, "pack-sources.json"), "utf8"),
+        ).sources;
+        return Object.fromEntries(Object.entries(record).map(([key, { commit }]) => [key, commit]));
+      };
+      const [pack, skillSource] = [JSON.stringify([url, "main", ""]), JSON.stringify([own, "main", ""])];
+      expect(followed()).toEqual({ [pack]: used.commit, [skillSource]: text.commit });
+      if (level === "machine") return;
+      // The machine's plan reads no entry of the pack: it goes on, takes the pack's commit, and keeps the skill's source.
+      ok(await plan());
+      expect(followed()).toEqual({ [pack]: newer.commit, [skillSource]: text.commit });
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);
 
 test("while a new commit waits and the one in use cannot be fetched, the plan stops and names the source", async () => {
   const url = "https://git.example.org/acme/gone.git";

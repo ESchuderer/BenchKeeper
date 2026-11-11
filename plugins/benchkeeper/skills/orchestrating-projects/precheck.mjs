@@ -23,15 +23,24 @@ export function pickable(policy, issues, pulls) {
     .map((i) => i.number);
 }
 
+// gh resolves a bare `gh pr list` and {owner}/{repo} through an upstream remote or a set default; the policy came from origin, so origin's repository is named.
+// shortcut: owner/repo on gh's default host, set GH_HOST for a GitHub Enterprise origin.
+const originRepo = (dir, run) => {
+  const repo = /[:/]([A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+?)(?:\.git)?\/?$/.exec(run(dir, 'git', ['remote', 'get-url', 'origin']).trim())?.[1];
+  if (!repo || /\/\.\.?$/.test(repo)) throw new Error("origin's URL names no repository as owner/repo");
+  return repo;
+};
+
 export function check(dir, run = sh) {
   const { policy, errors } = read(dir, run);
   // Thrown, so the command line names the project and why nothing starts there, as it does for a failed command.
   if (!policy) throw new Error(errors.map(errorLine).join('; '));
   if (!policy.startLabel) return [];
   const tracker = policy.issues.repository;
+  const repo = originRepo(dir, run);
   const labels = [policy.startLabel, ...policy.issues.labels].map(encodeURIComponent).join(',');
-  const issues = JSON.parse(run(dir, 'gh', ['api', '--paginate', '--slurp', `repos/${tracker ?? '{owner}/{repo}'}/issues?state=open&per_page=100&labels=${labels}`])).flat();
-  const pulls = JSON.parse(run(dir, 'gh', ['pr', 'list', '--state', 'all', '--limit', '1000', '--json', `headRefName,state,isCrossRepository${tracker ? ',body' : ''}`]))
+  const issues = JSON.parse(run(dir, 'gh', ['api', '--paginate', '--slurp', `repos/${tracker ?? repo}/issues?state=open&per_page=100&labels=${labels}`])).flat();
+  const pulls = JSON.parse(run(dir, 'gh', ['pr', 'list', '-R', repo, '--state', 'all', '--limit', '1000', '--json', `headRefName,state,isCrossRepository${tracker ? ',body' : ''}`]))
     .filter((p) => p.state === 'MERGED' || (p.state !== 'CLOSED' && !p.isCrossRepository));
   return pickable(policy, issues, pulls);
 }

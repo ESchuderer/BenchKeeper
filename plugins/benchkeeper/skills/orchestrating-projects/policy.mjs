@@ -4,8 +4,8 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const FILE = 'docs/agents/orchestration.json';
-// Pull requests on these paths are left for the owner: a policy adds to the list and cannot shorten it.
-const OWNER_ONLY = ['.github/workflows', '.github/dependabot.yml', FILE, 'docs/agents/worker-rules.md'];
+// Pull requests on these paths are left for the owner, and a policy adds to the list and cannot shorten it: what CI runs and who reviews (.github, CODEOWNERS), what agents may do (.claude, .mcp.json), and the coordinator's own rules.
+const OWNER_ONLY = ['.github', 'CODEOWNERS', 'docs/CODEOWNERS', '.claude', '.mcp.json', FILE, 'docs/agents/worker-rules.md'];
 // A worker session's model and effort by the tier of its task.
 const TIERS = { quick: ['sonnet', 'high'], standard: ['opus', 'high'], full: ['opus', 'xhigh'], research: ['fable', 'xhigh'] };
 

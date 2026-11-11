@@ -4,8 +4,10 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const FILE = 'docs/agents/orchestration.json';
-// Pull requests on these paths are left for the owner, and a policy adds to the list and cannot shorten it: what CI runs and who reviews (.github, CODEOWNERS), what agents may do (.claude, .mcp.json), and the coordinator's own rules.
-const OWNER_ONLY = ['.github', 'CODEOWNERS', 'docs/CODEOWNERS', '.claude', '.mcp.json', FILE, 'docs/agents/worker-rules.md'];
+// Pull requests on these paths are left for the owner, and a policy adds to the list and cannot shorten it: what CI runs and who reviews (.github, CODEOWNERS), and the coordinator's own rules.
+const OWNER_ONLY = ['.github', 'CODEOWNERS', 'docs/CODEOWNERS', FILE, 'docs/agents/worker-rules.md'];
+// A path with one of these names as a segment is the owner's at any depth: Claude Code also loads the skills of a .claude folder below the root, and they decide what agents may do.
+const OWNER_ONLY_NAMES = ['.claude', '.mcp.json'];
 // A worker session's model and effort by the tier of its task.
 const TIERS = { quick: ['sonnet', 'high'], standard: ['opus', 'high'], full: ['opus', 'xhigh'], research: ['fable', 'xhigh'] };
 
@@ -105,6 +107,7 @@ export function effective(doc, version = pluginVersion()) {
         mode: merge.mode ?? 'strict',
         additivePaths: merge.additivePaths ?? [],
         ownerOnlyPaths: [...new Set([...OWNER_ONLY, ...(merge.ownerOnlyPaths ?? [])])],
+        ownerOnlyNames: OWNER_ONLY_NAMES,
       },
       closeIssue: doc.closeIssue ?? false,
       deleteMergedBranch: doc.deleteMergedBranch ?? false,

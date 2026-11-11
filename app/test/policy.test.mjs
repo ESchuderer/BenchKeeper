@@ -8,14 +8,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { effective, read, validate } from '../../plugins/benchkeeper/skills/orchestrating-projects/policy.mjs';
 import { initRepo } from './helpers.mjs';
 
-const BUILT_IN = ['.github', 'CODEOWNERS', 'docs/CODEOWNERS', '.claude', '.mcp.json', 'docs/agents/orchestration.json', 'docs/agents/worker-rules.md'];
+const BUILT_IN = ['.github', 'CODEOWNERS', 'docs/CODEOWNERS', 'docs/agents/orchestration.json', 'docs/agents/worker-rules.md'];
 const DEFAULTS = {
   startLabel: null,
   trustedAuthors: [],
   workersPerProject: 1,
   hostWorkerLimit: 2,
   stallMinutes: 20,
-  merge: { allowed: false, requiredChecks: [], mode: 'strict', additivePaths: [], ownerOnlyPaths: BUILT_IN },
+  merge: { allowed: false, requiredChecks: [], mode: 'strict', additivePaths: [], ownerOnlyPaths: BUILT_IN, ownerOnlyNames: ['.claude', '.mcp.json'] },
   closeIssue: false,
   deleteMergedBranch: false,
   issuesPerWorker: 1,
@@ -52,7 +52,7 @@ test('policy: a value the schema rejects gives no policy, not the default', () =
 test('policy: the built-in owner-only paths stay first, whatever the file lists and whatever its schemaVersion', () => {
   const paths = (ownerOnlyPaths) => effective({ schemaVersion: 1, merge: { ownerOnlyPaths } }, '6.26.0').policy.merge.ownerOnlyPaths;
   assert.deepEqual(paths([]), BUILT_IN);
-  assert.deepEqual(paths(['infra', '.claude']), [...BUILT_IN, 'infra']);
+  assert.deepEqual(paths(['infra', '.github']), [...BUILT_IN, 'infra']);
 });
 
 test('policy: a key the schema does not name gives no policy, a // comment key passes', () => {

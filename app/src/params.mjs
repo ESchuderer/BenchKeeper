@@ -1,19 +1,18 @@
-// The orchestrator policy as validated JSON. Its schema ships in <content>/schemas/. The loader returns the parsed
-// document untouched, so "//" comment keys survive a round trip; it reads no step order, the
-// coordinating session decides that.
+// The orchestrator policy as validated JSON. Its schema ships in the coordinator's skill, <content>/skills/orchestrating-projects/,
+// beside the reader that checks with it. The loader returns the parsed document untouched, so "//" comment keys survive a
+// round trip; it reads no step order, the coordinating session decides that.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { contentDir } from './content.mjs';
 import { readText } from './fsx.mjs';
 
 export const FILES = { policy: ['docs/agents/orchestration.json'] };
-const SCHEMA_FILE = { policy: 'orchestration' };
+const SCHEMA_FILE = { policy: 'skills/orchestrating-projects/orchestration.schema.json' };
 // Every rule an error can name; the tests keep one invalid fixture for each.
 export const RULES = ['bad-json', 'not-object', 'type', 'length', 'range', 'enum', 'pattern', 'unknown-key'];
 
 const schemas = {};
-const schemaOf = (family) => (schemas[family] ??= JSON.parse(readFileSync(join(contentDir, 'schemas', `${SCHEMA_FILE[family]}.schema.json`), 'utf8')));
-export const SCHEMA_VERSION = (family) => Math.max(...schemaOf(family).properties.schemaVersion.enum);
+const schemaOf = (family) => (schemas[family] ??= JSON.parse(readFileSync(join(contentDir, SCHEMA_FILE[family]), 'utf8')));
 
 const kind = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v);
 

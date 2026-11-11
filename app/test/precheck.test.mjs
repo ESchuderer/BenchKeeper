@@ -55,7 +55,7 @@ test('precheck: with a tracker the issues are listed there with every label, and
   assert.ok(calls.includes('gh pr list --state all --limit 1000 --json headRefName,state,body'));
 });
 
-test('precheck: reads the policy from the default branch and skips a project without one', () => {
+test('precheck: reads the policy from the default branch, skips a project without one and names why the reader rejects one', () => {
   calls.length = 0;
   assert.deepEqual(check('/p', stub(POLICY)), [7]);
   assert.ok(calls.includes('git show origin/main:docs/agents/orchestration.json'));
@@ -63,6 +63,7 @@ test('precheck: reads the policy from the default branch and skips a project wit
   calls.length = 0;
   assert.deepEqual(check('/p', stub(null)), []);
   assert.ok(!calls.some((c) => c.startsWith('gh')));
+  assert.throws(() => check('/p', stub({ ...POLICY, merge: { mode: 'disjont' }, later: true })), /enum at merge\.mode: .+; unknown-key at later: /);
 });
 
 test('precheck and policy: started through a symlinked folder they still run, so no project means exit 1, not a silent 0', () => {

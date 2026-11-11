@@ -3,7 +3,7 @@
 // Pickable: open, carries the policy's startLabel and every issues.labels entry, written by a trusted author, and no open or merged pull request has a head
 // branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand). The policy comes from the reader (policy.mjs).
 // With issues.repository the issues are that tracker's, whose numbers can equal those of the project's own old branches: a pull request then counts only when its body also holds <owner/repo>#<number>.
-import { isMain, read, sh } from './policy.mjs';
+import { errorLine, isMain, read, sh } from './policy.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
@@ -26,8 +26,10 @@ export function pickable(policy, issues, pulls) {
 }
 
 export function check(dir, run = sh) {
-  const { policy } = read(dir, run);
-  if (!policy?.startLabel) return [];
+  const { policy, errors } = read(dir, run);
+  // Thrown, so the command line names the project and why nothing starts there, as it does for a failed command.
+  if (!policy) throw new Error(errors.map(errorLine).join('; '));
+  if (!policy.startLabel) return [];
   const tracker = policy.issues.repository;
   const labels = [policy.startLabel, ...policy.issues.labels].map(encodeURIComponent).join(',');
   const issues = JSON.parse(run(dir, 'gh', ['api', '--paginate', '--slurp', `repos/${tracker ?? '{owner}/{repo}'}/issues?state=open&per_page=100&labels=${labels}`])).flat();

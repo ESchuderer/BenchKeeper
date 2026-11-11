@@ -12,8 +12,9 @@ const OWNER_ONLY = ['.github/workflows', '.github/dependabot.yml', FILE, 'docs/a
 // A worker session's model and effort by the tier of its task.
 const TIERS = { quick: ['sonnet', 'high'], standard: ['opus', 'high'], full: ['opus', 'xhigh'], research: ['fable', 'xhigh'] };
 
-// schemas/ and content.json lie two folders above this script, in the plugin and in the app's packed content alike.
-const shipped = (path) => JSON.parse(readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8'));
+const shipped = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
+// content.json lies two folders up in the plugin and in the app's packed content; a skill folder copied alone (an agent without plugins) has none, so its version is unknown.
+const pluginVersion = () => { try { const v = shipped('../../content.json').contentVersion; return /^\d+\.\d+\.\d+$/.test(v) ? v : null; } catch { return null; } };
 
 // 64 MB: a thousand pull requests with their bodies do not fit Node's default of 1 MB.
 export const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 << 20 });
@@ -46,7 +47,7 @@ function check(s, v, path, out) {
 export function validate(doc) {
   if (kind(doc) !== 'object') return [{ rule: 'not-object', path: '', message: 'must be a JSON object' }];
   const errors = [];
-  check(shipped('schemas/orchestration.schema.json'), doc, '', errors);
+  check(shipped('./orchestration.schema.json'), doc, '', errors);
   return errors;
 }
 
@@ -55,12 +56,13 @@ const older = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').m
 const plain = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith('//')));
 
 // { policy, errors }: the policy with every default filled in, or null with the errors. Fields are read by name, whatever the file's schemaVersion.
-export function effective(doc, pluginVersion = shipped('content.json').contentVersion) {
+export function effective(doc, version = pluginVersion()) {
   const errors = validate(doc);
   if (!errors.length) {
     // Without a label of its own, two projects on one tracker would pick the same issue.
     if (doc.issues?.repository && !doc.issues.labels?.length) errors.push({ rule: 'length', path: 'issues.labels', message: 'must have at least 1 entry when issues.repository is set' });
-    if (doc.minPlugin && older(pluginVersion, doc.minPlugin)) errors.push({ rule: 'range', path: 'minPlugin', message: `must be at most ${pluginVersion}, the version of this plugin` });
+    if (doc.minPlugin && !version) errors.push({ rule: 'range', path: 'minPlugin', message: 'cannot be checked: the version of this plugin is unknown (no content.json two folders above the skill)' });
+    else if (doc.minPlugin && older(version, doc.minPlugin)) errors.push({ rule: 'range', path: 'minPlugin', message: `must be at most ${version}, the version of this plugin` });
   }
   if (errors.length) return { policy: null, errors };
   const { merge = {}, review = {}, issues = {}, models = {} } = doc;
@@ -112,13 +114,15 @@ export function read(dir, run = sh) {
   return effective(doc);
 }
 
+export const errorLine = (e) => `${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`;
+
 // Node resolves symlinks for import.meta.url but keeps process.argv[1] as typed: compared as real paths, the command line also runs through a symlinked folder.
 export const isMain = (url) => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(url)); } catch { return false; } };
 if (isMain(import.meta.url)) {
   try {
     if (process.argv.length !== 3) throw new Error('usage: node policy.mjs <project path>');
     const { policy, errors } = read(process.argv[2]);
-    for (const e of errors) console.error(`${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`);
+    for (const e of errors) console.error(errorLine(e));
     if (policy) console.log(JSON.stringify(policy, null, 2));
     process.exitCode = policy ? 0 : 1;
   } catch (e) {

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { effective, read } from '../../plugins/benchkeeper/skills/orchestrating-projects/policy.mjs';
 import { initRepo } from './helpers.mjs';
 
@@ -101,6 +101,17 @@ test('policy: a path entry that leaves the repository, starts at its root or hol
   assert.deepEqual(rules(errors), [['pattern', 'merge.ownerOnlyPaths[0]'], ['pattern', 'merge.ownerOnlyPaths[1]'], ['pattern', 'merge.ownerOnlyPaths[2]']]);
   // A folder with a closing slash, a file below a folder and a name that only starts with two dots are paths.
   assert.deepEqual(effective({ merge: { additivePaths: ['schemas/', 'docs/registry.json', '..cache'] } }, '6.26.0').policy.merge.additivePaths, ['schemas/', 'docs/registry.json', '..cache']);
+});
+
+test('policy: a skill folder copied alone, as for an agent without plugins, checks with its own schema; minPlugin cannot be checked there and gives no policy', async () => {
+  const copy = join(mkdtempSync(join(tmpdir(), 'bk-policy-')), 'skills', 'orchestrating-projects');
+  cpSync(fileURLToPath(new URL('../../plugins/benchkeeper/skills/orchestrating-projects', import.meta.url)), copy, { recursive: true });
+  const copied = await import(pathToFileURL(join(copy, 'policy.mjs')).href);
+  assert.equal(copied.effective({ startLabel: 'go', merge: { mode: 'disjoint' } }).policy.merge.mode, 'disjoint');
+  assert.deepEqual(rules(copied.effective({ merge: { mode: 'disjont' } }).errors), [['enum', 'merge.mode']]);
+  const gated = copied.effective({ startLabel: 'go', minPlugin: '1.0.0' });
+  assert.equal(gated.policy, null);
+  assert.deepEqual(rules(gated.errors), [['range', 'minPlugin']]);
 });
 
 test('policy: a repository that was not cloned asks the remote for its default branch and writes no reference', () => {

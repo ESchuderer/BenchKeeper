@@ -195,7 +195,7 @@ test('a library skill named like an own skill: doctor and the catalog name the c
   assert.equal(readState(dir).skills.find((x) => x.name === name).source, 'own');
 });
 
-test('--paths gives a user skill with a block-scalar description valid front matter; a skill that sets paths itself is refused', () => {
+test('--paths gives a user skill with a block-scalar description valid front matter; a skill that sets paths itself is refused, and a stored entry for it is not written', () => {
   const ctx = ctxAt();
   const dir = mkdtempSync(join(TMP, 'bk-user-skill-paths-'));
   execFileSync('git', ['init', '-q', dir]);
@@ -205,6 +205,12 @@ test('--paths gives a user skill with a block-scalar description valid front mat
   const skillMd = preview(plan('release-notes').changes).find((c) => c.path === join(dir, '.claude/skills/release-notes/SKILL.md'));
   assert.deepEqual(parseYaml(skillMd.after.match(/^---\n([\s\S]*?)\n---/)[1]), { paths: 'docs/**', name: 'release-notes', description: 'Checks release notes. Use when a release is cut.' });
   assert.throws(() => plan('changelog'), /sets paths itself/);
+  // An entry stored before the skill's SKILL.md gained paths: the skill's own key wins, the plan warns, and skill= clears the entry.
+  const stored = (setPaths) => projectPlan({ ctx, dir, answers: { agents: ['claude'], env: 'host', skills: ['changelog'], paths: { changelog: 'docs/**' }, setPaths }, plugins: {} });
+  const kept = stored();
+  assert.equal(preview(kept.changes).find((c) => c.path === join(dir, '.claude/skills/changelog/SKILL.md')).after, '---\nname: changelog\ndescription: Writes the changelog.\npaths: CHANGELOG.md\n---\n\n# changelog\n');
+  assert.equal(kept.warnings.filter((w) => w.includes('changelog')).length, 1, JSON.stringify(kept.warnings));
+  assert.deepEqual(stored({ changelog: '' }).answers.paths, {});
 });
 
 test('a link to nothing or to a folder in a user skill is not copied and the project plan warns; the views keep working (#914)', () => {

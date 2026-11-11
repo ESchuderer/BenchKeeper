@@ -43,12 +43,14 @@ export const skillFolder = (ctx, s) => (s.source === 'user' ? userSkillDir(ctx, 
 // An entry that is not a file (a link to nothing or to a folder) is left out: skippedLinks names it for the plan's warning.
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 export const skippedLinks = (src) => listFiles(src).filter((file) => !isFile(join(src, file)));
+// A second paths: key would make the copy's front matter invalid, so a SKILL.md that sets paths itself keeps its own.
+export const setsPaths = (text) => /^paths:(\s|$)/m.test(text?.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '');
 export function ownSkillFiles(src, paths) {
   return listFiles(src).filter((file) => isFile(join(src, file))).map((file) => {
     const bytes = readFileSync(join(src, file)), text = bytes.toString('utf8');
     // The target of a link, not the link: the copy copies a link as a link.
     if (!Buffer.from(text).equals(bytes)) return { file, from: real(join(src, file)), bytes };
-    return { file, text: file === 'SKILL.md' && paths ? text.replace(/^---(\r?\n)/, (m, eol) => `${m}paths: ${JSON.stringify(paths)}${eol}`) : text };
+    return { file, text: file === 'SKILL.md' && paths && !setsPaths(text) ? text.replace(/^---(\r?\n)/, (m, eol) => `${m}paths: ${JSON.stringify(paths)}${eol}`) : text };
   });
 }
 

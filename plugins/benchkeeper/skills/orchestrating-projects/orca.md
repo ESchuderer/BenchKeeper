@@ -52,7 +52,7 @@ A worker asks with `ORCA orchestration ask --question <text>`, which returns at 
 ORCA orchestration reply --id <message id> --body "$(cat <answer file>)" --json
 ```
 
-The answer's sources are the default branch's: the policy as the reader prints it now, and `AGENTS.md` read in a scratch clone as [review-and-merge.md](review-and-merge.md#scratch-clone) reads it. An issue without a pull request has no clone yet: make one for the answer, with the first two commands of that section.
+The answer's sources are the default branch's: the policy as the reader prints it now, and `AGENTS.md` read in a scratch clone as [review-and-merge.md](review-and-merge.md#scratch-clone) reads it. An issue without a pull request has no clone yet: make one for the answer, with the two commands of that section.
 
 ## Watch
 
@@ -144,7 +144,7 @@ Before the coordinator turn ends, `ORCA orchestration worker-list --run <run id>
 
 The limit is machine-wide, and `worker-list` covers one run (the bound one unless `--run` is given). Count the rows whose `outcome` is `in_progress` in every run that `ORCA orchestration run-list` shows, before every `worker-start`: a kept-open worker's terminal state is `retained` also while it works (observed with Orca 1.4.254), so that state does not tell the working ones.
 
-A follow-up puts a worker that already reported back to work, so it counts like a start for `hostWorkerLimit` and `workersPerProject`: count before that `send` too, and send it at a later wake-up when a cap is full. Whether such a worker's row shows `in_progress` again is unverified: count each worker with a follow-up it has not answered yet as working, whatever its row says.
+A follow-up puts a worker that already reported back to work, so it counts like a start for `hostWorkerLimit` and `workersPerProject`: count before that `send` too. When a cap is full the follow-up waits, and no `worker-start` in that project (for `hostWorkerLimit`: on the machine) comes before its `send` ([SKILL.md](SKILL.md#loop), step 5): otherwise steady new issues keep the slot, and the pull request never merges. Whether such a worker's row shows `in_progress` again is unverified: count each worker with a follow-up it has not answered yet as working, whatever its row says.
 
 ## Scheduled runs
 

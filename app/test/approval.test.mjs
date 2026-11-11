@@ -39,6 +39,7 @@ ${WHY}
 // A variant must differ from the filled text, or its case would pass on the text that passes.
 const swap = (from, to) => { assert.ok(FILLED.includes(from), from); return FILLED.replace(from, to); };
 const NO_COST = swap(`${COST}\n`, '');
+const APPROVAL = FILLED.slice(FILLED.indexOf('| Approval | |'), FILLED.indexOf('\n\n| Option'));
 
 const CASES = [
   ['the filled text', FILLED, []],
@@ -56,6 +57,12 @@ const CASES = [
   ['a deferral in bold', swap(COST, '| Cost | **TBD** |'), ['Cost']],
   ['a deferral with a full stop', swap(COST, '| Cost | tbd. |'), ['Cost']],
   ['a cell that says todo', swap(COST, '| Cost | TODO |'), ['Cost']],
+  ['a closing tag as a cell', swap(COST, '| Cost | </b> |'), ['Cost']],
+  ['a deferral in brackets', swap(COST, '| Cost | (TBD) |'), ['Cost']],
+  ['a deferral as a link text', swap(COST, '| Cost | [TBD](x) |'), ['Cost']],
+  ['a deferral after a zero-width space', swap(COST, '| Cost | ​TBD |'), ['Cost']],
+  ['the Approval table inside a multi-line HTML comment', swap(APPROVAL, `<!--\n${APPROVAL}\n-->`),
+    ['Recommended', 'Work if approved', 'Runs on', 'Review', 'Merges', 'Owner steps', 'Cost', 'Undo', 'Answer']],
   ['a Recommended row that names another option than the first', swap('| Recommended | (a) Stream the export, confidence high |', '| Recommended | (b) Hold, confidence high |'), ['Recommended']],
   ['a second Approval table with an empty row', `${FILLED}\n| Approval | |\n|---|---|\n| Cost | |\n`, ['Cost']],
   ['a row twice, once empty', swap(COST, `| Cost | |\n${COST}`), ['Cost']],

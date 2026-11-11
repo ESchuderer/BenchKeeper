@@ -31,8 +31,10 @@ const DEFAULTS = {
 };
 const rules = (errors) => errors.map((e) => [e.rule, e.path]);
 // git as the reader runs it: the remote's default branch holds this policy file, or none (null).
+const HEAD = 'c0ffee0000000000000000000000000000000001';
 const remote = (file, calls = []) => (dir, cmd, args) => {
   calls.push([cmd, ...args].join(' '));
+  if (args[0] === 'ls-remote') return `${HEAD}\tHEAD\n`;
   if (args[0] === 'ls-tree') return file == null ? '' : 'docs/agents/orchestration.json\n';
   return args[0] === 'show' ? file : '';
 };
@@ -154,12 +156,22 @@ test('policy: a skill folder copied alone, as for an agent without plugins, chec
   }
 });
 
-test('policy: the remote\'s HEAD is fetched into the reader\'s own ref and the file is read from that ref; no file means the defaults', () => {
+test('policy: the remote\'s HEAD is fetched into the reader\'s own ref and the file is read from the commit the remote names; no file means the defaults', () => {
   const calls = [];
   assert.equal(read('/p', remote('{ "startLabel": "go" }', calls)).policy.startLabel, 'go');
   // No name that the remote or the local origin/HEAD chooses is part of a command.
   assert.ok(calls.some((call) => call.startsWith('git fetch ') && call.endsWith(' origin +HEAD:refs/benchkeeper/policy')));
-  assert.ok(calls.includes('git show refs/benchkeeper/policy:docs/agents/orchestration.json'));
+  assert.ok(calls.includes(`git show ${HEAD}:docs/agents/orchestration.json`));
+  // A worker that moves the reader's ref after the fetch changes nothing: the read names the remote's commit, not the ref.
+  const moved = read('/p', (dir, cmd, args) => {
+    if (args[0] === 'ls-remote') return `${HEAD}\tHEAD\n`;
+    if (args[0] === 'ls-tree') return 'docs/agents/orchestration.json\n';
+    if (args[0] === 'show') return args[1].startsWith(HEAD) ? '{ "startLabel": "go" }' : '{ "startLabel": "go", "merge": { "allowed": true } }';
+    return '';
+  });
+  assert.equal(moved.policy.merge.allowed, false);
+  // A remote that names no commit as its HEAD gives no policy.
+  assert.deepEqual(rules(read('/p', (dir, cmd, args) => (args[0] === 'ls-tree' ? 'docs/agents/orchestration.json\n' : args[0] === 'show' ? '{ "merge": { "allowed": true } }' : '')).errors), [['unreadable', '']]);
   assert.deepEqual(read('/p', remote(null)), { policy: DEFAULTS, errors: [] });
 });
 
@@ -167,6 +179,7 @@ test('policy: a fetch or a show that fails gives no policy: not the defaults, an
   for (const failing of ['fetch', 'show']) {
     const { policy, errors } = read('/p', (dir, cmd, args) => {
       if (args[0] === failing) throw new Error(`fatal: the ${failing} failed`);
+      if (args[0] === 'ls-remote') return `${HEAD}\tHEAD\n`;
       return args[0] === 'ls-tree' ? 'docs/agents/orchestration.json\n' : '{ "startLabel": "go", "merge": { "allowed": true } }';
     });
     assert.equal(policy, null, failing);

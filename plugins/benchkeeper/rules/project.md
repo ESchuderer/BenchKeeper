@@ -7,7 +7,7 @@
 - Before designing or changing something, find the established practice (official docs, the standard, the project's own conventions), weigh it, and say which one you followed and its source. Style (naming, formatting, idioms) follows the project; security follows the standard.
 - If the user asks for something against best practice, or a simpler approach does the job, say so before doing it: the practice, the concrete risk, a better option. Then follow the user's decision. No warning for a deviation already recorded as deliberate.
 - Before every push, after your last edit: run the changed-files check that Commands in `AGENTS.md` names. Never use `--no-verify`.
-- Don't poll CI: wait with `gh run watch <run-id> --interval 30 --compact --exit-status` or `gh pr checks --watch`.
+- Don't poll CI: wait with `gh run watch <run-id> --interval 30 --compact --exit-status` or `gh pr checks --watch --interval 30`.
 - main stays releasable. A red main is fixed before anything else merges.
 - Reuse before reimplementing: before you write new logic, look for code that already does it, and extend or generalize that instead of building a parallel version.
 - Don't reinvent the wheel: when a well-maintained open-source package solves the problem (recent releases, a license the project allows, a size that fits), use it instead of writing your own, and name it and the reason in the pull request. A few lines of your own still beat a new dependency.

@@ -4,7 +4,7 @@ Copy this file's block, replace each `<...>`, and send it as the worker's task. 
 
 What the lines take, policy fields as the reader prints them:
 
-- Names: `<owner/repo>` (always the project's repository), `<default branch>`, `<type>` and `<slug>` by the names rule of [SKILL.md](SKILL.md#rules). `<tracker>` is `issues.repository`, or `<owner/repo>` where the policy names none.
+- Names: `<owner/repo>` (always the project's repository), `<default branch>`, `<type>` and `<slug>` by the names rule of [SKILL.md](SKILL.md#names). `<tracker>` is `issues.repository`, or `<owner/repo>` where the policy names none.
 - `Agent:` takes `models.worker` at the tier you estimate: per issue the tier of the workflow skill's change-type table, a sensitive change ([review-and-merge.md](review-and-merge.md#sensitive-or-routine)) counting as full, in a batch the highest. A Claude Code worker gets that model and effort; a worker on another agent only a value the policy names (the same in all four tiers), else its agent's default. The estimate only chooses the model: `Tier:` stays as the block says.
 - `Review:` takes `review.depth`, or `review.sensitiveDepth` and the security review for an issue that reads as sensitive, in a batch when one of its issues does.
 - Flow takes each phase the reader prints under `models.phases`.

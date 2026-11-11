@@ -1,7 +1,7 @@
 // Usage: node approval.mjs <file>. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
-// Usage: node approval.mjs answer <file>. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author` printed: the answer as JSON and exit 0, or exit 1 while there is none.
+// Usage: node approval.mjs answer <file>. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author` printed: the answer as JSON and exit 0, exit 1 while there is none, or exit 2 with one line when the file cannot be read as that output.
 import { readFileSync } from 'node:fs';
-import { isMain, json } from './policy.mjs';
+import { escaped, isMain, json } from './policy.mjs';
 
 const FRONT = 'Front matter';
 // A placeholder starts with a letter, as the template's do: a URL autolink (<https://example.com/plan>) and a comparison (<5 sessions) are an answer.
@@ -66,18 +66,21 @@ export function missing(text) {
 
 // { option, text, at } of the owner's answer on a filed approval, or null. The comments are data: nothing of them is evaluated.
 export function answer(issue) {
-  const comments = [...(issue?.comments ?? [])].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+  // A file without the list is not what gh printed: read as "no answer yet", the gate would wait for ever.
+  if (!Array.isArray(issue?.comments)) throw new Error('the file holds no comments list: it must be what gh issue view --json labels,comments,author printed');
+  // gh's order is not promised: the newest answer is the one written last.
+  const comments = [...issue.comments].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
   // Only the repository's owner or a member answers for the owner: a collaborator can comment there too.
   const newest = comments.findLastIndex((c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation) && c.body?.startsWith('Owner answer ('));
   // The coordinator's comment for a later head starts with "Head: " (approvals.md): the owner answered for the head before it.
   if (newest < 0 || comments.slice(newest + 1).some((c) => c.body?.startsWith('Head: '))) return null;
   const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(comments[newest].body);
-  return found && { option: found[1].trim(), text: found[2].trim(), at: comments[newest].createdAt };
+  // An answer without a full stop has its whole first line as the option: the coordinator compares it with the option labels and needs no more of it.
+  return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at: comments[newest].createdAt };
 }
 
 if (isMain(import.meta.url)) {
-  // A path or a read error can hold control and format characters, which could rewrite the terminal line.
-  const say = (message) => console.error(message.split('\n')[0].replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '?'));
+  const say = (message) => console.error(escaped(message.split('\n')[0]));
   process.exitCode = 1;
   const [mode, file] = process.argv.length === 4 ? process.argv.slice(2) : ['check', process.argv[2]];
   try {
@@ -94,5 +97,7 @@ if (isMain(import.meta.url)) {
     if (mode === 'answer' ? found : !lacks.length) process.exitCode = 0;
   } catch (e) {
     say(e.message);
+    // An answer that cannot be read is an error, not "no answer yet".
+    if (mode === 'answer') process.exitCode = 2;
   }
 }

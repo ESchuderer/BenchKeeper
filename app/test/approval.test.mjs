@@ -102,6 +102,12 @@ test('approval: the command line exits 0 for a filled approval and 1 with the mi
   assert.deepEqual(JSON.parse(answered.stdout), { option: 'b', text: 'Hold‮ it.', at: '2026-11-11T10:00:00Z' });
   const open = run('open.json', JSON.stringify({ comments: [] }), 'answer');
   assert.deepEqual([open.status, open.stdout], [1, '']);
+  // No answer yet is exit 1; a file that cannot be read as an issue is exit 2, so that an error never reads as "keep waiting".
+  const errors = [run('cut.json', '{ "comments": [', 'answer'), run('other.json', '{ "labels": [] }', 'answer'), spawnSync(process.execPath, [script, 'answer', join(dir, 'absent.json')], { encoding: 'utf8' })];
+  for (const r of errors) {
+    assert.deepEqual([r.status, r.stdout], [2, '']);
+    assert.equal(r.stderr.trim().split('\n').length, 1, r.stderr);
+  }
 });
 
 const HEAD = `Head: ${'a'.repeat(40)}\n\nThe worker fixed both findings.`;
@@ -117,5 +123,9 @@ const ANSWERS = [
   ['the newest of two answers is read', [FIRST, SECOND], GO],
   ['an answer without free text is read', [said('Owner answer (2026-11-11): a', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],
   ['no comments are no answer', [], null],
+  ['the answer text later in a comment is none', [said('As I wrote: Owner answer (2026-11-11): a. Go ahead.', '2026-11-11T10:00:00Z')], null],
+  ['a later comment that quotes an answer does not hide the answer', [SECOND, said('Thanks. You wrote: Owner answer (2026-11-10): b.', '2026-11-11T12:00:00Z')], GO],
+  ['comments out of order are read by their time', [SECOND, FIRST], GO],
+  ['an option without a full stop is cut at 200 characters', [said(`Owner answer (2026-11-11): ${'x'.repeat(300)}`, '2026-11-11T10:00:00Z')], { option: 'x'.repeat(200), text: '', at: '2026-11-11T10:00:00Z' }],
 ];
 for (const [name, comments, expected] of ANSWERS) test(`approval: ${name}`, () => assert.deepEqual(answer({ labels: [{ name: 'question' }], author: { login: 'owner' }, comments }), expected));

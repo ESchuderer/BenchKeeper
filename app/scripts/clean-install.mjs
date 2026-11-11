@@ -3,9 +3,9 @@
 // Usage: node scripts/clean-install.mjs. Exit 0, or 1 with the failing step. The temporary folder stays, for a look at what setup wrote.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, relative } from 'node:path';
+import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { contentDir } from '../src/content.mjs';
 
@@ -25,8 +25,11 @@ const FIXTURES = {
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'bk-clean-install-')));
 const home = join(root, 'home');
 const folders = { HOME: home, USERPROFILE: home, BENCHKEEPER_HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), XDG_CONFIG_HOME: join(home, '.config'), XDG_DATA_HOME: join(home, '.local/share'), XDG_STATE_HOME: join(home, '.local/state'), XDG_CACHE_HOME: join(home, '.cache'), TMPDIR: join(root, 'tmp') };
+// The folders of node and git alone: through the caller's PATH, setup would ask the caller's own claude and codex for their plugins, which answer from the real login.
+const gitFolder = (process.env.PATH ?? '').split(delimiter).filter(isAbsolute).find((folder) => existsSync(join(folder, 'git')));
+const PATH = [...new Set([dirname(process.execPath), gitFolder])].join(delimiter);
 // Only these reach a child: none of the caller's variables can point the app, an agent or git at the real home.
-const env = { PATH: process.env.PATH, ...folders, GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0' };
+const env = { PATH, ...folders, GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0' };
 const projects = Object.keys(FIXTURES).map((name) => ({ name, dir: join(root, 'projects', name), origin: join(root, 'origins', `${name}.git`) }));
 
 const run = (cmd, args) => spawnSync(cmd, args, { cwd: root, env, encoding: 'utf8' });
@@ -42,8 +45,7 @@ const apply = (dir) => {
 
 let step = 'the temporary folders';
 try {
-  const inside = (path) => { const rel = relative(root, path); return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel); };
-  for (const path of [...Object.values(folders), ...projects.flatMap((p) => [p.dir, p.origin])]) assert.ok(inside(path), `${path} lies outside ${root}`);
+  assert.ok(gitFolder, 'git is in no folder of PATH');
   for (const path of [home, folders.TMPDIR]) mkdirSync(path, { recursive: true });
 
   for (const { name, dir, origin } of projects) {

@@ -11,6 +11,9 @@ const OWNER_ONLY_NAMES = ['.claude', '.mcp.json'];
 // A worker session's model and effort by the tier of its task. Every default effort is high: a higher one costs much more and is the owner's to ask for, in the policy.
 const TIERS = { quick: ['sonnet', 'high'], standard: ['opus', 'high'], full: ['opus', 'high'], research: ['fable', 'high'] };
 
+// Text of a file, a path, a remote or a program on its way to the terminal: a control or format character could rewrite the line or cut the message, so each becomes a ?, or what `to` gives.
+export const escaped = (text, to = '?') => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, to);
+
 const shipped = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
 // content.json lies two folders up in the plugin and in the app's packed content; a skill folder copied alone (an agent without plugins) has none, so its version is unknown.
 const pluginVersion = () => { try { const v = shipped('../../content.json').contentVersion; return /^\d+\.\d+\.\d+$/.test(v) ? v : null; } catch { return null; } };
@@ -64,8 +67,7 @@ function check(s, v, path, out) {
     const at = (k) => (path ? `${path}.${k}` : k);
     const known = s.properties ?? {};
     for (const [k, sub] of Object.entries(known)) if (k in v) check(sub, v[k], at(k), out);
-    // The key is the file's text: control and format characters could rewrite the terminal line or cut the message.
-    const shown = (k) => at(k.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '?'));
+    const shown = (k) => at(escaped(k));
     if (s.additionalProperties === false) for (const k of Object.keys(v)) if (!Object.hasOwn(known, k) && !Object.keys(s.patternProperties ?? {}).some((p) => new RegExp(p, 'u').test(k))) out.push({ rule: 'unknown-key', path: shown(k), message: 'is not a key the schema names (a comment key starts with //)' });
     for (const [k, needs] of Object.entries(s.dependentRequired ?? {})) if (k in v) for (const n of needs) if (!(n in v)) out.push({ rule: 'missing-key', path: at(n), message: `is needed when ${k} is set` });
   }
@@ -148,8 +150,8 @@ export function read(dir, run = sh) {
 
 export const errorLine = (e) => `${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`;
 
-// JSON that holds a path or an issue's text: control and format characters are escaped too, so none rewrites the terminal line.
-export const json = (value) => JSON.stringify(value).replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, (c) => c.split('').map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, '0')}`).join(''));
+// JSON that holds a path or an issue's text: its control and format characters are written as \u escapes, which a reader of the JSON turns back.
+export const json = (value) => escaped(JSON.stringify(value), (c) => c.split('').map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, '0')}`).join(''));
 
 // Node resolves symlinks for import.meta.url but keeps process.argv[1] as typed: compared as real paths, the command line also runs through a symlinked folder.
 export const isMain = (url) => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(url)); } catch { return false; } };

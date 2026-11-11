@@ -116,7 +116,7 @@ const VENDORED = ['packages/packs/bundled/cedarloom.mantine/skills/mantine-form'
 // The skills a bundled pack carries in its own folder, as its manifest lists them (one with a Git source is fetched).
 function packSkills() {
   const bundled = join(root, 'packages/packs/bundled');
-  return readdirSync(bundled).flatMap((pack) => {
+  return readdirSync(bundled, { withFileTypes: true }).filter((entry) => entry.isDirectory()).flatMap(({ name: pack }) => {
     const { entries } = JSON.parse(readFileSync(join(bundled, pack, 'cedarloom-pack.json'), 'utf8'));
     return Object.keys(entries).filter((path) => entries[path].kind === 'skill' && !entries[path].source).map((path) => join(bundled, pack, path));
   });

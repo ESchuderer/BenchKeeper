@@ -45,12 +45,11 @@ test('issue text handed to a worker needs the author filter', () => {
 });
 test('a skill that reads an issue without a worker needs no filter', () => assert.deepEqual(lintSkill(skill('a', { body: 'Read the issue with all its comments.' })), []));
 test('own skills pass', () => assert.deepEqual(ownSkills().flatMap(lintSkill), []));
-test("own skills include a bundled pack's skills, without the vendored copy", () => {
-  const names = ownSkills().map((dir) => dir.split(sep).slice(-3).join('/'));
-  assert.ok(names.includes('cedarloom.mantine/skills/mantine-family'));
-  assert.ok(!names.includes('cedarloom.mantine/skills/mantine-form'));
+// The vendored mantine-form is left out: 'own skills pass' fails once it is linted.
+test("own skills include a bundled pack's skills", () => {
+  assert.ok(ownSkills().some((dir) => dir.endsWith(['cedarloom.mantine', 'skills', 'mantine-family'].join(sep))));
 });
-test('own agents pass',() => assert.deepEqual(ownAgents().flatMap(lintAgent), []));
+test('own agents pass', () => assert.deepEqual(ownAgents().flatMap(lintAgent), []));
 test('a plugin agent needs a name and description, a model alias, and no key plugin agents ignore', () => {
   const agent = (fm) => {
     const file = join(mkdtempSync(join(tmpdir(), 'lint-')), 'a.md');

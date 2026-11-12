@@ -46,12 +46,15 @@ export function missing(text) {
   const approval = tables(text, 'Approval').flat();
   const row = (name) => { const found = approval.filter(([first]) => first === name); return found.length > 0 && found.every(([, cell]) => filled(cell)); };
   const options = tables(text, 'Option')[0] ?? [];
+  // The owner answers with a label, such as "a": each option row starts with its own.
+  const labels = options.map(([option]) => /^\([^()]+\)/.exec(shown(option))?.[0]);
   // The questions skill offers the recommended option first; the Trade-off cell may stay empty.
   const chosen = options.length >= 2
     && options.every(([option, happens], i) => filled(option) && filled(happens) && option.includes('(Recommended)') === (i === 0))
+    && labels.every(Boolean) && new Set(labels).size === labels.length
     && !options.flat().some((cell) => PLACEHOLDER.test(cell));
   // The questions skill takes its recommendation from the Recommended row and the first option from the table: both must name one option.
-  const label = /^\([^()]+\)/.exec(shown(options[0]?.[0] ?? ''))?.[0];
+  const label = labels[0];
   const agrees = !chosen || (label && approval.every(([first, cell = '']) => first !== 'Recommended' || shown(cell).startsWith(label)));
   return [
     // Posted with the body, the front matter would show as text: its labels go on the command line.

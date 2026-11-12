@@ -77,6 +77,8 @@ const CASES = [
   ['two options marked', swap('| (b) Hold |', '| (b) Hold (Recommended) |'), ['Options']],
   ['a placeholder in the options table', swap('| More code to review |', '| <trade-off> |'), ['Options']],
   ['an option without What happens', swap(HOLD, '| (b) Hold | | The export stays slow |'), ['Options']],
+  ['two options with one label', swap('| (b) Hold |', '| (a) Hold |'), ['Options']],
+  ['an option without a label', swap('| (b) Hold |', '| Hold |'), ['Options']],
   ['front matter left in', `---\nlabels: question, ready-for-human\n---\n\n${FILLED}`, ['Front matter']],
   // Every part of the template holds a placeholder: the Answer row depends on where the issue lands.
   ['the unfilled template', readFileSync(new URL(`${SKILL}approval-template.md`, import.meta.url), 'utf8'),

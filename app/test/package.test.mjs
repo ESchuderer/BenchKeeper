@@ -34,7 +34,7 @@ test('update check: shown when newer, silent when off, offline or older', async 
 test('content.json: content version is the plugin version, minApp is not above the app, skill and automation text names the major', () => {
   const c = json('../../plugins/benchkeeper/content.json');
   assert.equal(c.schemaVersion, 1);
-  for (const agent of ['claude', 'codex']) assert.equal(c.contentVersion, json(`../../plugins/benchkeeper/.${agent}-plugin/plugin.json`).version);
+  assert.equal(c.contentVersion, json('../../plugins/benchkeeper/.codex-plugin/plugin.json').version);
   const root = new URL('../../plugins/benchkeeper/', import.meta.url);
   // App and content release separately: an app patch release leaves the content version behind and still fits.
   const [major, minor, patch] = appVersion.split('.').map(Number);

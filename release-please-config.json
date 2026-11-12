@@ -14,7 +14,6 @@
       "include-component-in-tag": true,
       "versioning": "always-bump-minor",
       "extra-files": [
-        { "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" },
         { "type": "json", "path": ".codex-plugin/plugin.json", "jsonpath": "$.version" },
         { "type": "json", "path": "content.json", "jsonpath": "$.contentVersion" }
       ]

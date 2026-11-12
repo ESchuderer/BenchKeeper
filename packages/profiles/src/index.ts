@@ -3,7 +3,7 @@ export type { LevelPlan } from "./owned.ts";
 export { hasContainer, planProject, projectWritten, usesMantine } from "./project.ts";
 export { type ProfileChange, profileChanges } from "./changes.ts";
 export {
-  APP_VERSION,
+  appTooOld,
   composedProfile,
   DEFAULT_PROFILE,
   type Folder,
@@ -14,4 +14,5 @@ export {
   readEntry,
   resolveProfile,
 } from "./resolve.ts";
+export { APP_VERSION } from "./version.ts";
 export { type Fetched, type Level, sourceKey, sourcesOf } from "./skills.ts";

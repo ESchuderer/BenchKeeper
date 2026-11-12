@@ -248,7 +248,9 @@ export function globalChanges(ctx, on) {
 
 // The trailers of a Claude Code commit, through its commit attribution setting for this one launch (--settings takes inline
 // JSON and overrides the same keys of the settings files for the session): no hook in the repository, no settings file.
-export const trailerArgs = (host, role) => ['--settings', JSON.stringify({ attribution: { commit: `Agent-Host: ${host}\nAgent-Role: ${role}` } })];
+// pr and sessionUrl are set too: the docs do not say whether --settings replaces the attribution object or merges it per field
+// (https://code.claude.com/docs/en/settings#settings-precedence), and with all three set the launch adds no Claude text either way.
+export const trailerArgs = (host, role) => ['--settings', JSON.stringify({ attribution: { commit: `Agent-Host: ${host}\nAgent-Role: ${role}`, pr: '', sessionUrl: false } })];
 export const hostSlug = (h = hostname()) => String(h).split('.')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'host';
 
 // The environment of `machine shell`: the user's own, without a GitHub token or -c settings of an outer git, plus the machine's.

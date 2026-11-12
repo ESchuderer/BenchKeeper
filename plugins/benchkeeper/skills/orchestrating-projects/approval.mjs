@@ -1,5 +1,6 @@
-// Usage: node approval.mjs <file>. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
-import { readFileSync } from 'node:fs';
+// Usage: node approval.mjs <file>, the file in .benchkeeper/runs/ of the working directory (the run folder, approvals.md); any other path exits 2. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
+import { readFileSync, realpathSync } from 'node:fs';
+import { sep } from 'node:path';
 import { isMain } from './policy.mjs';
 
 const FRONT = 'Front matter';
@@ -63,13 +64,18 @@ export function missing(text) {
   ];
 }
 
+// The path comes from a session's command line: a file that resolves outside the run folder, through .. or a link, is not read.
+const inRuns = (file) => { try { const real = realpathSync(file); return real.startsWith(realpathSync('.benchkeeper/runs') + sep) ? real : null; } catch { return null; } };
+
 if (isMain(import.meta.url)) {
   // A path or a read error can hold control and format characters, which could rewrite the terminal line.
   const say = (message) => console.error(message.split('\n')[0].replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '?'));
   process.exitCode = 1;
   try {
     if (process.argv.length !== 3) throw new Error('usage: node approval.mjs <file>');
-    const lacks = missing(readFileSync(process.argv[2], 'utf8'));
+    const file = inRuns(process.argv[2]);
+    if (!file) { process.exitCode = 2; throw new Error(`refused: ${process.argv[2]} is no file in .benchkeeper/runs/ of the working directory`); }
+    const lacks = missing(readFileSync(file, 'utf8'));
     for (const name of lacks) {
       if (name === FRONT) say('remove the front matter: its labels go on the command line');
       else if (name === 'Recommended') say('missing, unfilled or not starting with the label of the first option row, such as (a): Recommended');

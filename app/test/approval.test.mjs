@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -87,9 +87,20 @@ for (const [name, text, expected] of CASES) test(`approval: ${name} lacks ${expe
 test('approval: the command line exits 0 for a filled approval and 1 with the missing row on stderr', () => {
   const script = fileURLToPath(new URL(`${SKILL}approval.mjs`, import.meta.url));
   const dir = mkdtempSync(join(tmpdir(), 'bk-approval-'));
-  const run = (name, text) => { writeFileSync(join(dir, name), text); return spawnSync(process.execPath, [script, join(dir, name)], { encoding: 'utf8' }); };
+  mkdirSync(join(dir, '.benchkeeper/runs/r1'), { recursive: true });
+  const run = (name, text) => { writeFileSync(join(dir, '.benchkeeper/runs/r1', name), text); return spawnSync(process.execPath, [script, `.benchkeeper/runs/r1/${name}`], { cwd: dir, encoding: 'utf8' }); };
   assert.equal(run('filled.md', FILLED).status, 0);
   const lacking = run('no-cost.md', NO_COST);
   assert.equal(lacking.status, 1);
   assert.match(lacking.stderr, /\bCost\b/);
+});
+
+test('approval: the command line refuses a file outside the run folder with exit 2', () => {
+  const script = fileURLToPath(new URL(`${SKILL}approval.mjs`, import.meta.url));
+  const dir = mkdtempSync(join(tmpdir(), 'bk-approval-'));
+  mkdirSync(join(dir, '.benchkeeper/runs/r1'), { recursive: true });
+  writeFileSync(join(dir, 'filled.md'), FILLED);
+  const refused = spawnSync(process.execPath, [script, '.benchkeeper/runs/../../filled.md'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(refused.status, 2);
+  assert.equal(refused.stderr.trim().split('\n').length, 1);
 });

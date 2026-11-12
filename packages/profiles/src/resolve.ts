@@ -17,17 +17,13 @@ import {
 } from "@cedarloom/contracts";
 import { errorCode, parseDocument, readJson, readRegular } from "@cedarloom/engine";
 import { BUNDLED } from "@cedarloom/packs";
+import { APP_VERSION } from "./version.ts";
 
 type Ref = { pack: string; path: string };
 export const LEVELS = ["machine", "workspace", "project"] as const;
 
 /** The profile of a machine without a selection file: the default of the bundled core pack. */
 export const DEFAULT_PROFILE: Ref = { pack: "cedarloom.core", path: "profiles/default.json" };
-
-/** The CedarLoom release this is; the application packages share one version. */
-export const APP_VERSION: string = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-).version;
 
 const refuse = (finding: Finding): Result<never> => ({ ok: false, finding });
 
@@ -84,13 +80,28 @@ const minAppOf = (json: unknown, kind: string): string | undefined => {
   return "kind" in head && head.kind === kind && at.success ? at.data : undefined;
 };
 
+const warned = new Set<string>();
+
+/**
+ * Whether a file's `minApp` is above the release `app`. A development build (0.0.0) skips the check with a warning,
+ * so a checkout loads packs and samples made for a release (hub issue 396).
+ */
+export const appTooOld = (minApp: string, app: string, what: string): boolean => {
+  if (!semverAbove(minApp, app)) return false;
+  if (app !== "0.0.0") return true;
+  const text = `${what} needs CedarLoom ${minApp} or newer; this development build loads it anyway.`;
+  if (!warned.has(text)) process.emitWarning(text, { code: "CEDARLOOM_DEV_BUILD" });
+  warned.add(text);
+  return false;
+};
+
 // A pack's manifest, null without one here; a bundled one ships with this release, so only a fetched one can be newer.
 const manifestOf = (pack: string, folder: Folder | undefined): Result<PackManifest | null> => {
   const bytes = packFile(pack, "cedarloom-pack.json", folder);
   if (!bytes.ok || bytes.value === null) return bytes.ok ? { ok: true, value: null } : bytes;
   return parseDocument(bytes.value.toString("utf8"), (json) => {
     const minApp = folder === undefined ? undefined : minAppOf(json, "cedarloom.pack");
-    if (minApp !== undefined && semverAbove(minApp, APP_VERSION))
+    if (minApp !== undefined && appTooOld(minApp, APP_VERSION, `Pack ${pack}`))
       return refuse({ code: "profile.app-too-old", params: { minApp, app: APP_VERSION, pack } });
     return readDocument(PackManifest, PACK_SCHEMA_VERSION, json);
   });
@@ -220,7 +231,7 @@ const composedOf = (selection: ProfileSelection | null, app: string): Result<Com
   const root = rootOf(selection?.profile ?? DEFAULT_PROFILE);
   if (!root.ok) return root;
   const minApp = root.value.bundled ? undefined : minAppOf(root.value.json, "cedarloom.profile");
-  if (minApp !== undefined && semverAbove(minApp, app))
+  if (minApp !== undefined && appTooOld(minApp, app, "The profile"))
     return refuse({ code: "profile.app-too-old", params: { minApp, app } });
   return composeProfile(root.value.json, loadParent);
 };

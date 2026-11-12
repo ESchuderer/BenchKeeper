@@ -549,7 +549,7 @@ export function api(ctx) {
       const owners = libraryWith(ctx).packs.filter((p) => p.role === 'workflow owner');
       return listProjects(ctx).map(({ path }) => {
         let findings = null;
-        if (exists(path)) try { findings = cached(`findings:${path}`, () => projectChecks(ctx, path)).length; } catch { /* the detail's doctor shows the error */ }
+        if (exists(path)) try { findings = cached(`findings:${path}`, () => splitDismissed(ctx, projectChecks(ctx, path)).found).length; } catch { /* the detail's doctor shows the error */ }
         const d = dash.get(path);
         return { path, findings, states: d?.states ?? null, owner: owners.filter((p) => d?.packs.includes(p.id)).map((p) => p.title ?? p.id), activity: activity[path] };
       });

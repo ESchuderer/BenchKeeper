@@ -1,10 +1,16 @@
 #!/bin/sh
 # Exit 0 to start the run: no session of this automation is alive, and there is no digest yet or a pull request or an
 # issue of the repositories ($2, comma separated; empty: the origin's repository of the checkout, not gh's default, which
-# in a fork is the parent; another origin, such as an SSH host alias, or none: gh's default) changed since the digest ($1)
-# was written, apart from the digest's own issue ($3) in the checkout's repository. When the origin does not name the
-# checkout's repository (another host, an SSH host alias), that issue number is left out of every listed repository.
+# in a fork is the parent; another origin, such as an SSH host alias, or none: gh's default) changed since the digest ($1;
+# with YYYY-MM-DD in it, the file with the latest date in that place) was written, apart from the digest's own issue ($3)
+# in the checkout's repository. When the origin does not name the checkout's repository (another host, an SSH host
+# alias), that issue number is left out of every listed repository.
 if pgrep -f "automation-[d]aily-digest" >/dev/null; then exit 1; fi
+case $1 in *YYYY-MM-DD*)
+  # Pathname expansion sorts its matches, so the last one is the latest date; a pattern with no match stays a missing file.
+  for g in "${1%%YYYY-MM-DD*}"[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"${1#*YYYY-MM-DD}"; do f=$g; done
+  set -- "$f" "$2" "$3" ;;
+esac
 [ -f "$1" ] || exit 0
 # A checkout gives a committed file a fresh mtime: a digest committed and unchanged since starts at its commit's author time.
 d=$(dirname "$1") b=$(basename "$1")

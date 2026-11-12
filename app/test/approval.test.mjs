@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -53,6 +53,7 @@ const CASES = [
   ['a cell that only defers', swap(COST, '| Cost | TBD |'), ['Cost']],
   ['an entity as a cell', swap(COST, '| Cost | &nbsp; |'), ['Cost']],
   ['an HTML comment as a cell', swap(COST, '| Cost | <!-- tbd --> |'), ['Cost']],
+  ['an HTML comment over two lines as a cell', swap(COST, '| Cost | <!-- 2 worker\nsessions --> |'), ['Cost']],
   ['a link without text as a cell', swap(COST, '| Cost | [](x) |'), ['Cost']],
   ['a deferral in bold', swap(COST, '| Cost | **TBD** |'), ['Cost']],
   ['a deferral with a full stop', swap(COST, '| Cost | tbd. |'), ['Cost']],
@@ -76,6 +77,8 @@ const CASES = [
   ['two options marked', swap('| (b) Hold |', '| (b) Hold (Recommended) |'), ['Options']],
   ['a placeholder in the options table', swap('| More code to review |', '| <trade-off> |'), ['Options']],
   ['an option without What happens', swap(HOLD, '| (b) Hold | | The export stays slow |'), ['Options']],
+  ['two options with one label', swap('| (b) Hold |', '| (a) Hold |'), ['Options']],
+  ['an option without a label', swap('| (b) Hold |', '| Hold |'), ['Options']],
   ['front matter left in', `---\nlabels: question, ready-for-human\n---\n\n${FILLED}`, ['Front matter']],
   // Every part of the template holds a placeholder: the Answer row depends on where the issue lands.
   ['the unfilled template', readFileSync(new URL(`${SKILL}approval-template.md`, import.meta.url), 'utf8'),
@@ -87,9 +90,34 @@ for (const [name, text, expected] of CASES) test(`approval: ${name} lacks ${expe
 test('approval: the command line exits 0 for a filled approval and 1 with the missing row on stderr', () => {
   const script = fileURLToPath(new URL(`${SKILL}approval.mjs`, import.meta.url));
   const dir = mkdtempSync(join(tmpdir(), 'bk-approval-'));
-  const run = (name, text) => { writeFileSync(join(dir, name), text); return spawnSync(process.execPath, [script, join(dir, name)], { encoding: 'utf8' }); };
+  mkdirSync(join(dir, '.benchkeeper/runs/r1'), { recursive: true });
+  const run = (name, text) => { writeFileSync(join(dir, '.benchkeeper/runs/r1', name), text); return spawnSync(process.execPath, [script, `.benchkeeper/runs/r1/${name}`], { cwd: dir, encoding: 'utf8' }); };
   assert.equal(run('filled.md', FILLED).status, 0);
   const lacking = run('no-cost.md', NO_COST);
   assert.equal(lacking.status, 1);
   assert.match(lacking.stderr, /\bCost\b/);
+});
+
+test('approval: the command line refuses a file outside the run folder with exit 2', () => {
+  const script = fileURLToPath(new URL(`${SKILL}approval.mjs`, import.meta.url));
+  const dir = mkdtempSync(join(tmpdir(), 'bk-approval-'));
+  mkdirSync(join(dir, '.benchkeeper/runs/r1'), { recursive: true });
+  writeFileSync(join(dir, 'filled.md'), FILLED);
+  symlinkSync(join(dir, 'filled.md'), join(dir, '.benchkeeper/runs/r1/link.md'));
+  const status = (cwd, file) => spawnSync(process.execPath, [script, file], { cwd, encoding: 'utf8' }).status;
+  const refused = spawnSync(process.execPath, [script, '.benchkeeper/runs/../../filled.md'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(refused.status, 2);
+  assert.equal(refused.stderr.trim().split('\n').length, 1);
+  assert.equal(status(dir, '.benchkeeper/runs/r1/link.md'), 2);
+  // A linked .benchkeeper or runs folder leads out of the project, so even a filled approval under it is refused.
+  const out = mkdtempSync(join(tmpdir(), 'bk-approval-out-'));
+  mkdirSync(join(out, 'runs/r1'), { recursive: true });
+  writeFileSync(join(out, 'runs/r1/filled.md'), FILLED);
+  const linkedDot = mkdtempSync(join(tmpdir(), 'bk-approval-'));
+  symlinkSync(out, join(linkedDot, '.benchkeeper'));
+  assert.equal(status(linkedDot, '.benchkeeper/runs/r1/filled.md'), 2);
+  const linkedRuns = mkdtempSync(join(tmpdir(), 'bk-approval-'));
+  mkdirSync(join(linkedRuns, '.benchkeeper'));
+  symlinkSync(join(out, 'runs'), join(linkedRuns, '.benchkeeper/runs'));
+  assert.equal(status(linkedRuns, '.benchkeeper/runs/r1/filled.md'), 2);
 });

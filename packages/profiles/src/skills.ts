@@ -50,11 +50,13 @@ const listed = (resolved: Resolved, fetched: Fetched, level: Level): Result<List
   return { ok: true, value: skills };
 };
 
-// The Git source a skill's files come from: its own, or its pack entry's once the pack's folder is known.
-const gitOf = (resolved: Resolved, source: Source, fetched: Fetched): GitSource | undefined => {
-  if ("git" in source) return source;
+// The Git source a skill's files come from: its own, or its pack entry's once the pack's folder is known. A pack
+// that lacks the entry (or is not fetched yet) names none; one whose manifest is refused may, so that is a failure.
+const gitOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<GitSource | undefined> => {
+  if ("git" in source) return { ok: true, value: source };
   const entry = entryOf(source, "skill", packFolder(resolved, source.pack, fetched));
-  return entry.ok && entry.value.kind === "skill" ? entry.value.source : undefined;
+  if (!entry.ok) return entry.finding.code === "profile.entry-unknown" ? { ok: true, value: undefined } : entry;
+  return { ok: true, value: entry.value.kind === "skill" ? entry.value.source : undefined };
 };
 
 /**
@@ -66,23 +68,25 @@ export const sourcesOf = (
   fetched: Fetched,
   level: Level,
   every = false,
-): { source: GitSource; pack: boolean }[] => {
+): Result<{ source: GitSource; pack: boolean }[]> => {
   const skills = listed(resolved, fetched, level);
-  return [
-    ...Object.values(resolved.profile.packs).flatMap((source) => ("bundled" in source ? [] : [{ source, pack: true }])),
-    ...(skills.ok ? skills.value : [])
-      .filter(({ part }) => every || resolved.on.has(part))
-      .flatMap(({ source }) => {
-        const git = gitOf(resolved, source, fetched);
-        return git === undefined ? [] : [{ source: git, pack: false }];
-      }),
-  ];
+  if (!skills.ok) return skills;
+  const sources = Object.values(resolved.profile.packs).flatMap((source) =>
+    "bundled" in source ? [] : [{ source, pack: true }],
+  );
+  for (const { source } of skills.value.filter(({ part }) => every || resolved.on.has(part))) {
+    const git = gitOf(resolved, source, fetched);
+    if (!git.ok) return git;
+    if (git.value !== undefined) sources.push({ source: git.value, pack: false });
+  }
+  return { ok: true, value: sources };
 };
 
 // The files a skill installs: its Git source's folder, else its pack entry's folder in a fetched or bundled pack.
 const filesOf = (resolved: Resolved, source: Source, fetched: Fetched): Result<Folder["files"]> => {
   const git = gitOf(resolved, source, fetched);
-  if (git !== undefined) return { ok: true, value: fetched.get(sourceKey(git))?.files ?? [] };
+  if (!git.ok) return git;
+  if (git.value !== undefined) return { ok: true, value: fetched.get(sourceKey(git.value))?.files ?? [] };
   if ("git" in source)
     return {
       ok: false,

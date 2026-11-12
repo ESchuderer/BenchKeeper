@@ -281,7 +281,9 @@ test('run --as-machine: the account\'s environment plus the machine\'s, Claude C
   assert.equal(r.code, 0, r.text);
   const launch = am.calls().slice(before).find((x) => x.args.includes('hi'));
   assert.deepEqual([launch.args[0], launch.args.slice(2)], ['--settings', ['-p', 'hi']]);
-  assert.match(JSON.parse(launch.args[1]).attribution.commit, /^Agent-Host: [a-z0-9-]+\nAgent-Role: orchestrator$/);
+  const { commit, ...rest } = JSON.parse(launch.args[1]).attribution;
+  assert.match(commit, /^Agent-Host: [a-z0-9-]+\nAgent-Role: orchestrator$/);
+  assert.deepEqual(rest, { pr: '', sessionUrl: false }, 'no built-in pull request text or session link');
   assert.deepEqual([launch.env.GIT_AUTHOR_EMAIL, launch.env.GH_CONFIG_DIR, launch.env.GH_TOKEN, launch.env.CLAUDE_CONFIG_DIR], [EMAIL, ghDir(m.ctx), undefined, join(am.home, '.local/share/benchkeeper/accounts/work')]);
   const plain = am.calls().length;
   await exec(['run', '--account', 'work', '--', 'claude', '-p', 'plain']);

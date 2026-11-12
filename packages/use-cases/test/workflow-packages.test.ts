@@ -13,8 +13,11 @@ import {
   stableNode,
   undoRun,
 } from "@cedarloom/use-cases";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { gitIdentity, ok, testRoot } from "./harness.ts";
+
+// A released CedarLoom: a development build (0.0.0) loads files for a newer one.
+vi.mock("../../profiles/src/version.ts", () => ({ APP_VERSION: "0.1.0" }));
 
 const root = testRoot("packages");
 gitIdentity(root);
@@ -188,6 +191,17 @@ test("the doctor reports a package Codex has no copy of, a copy older than the p
       { code: "package.codex-left", params: { plugin: "gone" } },
     ],
   ]);
+});
+
+test("a stored workflow for a newer CedarLoom installs nothing", () => {
+  const folders = machine();
+  const newer = { ...workflow("n"), metadata: { id: "n", name: "n", version: "1.0.0", minApp: "9.0.0" } };
+  ok(saveDraft(folders.state, "n", newer, null));
+  ok(applyPlan(folders.state, ok(planSave(folders.state, "n")).plan, { yes: true }));
+  expect(planPackageInstall(folders, "n", { bundles: BUNDLES, node: "/usr/bin/node", allow: ["n"] })).toMatchObject({
+    ok: false,
+    finding: { code: "package.app-too-old", params: { id: "n", minApp: "9.0.0" } },
+  });
 });
 
 test("two workflow ids that fold to one plugin name never share its package", () => {

@@ -248,7 +248,8 @@ jobs:
           cli() { node packages/cli/src/bin.ts "$@"; }
           git config --global user.name CI && git config --global user.email ci@example.org
           mkdir -p "$CEDARLOOM_STATE_DIR/drafts" "$CODEX_HOME"
-          jq '.metadata.id = "cedarloom-ci"' packages/contracts/corpus/WorkflowDefinition/1/valid-build-and-review.json \
+          # Without the sample's minApp: an install refuses a workflow for a newer CedarLoom, and a checkout is 0.0.0.
+          jq '.metadata.id = "cedarloom-ci" | del(.metadata.minApp)' packages/contracts/corpus/WorkflowDefinition/1/valid-build-and-review.json \
             > "$CEDARLOOM_STATE_DIR/drafts/workflow-cedarloom-ci.json"
           cli workflows save cedarloom-ci --yes
           cli workflows install cedarloom-ci --allow cedarloom-ci --yes

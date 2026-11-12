@@ -1,6 +1,6 @@
 // Usage: node approval.mjs <file>, the file in .benchkeeper/runs/ of the working directory (the run folder, approvals.md); any other path exits 2. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
 import { readFileSync, realpathSync } from 'node:fs';
-import { sep } from 'node:path';
+import { join, sep } from 'node:path';
 import { isMain } from './policy.mjs';
 
 const FRONT = 'Front matter';
@@ -64,8 +64,9 @@ export function missing(text) {
   ];
 }
 
-// The path comes from a session's command line: a file that resolves outside the run folder, through .. or a link, is not read.
-const inRuns = (file) => { try { const real = realpathSync(file); return real.startsWith(realpathSync('.benchkeeper/runs') + sep) ? real : null; } catch { return null; } };
+// The path comes from a session's command line: a file that resolves outside the run folder, through .. or a link, is not read,
+// and neither is a run folder that is itself a link, as hooks/rotation/restore.mjs refuses one.
+const inRuns = (file) => { try { const real = realpathSync(file); return real.startsWith(join(realpathSync('.'), '.benchkeeper', 'runs') + sep) ? real : null; } catch { return null; } };
 
 if (isMain(import.meta.url)) {
   // A path or a read error can hold control and format characters, which could rewrite the terminal line.

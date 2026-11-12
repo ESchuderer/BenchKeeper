@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -100,7 +100,21 @@ test('approval: the command line refuses a file outside the run folder with exit
   const dir = mkdtempSync(join(tmpdir(), 'bk-approval-'));
   mkdirSync(join(dir, '.benchkeeper/runs/r1'), { recursive: true });
   writeFileSync(join(dir, 'filled.md'), FILLED);
+  symlinkSync(join(dir, 'filled.md'), join(dir, '.benchkeeper/runs/r1/link.md'));
+  const status = (cwd, file) => spawnSync(process.execPath, [script, file], { cwd, encoding: 'utf8' }).status;
   const refused = spawnSync(process.execPath, [script, '.benchkeeper/runs/../../filled.md'], { cwd: dir, encoding: 'utf8' });
   assert.equal(refused.status, 2);
   assert.equal(refused.stderr.trim().split('\n').length, 1);
+  assert.equal(status(dir, '.benchkeeper/runs/r1/link.md'), 2);
+  // A linked .benchkeeper or runs folder leads out of the project, so even a filled approval under it is refused.
+  const out = mkdtempSync(join(tmpdir(), 'bk-approval-out-'));
+  mkdirSync(join(out, 'runs/r1'), { recursive: true });
+  writeFileSync(join(out, 'runs/r1/filled.md'), FILLED);
+  const linkedDot = mkdtempSync(join(tmpdir(), 'bk-approval-'));
+  symlinkSync(out, join(linkedDot, '.benchkeeper'));
+  assert.equal(status(linkedDot, '.benchkeeper/runs/r1/filled.md'), 2);
+  const linkedRuns = mkdtempSync(join(tmpdir(), 'bk-approval-'));
+  mkdirSync(join(linkedRuns, '.benchkeeper'));
+  symlinkSync(join(out, 'runs'), join(linkedRuns, '.benchkeeper/runs'));
+  assert.equal(status(linkedRuns, '.benchkeeper/runs/r1/filled.md'), 2);
 });

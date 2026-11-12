@@ -11,7 +11,7 @@ Copy [approval-template.md](approval-template.md) without its front matter into 
 - Recommended: starts with the label of the first option row, `(a)`.
 - Answer: what is true where the issue lands. In the hub: `run /benchkeeper:questions`. In any other repository: `comment "a", "b" or free text on this issue`, since the question queue lists the hub only.
 
-Run `node <skill folder>/approval.mjs <file>` until it exits 0: it names each part that is missing, unfilled or at odds with the options.
+Run `node <skill folder>/approval.mjs <file>` from your working directory until it exits 0: it names each part that is missing, unfilled or at odds with the options. It exits 2 for a path outside `.benchkeeper/runs/` of that directory.
 
 ## Where it goes
 

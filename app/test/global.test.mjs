@@ -10,6 +10,7 @@ import { contentDir } from '../src/content.mjs';
 import { globalDrift } from '../src/doctor.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
+import { dismissNote } from '../src/preferences.mjs';
 import { PLUGINS, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
 import { verifyArgv, verifyPackage } from '../src/verify.mjs';
 
@@ -159,6 +160,29 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.equal(readFileSync(join(m.home, '.codex/AGENTS.md'), 'utf8'), 'my codex rules\n');
   assert.equal(settings(m.home).model, 'opus');
   assert.ok(u.entries.some((e) => e.status === 'manual'), 'removals through agent commands are reported for manual reinstall');
+});
+
+const applyStep = (m, step) => { const plan = m.plan(); assert.equal(apply(plan, m.ctx, { select: plan.filter((c) => c.step === step).map((c) => c.id) }).status, 'done'); };
+
+test('the setup hides attribution unless the user chose Keep mine or the user file already sets its own', () => {
+  const m = machine();
+  writeFileSync(join(m.home, '.claude/settings.json'), '{}');
+  dismissNote(m.ctx, 'setting:claude:attribution');
+  applyStep(m, 'settings:claude');
+  assert.equal(settings(m.home).attribution, undefined, 'Keep mine on an unset attribution');
+  dismissNote(m.ctx, 'setting:claude:attribution', false);
+  applyStep(m, 'settings:claude');
+  assert.deepEqual(settings(m.home).attribution, { commit: '', pr: '', sessionUrl: false });
+  const mine = { commit: 'Reviewed-by: me' };
+  writeFileSync(join(m.home, '.claude/settings.json'), JSON.stringify({ attribution: mine }));
+  applyStep(m, 'settings:claude');
+  assert.deepEqual(settings(m.home).attribution, mine);
+  // One set between plan and apply stays as well: the edit applies to the file as it is.
+  writeFileSync(join(m.home, '.claude/settings.json'), '{}');
+  const plan = m.plan();
+  writeFileSync(join(m.home, '.claude/settings.json'), JSON.stringify({ attribution: mine }));
+  assert.equal(apply(plan, m.ctx, { select: plan.filter((c) => c.step === 'settings:claude').map((c) => c.id) }).status, 'done');
+  assert.deepEqual(settings(m.home).attribution, mine);
 });
 
 test('Matt Pocock pack is optional', () => {

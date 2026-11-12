@@ -3,7 +3,7 @@
 // src/settings/catalog.json, the rules between keys src/settings/couplings.json, the pinned schemas sit beside them.
 // Never writes a managed layer. Values of secret-looking names are masked in everything this module returns.
 import { accessSync, constants, readFileSync, statSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { MergeError, mergeJson, removeTable, removeToml, setToml } from './merge.mjs';
 import { exists, readText } from './fsx.mjs';
@@ -286,6 +286,14 @@ function lookup(state, agentId, key, layers) {
 const isExecutable = (p) => {
   try { if (!isAbsolute(p)) return false; accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
 };
+// Where the attribution fix goes: the highest file that sets attribution, else the user file; managed settings are the administrator's.
+function attributionWhere(state, agentId) {
+  const [top] = valuesOf(state.layers, agentId, 'attribution');
+  const set = `benchkeeper settings set attribution '{"commit":"","pr":"","sessionUrl":false}'`;
+  if (!top || top.layer === 'user') return `in the user settings: ${set}`;
+  if (top.layer === 'managed') return `in the managed settings (${top.path}): ask your administrator`;
+  return `in ${top.path}: ${set} --layer ${top.layer} --project '${dirname(dirname(top.path)).replaceAll("'", "'\\''")}'`;
+}
 // The user file's top-level effortLevel against the one level saved under modelSettings: { top, saved, models } when they
 // differ, else null. Different saved levels per model are on purpose: null.
 function effortGap(state, agentId) {
@@ -321,6 +329,13 @@ function holds(c, state, agentId) {
   // shortcut: the lists of all layers, not the managed-only switch; add it if allowManagedDomainsOnly matters.
   if (c.op === 'allowlistEmpty') return lookup(state, agentId, 'sandbox.network.allowedDomains').flat().length === 0;
   if (c.op === 'effortDiffers') return effortGap(state, agentId) !== null;
+  // Judged on the highest file that sets attribution: a part it leaves out counts as unset, since the docs do not say whether
+  // lower files fill it in. An unset or Claude-naming text, or a session link not turned off, adds Claude's attribution.
+  if (c.op === 'aiAttribution') {
+    const [a] = lookup(state, agentId, 'attribution');
+    const claude = (t) => typeof t !== 'string' || /claude|anthropic/i.test(t);
+    return a !== false && (claude(a?.commit) || claude(a?.pr) || a?.sessionUrl !== false);
+  }
   if (c.keyPrefix) return state.layers.filter((l) => !c.layer || c.layer.includes(l.layer)).some((l) => Object.keys(dig(l.data, pathOf(c.keyPrefix.replace(/\.[^.]*$/, ''))) ?? {}).some((k) => `env.${k}`.startsWith(c.keyPrefix)));
   // effective: only the value Claude Code uses, the highest layer, else the process environment (a settings env value overrides the shell's).
   const values = c.effective ? lookup(state, agentId, c.key, c.layer).slice(0, 1) : lookup(state, agentId, c.key, c.layer);
@@ -345,7 +360,7 @@ export function notes(agentId, layers, { env, onlyDoctor = false, partial = fals
   for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll) && (!x.platforms || x.platforms.includes(platform)))) {
     const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : r.forEach === 'deprecated' ? DEPRECATED.map((d) => d.key) : [null];
     for (const key of expand) {
-      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s.replace(/\{(top|saved|models)\}/g, (m, k) => String(effortGap(state, agentId)?.[k] ?? m)));
+      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s.replace(/\{(top|saved|models)\}/g, (m, k) => String(effortGap(state, agentId)?.[k] ?? m)).replace('{where}', () => attributionWhere(state, agentId)));
       const when = key ? JSON.parse(JSON.stringify(r.when).replaceAll('{key}', key)) : r.when;
       if (when && !holds(when, state, agentId)) continue;
       // A value the setup itself writes is on purpose: no finding while every such key still has the setup's value.
@@ -568,7 +583,8 @@ export function bundleEdits(agentId, id) {
 const issue = (level, message, fix, dir) => ({ level, check: 'agent-settings', message, fix, ...(dir ? { dir } : {}) });
 
 // Doctor findings for the agents' settings: files Claude Code would skip, the rules marked doctor, Codex trust entries of
-// folders that are gone; a note the user dismissed in Agent settings, or one on settings the user decided to keep, is left out. With dir, only what the project and
+// folders that are gone; a note on settings the user decided to keep is left out, and a note carries its id as dismissId, so Doctor and Agent settings
+// share one dismissed entry. With dir, only what the project and
 // local layers add to the global findings. Names and places, never values.
 export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) {
   const out = [];
@@ -583,7 +599,7 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const partial = readable.length < all.length;
     const off = dismissedNotes(ctx);
     const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, facts: ctx.sandbox, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id) && !onDecided(x, id, off))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
+    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !onDecided(x, id, off))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), dismissId: n.id, settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

@@ -1,6 +1,7 @@
-// Usage: node approval.mjs <file>. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
-// Usage: node approval.mjs answer <file>. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author` printed: the answer as JSON and exit 0, exit 1 while there is none, or exit 2 with one line when the file cannot be read as that output.
-import { readFileSync } from 'node:fs';
+// Usage: node approval.mjs <file>, the file in .benchkeeper/runs/ of the working directory (the run folder, approvals.md); any other path exits 2. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
+// Usage: node approval.mjs answer <file>, the file in the run folder as above. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author` printed: the answer as JSON and exit 0, exit 1 while there is none, or exit 2 with one line when the file cannot be read as that output.
+import { readFileSync, realpathSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { escaped, isMain, json } from './policy.mjs';
 
 const FRONT = 'Front matter';
@@ -8,9 +9,8 @@ const FRONT = 'Front matter';
 const PLACEHOLDER = /<(?![a-z][a-z0-9+.-]*:\S)[a-z][^<>]*>/i;
 // These leave the answer open, with or without punctuation or invisible characters around them; "none" is an answer, which the template offers for Owner steps.
 const OPEN = /^[^\p{L}\p{N}]*(tbd|todo|n\/a)[^\p{L}\p{N}]*$/iu;
-// What the owner sees of a cell: an HTML comment, a closing tag, an entity and a link target show no text, and emphasis, strike and code marks are no text.
+// What the owner sees of a cell: a closing tag, an entity and a link target show no text, and emphasis, strike and code marks are no text. HTML comments are gone before cells are read (missing).
 const shown = (cell) => cell
-  .replace(/<!--.*?(-->|$)/g, '')
   .replace(/<\/[a-z][^<>]*>/gi, '')
   .replace(/&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/gi, ' ')
   .replace(/\]\([^)]*\)/g, ']')
@@ -47,12 +47,15 @@ export function missing(text) {
   const approval = tables(text, 'Approval').flat();
   const row = (name) => { const found = approval.filter(([first]) => first === name); return found.length > 0 && found.every(([, cell]) => filled(cell)); };
   const options = tables(text, 'Option')[0] ?? [];
+  // The owner answers with a label, such as "a": each option row starts with its own.
+  const labels = options.map(([option]) => /^\([^()]+\)/.exec(shown(option))?.[0]);
   // The questions skill offers the recommended option first; the Trade-off cell may stay empty.
   const chosen = options.length >= 2
     && options.every(([option, happens], i) => filled(option) && filled(happens) && option.includes('(Recommended)') === (i === 0))
+    && labels.every(Boolean) && new Set(labels).size === labels.length
     && !options.flat().some((cell) => PLACEHOLDER.test(cell));
   // The questions skill takes its recommendation from the Recommended row and the first option from the table: both must name one option.
-  const label = /^\([^()]+\)/.exec(shown(options[0]?.[0] ?? ''))?.[0];
+  const label = labels[0];
   const agrees = !chosen || (label && approval.every(([first, cell = '']) => first !== 'Recommended' || shown(cell).startsWith(label)));
   return [
     // Posted with the body, the front matter would show as text: its labels go on the command line.
@@ -81,6 +84,10 @@ export function answer(issue) {
   return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at: comments[newest].createdAt };
 }
 
+// The path comes from a session's command line: a file that resolves outside the run folder, through .. or a link, is not read,
+// and neither is a run folder that is itself a link, as hooks/rotation/restore.mjs refuses one.
+const inRuns = (file) => { try { const real = realpathSync(file); return real.startsWith(join(realpathSync('.'), '.benchkeeper', 'runs') + sep) ? real : null; } catch { return null; } };
+
 if (isMain(import.meta.url)) {
   const say = (message) => console.error(escaped(message.split('\n')[0]));
   process.exitCode = 1;
@@ -88,7 +95,9 @@ if (isMain(import.meta.url)) {
   const [mode, file] = process.argv.length === 4 || process.argv[2] === 'answer' ? process.argv.slice(2) : ['check', process.argv[2]];
   try {
     if (!file || process.argv.length > 4 || !['check', 'answer'].includes(mode)) throw new Error('usage: node approval.mjs <file>, or node approval.mjs answer <file>');
-    const text = readFileSync(file, 'utf8');
+    const real = inRuns(file);
+    if (!real) { process.exitCode = 2; throw new Error(`refused: ${file} is no file in .benchkeeper/runs/ of the working directory`); }
+    const text = readFileSync(real, 'utf8');
     const found = mode === 'answer' ? answer(JSON.parse(text)) : null;
     if (found) console.log(json(found));
     const lacks = mode === 'check' ? missing(text) : [];

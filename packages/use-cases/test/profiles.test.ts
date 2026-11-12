@@ -865,7 +865,7 @@ const packWith =
   async (source, options) => {
     if (!/\/[ab]\.git$/.test(source.url)) return stock(source, options);
     const manifest = { schemaVersion: 1, kind: "cedarloom.pack", id: "acme.skills", version: "1.0.0", name: "Skills" };
-    const text = JSON.stringify({ ...manifest, minApp: "0.1.0", entries });
+    const text = JSON.stringify({ ...manifest, minApp: "0.0.0", entries });
     const extra = more.map((path) => treeFile(path, "{}\n"));
     const files = [treeFile("cedarloom-pack.json", text), treeFile("skills/review/SKILL.md", "# Review\n"), ...extra];
     return { ok: true, value: { commit: "1".repeat(40), digest: "2".repeat(64), files } };

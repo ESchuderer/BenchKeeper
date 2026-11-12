@@ -20,8 +20,8 @@ const PLACEHOLDER = /\{\{([a-z][a-z0-9_]*)\}\}/g;
 // shortcut: a value has no spaces, quotes or shell characters, so it is safe in an unquoted precheck word; a label with a space needs another spelling.
 const SAFE_VALUE = /^[\w@./:,+=-]*$/;
 const MODES = ['report', 'act'];
-const FIELDS = ['id', 'title', 'agent', 'schedule', 'workspace', 'reuse_session', 'precheck', 'missed_run_grace_minutes', 'mode', 'parameters', 'helpers'];
-const DEFAULTS = { schedule: '', workspace: 'project', reuse_session: false, precheck: '', missed_run_grace_minutes: 0, mode: 'report', parameters: {}, helpers: [] };
+const FIELDS = ['id', 'title', 'agent', 'schedule', 'workspace', 'reuse_session', 'precheck', 'missed_run_grace_minutes', 'mode', 'parameters', 'helpers', 'hook'];
+const DEFAULTS = { schedule: '', workspace: 'project', reuse_session: false, precheck: '', missed_run_grace_minutes: 0, mode: 'report', parameters: {}, helpers: [], hook: '' };
 
 const own = (o, k) => Object.hasOwn(o, k);
 const text = (v) => typeof v === 'string' && v.trim() !== '';
@@ -59,6 +59,7 @@ export function parse(source) {
   if (!['project', 'new-worktree'].includes(t.workspace)) throw new Error('workspace: project or new-worktree');
   if (typeof t.reuse_session !== 'boolean') throw new Error('reuse_session must be true or false');
   if (typeof t.precheck !== 'string') throw new Error('precheck must be a string');
+  if (typeof t.hook !== 'string') throw new Error('hook must be a string');
   if (!Number.isInteger(t.missed_run_grace_minutes) || t.missed_run_grace_minutes < 0) throw new Error('missed_run_grace_minutes: a whole number of minutes, 0 or more');
   if (!MODES.includes(t.mode)) throw new Error('mode: report or act');
   if (t.prompt === '') throw new Error('the prompt (the body after the front matter) is empty');
@@ -68,7 +69,7 @@ export function parse(source) {
   return t;
 }
 
-const placeholders = (t) => [...new Set([t.prompt, t.precheck].flatMap((s) => [...s.matchAll(PLACEHOLDER)].map((x) => x[1])))];
+const placeholders = (t) => [...new Set([t.prompt, t.precheck, t.hook].flatMap((s) => [...s.matchAll(PLACEHOLDER)].map((x) => x[1])))];
 
 // The prompt and the precheck with every placeholder replaced. Rejects an unknown or a missing parameter and a value with shell characters.
 // fromUser: the values are the --param the user typed, so a bad one is a usage error (status 400, the CLI exits 2); values an
@@ -89,7 +90,7 @@ export function fill(t, values = {}, { fromUser = false } = {}) {
     if (off.length) throw usage(`parameter ${k}: ${off.join(', ')} does not start with ${p.allow.join(', ')}`);
   }
   const sub = (s) => s.replace(PLACEHOLDER, (_, k) => all[k]);
-  return { prompt: sub(t.prompt), precheck: sub(t.precheck), values: all };
+  return { prompt: sub(t.prompt), precheck: sub(t.precheck), hook: sub(t.hook), values: all };
 }
 
 // ---- lint
@@ -121,7 +122,7 @@ const quotedHelpers = (t, s) => {
   }
   return [...inside];
 };
-const quotedMessage = (h) => `${h} is inside quotes in the precheck: write the helper path unquoted, it is replaced by a quoted path`;
+const quotedMessage = (h, where = 'precheck') => `${h} is inside quotes in the ${where}: write the helper path unquoted, it is replaced by a quoted path`;
 
 // Problems of one loaded template as { rule, message }. generic: the template ships in this repository, so it may name no private path or name.
 // A helper file is { path, text, executable }; text null when the file is missing.
@@ -146,6 +147,7 @@ export function lint(t, { generic = true, privateNames = [] } = {}) {
     for (const n of privateNames) if (new RegExp(`(?<!\\w)${re(n)}(?!\\w)`, 'i').test(all)) bad('private', `the private name "${n}"`);
   }
   for (const h of quotedHelpers(t, t.precheck)) bad('helper', quotedMessage(h));
+  for (const h of quotedHelpers(t, t.hook)) bad('helper', quotedMessage(h, 'hook'));
   for (const f of files) {
     if (f.text == null) { bad('helper', `${f.path} is missing, not a plain file, or outside the template folder`); continue; }
     if (!f.executable) bad('helper', `${f.path} is not executable`);
@@ -281,6 +283,8 @@ export function exportScript(ctx, id, { values = {}, dir }) {
   if (filled.precheck.trim() === '') throw new Error(`${id} has no precheck: an exported run would start the agent every time`);
   const [quoted] = quotedHelpers(t, t.precheck);
   if (quoted) throw new Error(quotedMessage(quoted));
+  const [inHook] = quotedHelpers(t, t.hook);
+  if (inHook) throw new Error(quotedMessage(inHook, 'hook'));
   const helpers = t.helper_files.map((h) => {
     if (h.text == null) throw new Error(`${h.path} is missing`);
     let end = 'HELPER';
@@ -289,8 +293,13 @@ export function exportScript(ctx, id, { values = {}, dir }) {
     const dir = rel.includes('/') ? `mkdir -p "$helpers"/${quote(rel.slice(0, rel.lastIndexOf('/')))}\n` : '';
     return `${dir}cat > ${file} <<'${end}'\n${h.text.endsWith('\n') ? h.text : `${h.text}\n`}${end}\nchmod +x ${file}\n`;
   }).join('');
-  const allow = t.agent === 'claude' && t.helpers.length
-    ? `set -- --allowedTools ${t.helpers.map((h) => `"Bash($helpers/${h.slice(t.id.length + 1)} *)"`).join(' ')}\n` : '';
+  // The hook runs in a shell Claude Code starts, so it finds the helpers' folder through the exported variable.
+  const settings = t.agent === 'claude' && filled.hook.trim() !== ''
+    ? `export helpers\nset -- --settings ${quote(JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: withHelpers(t, filled.hook), onFailure: 'block' }] }] } }))}\n` : '';
+  // A helper only the hook names needs no allow rule: the run never calls it.
+  const called = t.helpers.filter((h) => !t.hook.includes(h) || t.precheck.includes(h) || t.prompt.includes(h));
+  const allow = settings + (t.agent === 'claude' && called.length
+    ? `set -- ${settings ? '"$@" ' : ''}--allowedTools ${called.map((h) => `"Bash($helpers/${h.slice(t.id.length + 1)} *)"`).join(' ')}\n` : '');
   return `#!/bin/sh
 # ${t.title} (${t.id}), from benchkeeper automations export. Runs the precheck in the project folder and
 # ${t.agent} only when it exits 0. A crontab line (crontab -e), with the absolute path of this file:

@@ -3,8 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProfileSelection } from "@cedarloom/contracts";
 import { BUNDLED } from "@cedarloom/packs";
-import { DEFAULT_PROFILE, filesIn, resolveProfile } from "@cedarloom/profiles";
-import { expect, test } from "vitest";
+import { DEFAULT_PROFILE, filesIn, readEntry, resolveProfile } from "@cedarloom/profiles";
+import { expect, test, vi } from "vitest";
+
+// A released CedarLoom: a development build (0.0.0) loads files for a newer one.
+vi.mock("../src/version.ts", () => ({ APP_VERSION: "0.1.0" }));
 
 const selection = (fields: Partial<ProfileSelection>): ProfileSelection => ({
   schemaVersion: 1,
@@ -67,6 +70,24 @@ test.for<[string, ProfileSelection, unknown[]]>([
 
 test("a bundled profile ships with its release, so a development build reads it", () => {
   expect(problems(selection({}), "0.0.0")).toEqual([]);
+});
+
+test("a development build loads a local profile for a newer CedarLoom, with a warning", () => {
+  const warn = vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
+  expect(problems(local("9.0.0"), "0.0.0")).toEqual([]);
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining("9.0.0"), { code: "CEDARLOOM_DEV_BUILD" });
+  warn.mockRestore();
+});
+
+test("a Git pack for a newer CedarLoom with a field this one does not know is too new, not invalid", () => {
+  const manifest = { schemaVersion: 1, kind: "cedarloom.pack", id: "acme.rules", version: "1.0.0", name: "Rules" };
+  const entries = { "rules/team.md": { kind: "rules" } };
+  const content = Buffer.from(JSON.stringify({ ...manifest, minApp: "9.0.0", entries, future: true }));
+  const folder = { files: [{ path: "cedarloom-pack.json", mode: "100644", content }] };
+  expect(readEntry({ pack: "acme.rules", path: "rules/team.md" }, "rules", folder)).toMatchObject({
+    ok: false,
+    finding: { code: "profile.app-too-old", params: { minApp: "9.0.0", pack: "acme.rules" } },
+  });
 });
 
 test.skipIf(process.platform === "win32")("a folder's file its owner may run comes with Git's mode 100755", () => {

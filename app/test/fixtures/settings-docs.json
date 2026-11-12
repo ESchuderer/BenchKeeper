@@ -1,5 +1,5 @@
 {
- "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the sandbox, deprecated-key and auto mode passages 2026-10-28, the disableAllHooks passage 2026-11-09 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
+ "about": "Passages of the doc pages the coupling rules cite, fetched 2026-10-25, the scrub and Read deny passages 2026-10-26, the sandbox, deprecated-key and auto mode passages 2026-10-28, the disableAllHooks passage 2026-11-09, the attribution passages 2026-11-12 (whitespace collapsed, 120 characters around each quote). test/settings.test.mjs finds every rule quote here. Re-pin by fetching the page again, see src/settings/sources.json.",
  "fetched": "2026-10-25",
  "pages": {
   "https://code.claude.com/docs/en/advisor": [
@@ -30,7 +30,9 @@
    "tings.md) | Enterprise and managed settings | Managed | | [`permissionExplainerEnabled`](#permissionexplainerenabled) | Removed in v2.1.257, together with the `Ctrl+E` command explanation on shell permission prompts | Global config settings | Global config | ",
    "lighting in diffs and code blocks | Interface and terminal | Any file | | [`taskOutputMaxChars`](#taskoutputmaxchars) | Removed in v2.1.277, together with the `TaskOutput` tool it sized | Memory and context | Any file | | [`teammateDefaultModel`](#teammatedef",
    "th the `TaskOutput` tool it sized | Memory and context | Any file | | [`teammateDefaultModel`](#teammatedefaultmodel) | Removed in v2.1.234; see [Specify teammates and models](https://code.claude.com/docs/en/agent-teams.md#specify-teammates-and-models) for ho",
-   "tive-mode#quick-commands) command at once | Hooks and automation | Any file | | [`disableArtifact`](#disableartifact) | Deprecated; use `enableArtifact` to turn the [Artifact tool](https://code.claude.com/docs/en/artifacts.md) off | Remote, desktop, and notifications | An"
+   "tive-mode#quick-commands) command at once | Hooks and automation | Any file | | [`disableArtifact`](#disableartifact) | Deprecated; use `enableArtifact` to turn the [Artifact tool](https://code.claude.com/docs/en/artifacts.md) off | Remote, desktop, and notifications | An",
+   " it to an empty string to hide commit attribution. * **Scope**: [`Any file`](#scopes) * **Type**: string * **Default**: unset, so Claude Code adds `Co-Authored-By: <name> <noreply@anthropic.com>`. The name is the model in use when the commit is made, such as `Claude Sonnet 5`. When a [subagent](https://code.claude",
+   "session. Claude Code adds the link as a `Claude-Session` trailer on commits and as a link in pull request descriptions. Set it to `false` to omit the link. * **Scope**: [`Any file`](#scopes) * **Type**: Boolean * `true`: Claude Code appends the claude.ai session link when it"
   ],
   "https://learn.chatgpt.com/docs/config-file/config-reference": [
    "ults to non-login shells. analytics.enabled boolean Enable or disable analytics for this machine/profile. In Codex CLI, false also disables custom OTLP metrics exporters. When unset, the client default applies. approval_policy on-request | never | { granular = { sandbox_approval = bool, r",

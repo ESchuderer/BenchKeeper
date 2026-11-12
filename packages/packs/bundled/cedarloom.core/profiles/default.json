@@ -97,7 +97,8 @@
         "showClearContextOnPlanAccept": true,
         "attribution": {
           "commit": "",
-          "pr": ""
+          "pr": "",
+          "sessionUrl": false
         },
         "feedbackDrafts": "off",
         "env": {

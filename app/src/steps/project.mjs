@@ -16,7 +16,7 @@ import { getBlock, marks, mergeJson, parseJson, setBlock } from '../merge.mjs';
 import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, setsPaths, skillFolder, skippedLinks, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
-import { PLUGINS, localPlugins, marketSource, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
+import { PLUGINS, localPlugins, marketSource, pluginCommit, pluginScope, pluginUnit, skillsSpec, skillsVerify } from './global.mjs';
 import { headCommit } from '../remote.mjs';
 import { checkPlan, unit } from '../units.mjs';
 import { workerRepos } from '../sessions.mjs';
@@ -674,8 +674,10 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
+  // The plugin's commit is read when an apply writes the file; the preview keeps the recorded one, so a plugin update alone is no pending change.
+  const commit = (run) => (!a.agents.includes('claude') ? undefined : run ? pluginCommit(ctx, dir) : prev?.pluginCommit);
   const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.machine ? { machine: a.machine } : {}), ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
-    skills: skills.map((s) => ({ name: s.name, source: keepsUser(s.name, run) ? 'user' : s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })) });
+    skills: skills.map((s) => ({ name: s.name, source: keepsUser(s.name, run) ? 'user' : s.source, ...recorded(s, run, runCtx), ...(adoptedOwn.has(s.name) ? { adopted: true } : {}) })), ...(commit(run) ? { pluginCommit: commit(run) } : {}) });
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 

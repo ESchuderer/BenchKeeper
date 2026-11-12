@@ -87,6 +87,14 @@ export function localPlugins(ctx, dir) {
   } catch { /* the CLI below */ }
   return json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'local' && p.projectPath === dir).map((p) => p.id);
 }
+// The commit of the BenchKeeper plugin Claude Code runs in a project folder: the folder's own install (local or project scope), else the user's.
+export function pluginCommit(ctx, dir) {
+  try {
+    const l = JSON.parse(readText(join(ctx.home, '.claude/plugins/installed_plugins.json'))).plugins[OWN.id];
+    const commit = (l.find((p) => ['local', 'project'].includes(p.scope) && p.projectPath === dir) ?? l.find((p) => p.scope === 'user'))?.gitCommitSha;
+    return typeof commit === 'string' ? commit : undefined;
+  } catch { return undefined; }
+}
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 export const KEEP_SKILLS = ['find-skills', ...orca.SKILLS, 'synced'];

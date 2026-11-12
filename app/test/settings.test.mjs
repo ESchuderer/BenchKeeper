@@ -297,6 +297,8 @@ test('Doctor: attribution that adds Claude to commits or pull requests, with the
     assert.match(f[0].fix, /benchkeeper settings set attribution '\{"commit":"","pr":"","sessionUrl":false\}'/);
   }
   for (const attribution of [none, false, { ...none, commit: 'Agent-Host: mac\nAgent-Role: worker' }]) assert.deepEqual(found({ attribution }), [], JSON.stringify(attribution));
+  assert.equal(found({ includeCoAuthoredBy: true }).length, 1, 'the deprecated key alone');
+  assert.deepEqual(found({ includeCoAuthoredBy: true, attribution: none }), [], 'attribution overrules the deprecated key');
   const dir = mkdtempSync(join(tmpdir(), 'bk-attr-'));
   write(join(dir, '.claude/settings.json'), JSON.stringify({ attribution: { commit: '' } }));
   assert.equal(found({ attribution: none }, dir).length, 1, 'a project object that leaves pr and sessionUrl out is reported');

@@ -444,8 +444,8 @@ export function globalPlan(env) {
   // Settings
   if (agents.includes('claude')) {
     const f = at('.claude/settings.json');
-    // An attribution the user kept ("Keep mine" in Agent settings) stays as it is.
-    const keptAttribution = dismissedNotes(ctx).has('setting:claude:attribution');
+    // An attribution already in the file is the user's choice and stays; doctor warns when it adds Claude attribution.
+    const keptAttribution = parseJsonSafe(readText(f))?.attribution !== undefined;
     const keys = CLAUDE_KEYS.filter(([k]) => !(keptAttribution && k[0] === 'attribution'));
     add('settings:claude', `Claude settings: clear-context on plan accept, transcripts 14 days, stable channel, ${keptAttribution ? '' : 'commit and pull request attribution hidden, '}error reporting and feedback off`, { kind: 'write', path: f, edit: sets(keys), settings: { agent: 'claude', keys: keys.map(([k]) => k.join('.')) } });
     add('settings:claude:advisor', 'Claude advisor Opus, subagents on Sonnet (BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets(ADVISOR_KEYS), settings: { agent: 'claude', keys: ADVISOR_KEYS.map(([k]) => k.join('.')) } }, RECOMMENDATION);

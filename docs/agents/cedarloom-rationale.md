@@ -69,7 +69,7 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 ### Oldest app version
 
-`resolve.ts` (`manifestOf`) and `packages/use-cases/src/workflow-packages.ts` (`planPackageInstall`). A Git pack whose manifest names a `minApp` above the running release is refused with `profile.app-too-old`. Its `minApp` is read before the strict parse, as a newer release's manifest may hold fields this one refuses. Bundled packs are exempt, as bundled profiles are: they ship with the release, and their manifests say `0.1.0` while a development build is `0.0.0`. A workflow package's install compares the parsed `metadata.minApp` and reports `package.app-too-old`: the store holds only files this release parsed, so there is no unknown field to read past.
+`resolve.ts` (`manifestOf`) and `packages/use-cases/src/workflow-packages.ts` (`planPackageInstall`). A Git pack whose manifest names a `minApp` above the running release is refused with `profile.app-too-old`. Its `minApp` is read before the strict parse, as a newer release's manifest may hold fields this one refuses. Bundled packs are exempt, as bundled profiles are: they ship with the release, and their manifests say `0.1.0` while a development build is `0.0.0`. A workflow package's install compares the parsed `metadata.minApp` and reports `package.app-too-old`: the store holds only files this release parsed, so there is no unknown field to read past. A development build (`0.0.0`) skips these checks and the profile file's with a Node warning (`appTooOld`, code `CEDARLOOM_DEV_BUILD`), so a checkout loads packs and samples made for a release (ESchuderer/hub#396).
 
 ### Project links
 

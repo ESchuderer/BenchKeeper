@@ -561,8 +561,7 @@ const drafted = (root: string, state: string, name: string, more: object[] = [])
   const corpus = join(import.meta.dirname, "..", "..", "contracts", "corpus", "WorkflowDefinition", "1");
   const sample = JSON.parse(readFileSync(join(corpus, name), "utf8"));
   const nodes = [...sample.nodes, ...more];
-  // A development build is 0.0.0, below the sample's minApp, so its install would be refused.
-  const metadata = { ...sample.metadata, id: "w", minApp: "0.0.0" };
+  const metadata = { ...sample.metadata, id: "w" };
   const draft = WorkflowDefinition.parse({ ...sample, metadata, nodes });
   mkdirSync(join(state, "drafts"), { recursive: true });
   writeFileSync(join(state, "drafts", "workflow-w.json"), formatWorkflow(draft));

@@ -144,6 +144,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "package.hooks-missing": (p) =>
     `The guard's and the exit hook's bundles are missing from ${p.path}, where the CLI package ships them; in a checkout, build them with pnpm --filter @cedarloom/orchestration run build.`,
   "package.not-installed": (p) => `No package of the workflow ${p.id} is installed.`,
+  "package.app-too-old": (p) =>
+    `The workflow ${p.id} needs CedarLoom ${p.minApp} or newer; this is ${p.app}. Update CedarLoom.`,
   "package.plugin-taken": (p) =>
     `The plugin ${p.plugin} holds the package of the workflow ${p.id}, whose id folds to the same name; uninstall that one first, or give one of the two workflows another id.`,
   "package.levels-mixed": (p) =>
@@ -197,7 +199,8 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "profile.pack-sources": (p) =>
     `Pack ${p.pack} comes from different sources in ${p.files.join(" and ")}; give it one source in every profile file.`,
   "profile.entry-unknown": (p) => `Pack ${p.pack} has no ${p.kind} entry ${p.path} on this machine.`,
-  "profile.app-too-old": (p) => `The profile needs CedarLoom ${p.minApp} or newer; this is ${p.app}. Update CedarLoom.`,
+  "profile.app-too-old": (p) =>
+    `${p.pack === undefined ? "The profile" : `Pack ${p.pack}`} needs CedarLoom ${p.minApp} or newer; this is ${p.app}. Update CedarLoom.`,
   "profile.part-unknown": (p) => `${p.by} names the part ${p.part}, which the profile does not have.`,
   "profile.part-requires": (p) =>
     `${p.part} needs ${p.requires}, which is off. Switch one: cedarloom profiles select ${p.requires} on, or cedarloom profiles select ${p.part} off`,

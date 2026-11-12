@@ -10,6 +10,7 @@ import { contentDir } from '../src/content.mjs';
 import { globalDrift } from '../src/doctor.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { inventory } from '../src/inventory.mjs';
+import { dismissNote } from '../src/preferences.mjs';
 import { PLUGINS, benchkeeperPlugin, globalPlan, globalSkills, newest, pin, pluginState } from '../src/steps/global.mjs';
 import { verifyArgv, verifyPackage } from '../src/verify.mjs';
 
@@ -159,6 +160,20 @@ test('full apply: rules, removals, plugins, settings, tools; a second plan is em
   assert.equal(readFileSync(join(m.home, '.codex/AGENTS.md'), 'utf8'), 'my codex rules\n');
   assert.equal(settings(m.home).model, 'opus');
   assert.ok(u.entries.some((e) => e.status === 'manual'), 'removals through agent commands are reported for manual reinstall');
+});
+
+const applyStep = (m, step) => { const plan = m.plan(); assert.equal(apply(plan, m.ctx, { select: plan.filter((c) => c.step === step).map((c) => c.id) }).status, 'done'); };
+
+test('the setup hides attribution unless the user kept their own in Agent settings', () => {
+  const m = machine();
+  const mine = { commit: 'Reviewed-by: me' };
+  writeFileSync(join(m.home, '.claude/settings.json'), JSON.stringify({ attribution: mine }));
+  dismissNote(m.ctx, 'setting:claude:attribution');
+  applyStep(m, 'settings:claude');
+  assert.deepEqual(settings(m.home).attribution, mine);
+  dismissNote(m.ctx, 'setting:claude:attribution', false);
+  applyStep(m, 'settings:claude');
+  assert.deepEqual(settings(m.home).attribution, { commit: '', pr: '', sessionUrl: false });
 });
 
 test('Matt Pocock pack is optional', () => {

@@ -23,9 +23,9 @@ function machine() {
   return Object.assign(context({ home, run }), { managedRoot: managed });
 }
 const write = (path, text) => { mkdirSync(join(path, '..'), { recursive: true }); writeFileSync(path, text); };
-// The security controls (#313 and the sandbox settings, #312) fire on a home that sets none; tests of other rules leave them out.
+// The security controls (#313 and the sandbox settings, #312) and the attribution rule fire on a home that sets none; tests of other rules leave them out.
 const CONTROLS = /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off|credential files/;
-const HIDDEN = new RegExp(`${CONTROLS.source}|sandbox\\.|sandbox is unsupported|sandbox_mode`);
+const HIDDEN = new RegExp(`${CONTROLS.source}|sandbox\\.|sandbox is unsupported|sandbox_mode|adds Claude attribution`);
 const CLAUDE = agentSettings('claude').precedence;
 const claudeUser = (ctx) => join(ctx.home, '.claude/settings.json');
 const codexUser = (ctx) => join(ctx.home, '.codex/config.toml');
@@ -284,6 +284,22 @@ test('Doctor: the other pairs, no-op keys, retention, switches that are not bool
   for (const v of ['0', 'false']) assert.match(messages({ env: { DISABLE_TELEMETRY: v } }).join(), /DISABLE_TELEMETRY counts as set even with 0 or false/);
   assert.deepEqual(messages({ env: { DISABLE_TELEMETRY: '1', DO_NOT_TRACK: '0' } }), [], 'DO_NOT_TRACK 0 is off, a plain boolean');
   assert.ok(!JSON.stringify(messages({ env: { MY_TOKEN: SECRET, DISABLE_TELEMETRY: '0' } })).includes(SECRET));
+});
+
+test('Doctor: attribution that adds Claude to commits or pull requests, with the fix; a project file judged on its own', () => {
+  const ctx = machine();
+  const found = (settings, dir) => { write(claudeUser(ctx), JSON.stringify(settings)); return doctor(ctx, { agents: ['claude'], dir, env: {} }).filter((i) => /adds Claude attribution/.test(i.message)); };
+  const none = { commit: '', pr: '', sessionUrl: false };
+  for (const attribution of [undefined, {}, { commit: '', pr: '' }, { ...none, sessionUrl: true }, { ...none, commit: 'Co-Authored-By: Claude <noreply@anthropic.com>' }, { ...none, pr: 'Made with https://claude.ai/code' }, { ...none, pr: 'Anthropic' }]) {
+    const f = found({ attribution });
+    assert.equal(f.length, 1, JSON.stringify(attribution));
+    assert.equal(f[0].level, 'warning');
+    assert.match(f[0].fix, /benchkeeper settings set attribution '\{"commit":"","pr":"","sessionUrl":false\}'/);
+  }
+  for (const attribution of [none, false, { ...none, commit: 'Agent-Host: mac\nAgent-Role: worker' }]) assert.deepEqual(found({ attribution }), [], JSON.stringify(attribution));
+  const dir = mkdtempSync(join(tmpdir(), 'bk-attr-'));
+  write(join(dir, '.claude/settings.json'), JSON.stringify({ attribution: { commit: '' } }));
+  assert.equal(found({ attribution: none }, dir).length, 1, 'a project object that leaves pr and sessionUrl out is reported');
 });
 
 test('Doctor: the environment scrub and the credential Read deny rules', () => {
@@ -677,7 +693,7 @@ test('kinds and dismiss: only a real conflict is titled as one; a dismissed note
   const off = { effortLevel: 'high', modelSettings: { 'claude-opus-5-5': { effortLevel: 'medium' } } };
   write(claudeUser(ctx), JSON.stringify(off));
   const kinds = (c = ctx) => Object.fromEntries(listSettings(c, 'claude', { env: {} }).notes.map((n) => [n.id, n.kind]));
-  assert.deepEqual(kinds(), { 'effort-user-noop': 'conflict', 'env-scrub-off': 'hardening', 'read-deny-credentials': 'hardening', 'sandbox-off': 'hardening' });
+  assert.deepEqual(kinds(), { 'ai-attribution': 'hardening', 'effort-user-noop': 'conflict', 'env-scrub-off': 'hardening', 'read-deny-credentials': 'hardening', 'sandbox-off': 'hardening' });
   assert.equal(listSettings(ctx, 'claude', { env: {} }).notes.find((n) => n.id === 'effort-user-noop').default, 'The top-level effortLevel is high; claude-opus-5-5 have medium saved under modelSettings and use that.');
   write(claudeUser(ctx), JSON.stringify({ ...off, sandbox: { enabled: true, failIfUnavailable: true, network: { allowedDomains: ['registry.npmjs.org'] } } }));
   assert.equal(kinds()['sandbox-unsandboxed-retry'], 'hardening', 'the retry is raised while the sandbox is on');

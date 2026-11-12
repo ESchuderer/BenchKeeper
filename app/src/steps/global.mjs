@@ -444,7 +444,10 @@ export function globalPlan(env) {
   // Settings
   if (agents.includes('claude')) {
     const f = at('.claude/settings.json');
-    add('settings:claude', 'Claude settings: clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS), settings: { agent: 'claude', keys: CLAUDE_KEYS.map(([k]) => k.join('.')) } });
+    // An attribution the user kept ("Keep mine" in Agent settings) stays as it is.
+    const keptAttribution = dismissedNotes(ctx).has('setting:claude:attribution');
+    const keys = CLAUDE_KEYS.filter(([k]) => !(keptAttribution && k[0] === 'attribution'));
+    add('settings:claude', `Claude settings: clear-context on plan accept, transcripts 14 days, stable channel, ${keptAttribution ? '' : 'commit and pull request attribution hidden, '}error reporting and feedback off`, { kind: 'write', path: f, edit: sets(keys), settings: { agent: 'claude', keys: keys.map(([k]) => k.join('.')) } });
     add('settings:claude:advisor', 'Claude advisor Opus, subagents on Sonnet (BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets(ADVISOR_KEYS), settings: { agent: 'claude', keys: ADVISOR_KEYS.map(([k]) => k.join('.')) } }, RECOMMENDATION);
     add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise; BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]), settings: { agent: 'claude', keys: ['model'] } }, RECOMMENDATION);
     add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key; BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]), settings: { agent: 'claude', keys: ['effortLevel', 'modelSettings'] } }, RECOMMENDATION);

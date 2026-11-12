@@ -321,6 +321,13 @@ function holds(c, state, agentId) {
   // shortcut: the lists of all layers, not the managed-only switch; add it if allowManagedDomainsOnly matters.
   if (c.op === 'allowlistEmpty') return lookup(state, agentId, 'sandbox.network.allowedDomains').flat().length === 0;
   if (c.op === 'effortDiffers') return effortGap(state, agentId) !== null;
+  // Judged on the highest file that sets attribution: a part it leaves out counts as unset, since the docs do not say whether
+  // lower files fill it in. An unset or Claude-naming text, or a session link not turned off, adds Claude's attribution.
+  if (c.op === 'aiAttribution') {
+    const [a] = lookup(state, agentId, 'attribution');
+    const claude = (t) => typeof t !== 'string' || /claude|anthropic/i.test(t);
+    return a !== false && (claude(a?.commit) || claude(a?.pr) || a?.sessionUrl !== false);
+  }
   if (c.keyPrefix) return state.layers.filter((l) => !c.layer || c.layer.includes(l.layer)).some((l) => Object.keys(dig(l.data, pathOf(c.keyPrefix.replace(/\.[^.]*$/, ''))) ?? {}).some((k) => `env.${k}`.startsWith(c.keyPrefix)));
   // effective: only the value Claude Code uses, the highest layer, else the process environment (a settings env value overrides the shell's).
   const values = c.effective ? lookup(state, agentId, c.key, c.layer).slice(0, 1) : lookup(state, agentId, c.key, c.layer);

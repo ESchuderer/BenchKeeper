@@ -7,7 +7,7 @@ BenchKeeper releases only when the owner merges the release pull request or star
 | Component | Files | Version | Tag | Changelog |
 | --- | --- | --- | --- | --- |
 | App | `app/` (npm package `benchkeeper`) | semver: `fix` and `perf` raise the patch, `feat` the minor version | `app-v<x.y.z>` | `app/CHANGELOG.md` |
-| Content | `plugins/benchkeeper/` (rules, skills, plugin) | `<x.y>.0`: every release raises the minor version (Codex's `plugin.json`, `content.json` `contentVersion`); Claude Code's `plugin.json` names no version, so Claude Code takes the commit as the plugin's version | `setup-v<x.y>` for the docs and the Release, `setup-v<x.y>.0` for release-please | `plugins/benchkeeper/CHANGELOG.md` |
+| Content | `plugins/benchkeeper/` (rules, skills, plugin) | `<x.y>.0`: every release raises the minor version (`plugin.json` of both agents, `content.json` `contentVersion`) | `setup-v<x.y>` for the docs and the Release, `setup-v<x.y>.0` for release-please | `plugins/benchkeeper/CHANGELOG.md` |
 
 `CHANGELOG.md` at the repository root holds the single setup version up to 6.25. A major version releases both components, because skill text names `npx benchkeeper@<major>`; it is set with `release-as` in `release-please-config.json` on the release pull request. A major release also changes the major in the skill and automation text under `plugins/` (`npx benchkeeper@<major>`, `npx -y benchkeeper@<major>`); the package test fails while any of it names the old major.
 

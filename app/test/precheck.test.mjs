@@ -118,14 +118,14 @@ test('precheck: reads the policy from the default branch, skips a project withou
 test('precheck: an origin on another host than gh\'s fails instead of listing the github.com repository of the same path', () => {
   for (const origin of ['https://gitlab.com/owner/project.git', 'git@gitlab.com:owner/project.git', 'ssh://git@gitlab.com:2222/owner/project']) {
     calls.length = 0;
-    assert.throws(() => check('/p', stub(POLICY, origin), {}), /gitlab\.com/, origin);
+    assert.throws(() => check('/p', stub(POLICY, origin), {}), { message: /^origin's URL names the host gitlab\.com, and gh asks github\.com:/ }, origin);
     assert.ok(!calls.some((c) => c.startsWith('gh')), origin);
   }
   // An ssh alias names no host, ssh.github.com is github.com's own, and GH_HOST names the host gh asks.
   assert.deepEqual(check('/p', stub(POLICY, 'work:owner/project'), {}), [7]);
   assert.deepEqual(check('/p', stub(POLICY, 'ssh://git@ssh.github.com:443/owner/project.git'), {}), [7]);
   assert.deepEqual(check('/p', stub(POLICY, 'https://gitlab.com/owner/project.git'), { GH_HOST: 'gitlab.com' }), [7]);
-  assert.throws(() => check('/p', stub(POLICY), { GH_HOST: 'gitlab.com' }), /github\.com/);
+  assert.throws(() => check('/p', stub(POLICY), { GH_HOST: 'gitlab.com' }), { message: /^origin's URL names the host github\.com, and gh asks gitlab\.com:/ });
 });
 
 test('precheck: an origin whose host cannot be compared with gh\'s fails, and an ssh alias passes', () => {

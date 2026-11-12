@@ -100,10 +100,10 @@ test('approval: the command line exits 0 for a filled approval and 1 with the mi
   assert.equal(lacking.status, 1);
   assert.match(lacking.stderr, /\bCost\b/);
   // The answer of a filed approval: printed with exit 0, a format character of its text escaped; exit 1 while there is none.
-  const answered = run('answered.json', JSON.stringify({ comments: [said('Owner answer (2026-11-11): b. Hold‮ it.', '2026-11-11T10:00:00Z')] }), 'answer');
+  const answered = run('answered.json', JSON.stringify({ comments: [said('Owner answer (2026-11-11): b. Hold\u202E it.', '2026-11-11T10:00:00Z')] }), 'answer');
   assert.equal(answered.status, 0, answered.stderr);
-  assert.ok(!answered.stdout.includes('‮'));
-  assert.deepEqual(JSON.parse(answered.stdout), { option: 'b', text: 'Hold‮ it.', at: '2026-11-11T10:00:00Z' });
+  assert.ok(!answered.stdout.includes('\u202E'));
+  assert.deepEqual(JSON.parse(answered.stdout), { option: 'b', text: 'Hold\u202E it.', at: '2026-11-11T10:00:00Z' });
   const open = run('open.json', JSON.stringify({ comments: [] }), 'answer');
   assert.deepEqual([open.status, open.stdout], [1, '']);
   // No answer yet is exit 1; a file that cannot be read as an issue is exit 2, so that an error never reads as "keep waiting".

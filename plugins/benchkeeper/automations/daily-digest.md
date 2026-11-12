@@ -12,7 +12,7 @@ helpers = ["daily-digest/precheck.sh"]
 
 [parameters.file]
 default = "digests/YYYY-MM-DD.md"
-description = "The digest file, relative to the project checkout or absolute. YYYY-MM-DD, once, stands for the day of the run in this machine's time zone, so each day has its own file and a run replaces only that day's; a value without it is one file that each run replaces."
+description = "The digest file, relative to the project checkout or absolute. YYYY-MM-DD, once, stands for the day of the run in this machine's time zone, so each day has its own file and a run replaces only that day's, and a name of that form that is no date, such as 2026-99-99, counts as a date when the last digest is picked; a value without it is one file that each run replaces."
 
 [parameters.repos]
 default = ""

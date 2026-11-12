@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fill, genericDir } from '../src/automations.mjs';
+import { exportScript, fill, genericDir } from '../src/automations.mjs';
+import { context } from '../src/runner.mjs';
 import { automationTemplate, initRepo } from './helpers.mjs';
 
 const template = () => automationTemplate('daily-digest');
@@ -98,4 +99,59 @@ test('daily-digest precheck: with YYYY-MM-DD in file, the last digest is the fil
   assert.match(r.log[0], / --search updated:>=2026-11-10T08:00:00Z /, 'no file for today: the last day with one sets the start');
   day('2026-11-09.md', '2026-11-11T09:00:00Z');
   assert.match(precheck({ file }).log[0], / --search updated:>=2026-11-10T08:00:00Z /, 'the latest date in the name, not the latest change');
+});
+
+// The filled hook of the template, run as Claude Code runs a shell-form hook, on one Bash call in a checkout whose origin
+// is Owner/Repo; the decision it prints, or null for none.
+function guard(command, values = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-dd-guard-'));
+  initRepo(dir)('remote', 'add', 'origin', 'git@github.com:Owner/Repo.git');
+  const hook = fill(template(), { mode: 'act', commit: 'true', issue: '7', ...values }).hook.replace('daily-digest/guard.sh', `"${join(genericDir, 'daily-digest/guard.sh')}"`);
+  const input = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command, description: 'git add -- digests/2026-11-12.md' } });
+  const r = spawnSync('sh', ['-c', hook], { cwd: dir, input, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout === '' ? null : JSON.parse(r.stdout).hookSpecificOutput.permissionDecision;
+}
+
+test('daily-digest hook: allows only the exact dated write commands of step 5, denies every other form', { skip: process.platform === 'win32' && 'sh hook' }, () => {
+  const add = 'git add -- digests/2026-11-12.md', commit = 'git commit -m "docs: daily digest" -- digests/2026-11-12.md';
+  const comment = 'gh issue comment 7 --repo Owner/Repo --body-file digests/2026-11-12.md';
+  for (const c of [add, commit, comment, 'gh issue comment 7 --repo owner/repo --body-file digests/2024-02-29.md']) assert.equal(guard(c), 'allow', c);
+  for (const c of [
+    'git add -- digests/2026-11-12.md README.md', // a second path
+    'git add -- digests/2026-11-12.md\tREADME.md', // a tab
+    'git add -- digests/2026-11-12.md${IFS}README.md',
+    'git commit -m "docs: daily digest" -- digests/../2026-11-12.md',
+    'git commit -m "docs: daily digest" -- digests/sub/2026-11-12.md',
+    `${comment} --repo other/repo --body-file README.md`, // a second --repo
+    'gh issue comment 7 --repo other/repo --body-file digests/2026-11-12.md',
+    'gh issue comment 8 --repo Owner/Repo --body-file digests/2026-11-12.md',
+    'git add -- digests/notes.md', 'git add -- digests/2026-02-30.md', 'git add -- digests/2025-02-29.md', 'git add -- digests/2026-13-01.md',
+    `${add} && git add -- README.md`, 'git commit -am "docs: daily digest"', 'git "add" -- README.md', 'GIT add -- README.md',
+  ]) assert.equal(guard(c), 'deny', c);
+  assert.equal(guard(add, { mode: 'report' }), 'deny', 'report mode writes nothing');
+  assert.equal(guard(commit, { commit: 'false' }), 'deny');
+  assert.equal(guard(comment, { issue: '' }), 'deny');
+  for (const c of ['gh pr list --state all --json number', 'git log -1 --format=%s -- digests/2026-11-12.md', 'date +%F', 'gh pr view 3 --json comments,commits']) assert.equal(guard(c), null, c);
+});
+
+test('daily-digest export: the run\'s settings hold the hook on Bash calls, and it decides there', { skip: process.platform === 'win32' && 'sh export' }, () => {
+  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-dd-export-')) });
+  const project = mkdtempSync(join(tmpdir(), 'bk-dd-project-'));
+  initRepo(project)('remote', 'add', 'origin', 'https://github.com/Owner/Repo.git');
+  const bin = mkdtempSync(join(tmpdir(), 'bk-dd-bin-'));
+  // The stand-in claude runs the PreToolUse hook of --settings in a shell, as Claude Code does, on the command in PROBE.
+  writeFileSync(join(bin, 'claude'), `#!/usr/bin/env node
+const a = process.argv, h = JSON.parse(a[a.indexOf('--settings') + 1]).hooks.PreToolUse[0];
+const out = require('node:child_process').execSync(h.hooks[0].command, { shell: '/bin/sh', input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: process.env.PROBE } }) });
+require('node:fs').writeFileSync('decision', h.matcher + ' ' + JSON.parse(out).hookSpecificOutput.permissionDecision);
+`, { mode: 0o755 });
+  const script = join(project, 'digest.sh');
+  writeFileSync(script, exportScript(ctx, 'daily-digest', { values: { mode: 'act', commit: 'true' }, dir: project }));
+  const decision = (PROBE) => {
+    execFileSync('sh', [script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, PROBE } });
+    return readFileSync(join(project, 'decision'), 'utf8');
+  };
+  assert.equal(decision('git add -- digests/2026-11-12.md'), 'Bash allow');
+  assert.equal(decision('git add -- digests/2026-11-12.md README.md'), 'Bash deny');
 });

@@ -8,7 +8,8 @@ reuse_session = false
 precheck = 'daily-digest/precheck.sh {{file}} "{{repos}}" "{{issue}}"'
 missed_run_grace_minutes = 720
 mode = "report"
-helpers = ["daily-digest/precheck.sh"]
+helpers = ["daily-digest/precheck.sh", "daily-digest/guard.sh"]
+hook = 'daily-digest/guard.sh {{file}} "{{issue}}" {{mode}} {{commit}}'
 
 [parameters.file]
 default = "digests/YYYY-MM-DD.md"

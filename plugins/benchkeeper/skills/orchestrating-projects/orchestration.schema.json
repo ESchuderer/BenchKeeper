@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BenchKeeper orchestrator policy (docs/agents/orchestration.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": { "^//": {} },
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "enum": [1, 2] },
+    "startLabel": { "type": "string", "minLength": 1 },
+    "trustedAuthors": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "workersPerProject": { "type": "integer", "minimum": 1, "maximum": 32 },
+    "hostWorkerLimit": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "stallMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+    "issuesPerWorker": { "type": "integer", "minimum": 1, "maximum": 16 },
+    "keepRunning": { "type": "boolean" },
+    "permissionPrompts": { "enum": ["block", "decline"] },
+    "minPlugin": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "issues": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^//": {} },
+      "dependentRequired": { "repository": ["labels"] },
+      "properties": {
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/(?!\\.\\.?$)[A-Za-z0-9._-]+$" },
+        "labels": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^//": {} },
+      "properties": {
+        "worker": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": { "^//": {} },
+          "properties": {
+            "model": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/\\[\\]-]{0,127}$" },
+            "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] }
+          }
+        },
+        "phases": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": { "^//": {} },
+          "properties": {
+            "plan": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
+            "implement": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
+            "test": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
+            "review": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
+            "research": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } }
+          }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^//": {} },
+      "properties": {
+        "depth": { "enum": ["low", "medium", "high", "xhigh"] },
+        "sensitiveDepth": { "enum": ["low", "medium", "high", "xhigh"] },
+        "sensitivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s))*/?$" } }
+      }
+    },
+    "merge": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^//": {} },
+      "properties": {
+        "allowed": { "type": "boolean" },
+        "requiredChecks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "mode": { "enum": ["strict", "disjoint"] },
+        "additivePaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s))*/?$" } },
+        "ownerOnlyPaths": { "type": "array", "items": { "type": "string", "pattern": "^(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s)(?:/(?!\\s)(?!\\.{1,2}(?:/|$))[^/\\\\*\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]+(?<!\\s))*/?$" } }
+      }
+    },
+    "closeIssue": { "type": "boolean" },
+    "deleteMergedBranch": { "type": "boolean" }
+  }
+}

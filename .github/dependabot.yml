@@ -19,6 +19,9 @@ updates:
     groups:
       actions:
         patterns: ['*']
+  # @playwright/test is in no group of /web, /app and /: the dev container installs the same version's browser, and
+  # the version pins check fails until the three package files and .devcontainer/Dockerfile agree. Its own pull
+  # requests say a release is out; raise it by hand in one pull request, which closes them.
   - package-ecosystem: npm
     directory: /web
     schedule:
@@ -28,6 +31,7 @@ updates:
     groups:
       web:
         update-types: [minor, patch]
+        exclude-patterns: ['@playwright/test']
   - package-ecosystem: npm
     directory: /app
     schedule:
@@ -37,6 +41,7 @@ updates:
     groups:
       app:
         update-types: [minor, patch]
+        exclude-patterns: ['@playwright/test']
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -54,7 +59,7 @@ updates:
         patterns: ['@mantine/*']
       cedarloom:
         update-types: [minor, patch]
-        exclude-patterns: ['@mantine/*']
+        exclude-patterns: ['@mantine/*', '@playwright/test']
   - package-ecosystem: npm
     directory: /.github/pnpm
     schedule:

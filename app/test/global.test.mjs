@@ -177,6 +177,12 @@ test('the setup hides attribution unless the user chose Keep mine or the user fi
   writeFileSync(join(m.home, '.claude/settings.json'), JSON.stringify({ attribution: mine }));
   applyStep(m, 'settings:claude');
   assert.deepEqual(settings(m.home).attribution, mine);
+  // One set between plan and apply stays as well: the edit applies to the file as it is.
+  writeFileSync(join(m.home, '.claude/settings.json'), '{}');
+  const plan = m.plan();
+  writeFileSync(join(m.home, '.claude/settings.json'), JSON.stringify({ attribution: mine }));
+  assert.equal(apply(plan, m.ctx, { select: plan.filter((c) => c.step === 'settings:claude').map((c) => c.id) }).status, 'done');
+  assert.deepEqual(settings(m.home).attribution, mine);
 });
 
 test('Matt Pocock pack is optional', () => {

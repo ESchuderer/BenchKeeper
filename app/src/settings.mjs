@@ -3,7 +3,7 @@
 // src/settings/catalog.json, the rules between keys src/settings/couplings.json, the pinned schemas sit beside them.
 // Never writes a managed layer. Values of secret-looking names are masked in everything this module returns.
 import { accessSync, constants, readFileSync, statSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { MergeError, mergeJson, removeTable, removeToml, setToml } from './merge.mjs';
 import { exists, readText } from './fsx.mjs';
@@ -286,6 +286,14 @@ function lookup(state, agentId, key, layers) {
 const isExecutable = (p) => {
   try { if (!isAbsolute(p)) return false; accessSync(p, constants.X_OK); return statSync(p).isFile(); } catch { return false; }
 };
+// Where the attribution fix goes: the highest file that sets attribution, else the user file; managed settings are the administrator's.
+function attributionWhere(state, agentId) {
+  const [top] = valuesOf(state.layers, agentId, 'attribution');
+  const set = `benchkeeper settings set attribution '{"commit":"","pr":"","sessionUrl":false}'`;
+  if (!top || top.layer === 'user') return `in the user settings: ${set}`;
+  if (top.layer === 'managed') return `in the managed settings (${top.path}): ask your administrator`;
+  return `in ${top.path}: ${set} --layer ${top.layer} --project '${dirname(dirname(top.path)).replaceAll("'", "'\\''")}'`;
+}
 // The user file's top-level effortLevel against the one level saved under modelSettings: { top, saved, models } when they
 // differ, else null. Different saved levels per model are on purpose: null.
 function effortGap(state, agentId) {
@@ -352,7 +360,7 @@ export function notes(agentId, layers, { env, onlyDoctor = false, partial = fals
   for (const r of COUPLINGS.rules.filter((x) => x.agent === agentId && (!onlyDoctor || x.doctor) && !(partial && x.needsAll) && (!x.platforms || x.platforms.includes(platform)))) {
     const expand = r.forEach === 'zeroIsSet' ? SWITCHES(agentId).filter((s) => s.zeroIsSet).map((s) => s.key) : r.forEach === 'deprecated' ? DEPRECATED.map((d) => d.key) : [null];
     for (const key of expand) {
-      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s.replace(/\{(top|saved|models)\}/g, (m, k) => String(effortGap(state, agentId)?.[k] ?? m)));
+      const fill = (s) => (key ? s.replaceAll('{key}', key).replaceAll('{note}', DEPRECATED.find((d) => d.key === key)?.description ?? '') : s.replace(/\{(top|saved|models)\}/g, (m, k) => String(effortGap(state, agentId)?.[k] ?? m)).replace('{where}', () => attributionWhere(state, agentId)));
       const when = key ? JSON.parse(JSON.stringify(r.when).replaceAll('{key}', key)) : r.when;
       if (when && !holds(when, state, agentId)) continue;
       // A value the setup itself writes is on purpose: no finding while every such key still has the setup's value.

@@ -302,7 +302,12 @@ test('Doctor: attribution that adds Claude to commits or pull requests, with the
   assert.deepEqual(found({ includeCoAuthoredBy: true, attribution: none }), [], 'attribution overrules the deprecated key');
   const dir = mkdtempSync(join(tmpdir(), 'bk-attr-'));
   write(join(dir, '.claude/settings.json'), JSON.stringify({ attribution: { commit: '' } }));
-  assert.equal(found({ attribution: none }, dir).length, 1, 'a project object that leaves pr and sessionUrl out is reported');
+  const [project] = found({ attribution: none }, dir);
+  assert.ok(project, 'a project object that leaves pr and sessionUrl out is reported');
+  assert.match(project.fix, new RegExp(`in ${join(dir, '.claude/settings.json')}: benchkeeper settings set attribution '.*' --layer project --project '${dir}'`), 'the fix goes to the project file');
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, JSON.stringify({ attribution: { commit: '' } }));
+  assert.match(found({ attribution: none })[0].fix, /in the managed settings \(.*managed-settings\.json\): ask your administrator/);
+  write(`${ctx.managedRoot}/etc/claude-code/managed-settings.json`, '{}');
   // Dismissed in Doctor or Agent settings, it is one entry: Doctor lists it apart and Show again brings it back.
   write(claudeUser(ctx), '{}');
   const report = () => doctorReport(ctx, { agents: ['claude'], env: {} });

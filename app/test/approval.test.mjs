@@ -53,6 +53,7 @@ const CASES = [
   ['a cell that only defers', swap(COST, '| Cost | TBD |'), ['Cost']],
   ['an entity as a cell', swap(COST, '| Cost | &nbsp; |'), ['Cost']],
   ['an HTML comment as a cell', swap(COST, '| Cost | <!-- tbd --> |'), ['Cost']],
+  ['an HTML comment over two lines as a cell', swap(COST, '| Cost | <!-- 2 worker\nsessions --> |'), ['Cost']],
   ['a link without text as a cell', swap(COST, '| Cost | [](x) |'), ['Cost']],
   ['a deferral in bold', swap(COST, '| Cost | **TBD** |'), ['Cost']],
   ['a deferral with a full stop', swap(COST, '| Cost | tbd. |'), ['Cost']],

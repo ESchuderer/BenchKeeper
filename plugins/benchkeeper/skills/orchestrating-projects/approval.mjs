@@ -8,9 +8,8 @@ const FRONT = 'Front matter';
 const PLACEHOLDER = /<(?![a-z][a-z0-9+.-]*:\S)[a-z][^<>]*>/i;
 // These leave the answer open, with or without punctuation or invisible characters around them; "none" is an answer, which the template offers for Owner steps.
 const OPEN = /^[^\p{L}\p{N}]*(tbd|todo|n\/a)[^\p{L}\p{N}]*$/iu;
-// What the owner sees of a cell: an HTML comment, a closing tag, an entity and a link target show no text, and emphasis, strike and code marks are no text.
+// What the owner sees of a cell: a closing tag, an entity and a link target show no text, and emphasis, strike and code marks are no text. HTML comments are gone before cells are read (missing).
 const shown = (cell) => cell
-  .replace(/<!--.*?(-->|$)/g, '')
   .replace(/<\/[a-z][^<>]*>/gi, '')
   .replace(/&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/gi, ' ')
   .replace(/\]\([^)]*\)/g, ']')

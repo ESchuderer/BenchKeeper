@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -79,4 +79,23 @@ test('daily-digest precheck: runs without a digest, then only when a pull reques
   initRepo(gitlab)('remote', 'add', 'origin', 'git@gitlab.com:team/proj.git');
   assert.match(precheck({}, {}, 3600, gitlab).log[0], /^pr list --state all /, 'empty repos, an origin off github.com: gh\'s default, never its owner/name as a GitHub repository');
   assert.equal(precheck({}, { 'pr list': 'error' }, 3600).code, 1, 'a failing gh skips the run');
+});
+
+test('daily-digest precheck: with YYYY-MM-DD in file, the last digest is the file with the latest date in its name', { skip: process.platform === 'win32' && 'sh precheck' }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bk-dd-days-'));
+  const file = join(dir, 'digests/YYYY-MM-DD.md');
+  assert.deepEqual(precheck({ file }), { code: 0, log: [] }, 'no folder: no digest yet');
+  mkdirSync(join(dir, 'digests'));
+  writeFileSync(join(dir, 'digests/README.md'), 'not a digest\n');
+  assert.deepEqual(precheck({ file }), { code: 0, log: [] }, 'no dated file: no digest yet');
+  const day = (name, time) => {
+    writeFileSync(join(dir, 'digests', name), 'digest\n');
+    utimesSync(join(dir, 'digests', name), new Date(time), new Date(time));
+  };
+  day('2026-11-10.md', '2026-11-10T08:00:00Z');
+  const r = precheck({ file });
+  assert.equal(r.code, 1);
+  assert.match(r.log[0], / --search updated:>=2026-11-10T08:00:00Z /, 'no file for today: the last day with one sets the start');
+  day('2026-11-09.md', '2026-11-11T09:00:00Z');
+  assert.match(precheck({ file }).log[0], / --search updated:>=2026-11-10T08:00:00Z /, 'the latest date in the name, not the latest change');
 });

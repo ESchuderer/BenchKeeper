@@ -74,7 +74,8 @@ export function answer(issue) {
   const owners = (c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation);
   const newest = comments.findLastIndex((c) => owners(c) && c.body?.startsWith('Owner answer ('));
   // The coordinator's comment for a later head starts with "Head: " (approvals.md): the owner answered for the head before it.
-  if (newest < 0 || comments.slice(newest + 1).some((c) => owners(c) && c.body?.startsWith('Head: '))) return null;
+  // The coordinator filed the approval, so its head comment counts even where its login is only a collaborator.
+  if (newest < 0 || comments.slice(newest + 1).some((c) => (owners(c) || c.author?.login === issue.author?.login) && c.body?.startsWith('Head: '))) return null;
   const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(comments[newest].body);
   // An answer without a full stop has its whole first line as the option: the coordinator compares it with the option labels and needs no more of it.
   return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at: comments[newest].createdAt };

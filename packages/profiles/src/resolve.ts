@@ -77,11 +77,23 @@ export const filesIn = (folder: string): Folder["files"] =>
 
 type Entry = PackManifest["entries"][string];
 
-// A pack's manifest; null when the pack has none here.
+// A file's minApp before the strict parse, as a newer release's file may hold fields this one refuses.
+const minAppOf = (json: unknown, kind: string): string | undefined => {
+  const head = typeof json === "object" && json !== null ? json : {};
+  const at = semver.safeParse("minApp" in head ? head.minApp : undefined);
+  return "kind" in head && head.kind === kind && at.success ? at.data : undefined;
+};
+
+// A pack's manifest, null without one here; a bundled one ships with this release, so only a fetched one can be newer.
 const manifestOf = (pack: string, folder: Folder | undefined): Result<PackManifest | null> => {
   const bytes = packFile(pack, "cedarloom-pack.json", folder);
   if (!bytes.ok || bytes.value === null) return bytes.ok ? { ok: true, value: null } : bytes;
-  return parseDocument(bytes.value.toString("utf8"), (json) => readDocument(PackManifest, PACK_SCHEMA_VERSION, json));
+  return parseDocument(bytes.value.toString("utf8"), (json) => {
+    const minApp = folder === undefined ? undefined : minAppOf(json, "cedarloom.pack");
+    if (minApp !== undefined && semverAbove(minApp, APP_VERSION))
+      return refuse({ code: "profile.app-too-old", params: { minApp, app: APP_VERSION, pack } });
+    return readDocument(PackManifest, PACK_SCHEMA_VERSION, json);
+  });
 };
 
 /** A pack as `id@version` by its manifest, the id alone for a pack without one here. */
@@ -203,18 +215,11 @@ export type Probe = PartProbe;
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 
-// A profile file's minApp before the strict parse, as a newer release's file may hold fields this one refuses.
-const minAppOf = (json: unknown): string | undefined => {
-  const head = typeof json === "object" && json !== null ? json : {};
-  const at = semver.safeParse("minApp" in head ? head.minApp : undefined);
-  return "kind" in head && head.kind === "cedarloom.profile" && at.success ? at.data : undefined;
-};
-
 // The selected profile with its parents; a bundled one ships with this release, so only another file can be newer.
 const composedOf = (selection: ProfileSelection | null, app: string): Result<Composed> => {
   const root = rootOf(selection?.profile ?? DEFAULT_PROFILE);
   if (!root.ok) return root;
-  const minApp = root.value.bundled ? undefined : minAppOf(root.value.json);
+  const minApp = root.value.bundled ? undefined : minAppOf(root.value.json, "cedarloom.profile");
   if (minApp !== undefined && semverAbove(minApp, app))
     return refuse({ code: "profile.app-too-old", params: { minApp, app } });
   return composeProfile(root.value.json, loadParent);

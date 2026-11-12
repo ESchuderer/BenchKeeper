@@ -1,40 +1,52 @@
-// Sample precheck for a scheduled coordinator run: exit 0 when a project has an issue to pick, else 1. Read only.
-// Usage: node precheck.mjs <project paths...>
-// Pickable: open, carries the policy's startLabel, written by a trusted author, and no open or merged pull request has a head
-// branch <type>/<number>-<slug> (a merged one means the work is delivered; an issue that needs more is started by hand). The policy is read from origin's default branch, never from a checked-out branch.
-import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+// Usage: node precheck.mjs <project paths...>. Sample precheck for a scheduled coordinator run: exit 0 when a project has an issue to pick, else 1. It starts and merges nothing.
+// Pickable: open, carries startLabel and every issues.labels entry, written by a trusted author, and no pull request for it: none merged or open in the repository with a head branch <type>/<number>-<slug> (an open one from a fork does not count, since anyone can open it).
+// A tracker's numbers (issues.repository) can equal those of the project's own old branches: a pull request then counts only when its body also holds <owner/repo>#<number> or the issue's URL.
+import { errorLine, isMain, read, sh } from './policy.mjs';
 
 const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
-const sh = (cwd, cmd, args) => execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+// True when the body names the tracker's issue as its own token, as owner/repo#12 or by its URL: not co-owner/repo#12, other/owner/repo#12 or issue 123. GitHub ignores case in owner/repo.
+const refers = (body, tracker, number) => {
+  const repo = tracker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:(?<![\\w/.-])${repo}#|https?://(?:www\\.)?github\\.com/${repo}/issues/)${number}(?!\\d)`, 'i').test(body ?? '');
+};
 
-export function pickable(policy, issues, heads) {
+export function pickable(policy, issues, pulls) {
   if (!policy?.startLabel) return [];
   const trusted = new Set(policy.trustedAuthors ?? []);
+  const labels = [policy.startLabel, ...(policy.issues?.labels ?? [])];
+  const tracker = policy.issues?.repository;
   return issues
     .filter((i) => !i.pull_request && (TRUSTED.includes(i.author_association) || trusted.has(i.user?.login)))
-    .filter((i) => i.labels.some((l) => l.name === policy.startLabel))
-    .filter((i) => !heads.some((h) => h.includes(`/${i.number}-`)))
+    .filter((i) => labels.every((label) => i.labels.some((l) => l.name.toLowerCase() === label.toLowerCase())))
+    .filter((i) => !pulls.some((p) => p.headRefName.includes(`/${i.number}-`) && (!tracker || refers(p.body, tracker, i.number))))
     .map((i) => i.number);
 }
 
+// gh resolves a bare `gh pr list` and {owner}/{repo} through an upstream remote or a set default; the policy came from origin, so origin's repository is named.
+// shortcut: owner/repo on gh's default host, set GH_HOST for a GitHub Enterprise origin.
+const originRepo = (dir, run) => {
+  const repo = /[:/]([A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+?)(?:\.git)?\/?$/.exec(run(dir, 'git', ['remote', 'get-url', 'origin']).trim())?.[1];
+  if (!repo || /\/\.\.?$/.test(repo)) throw new Error("origin's URL names no repository as owner/repo");
+  return repo;
+};
+
 export function check(dir, run = sh) {
-  const head = run(dir, 'git', ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).trim();
-  run(dir, 'git', ['fetch', '--quiet', 'origin', head.replace(/^origin\//, '')]);
-  let policy;
-  try { policy = JSON.parse(run(dir, 'git', ['show', `${head}:docs/agents/orchestration.json`])); } catch { return []; }
+  const { policy, errors } = read(dir, run);
+  // Thrown, so the command line names the project and why nothing starts there, as it does for a failed command.
+  if (!policy) throw new Error(errors.map(errorLine).join('; '));
   if (!policy.startLabel) return [];
-  const issues = JSON.parse(run(dir, 'gh', ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/issues?state=open&per_page=100&labels=${encodeURIComponent(policy.startLabel)}`])).flat();
-  const heads = JSON.parse(run(dir, 'gh', ['pr', 'list', '--state', 'all', '--limit', '1000', '--json', 'headRefName,state'])).filter((p) => p.state !== 'CLOSED').map((p) => p.headRefName);
-  return pickable(policy, issues, heads);
+  const tracker = policy.issues.repository;
+  const repo = originRepo(dir, run);
+  const labels = [policy.startLabel, ...policy.issues.labels].map(encodeURIComponent).join(',');
+  const issues = JSON.parse(run(dir, 'gh', ['api', '--paginate', '--slurp', `repos/${tracker ?? repo}/issues?state=open&per_page=100&labels=${labels}`])).flat();
+  const pulls = JSON.parse(run(dir, 'gh', ['pr', 'list', '-R', repo, '--state', 'all', '--limit', '1000', '--json', `headRefName,state,isCrossRepository${tracker ? ',body' : ''}`]))
+    .filter((p) => p.state === 'MERGED' || (p.state !== 'CLOSED' && !p.isCrossRepository));
+  return pickable(policy, issues, pulls);
 }
 
-// True when this file is the script Node was started with. Node resolves symlinks for import.meta.url but keeps
-// process.argv[1] as typed, so both are compared as real paths: started through a symlinked folder, the command line still runs.
-const isMain = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };
-if (isMain()) {
+if (isMain(import.meta.url)) {
+  if (process.argv.length < 3) console.error('usage: node precheck.mjs <project paths...>');
   let found = false;
   for (const dir of process.argv.slice(2)) {
     try {

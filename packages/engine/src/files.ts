@@ -2,8 +2,10 @@ import { isUtf8 } from "node:buffer";
 import {
   chmodSync,
   closeSync,
+  constants,
   copyFileSync,
   fchmodSync,
+  fstatSync,
   fsyncSync,
   linkSync,
   lstatSync,
@@ -13,6 +15,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  type Stats,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -46,6 +49,29 @@ export const readOrNull = (path: string): Buffer | null => {
 export const hashFile = (path: string): string | null => {
   const bytes = readOrNull(path);
   return bytes === null ? null : sha256(bytes);
+};
+
+// No link and no wait on a FIFO: docs/agents/git-and-processes.md#files
+const READ = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
+
+/** The file's status and, up to `limit` bytes, its bytes, from one open file; undefined: none there; null: no file. */
+export const readRegular = (path: string, limit: number): { info: Stats; bytes: Buffer | null } | null | undefined => {
+  let file: number;
+  try {
+    file = openSync(path, READ);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return undefined;
+    // ELOOP: a link, which O_NOFOLLOW does not open; EISDIR: a folder, where the platform refuses to open one.
+    if (["ELOOP", "EISDIR"].includes(errorCode(error))) return null;
+    throw error;
+  }
+  try {
+    const info = fstatSync(file);
+    if (!info.isFile()) return null;
+    return { info, bytes: info.size > limit ? null : readFileSync(file) };
+  } finally {
+    closeSync(file);
+  }
 };
 
 export const isSymlink = (path: string): boolean =>

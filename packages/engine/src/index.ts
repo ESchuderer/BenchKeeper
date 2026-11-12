@@ -6,6 +6,7 @@ export {
   parseDocument,
   readJson,
   readOptionalJson,
+  readRegular,
   tempPath,
   writeAtomic,
 } from "./files.ts";

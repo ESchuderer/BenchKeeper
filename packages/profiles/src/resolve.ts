@@ -15,7 +15,7 @@ import {
   semver,
   semverAbove,
 } from "@cedarloom/contracts";
-import { errorCode, parseDocument, readJson } from "@cedarloom/engine";
+import { errorCode, parseDocument, readJson, readRegular } from "@cedarloom/engine";
 import { BUNDLED } from "@cedarloom/packs";
 
 type Ref = { pack: string; path: string };
@@ -61,22 +61,39 @@ const packFile = (pack: string, path: string, folder: Folder | undefined): Resul
 };
 
 /** The files below a folder by their paths in it; a link is no file, so nothing outside it is read. */
-// shortcut: every file gets mode 100644, as no bundled skill ships a script; read the executable bit once one does.
 export const filesIn = (folder: string): Folder["files"] =>
   readdirSync(folder, { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .map((entry) => {
+    .flatMap((entry) => {
       const path = join(entry.parentPath, entry.name);
-      return { path: relative(folder, path).split(sep).join("/"), mode: "100644", content: readFileSync(path) };
+      // shortcut: no size limit, as before; a cap needs a decision first: skip or refuse an oversized file.
+      const found = readRegular(path, Number.POSITIVE_INFINITY);
+      // Gone or no regular file since the listing: skipped, as a link is.
+      if (found === undefined || found === null || found.bytes === null) return [];
+      // Git's rule: a file its owner may run is 100755.
+      const mode = (found.info.mode & 0o100) === 0 ? "100644" : "100755";
+      return [{ path: relative(folder, path).split(sep).join("/"), mode, content: found.bytes }];
     });
 
 type Entry = PackManifest["entries"][string];
 
-// A pack's manifest; null when the pack has none here.
+// A file's minApp before the strict parse, as a newer release's file may hold fields this one refuses.
+const minAppOf = (json: unknown, kind: string): string | undefined => {
+  const head = typeof json === "object" && json !== null ? json : {};
+  const at = semver.safeParse("minApp" in head ? head.minApp : undefined);
+  return "kind" in head && head.kind === kind && at.success ? at.data : undefined;
+};
+
+// A pack's manifest, null without one here; a bundled one ships with this release, so only a fetched one can be newer.
 const manifestOf = (pack: string, folder: Folder | undefined): Result<PackManifest | null> => {
   const bytes = packFile(pack, "cedarloom-pack.json", folder);
   if (!bytes.ok || bytes.value === null) return bytes.ok ? { ok: true, value: null } : bytes;
-  return parseDocument(bytes.value.toString("utf8"), (json) => readDocument(PackManifest, PACK_SCHEMA_VERSION, json));
+  return parseDocument(bytes.value.toString("utf8"), (json) => {
+    const minApp = folder === undefined ? undefined : minAppOf(json, "cedarloom.pack");
+    if (minApp !== undefined && semverAbove(minApp, APP_VERSION))
+      return refuse({ code: "profile.app-too-old", params: { minApp, app: APP_VERSION, pack } });
+    return readDocument(PackManifest, PACK_SCHEMA_VERSION, json);
+  });
 };
 
 /** A pack as `id@version` by its manifest, the id alone for a pack without one here. */
@@ -198,18 +215,11 @@ export type Probe = PartProbe;
 const defaultOn = (part: Part, probe: (when: Probe) => boolean): boolean =>
   part.default === "on" || (part.default === "auto" && part.when !== undefined && probe(part.when));
 
-// A profile file's minApp before the strict parse, as a newer release's file may hold fields this one refuses.
-const minAppOf = (json: unknown): string | undefined => {
-  const head = typeof json === "object" && json !== null ? json : {};
-  const at = semver.safeParse("minApp" in head ? head.minApp : undefined);
-  return "kind" in head && head.kind === "cedarloom.profile" && at.success ? at.data : undefined;
-};
-
 // The selected profile with its parents; a bundled one ships with this release, so only another file can be newer.
 const composedOf = (selection: ProfileSelection | null, app: string): Result<Composed> => {
   const root = rootOf(selection?.profile ?? DEFAULT_PROFILE);
   if (!root.ok) return root;
-  const minApp = root.value.bundled ? undefined : minAppOf(root.value.json);
+  const minApp = root.value.bundled ? undefined : minAppOf(root.value.json, "cedarloom.profile");
   if (minApp !== undefined && semverAbove(minApp, app))
     return refuse({ code: "profile.app-too-old", params: { minApp, app } });
   return composeProfile(root.value.json, loadParent);

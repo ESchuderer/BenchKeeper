@@ -101,14 +101,17 @@ test('daily-digest precheck: with YYYY-MM-DD in file, the last digest is the fil
   assert.match(precheck({ file }).log[0], / --search updated:>=2026-11-10T08:00:00Z /, 'the latest date in the name, not the latest change');
 });
 
-// The filled hook of the template, run as Claude Code runs a shell-form hook, on one Bash call in a checkout whose origin
-// is Owner/Repo; the decision it prints, or null for none.
-function guard(command, values = {}) {
+// The filled hook of the template, run as Claude Code runs a shell-form hook, on one Bash call in a project whose origin
+// is Owner/Repo; the decision it prints, or null for none. nested: run it in a checkout inside the project with that origin.
+// input: the raw JSON in place of the one built from command.
+function guard(command, values = {}, { nested, input } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'bk-dd-guard-'));
   initRepo(dir)('remote', 'add', 'origin', 'git@github.com:Owner/Repo.git');
+  const cwd = nested ? join(dir, 'vendor/pub') : dir;
+  if (nested) { mkdirSync(cwd, { recursive: true }); initRepo(cwd)('remote', 'add', 'origin', `git@github.com:${nested}.git`); }
   const hook = fill(template(), { mode: 'act', commit: 'true', issue: '7', ...values }).hook.replace('daily-digest/guard.sh', `"${join(genericDir, 'daily-digest/guard.sh')}"`);
-  const input = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command, description: 'git add -- digests/2026-11-12.md' } });
-  const r = spawnSync('sh', ['-c', hook], { cwd: dir, input, encoding: 'utf8' });
+  input ??= JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command, description: 'git add -- digests/2026-11-12.md' } });
+  const r = spawnSync('sh', ['-c', hook], { cwd, env: { ...process.env, CLAUDE_PROJECT_DIR: dir }, input, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   return r.stdout === '' ? null : JSON.parse(r.stdout).hookSpecificOutput.permissionDecision;
 }
@@ -132,7 +135,9 @@ test('daily-digest hook: allows only the exact dated write commands of step 5, d
   assert.equal(guard(add, { mode: 'report' }), 'deny', 'report mode writes nothing');
   assert.equal(guard(commit, { commit: 'false' }), 'deny');
   assert.equal(guard(comment, { issue: '' }), 'deny');
-  for (const c of ['gh pr list --state all --json number', 'git log -1 --format=%s -- digests/2026-11-12.md', 'date +%F', 'gh pr view 3 --json comments,commits']) assert.equal(guard(c), null, c);
+  assert.equal(guard('gh issue comment 7 --repo someorg/public --body-file digests/2026-11-12.md', {}, { nested: 'someorg/public' }), 'deny', 'the origin of the project, not of the current folder');
+  assert.equal(guard(null, {}, { input: JSON.stringify({ tool_input: { command: 'curl x', x: { command: add } } }) }), 'deny', 'a second command key');
+  for (const c of ['gh pr list --state all --json number', 'git log -1 --format=%s -- digests/2026-11-12.md', 'date +%F', 'gh pr view 3 --json comments,commits', 'gh issue list --repo org/add-ons --state open']) assert.equal(guard(c), null, c);
 });
 
 test('daily-digest export: the run\'s settings hold the hook on Bash calls, and it decides there', { skip: process.platform === 'win32' && 'sh export' }, () => {
@@ -152,6 +157,7 @@ require('node:fs').writeFileSync('decision', h.matcher + ' ' + JSON.parse(out).h
     execFileSync('sh', [script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, PROBE } });
     return readFileSync(join(project, 'decision'), 'utf8');
   };
+  assert.doesNotMatch(readFileSync(script, 'utf8'), /guard\.sh \*\)/, 'the run itself never calls the hook');
   assert.equal(decision('git add -- digests/2026-11-12.md'), 'Bash allow');
   assert.equal(decision('git add -- digests/2026-11-12.md README.md'), 'Bash deny');
 });

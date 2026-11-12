@@ -1739,6 +1739,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.app-too-old";
+            params: {
+                id: string;
+                minApp: string;
+                app: string;
+            };
+        } | {
+            /** @constant */
             code: "package.plugin-taken";
             params: {
                 plugin: string;
@@ -1963,6 +1971,7 @@ export interface components {
             params: {
                 minApp: string;
                 app: string;
+                pack?: string;
             };
         } | {
             /** @constant */
@@ -3066,6 +3075,14 @@ export interface components {
             };
         } | {
             /** @constant */
+            code: "package.app-too-old";
+            params: {
+                id: string;
+                minApp: string;
+                app: string;
+            };
+        } | {
+            /** @constant */
             code: "package.plugin-taken";
             params: {
                 plugin: string;
@@ -3290,6 +3307,7 @@ export interface components {
             params: {
                 minApp: string;
                 app: string;
+                pack?: string;
             };
         } | {
             /** @constant */

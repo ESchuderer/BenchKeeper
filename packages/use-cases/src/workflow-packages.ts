@@ -9,6 +9,7 @@ import {
   PLAN_SCHEMA_VERSION,
   type Plan,
   type Result,
+  semverAbove,
   WORKFLOW_MARKETPLACE,
   type WorkflowDefinition,
 } from "@cedarloom/contracts";
@@ -16,7 +17,7 @@ import { buildPackage, builtFrom, type PackageFile, pluginOf } from "@cedarloom/
 import { hashFile } from "@cedarloom/engine";
 import { sha256 } from "@cedarloom/ledger";
 import { programPath } from "@cedarloom/orchestration";
-import { fileWrite, mergeSets } from "@cedarloom/profiles";
+import { APP_VERSION, fileWrite, mergeSets } from "@cedarloom/profiles";
 import { automationSettings } from "./automation.ts";
 import { readSelection } from "./profiles.ts";
 import { storedWorkflow } from "./store.ts";
@@ -295,6 +296,11 @@ export const planPackageInstall = (
   const stored = storedWorkflow(state, id);
   if (!stored.ok) return stored;
   const { workflow } = stored.value;
+  const { minApp } = workflow.metadata;
+  if (minApp !== undefined && semverAbove(minApp, APP_VERSION)) {
+    const params = { id: workflow.metadata.id, minApp, app: APP_VERSION };
+    return { ok: false, finding: { code: "package.app-too-old", params } };
+  }
   const built = buildOf(config, workflow, options);
   if (!built.ok) return built;
   const { level, files } = built.value;

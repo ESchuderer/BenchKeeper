@@ -2036,6 +2036,40 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "package.app-too-old"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "minApp": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "minApp",
+                  "app"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "package.plugin-taken"
               },
               "params": {
@@ -3057,6 +3091,9 @@
                     "type": "string"
                   },
                   "app": {
+                    "type": "string"
+                  },
+                  "pack": {
                     "type": "string"
                   }
                 },
@@ -8283,6 +8320,40 @@
             "properties": {
               "code": {
                 "type": "string",
+                "const": "package.app-too-old"
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "minApp": {
+                    "type": "string"
+                  },
+                  "app": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "minApp",
+                  "app"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "params"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
                 "const": "package.plugin-taken"
               },
               "params": {
@@ -9304,6 +9375,9 @@
                     "type": "string"
                   },
                   "app": {
+                    "type": "string"
+                  },
+                  "pack": {
                     "type": "string"
                   }
                 },

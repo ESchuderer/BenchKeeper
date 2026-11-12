@@ -17,7 +17,7 @@ Process: plan first, then apply. Its questions and approvals go to the user in t
 3. Apply only approved items, including container launch and verification. Write the approved `.devcontainer/` files before the planned `projects apply`. Right before each destructive item, show the diff or list and ask again.
 4. Review (step 6). Then, when the plan has an `AGENTS.override.md` change (a local setup with Codex, or a shared one with your own override), apply it again: that file holds a copy of `AGENTS.md`'s text, which only `projects apply` rebuilds, and steps 3 and 6 edit `AGENTS.md`. Run the planned `projects apply` without `--yes` and answer yes, on standard input, only to the `AGENTS.override.md` change, so a change the user declined stays out. Then report (step 7).
 
-Never run sudo or AUR installs (give the user the command).
+Never run sudo or AUR installs (give the user the command). Project steps only: never run the global `apply` (`npx benchkeeper@6 apply`), and change nothing at user scope (the user's settings, rules, plugins and skills), except a pack's plugin and its marketplace, which the approved `projects apply` installs for the user. When a global step is needed (the BenchKeeper plugin is missing for a selected agent, for example), stop and give the user the command.
 
 ## Agent selection
 

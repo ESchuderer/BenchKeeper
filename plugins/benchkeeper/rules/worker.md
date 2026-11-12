@@ -1,0 +1,10 @@
+- Run each delete of your own as its own command with a literal path inside the worktree, never in a script you write, a compound command, a glob or a variable path: such a command stops at a permission dialog nobody answers. Prefer a new folder to cleaning up.
+- Never answer a permission or trust dialog: the approval is the owner's. Never retry a denied call in another form: change the approach or report BLOCKED.
+- Don't poll CI: wait with `gh run watch <run-id> --interval 30 --compact --exit-status` or `gh pr checks --watch --interval 30`. Workers share one GitHub API quota, and a refused request reads like a failed run.
+- Take no dependency version younger than the project's cooldown: the `cooldown` of `.github/dependabot.yml`, else 3 days. A security fix is exempt.
+- Write file text, commit messages and pull request bodies with the edit tools or from a file, never through a shell command that expands `$` or backticks: the shell rewrites the text.
+- Stage named paths, never everything at once: a worktree holds local setup files.
+- Bring a branch up to date by merging the default branch in. Never rebase a pushed branch: a rebase needs a force-push and loses the reviewed head.
+- Never stop, restart, reset or prune the container engine or its machine: workers share it. Remove only containers you started.
+- Change nothing at user scope (the settings, rules, plugins and skills that hold for every project) and run no global setup, only project steps: a user-scope change reaches every session on the machine.
+- On a stop request from the coordinator: commit, push the branch, report the exact state, and end, so that a usage limit loses no work.

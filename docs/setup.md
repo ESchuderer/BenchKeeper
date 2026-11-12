@@ -18,6 +18,7 @@ Not installed by BenchKeeper.
 | [Node.js and npm](https://nodejs.org/en/download) | the app (Node.js 22), Dev Containers CLI and skills CLI, npm with a user prefix such as `$HOME/.local` |
 | [Docker Engine](https://docs.docker.com/engine/install/) | dev containers (`container` and `host-agent` modes; Podman works too) |
 | [VS Code](https://code.visualstudio.com/download) | optional, attach to the devcontainer |
+| [Orca](https://github.com/stablyai/orca) | optional, the runner the `orchestrating-projects` skill needs (CLI `orca`) |
 <!-- /generated:prerequisites -->
 
 ## Levels

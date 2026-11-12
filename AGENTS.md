@@ -26,7 +26,7 @@ The changed-files check, for each area the change touches:
 ## Before you push
 
 - Run the changed-files check after your last edit, right before every push. Never use `--no-verify`.
-- Don't poll CI: wait with `gh run watch <run-id> --compact --exit-status` or `gh pr checks --watch`.
+- Don't poll CI: wait with `gh run watch <run-id> --interval 30 --compact --exit-status` or `gh pr checks --watch --interval 30`.
 - main stays releasable. A red main is fixed before anything else merges.
 
 ## Code

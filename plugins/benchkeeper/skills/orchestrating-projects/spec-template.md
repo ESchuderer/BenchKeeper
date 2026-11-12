@@ -64,4 +64,4 @@ A spec with several issues is a batch: the issues one Pick gives one worker.
 - An issue reported blocked or in need of a replan waits until the batch has ended. Start no replan, retry or other worker for it before the batch's report, and keep the worktree.
 - An issue that ended BLOCKED on an earlier issue of its batch is the exception to "once per run" ([SKILL.md](SKILL.md#loop)): once that issue's pull request is merged, whoever merged it, it counts as an issue with no outcome, and Pick takes it again, once. In a `keepRunning` run that can be long after the batch.
 - A batch that ends BLOCKED (a cause that stops every issue) is blocked for each issue it did not finish.
-- Clean up the worker after its report and once each of its pull requests is merged or left for the owner, not after each issue.
+- Clean up the worker after its report and once each of its pull requests is merged or left for the owner, not after each issue. A batch with an issue that ended BLOCKED keeps its worktree, also when the batch reports DONE ([Blocked](SKILL.md#outcomes)).

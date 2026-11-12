@@ -5,8 +5,9 @@ import { join, relative } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
-import { doctor } from '../src/doctor.mjs';
+import { doctor, doctorReport } from '../src/doctor.mjs';
 import { removeTable, removeToml, setToml } from '../src/merge.mjs';
+import { dismissNote } from '../src/preferences.mjs';
 import { apply, context, preview, undo } from '../src/runner.mjs';
 import { api } from '../src/server.mjs';
 import { COUPLINGS, agentSettings, bundleEdits, describeKey, isSettingsFile, keyState, listSettings, maskSecrets, notes, readSettings, redact, schemaKeys, settingFacts, settingsAgents, settingsChanges } from '../src/settings.mjs';
@@ -302,6 +303,16 @@ test('Doctor: attribution that adds Claude to commits or pull requests, with the
   const dir = mkdtempSync(join(tmpdir(), 'bk-attr-'));
   write(join(dir, '.claude/settings.json'), JSON.stringify({ attribution: { commit: '' } }));
   assert.equal(found({ attribution: none }, dir).length, 1, 'a project object that leaves pr and sessionUrl out is reported');
+  // Dismissed in Doctor or Agent settings, it is one entry: Doctor lists it apart and Show again brings it back.
+  write(claudeUser(ctx), '{}');
+  const report = () => doctorReport(ctx, { agents: ['claude'], env: {} });
+  const ids = (list) => list.filter((i) => /adds Claude attribution/.test(i.message)).map((i) => i.dismissId);
+  assert.deepEqual(ids(report().found), ['ai-attribution']);
+  dismissNote(ctx, 'ai-attribution');
+  assert.deepEqual([ids(report().found), ids(report().dismissed)], [[], ['ai-attribution']]);
+  assert.deepEqual(listSettings(ctx, 'claude', { env: {} }).dismissed.map((n) => n.id), ['ai-attribution']);
+  dismissNote(ctx, 'ai-attribution', false);
+  assert.deepEqual(ids(report().found), ['ai-attribution']);
 });
 
 test('Doctor: the environment scrub and the credential Read deny rules', () => {

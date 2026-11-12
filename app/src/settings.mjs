@@ -575,7 +575,8 @@ export function bundleEdits(agentId, id) {
 const issue = (level, message, fix, dir) => ({ level, check: 'agent-settings', message, fix, ...(dir ? { dir } : {}) });
 
 // Doctor findings for the agents' settings: files Claude Code would skip, the rules marked doctor, Codex trust entries of
-// folders that are gone; a note the user dismissed in Agent settings, or one on settings the user decided to keep, is left out. With dir, only what the project and
+// folders that are gone; a note on settings the user decided to keep is left out, and a note carries its id as dismissId, so Doctor and Agent settings
+// share one dismissed entry. With dir, only what the project and
 // local layers add to the global findings. Names and places, never values.
 export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) {
   const out = [];
@@ -590,7 +591,7 @@ export function settingsChecks(ctx, { agents = settingsAgents, dir, env } = {}) 
     const partial = readable.length < all.length;
     const off = dismissedNotes(ctx);
     const before = dir ? new Set(notes(id, readable.filter((l) => ['managed', 'user'].includes(l.layer)), { env, facts: ctx.sandbox, onlyDoctor: true, partial }).map((n) => n.id)) : new Set();
-    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !off.has(x.id) && !onDecided(x, id, off))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
+    for (const n of notes(id, readable, { env, facts: ctx.sandbox, onlyDoctor: true, partial }).filter((x) => !before.has(x.id) && !onDecided(x, id, off))) out.push({ ...issue(n.level, `${name}: ${n.message}`, `${n.fix ?? 'see the note'} (${n.source})`, dir), dismissId: n.id, settings: { agent: id, keys: n.keys, ...(dir ? { dir } : {}) } });
     if (id === 'codex' && !dir) {
       for (const t of trustList(readable).filter((x) => !x.exists)) out.push(issue('warning', `Codex trusts ${t.path}, which no longer exists`, `benchkeeper settings set 'projects.${t.path.replaceAll("'", "'\\''")}' --unset --agent codex`));
     }

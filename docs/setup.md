@@ -93,9 +93,9 @@ Settings files are merged: JSON by key with comments kept, Codex TOML by key, ch
 
 BenchKeeper's default is no AI attribution in commits, pull requests or session links:
 
-- Setup writes `"attribution": {"commit": "", "pr": "", "sessionUrl": false}` to `$HOME/.claude/settings.json`. Empty texts rather than `false` keep the file readable for Claude Code before v2.1.281 ([attribution](https://code.claude.com/docs/en/settings-reference#attribution)).
-- To keep your own value, choose Keep mine on the attribution row in Agent settings. Setup then leaves it alone, and doctor stops reporting it.
-- `doctor` warns when the effective value would add attribution: `attribution` unset, a `commit` or `pr` text unset or naming Claude, Anthropic or a claude.ai link, or `sessionUrl` not `false`. A project or local file that sets `attribution` is judged on its own, because the docs do not say whether missing parts come from the files below it.
+- Setup writes `"attribution": {"commit": "", "pr": "", "sessionUrl": false}` to `$HOME/.claude/settings.json` when that file sets no `attribution` and you did not choose Keep mine on the attribution row in Agent settings. Otherwise it leaves `attribution` alone. Empty texts rather than `false` keep the file readable for Claude Code before v2.1.281 ([attribution](https://code.claude.com/docs/en/settings-reference#attribution)).
+- `doctor` warns when the effective value adds Claude text or a session link: `attribution` unset, a `commit` or `pr` text unset or naming Claude, Anthropic or a claude.ai link, or `sessionUrl` not `false`. A project or local file that sets `attribution` is judged on its own, because the docs do not say whether missing parts come from the files below it.
+- To silence the warning, choose Dismiss on it in Doctor or in Agent settings. Both list it under Dismissed (one shared entry), and Show again in either brings it back. Keep mine on the attribution row silences it too, until Show again under Decided in Agent settings.
 - `run --as-machine` passes `pr: ""` and `sessionUrl: false` alongside its `Agent-Host` and `Agent-Role` commit trailers.
 - A squash merge's default message "can include ... commit information" ([GitHub](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges)), and on this repository it carried the branch commits' `Co-authored-by` trailers. Merge with an explicit body (`gh pr merge --squash --body ...`) when a branch might carry them.
 

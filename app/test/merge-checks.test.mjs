@@ -140,6 +140,11 @@ test('merge checks: the command line prints the verdict of a head in its scratch
   const { project, scratch } = clones();
 
   const verdict = (from, to) => { const r = cli(project, scratch, 'main', from, to); assert.equal(r.status, 0, r.stderr); return JSON.parse(r.stdout); };
+  const refuses = (args) => {
+    const r = cli(...args);
+    assert.deepEqual([r.status, r.stdout], [2, ''], args.join(' '));
+    assert.equal(r.stderr.trim().split('\n').length, 1, r.stderr);
+  };
   const plain = { allowed: true, ownerOnly: [], unsafePaths: [], sensitive: [] };
   const workflows = (file) => ({ ...plain, next: 'owner', ownerOnly: [file], sensitive: [file], pin: 'reviewed', upToDate: false });
   assert.deepEqual(verdict(workflow, workflow), { ...workflows('.github/workflows/new.yml'), shared: ['src/b.txt'] });
@@ -153,9 +158,14 @@ test('merge checks: the command line prints the verdict of a head in its scratch
   // A tag that answers the short name origin/main names another commit: the default branch is read by its full ref.
   git('-C', scratch, 'update-ref', 'refs/tags/origin/main', workflow);
   assert.deepEqual(verdict(reviewed, clean), merged);
+  // The remote's default branch moves on: a clone that was not fetched since gets no verdict, a fetched one sees the head behind.
+  commit({ 'src/a.txt': 'a3\n' });
+  refuses([project, scratch, 'main', reviewed, clean]);
+  git('-C', scratch, 'fetch', '-q', 'origin');
+  assert.deepEqual(verdict(reviewed, clean), { ...merged, next: 'update', upToDate: false, shared: ['src/a.txt'] });
 
-  // A folder without a repository of its own: git would answer from the repository above it, here the project's.
-  const empty = join(project, 'clones', 'empty');
+  // A folder without a repository of its own: git would answer from the repository above it, here a fresh clone that is not the project's.
+  const empty = join(clones().scratch, 'clones', 'empty');
   mkdirSync(empty, { recursive: true });
   const refused = [
     [project, scratch, 'main', 'HEAD', clean],
@@ -169,16 +179,12 @@ test('merge checks: the command line prints the verdict of a head in its scratch
     // A tree in place of the reviewed head: merge-base fails, which is no answer and never "not an ancestor".
     [project, scratch, 'main', out('rev-parse', `${reviewed}^{tree}`), clean],
     [project, scratch, 'no-such-branch', reviewed, clean],
+    [project, scratch, 'HEAD', reviewed, clean],
     [project, empty, 'main', reviewed, clean],
     // The project's checkout holds what the workers write.
     [project, project, 'main', reviewed, clean],
     [join(origin, 'no-project'), scratch, 'main', reviewed, clean],
   ];
-  const refuses = (args) => {
-    const r = cli(...args);
-    assert.deepEqual([r.status, r.stdout], [2, ''], args.join(' '));
-    assert.equal(r.stderr.trim().split('\n').length, 1, r.stderr);
-  };
   for (const args of refused) refuses(args);
   // A second worktree of the scratch clone can be a checkout that somebody works in.
   git('-C', scratch, 'worktree', 'add', '-q', '--detach', join(folder(), 'worktree'), clean);
@@ -199,6 +205,13 @@ test('merge checks: a head with several merge bases is the owner\'s to judge, an
   git('branch', 'feat/2-hidden', hidden);
   git('checkout', '-q', 'main');
   const { project, scratch } = clones();
+  // A setting in the project's shared git directory sends its origin to a repository whose policy allows merges: the verdict reads the policy in the clone.
+  const other = folder(), elsewhere = initRepo(other);
+  mkdirSync(join(other, 'docs/agents'), { recursive: true });
+  writeFileSync(join(other, 'docs/agents/orchestration.json'), '{ "merge": { "allowed": true } }');
+  elsewhere('add', '-A');
+  elsewhere('commit', '-qm', 'policy');
+  git('-C', project, 'config', `url.${other}.insteadOf`, git('-C', project, 'remote', 'get-url', 'origin').toString().trim());
 
   const r = cli(project, scratch, 'main', hidden, hidden);
   assert.deepEqual([r.status, r.stdout], [2, '']);

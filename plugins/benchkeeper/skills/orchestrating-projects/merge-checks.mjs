@@ -1,5 +1,5 @@
 // Usage: node merge-checks.mjs <project path> <scratch path> <default branch> <reviewed head> <head>. Decides steps 1 to 3 of Merge (review-and-merge.md) for one pull request head in its scratch clone and prints { next, allowed, ownerOnly, unsafePaths, sensitive, pin, upToDate, shared } as JSON, exit 0.
-// Exit 2 with one line on stderr is no verdict (a refused policy, a failed git command, a bad argument, a scratch path that is no clone of its own, a head with several merge bases): nothing merges. It runs no fetch in the clone, so fetch there first, and it changes no ref and no working file.
+// Exit 2 with one line on stderr is no verdict (a refused policy, a failed git command, a bad argument, a scratch path that is no clone of its own, a head with several merge bases): nothing merges. It runs no fetch of the default branch, so fetch in the clone first: a clone whose default branch differs from the remote's gets no verdict. It changes no working file and no ref but the policy reader's refs/benchkeeper/policy in the clone.
 import { realpathSync } from 'node:fs';
 import { errorLine, escaped, isMain, json, read, sh } from './policy.mjs';
 
@@ -47,11 +47,11 @@ export function next({ ownerOnlyFiles, unsafePaths = [], pin: pinned, allowed, u
   return mode !== 'disjoint' || shared.some((file) => !additive.some((entry) => under(file, entry))) ? 'update' : 'trial';
 }
 
-const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/;
+const BRANCH = /^(?!-)(?!.*\.\.)(?!HEAD$)[A-Za-z0-9._/-]+$/;
 const COMMIT = /^[0-9a-f]{40}$/;
 
 function verdict(project, scratch, branch, reviewed, head) {
-  if (!BRANCH.test(branch)) throw new Error('the default branch is no plain name: letters, digits, . _ / and -, no - at the start, no ..');
+  if (!BRANCH.test(branch)) throw new Error('the default branch is no plain name: letters, digits, . _ / and -, no - at the start, no .., not HEAD');
   if (!COMMIT.test(reviewed) || !COMMIT.test(head)) throw new Error('the reviewed head and the head must be full commit ids, 40 hex characters each');
   // Every git call runs in the clone: the project's checkout shares its git directory with the workers.
   const git = (...args) => sh(scratch, 'git', args);
@@ -62,9 +62,13 @@ function verdict(project, scratch, branch, reviewed, head) {
   if (store(scratch) === store(project)) throw new Error('the scratch path and the project path are one repository: the clone must be a repository of its own');
   // A second worktree shares the clone's refs and settings with whoever works there.
   if (git('worktree', 'list', '--porcelain').split('\n').filter((line) => line.startsWith('worktree ')).length !== 1) throw new Error('the scratch clone has more than one worktree');
-  const { policy, errors } = read(project);
+  // The policy too is read in the clone: a url.*.insteadOf in the project's shared config would send the reader to another repository.
+  const { policy, errors } = read(scratch);
   if (!policy) throw new Error(errors.map(errorLine).join('; '));
   const base = `refs/remotes/origin/${branch}`;
+  // A verdict on old refs could say merge: the clone's default branch must be the remote's now.
+  const remote = git('ls-remote', 'origin', `refs/heads/${branch}`).split('\n').find((line) => line.endsWith(`\trefs/heads/${branch}`))?.split('\t')[0];
+  if (remote !== git('rev-parse', '--verify', base).trim()) throw new Error('the clone does not hold the default branch as the remote has it: fetch first');
   // merge-base and merge-tree say no with exit 1; any other failure is no answer.
   const passes = (...args) => { try { return git(...args); } catch (e) { if (e.status === 1) return null; throw e; } };
   // With several merge bases the three-dot diff starts at one of them and hides what the head takes back from the others: main = merge(m, a) and a head with the parents m and a and m's tree lists none of a's files.

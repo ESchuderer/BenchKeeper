@@ -103,7 +103,7 @@ test('approval: the command line exits 0 for a filled approval and 1 with the mi
   const open = run('open.json', JSON.stringify({ comments: [] }), 'answer');
   assert.deepEqual([open.status, open.stdout], [1, '']);
   // No answer yet is exit 1; a file that cannot be read as an issue is exit 2, so that an error never reads as "keep waiting".
-  const errors = [run('cut.json', '{ "comments": [', 'answer'), run('other.json', '{ "labels": [] }', 'answer'), spawnSync(process.execPath, [script, 'answer', join(dir, 'absent.json')], { encoding: 'utf8' })];
+  const errors = [run('cut.json', '{ "comments": [', 'answer'), run('other.json', '{ "labels": [] }', 'answer'), spawnSync(process.execPath, [script, 'answer', join(dir, 'absent.json')], { encoding: 'utf8' }), spawnSync(process.execPath, [script, 'answer'], { cwd: dir, encoding: 'utf8' })];
   for (const r of errors) {
     assert.deepEqual([r.status, r.stdout], [2, '']);
     assert.equal(r.stderr.trim().split('\n').length, 1, r.stderr);
@@ -119,6 +119,7 @@ const ANSWERS = [
   ['a member\'s answer is read', [{ ...SECOND, authorAssociation: 'MEMBER' }], GO],
   ['a collaborator\'s answer is none', [{ ...SECOND, authorAssociation: 'COLLABORATOR' }], null],
   ['an answer with a head comment after it is none', [SECOND, said(HEAD, '2026-11-11T11:00:00Z')], null],
+  ['a collaborator\'s head comment after an answer voids nothing', [SECOND, said(HEAD, '2026-11-11T11:00:00Z', 'COLLABORATOR')], GO],
   ['an answer after the head comment is read', [said(HEAD, '2026-11-11T08:00:00Z'), SECOND], GO],
   ['the newest of two answers is read', [FIRST, SECOND], GO],
   ['an answer without free text is read', [said('Owner answer (2026-11-11): a', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],

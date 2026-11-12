@@ -70,10 +70,11 @@ export function answer(issue) {
   if (!Array.isArray(issue?.comments)) throw new Error('the file holds no comments list: it must be what gh issue view --json labels,comments,author printed');
   // gh's order is not promised: the newest answer is the one written last.
   const comments = [...issue.comments].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
-  // Only the repository's owner or a member answers for the owner: a collaborator can comment there too.
-  const newest = comments.findLastIndex((c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation) && c.body?.startsWith('Owner answer ('));
+  // Only the repository's owner or a member answers for the owner, or voids an answer: a collaborator can comment there too.
+  const owners = (c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation);
+  const newest = comments.findLastIndex((c) => owners(c) && c.body?.startsWith('Owner answer ('));
   // The coordinator's comment for a later head starts with "Head: " (approvals.md): the owner answered for the head before it.
-  if (newest < 0 || comments.slice(newest + 1).some((c) => c.body?.startsWith('Head: '))) return null;
+  if (newest < 0 || comments.slice(newest + 1).some((c) => owners(c) && c.body?.startsWith('Head: '))) return null;
   const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(comments[newest].body);
   // An answer without a full stop has its whole first line as the option: the coordinator compares it with the option labels and needs no more of it.
   return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at: comments[newest].createdAt };
@@ -82,7 +83,8 @@ export function answer(issue) {
 if (isMain(import.meta.url)) {
   const say = (message) => console.error(escaped(message.split('\n')[0]));
   process.exitCode = 1;
-  const [mode, file] = process.argv.length === 4 ? process.argv.slice(2) : ['check', process.argv[2]];
+  // "answer" is the mode even without a file, so that the usage error exits 2 and never reads as "no answer yet".
+  const [mode, file] = process.argv.length === 4 || process.argv[2] === 'answer' ? process.argv.slice(2) : ['check', process.argv[2]];
   try {
     if (!file || process.argv.length > 4 || !['check', 'answer'].includes(mode)) throw new Error('usage: node approval.mjs <file>, or node approval.mjs answer <file>');
     const text = readFileSync(file, 'utf8');

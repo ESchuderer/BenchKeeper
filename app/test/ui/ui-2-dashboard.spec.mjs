@@ -203,7 +203,7 @@ test.describe('views', () => {
     await expect(page.getByRole('banner').getByRole('link', { name: /^Doctor: \d+ errors?, \d+ warnings?$/ })).toBeVisible();
   });
 
-  test('Dashboard: Dismiss moves a doctor finding under Dismissed, Show again brings it back', async ({ page }) => {
+  test('Dashboard: Dismiss moves a doctor finding or settings note under Dismissed, Show again brings it back', async ({ page }) => {
     const doctor = page.getByRole('region', { name: 'Doctor' });
     await doctor.getByText('Every finding with its fix').click();
     const table = doctor.getByRole('table', { name: 'Doctor findings' });
@@ -215,6 +215,11 @@ test.describe('views', () => {
     await doctor.getByRole('button', { name: /^Dismissed \(\d+\)$/ }).click();
     await doctor.getByRole('list', { name: 'Dismissed doctor findings' }).getByRole('button', { name: 'Show again: no container engine (podman or docker)' }).click();
     await expect(engine).toHaveCount(1);
+    const scrub = table.getByRole('row', { name: /SUBPROCESS_ENV_SCRUB/ });
+    await scrub.getByRole('button', { name: /^Dismiss: .*SUBPROCESS_ENV_SCRUB/ }).click();
+    await expect(scrub).toHaveCount(0);
+    await doctor.getByRole('list', { name: 'Dismissed doctor findings' }).getByRole('button', { name: /^Show again: .*SUBPROCESS_ENV_SCRUB/ }).click();
+    await expect(scrub).toHaveCount(1);
   });
 
   test('Dashboard: a doctor cell shows the action, a source URL sits behind a link, a run id opens History', async ({ page }) => {

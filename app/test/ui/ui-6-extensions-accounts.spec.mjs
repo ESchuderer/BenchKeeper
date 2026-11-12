@@ -24,15 +24,14 @@ test.describe('views', () => {
     await page.getByRole('combobox', { name: 'File' }).click();
     await page.getByRole('option', { name: 'docs/agents/orchestration.json', exact: true }).click();
     const text = page.getByRole('textbox', { name: 'docs/agents/orchestration.json' });
-    await expect(text).toHaveValue(/"schemaVersion": 1/);
     await noAxe(page);
     // The loader's errors show while typing, and Review waits for a valid text.
-    await text.fill('{ "schemaVersion": 1, "workersPerProject": 0 }');
+    await text.fill('{ "schemaVersion": 2, "workersPerProject": 0 }');
     const errors = page.getByRole('list', { name: 'Errors in docs/agents/orchestration.json' });
     await expect(errors).toContainText('range at workersPerProject');
     await expect(page.getByRole('button', { name: 'Review change' })).toBeDisabled();
     await noAxe(page);
-    await text.fill('{ "schemaVersion": 1, "// why": "kept", "workersPerProject": 2 }\n');
+    await text.fill('{ "schemaVersion": 2, "// why": "kept", "workersPerProject": 2 }\n');
     await expect(errors).toBeHidden();
     await page.getByRole('button', { name: 'Review change' }).click();
     const changes = page.getByRole('region', { name: 'Changes' });

@@ -67,6 +67,10 @@ Limit: only the ref's newest commit is fetched, so a ref that moves more often t
 
 `packages/profiles/src/`
 
+### Oldest app version
+
+`resolve.ts` (`manifestOf`) and `packages/use-cases/src/workflow-packages.ts` (`planPackageInstall`). A Git pack whose manifest names a `minApp` above the running release is refused with `profile.app-too-old`. Its `minApp` is read before the strict parse, as a newer release's manifest may hold fields this one refuses. Bundled packs are exempt, as bundled profiles are: they ship with the release, and their manifests say `0.1.0` while a development build is `0.0.0`. A workflow package's install compares the parsed `metadata.minApp` and reports `package.app-too-old`: the store holds only files this release parsed, so there is no unknown field to read past.
+
 ### Project links
 
 `project.ts`. A profile names its targets by portable paths, which cannot point outside the project, into its Git folder or onto a sealed file (Claude Code's settings, an MCP list, the manual's files). A link can, so the plan resolves each path on disk and is refused when a link leads a target, a `.claude` path or the files record there. Otherwise a skill's file could land in a user's Claude Code home, in Git's hooks or in the committed settings, and the record would be read and written outside the project.

@@ -190,6 +190,17 @@ test("the doctor reports a package Codex has no copy of, a copy older than the p
   ]);
 });
 
+test("a stored workflow for a newer CedarLoom installs nothing", () => {
+  const folders = machine();
+  const newer = { ...workflow("n"), metadata: { id: "n", name: "n", version: "1.0.0", minApp: "9.0.0" } };
+  ok(saveDraft(folders.state, "n", newer, null));
+  ok(applyPlan(folders.state, ok(planSave(folders.state, "n")).plan, { yes: true }));
+  expect(planPackageInstall(folders, "n", { bundles: BUNDLES, node: "/usr/bin/node", allow: ["n"] })).toMatchObject({
+    ok: false,
+    finding: { code: "package.app-too-old", params: { id: "n", minApp: "9.0.0" } },
+  });
+});
+
 test("two workflow ids that fold to one plugin name never share its package", () => {
   const folders = machine();
   for (const id of ["a_b", "a-b"]) {

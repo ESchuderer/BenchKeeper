@@ -122,6 +122,8 @@ test('lint rule helper: a helper path inside quotes in the precheck fails, unquo
     assert.deepEqual(out.map((p) => p.rule), ['helper'], precheck);
     assert.match(out[0].message, /alpha\/check\.sh is inside quotes in the precheck: write the helper path unquoted/);
   }
+  const hooked = check(machine(), { tiers: [['user', tier(template({ hook: `"'alpha/check.sh' x"` }))]] });
+  assert.match(hooked.map((p) => p.message).join('\n'), /alpha\/check\.sh is inside quotes in the hook/);
   for (const precheck of ['"alpha/check.sh \\"{{repository}}\\""', `"alpha/check.sh 'x' && echo \\"y\\" | alpha/check.sh"`, String.raw`"echo \\\"x alpha/check.sh"`, `"true # don't stop\\nalpha/check.sh x"`])
     assert.deepEqual(problems(tier(template({ precheck }))), [], precheck);
 });

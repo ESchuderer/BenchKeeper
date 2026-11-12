@@ -382,6 +382,30 @@ test('each account folder has its own plugin cache: doctor names the one behind 
   assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts, []);
 });
 
+test('a Claude Code install named by its commit: the content version of the installed copy decides whether it is behind', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-commit-'));
+  const dir = join(home, 'acct/work'), copy = join(dir, 'plugins/cache/benchkeeper/benchkeeper/e052ccfc64d9');
+  mkdirSync(copy, { recursive: true });
+  writeFileSync(join(dir, 'plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version: 'e052ccfc64d9', installPath: copy, gitCommitSha: `e052ccfc64d9${'0'.repeat(28)}` }] } }));
+  writeFileSync(join(dir, 'plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: { source: { ref: 'stable' } } }));
+  writeFileSync(join(dir, 'settings.json'), JSON.stringify({ enabledPlugins: { 'benchkeeper@benchkeeper': true } }));
+  const ctx = context({ home, appVersion: '6.5.0', run: () => ({ code: 0, stdout: '', stderr: '' }) });
+  mkdirSync(ctx.config, { recursive: true });
+  writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [{ name: 'work', agent: 'claude', mode: 'host', dir }] }));
+  const content = (text) => writeFileSync(join(copy, 'content.json'), text);
+  const updates = () => globalPlan({ ctx, agents: ['claude'], options: { level: 'lite' } }).filter((c) => c.step === 'plugin:claude:account:work').map((c) => c.title);
+  content('{"contentVersion":"6.5.0"}');
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts, [{ name: 'work', installed: '6.5.0', behind: false }]);
+  assert.deepEqual(updates(), []);
+  content('{"contentVersion":"6.0.0"}');
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts, [{ name: 'work', installed: '6.0.0', behind: true }]);
+  assert.equal(updates().length, 2);
+  assert.match(updates()[0], /plugin benchkeeper@benchkeeper 6\.0\.0 \(e052ccfc64d9\) to 6\.5\.0$/);
+  // Content that cannot be read leaves the commit, which is no version to compare: not behind.
+  content('{');
+  assert.deepEqual(benchkeeperPlugin(ctx, 'claude').accounts, [{ name: 'work', installed: 'e052ccfc64d9', behind: false }]);
+});
+
 test('an account on another marketplace ref or sharing the default plugins folder gets no update', async () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-acct-ref-'));
   const folder = (dir, ref) => {

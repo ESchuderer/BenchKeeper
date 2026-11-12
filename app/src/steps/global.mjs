@@ -6,7 +6,7 @@ import { parse as parseToml } from 'smol-toml';
 import { accountEnv, listAccounts } from '../accounts.mjs';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
-import { contentDir, contentRefusal, library } from '../content.mjs';
+import { contentDir, contentRefusal, contentVersionOf, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
 import { getBlock, mergeJson, parseJson, setToml } from '../merge.mjs';
@@ -199,7 +199,7 @@ function claudeAccounts(ctx) {
 export function benchkeeperPlugin(ctx, a) {
   const p = PLUGINS[a].find((x) => x.id === 'benchkeeper@benchkeeper');
   const available = pin(p, ctx.appVersion).version;
-  const installedIn = (account) => pluginState(ctx, a, account).listed.find((x) => x.id === p.id)?.version ?? null;
+  const installedIn = (account) => { const x = pluginState(ctx, a, account).listed.find((y) => y.id === p.id); return (a === 'claude' ? ownVersion(x) : x?.version) ?? null; };
   const account = (x) => {
     const ref = pluginState(ctx, a, x).refs?.[p.marketplace];
     return { name: x.name, installed: installedIn(x), behind: behind(installedIn(x), available), ...(ref && ref !== p.ref ? { ref } : {}) };
@@ -227,6 +227,8 @@ const bySemver = (a, b) => a.split('.').map(Number).reduce((d, x, i) => d || x -
 // A version that is not x.y.z (a commit, "unknown") cannot be compared: it counts as current.
 const semver = (v) => /^\d+\.\d+\.\d+$/.test(v ?? '');
 const behind = (have, version) => !!version && semver(have) && bySemver(have, version) < 0;
+// Claude Code names a BenchKeeper install by its commit (the manifest has no version): the installed copy's content version counts, the record's where that cannot be read.
+const ownVersion = (p) => { const v = p?.dir && contentVersionOf(p.dir); return semver(v) ? v : p?.version; };
 
 // The highest x.y.z release public for at least 7 days and still installable, or null.
 // The registry answer is kept per context, 6 hours, a failed one 1 minute, so a long-running server asks again.
@@ -378,8 +380,9 @@ export function globalPlan(env) {
       const state = pluginState(ctx, a, acc);
       const have = state.listed.find((x) => x.id === own.id);
       const { version } = pin(own, ctx.appVersion);
-      if (!have || !behind(have.version, version)) continue;
-      const step = `plugin:${a}:account:${acc.name}`, title = `${name} account ${acc.name}: plugin ${own.id} ${have.version} to ${version}`;
+      if (!have || !behind(ownVersion(have), version)) continue;
+      // The commit tells two installs of one content version apart.
+      const step = `plugin:${a}:account:${acc.name}`, title = `${name} account ${acc.name}: plugin ${own.id} ${ownVersion(have)}${have.commit ? ` (${String(have.commit).slice(0, 12)})` : ''} to ${version}`;
       const env = { CLAUDE_CONFIG_DIR: acc.dir };
       // The runner changes only what lies under its roots (the home folder): a folder elsewhere is updated by hand.
       if (!inside(acc.dir, ctx.roots)) { add(step, title, { kind: 'command', argv: [a, 'plugin', 'update', '--scope', 'user', own.id], env, outdated: true, installUnit: pluginUnit(own), error: `the folder of account ${acc.name} lies outside ${ctx.roots.join(', ')}, which the app does not change: run claude plugin update --scope user ${own.id} with CLAUDE_CONFIG_DIR set to it` }); continue; }

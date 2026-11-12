@@ -466,6 +466,24 @@ test('a second plan reads the answers from the state file', () => {
   assert.equal(readState(r.dir).tier, '');
 });
 
+test('the state file records the commit of the BenchKeeper plugin Claude Code has installed for the project; the commit alone is no pending change', () => {
+  const r = repo();
+  const installed = (commit) => writeFileSync(join(r.ctx.home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', gitCommitSha: 'a'.repeat(40) }, { scope: 'project', projectPath: r.dir, gitCommitSha: commit }] } }));
+  mkdirSync(join(r.ctx.home, '.claude/plugins'), { recursive: true });
+  installed('b'.repeat(40));
+  apply(preview(plan(r, { agents: ['claude'], share: true }).changes), r.ctx, { scope: r.dir });
+  assert.equal(readState(r.dir).pluginCommit, 'b'.repeat(40));
+  // Another commit installed now: nothing to apply, and doctor says so as information.
+  installed('c'.repeat(40));
+  assert.deepEqual(preview(plan(r, {}).changes).map((c) => c.title), []);
+  assert.deepEqual(projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'project').map((i) => i.level), ['info']);
+  // A state from before the field reads as it did.
+  const { pluginCommit, ...older } = JSON.parse(read(join(r.dir, STATE)));
+  writeFileSync(join(r.dir, STATE), `${JSON.stringify(older, null, 2)}\n`);
+  assert.deepEqual(preview(plan(r, {}).changes).map((c) => c.title), []);
+  assert.deepEqual(projectChecks(r.ctx, r.dir, ['claude']).filter((i) => i.check === 'project'), []);
+});
+
 test('the workflow load line: on by default, off per project and kept off, on again', () => {
   const r = repo();
   const block = () => readFileSync(join(r.dir, 'AGENTS.md'), 'utf8');

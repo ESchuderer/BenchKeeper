@@ -87,6 +87,14 @@ export function localPlugins(ctx, dir) {
   } catch { /* the CLI below */ }
   return json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'local' && p.projectPath === dir).map((p) => p.id);
 }
+// The commit of the BenchKeeper plugin Claude Code runs in a project folder: the folder's own install (local or project scope), else the user's.
+export function pluginCommit(ctx, dir) {
+  try {
+    const l = JSON.parse(readText(join(ctx.home, '.claude/plugins/installed_plugins.json'))).plugins[OWN.id];
+    const commit = (l.find((p) => ['local', 'project'].includes(p.scope) && p.projectPath === dir) ?? l.find((p) => p.scope === 'user'))?.gitCommitSha;
+    return typeof commit === 'string' ? commit : undefined;
+  } catch { return undefined; }
+}
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;
 export const KEEP_SKILLS = ['find-skills', ...orca.SKILLS, 'synced'];
@@ -444,7 +452,13 @@ export function globalPlan(env) {
   // Settings
   if (agents.includes('claude')) {
     const f = at('.claude/settings.json');
-    add('settings:claude', 'Claude settings: clear-context on plan accept, transcripts 14 days, stable channel, commit and pull request attribution hidden, error reporting and feedback off', { kind: 'write', path: f, edit: sets(CLAUDE_KEYS), settings: { agent: 'claude', keys: CLAUDE_KEYS.map(([k]) => k.join('.')) } });
+    // An attribution already in the file, or Keep mine in Agent settings, is the user's choice and stays; doctor warns when it adds Claude attribution.
+    // Checked again on the text the edit gets: an attribution set between plan and apply stays too.
+    const kept = (text) => dismissedNotes(ctx).has('setting:claude:attribution') || parseJsonSafe(text)?.attribution !== undefined;
+    const without = (k) => CLAUDE_KEYS.filter(([p]) => !(k && p[0] === 'attribution'));
+    const keptAttribution = kept(readText(f));
+    const keys = without(keptAttribution);
+    add('settings:claude', `Claude settings: clear-context on plan accept, transcripts 14 days, stable channel, ${keptAttribution ? '' : 'commit and pull request attribution hidden, '}error reporting and feedback off`, { kind: 'write', path: f, edit: (text) => sets(without(kept(text)))(text), settings: { agent: 'claude', keys: keys.map(([k]) => k.join('.')) } });
     add('settings:claude:advisor', 'Claude advisor Opus, subagents on Sonnet (BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets(ADVISOR_KEYS), settings: { agent: 'claude', keys: ADVISOR_KEYS.map(([k]) => k.join('.')) } }, RECOMMENDATION);
     add('settings:claude:model', 'Claude default model opusplan (Opus in plan mode, Sonnet otherwise; BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets([[['model'], 'opusplan']]), settings: { agent: 'claude', keys: ['model'] } }, RECOMMENDATION);
     add('settings:claude:effort', 'Claude default effort high, per model too (Opus 5.5 ignores the top-level key; BenchKeeper recommendation)', { kind: 'write', path: f, edit: sets([[['effortLevel'], 'high'], ...EFFORT_MODELS.map((m) => [['modelSettings', m, 'effortLevel'], 'high'])]), settings: { agent: 'claude', keys: ['effortLevel', 'modelSettings'] } }, RECOMMENDATION);

@@ -5,7 +5,7 @@ import { Plan, Section } from './parts.jsx';
 import { Loading, Note, useApi } from './shell.jsx';
 
 // A file that does not exist yet starts as the smallest valid document.
-const START = '{\n  "schemaVersion": 1\n}\n';
+const START = '{\n  "schemaVersion": 2\n}\n';
 const errorLine = (e) => `${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`;
 
 function FileEditor({ dir, entry, onDone }) {

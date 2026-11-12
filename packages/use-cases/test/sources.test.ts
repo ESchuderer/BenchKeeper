@@ -7,6 +7,9 @@ import { applyPlan, type Fetch, planProfile } from "@cedarloom/use-cases";
 import { expect, test, vi } from "vitest";
 import { ok, testRoot } from "./harness.ts";
 
+// A released CedarLoom: a development build (0.0.0) loads files for a newer one.
+vi.mock("../../profiles/src/version.ts", () => ({ APP_VERSION: "0.1.0" }));
+
 const root = testRoot("sources");
 
 // Each repository's commits, newest last: a fetch by branch takes the newest, a fetch by commit that one.

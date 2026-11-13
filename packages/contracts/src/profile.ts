@@ -565,7 +565,7 @@ const forbiddenSetting = (file: ProfileFile): string | undefined => {
 };
 
 /**
- * Reads a profile file: a file of another kind (BenchKeeper's profiles and presets among them, which CedarLoom never
+ * Reads a profile file: a file of another kind (the CedarLoom app's profiles and presets among them, which CedarLoom never
  * imports) and a newer format are refused first, then the schema, then a credential and a forbidden setting anywhere.
  */
 export const readProfile = (value: unknown): Result<ProfileFile> => {

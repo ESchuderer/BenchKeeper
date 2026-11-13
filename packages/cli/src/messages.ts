@@ -187,7 +187,7 @@ const messages: { [C in FindingCode]: (params: Params[C]) => string } = {
   "git.too-large": (p) =>
     `${p.path ?? "The tree"} has ${p.found} ${p.unit}, more than the ${p.limit} a fetched tree may have; nothing of it is used.`,
   "profile.foreign-kind": (p) =>
-    `This is a "${p.kind}" file, not a CedarLoom profile. CedarLoom does not import BenchKeeper profiles or presets; remove BenchKeeper's setup with BenchKeeper, then apply a CedarLoom profile.`,
+    `This is a "${p.kind}" file, not a CedarLoom profile. CedarLoom does not import profiles or presets of the CedarLoom app; remove the app's setup with the app (cedarloom-app), then apply a CedarLoom profile.`,
   "profile.secret-like": (p) =>
     `The profile holds what looks like a credential at ${p.path}. A profile is shared, so it is refused; keep the value in your environment or a secret store.`,
   "profile.forbidden-setting": (p) =>

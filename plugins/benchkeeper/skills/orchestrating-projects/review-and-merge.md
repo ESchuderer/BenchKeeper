@@ -101,11 +101,12 @@ The reviewer's working directory is not the clone, so neither built-in command f
 ## Rounds
 
 - Send Blocking and Important findings to the owning worker as a follow-up, in your own words, each with file and line ([orca.md](orca.md#start-the-run)). List Minor findings in the report: no round fixes them. The worker answers with one status message when its fix is pushed: read `<head>` then, and never type the commit id of a message into a command.
-- Every fix gets a scoped re-review by a fresh reviewer, started and briefed the same way, on the scratch clone at the new head. The head that re-review accepts is the new reviewed head.
-  - It reads the lines changed since the reviewed head (`git -C <scratch path> diff <reviewed head> <head>`) and the earlier findings.
+- Every fix gets a scoped re-review by a fresh reviewer, started and briefed the same way, on the scratch clone at the new head.
+  - The re-review reads the lines changed since the reviewed head (`git -C <scratch path> diff <reviewed head> <head>`) and the earlier findings.
   - Only where `git -C <scratch path> rev-list --parents -n 1 <head>` prints the head with exactly two parents, the first the reviewed head, and the second is on the default branch (`git -C <scratch path> merge-base --is-ancestor <second parent> refs/remotes/origin/<default branch>` exits 0), it reads `git -C <scratch path> show --remerge-diff <head>` instead: the worker's resolution alone, without the default branch's changes.
   - Every other head gets the plain diff: for a merge of more than two parents git prints no remerge diff, only a warning.
   - Any push to the branch after a review is such a fix, whoever made it, except a head whose verdict's `pin` is `clean-merges` ([Merge](#merge), step 2).
+  - The head that re-review accepts is the new reviewed head.
 - A review with a Blocking or Important finding is a round. After the second round with findings, the follow-up tells the worker to rerun the phase the findings come from on a stronger model or a higher effort (`sonnet` to `opus`, `opus` to `fable`, or an effort below `high` to `high`; `xhigh` only as [SKILL.md](SKILL.md#policy) says). With no step left, the question goes to the owner at once.
 - A third round with findings is a question for the owner ([SKILL.md](SKILL.md#rules)): the pull request stays a draft and is named in the report. There is no fourth round.
 
@@ -125,7 +126,7 @@ The body passes when both of these hold. Read the body and `closingIssuesReferen
 - GitHub will close no issue for the pull request: `closingIssuesReferences` must be empty. It lists the issues the pull request may close ([PullRequest](https://docs.github.com/en/graphql/reference/pulls)), by a closing keyword in its body or by a link made in its sidebar, which needs no keyword, and GitHub closes them when the pull request merges, whatever `closeIssue` says ([linking a pull request to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue)).
 - With `issues.repository`, the body names the issue as `<tracker>#<number>` or by its URL: the precheck counts a pull request for a tracker's issue only then.
 
-A body that fails goes back to the owning worker as a follow-up; a list that its fix leaves filled is the owner's to clear, as [Ready](#ready) says.
+A body that fails goes back to the owning worker as a follow-up; a list that its fix leaves filled is the owner's to clear: the pull request stays a draft, so release its worker ([orca.md](orca.md#clean-up)) and name the pull request and the reason in the report.
 
 That list does not cover the title or a commit message, so both keep the keyword test ([Merge](#merge), steps 4 and 5). A closing keyword is `close`, `fix` or `resolve`, or one of their forms (`closes`, `closed`, `fixes`, `fixed`, `resolves`, `resolved`), in any case, with or without a colon, before an issue reference: a commit that holds one closes that issue when it reaches the default branch.
 
@@ -149,7 +150,7 @@ The verdict's `next` is never `merge` or `trial` without `merge.allowed` (its `a
      - Update the branch with a merge of the default branch, `gh pr update-branch <n> -R <owner/repo>`, never with `--rebase`, then start again at step 1 at a later wake-up. Repeat the update until `upToDate` is true on a head that passes the Pin.
      - When the update fails, do not merge. A conflict goes to the owning worker as a follow-up: its resolution is a push after the review ([Rounds](#rounds)).
      - A failure you cannot read as a conflict leaves the pull request ready for the owner, named in the report (unverified: how `gh` reports a conflict).
-   - `trial` (`disjoint`, and `shared`, the files that both the pull request and the default branch since changed, holds no file, or only files under `merge.additivePaths`): the head merges without an update when a trial merge passes. `disjoint` only: run the trial merge by [trial-merge.md](trial-merge.md) before step 4. `strict` skips it.
+   - `trial` (`disjoint`, and `shared`, the files that both the pull request and the default branch since changed, holds no file, or only files under `merge.additivePaths`): the head merges without an update when a trial merge passes: run it by [trial-merge.md](trial-merge.md) before step 4. In `strict`, `next` is never `trial`.
 4. **Title and body.** Read them (`gh pr view <n> -R <owner/repo> --json title,body,closingIssuesReferences`). The title becomes the subject of the squash commit: check it against the project's convention (`AGENTS.md`, else the history). A title that does not fit, or that holds a line break, a control character or a closing keyword, goes back to the owning worker as a follow-up, and so does a body that fails the test of [Ready](#ready).
 5. **Merge.** In this order:
    1. Write two files into the run folder yourself: a subject file with the title that step 4 checked, followed by ` (#<n>)` where the subjects of the default branch's history end that way, and a body file with the pull request's number, the reviewed head and the issue reference, without a closing keyword.

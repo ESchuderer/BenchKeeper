@@ -4,7 +4,7 @@ Read this file only in `merge.mode` `disjoint`, when the verdict's `next` is `tr
 
 The trial is the one step that checks files out and runs the pull request's code, so it gets a fresh clone of its own: `<trial path>`, a new folder beside the scratch clone. It serves nothing after, and no session reads a file there or starts there. The trial merge is never pushed.
 
-The trial passes when `merge` exits 0 and the project's changed-files check passes in the trial clone, run as `AGENTS.md` says. Anything else, a trial that cannot run included, takes the `strict` step (`update` in step 3 of [Merge](review-and-merge.md#merge)). Steps 5 and 6 follow every trial whose container started, whatever its result.
+The trial passes when `merge` exits 0 and the project's changed-files check passes in the trial clone, run as `AGENTS.md` says. Anything else, a trial that cannot run included, takes the `strict` step (`update` in step 3 of [Merge](review-and-merge.md#merge)). Steps 5 and 6 follow every trial that ran `devcontainer up`, whatever its result (a failed start can leave a container).
 
 1. **Default-branch commit.** Run `git -C <scratch path> rev-parse refs/remotes/origin/<default branch>`. `<default-branch commit>` is what it printed, the commit the trial merges: write it into the handoff file before the check runs, and never read it from the trial clone.
 2. **Whether the trial can run.** It cannot when one of these holds, and then you take the `update` case of step 3 of [Merge](review-and-merge.md#merge):
@@ -12,8 +12,8 @@ The trial passes when `merge` exits 0 and the project's changed-files check pass
    - The check is more than one command and `AGENTS.md` names no compound form for it (step 4 runs the check as one command).
    - The check has a step that `AGENTS.md` runs on the host after one in the container.
    - A command of the container definition (a lifecycle command such as `postCreateCommand`, a compose `command`, an entrypoint) runs or loads a file of the repository in the container before the check's command, or you cannot tell: the pull request's code would then run before `devcontainer exec` reads the definition.
-   - A file of the pull request can define that container ([Container files](#container-files)): the trial's container would then be the pull request's, and its `initializeCommand` runs on the host.
-3. **Trial clone.** The clone must exit 0 and `rev-parse --git-dir` must print `.git`, as for a scratch clone ([Scratch clone](review-and-merge.md#scratch-clone)):
+   - A file of the pull request can define the trial's container, or you cannot tell whether one can ([Container files](#container-files)): the trial's container would then be the pull request's, and its `initializeCommand` runs on the host.
+3. **Trial clone.** The clone must exit 0 and `rev-parse --git-dir` must print `.git`, as for a scratch clone ([Scratch clone](review-and-merge.md#scratch-clone)), and a `merge` that does not exit 0 ends the trial (step 7):
 
    ```text
    gh repo clone <owner/repo> <trial path> --no-upstream -- --filter=blob:none --no-checkout

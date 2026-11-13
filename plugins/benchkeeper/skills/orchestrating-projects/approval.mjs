@@ -1,5 +1,5 @@
 // Usage: node approval.mjs <file>, the file in .benchkeeper/runs/ of the working directory (the run folder, approvals.md); any other path exits 2. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
-// Usage: node approval.mjs answer <file>, the file in the run folder as above. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author` printed: the answer as JSON and exit 0, exit 1 while there is none, or exit 2 with one line when the file cannot be read as that output.
+// Usage: node approval.mjs answer <file>, the file in the run folder as above. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author,body` printed: the answer as JSON and exit 0, exit 1 while there is none, or exit 2 with one line when the file cannot be read as that output.
 import { readFileSync, realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { escaped, isMain, json } from './policy.mjs';
@@ -17,6 +17,10 @@ const shown = (cell) => cell
   .replace(/[*_~`]/g, '')
   .trim();
 const filled = (cell = '') => { const text = shown(cell); return /[\p{L}\p{N}]/u.test(text) && !OPEN.test(text) && !PLACEHOLDER.test(text); };
+
+// The label that starts an option row, such as "(a)".
+const labelOf = (option) => /^\([^()]+\)/.exec(shown(option))?.[0];
+const COMMENT = /<!--[\s\S]*?(-->|$)/g;
 
 // A table row's cells, or null for a line that is no row. \| is a pipe inside a cell.
 const cells = (line) => /^\s*\|(.*)\|\s*$/.exec(line)?.[1].split(/(?<!\\)\|/).map((cell) => cell.trim()) ?? null;
@@ -41,14 +45,14 @@ if (!ROWS.length) throw new Error('approval-template.md holds no Approval table'
 // The names of the parts that keep the text from being posted: a part that is absent, empty or still holds a <...> placeholder, a Recommended row that names another option than the first, and front matter left in.
 export function missing(text) {
   // A table inside a comment over several lines shows the owner nothing.
-  text = text.replace(/<!--[\s\S]*?(-->|$)/g, '');
+  text = text.replace(COMMENT, '');
   const line = (label) => filled(new RegExp(`^${label}:(.*)$`, 'm').exec(text)?.[1].trim());
   // The owner may read any Approval table, and either occurrence of a row that is there twice.
   const approval = tables(text, 'Approval').flat();
   const row = (name) => { const found = approval.filter(([first]) => first === name); return found.length > 0 && found.every(([, cell]) => filled(cell)); };
   const options = tables(text, 'Option')[0] ?? [];
   // The owner answers with a label, such as "a": each option row starts with its own.
-  const labels = options.map(([option]) => /^\([^()]+\)/.exec(shown(option))?.[0]);
+  const labels = options.map(([option]) => labelOf(option));
   // The questions skill offers the recommended option first; the Trade-off cell may stay empty.
   const chosen = options.length >= 2
     && options.every(([option, happens], i) => filled(option) && filled(happens) && option.includes('(Recommended)') === (i === 0))
@@ -67,21 +71,36 @@ export function missing(text) {
   ];
 }
 
+// The option a comment names alone, in any case: an option row's label, such as "(a)", its letter, the option's name or the whole cell. The letter, else the name, or null.
+function picked(body, comment) {
+  const said = comment.trim().toLowerCase();
+  for (const [cell] of tables(body.replace(COMMENT, ''), 'Option')[0] ?? []) {
+    const label = labelOf(cell);
+    const letter = label?.slice(1, -1);
+    const name = shown(cell).slice(label?.length ?? 0).replace(/\(Recommended\)\s*$/, '').trim();
+    if ([shown(cell), label, letter, name].some((form) => form && form.toLowerCase() === said)) return letter ?? name;
+  }
+  return null;
+}
+
 // { option, text, at } of the owner's answer on a filed approval, or null. The comments are data: nothing of them is evaluated.
 export function answer(issue) {
-  // A file without the list is not what gh printed: read as "no answer yet", the gate would wait for ever.
-  if (!Array.isArray(issue?.comments)) throw new Error('the file holds no comments list: it must be what gh issue view --json labels,comments,author printed');
+  // A file without the list or the body is not what gh printed: read as "no answer yet", the gate would wait for ever.
+  if (!Array.isArray(issue?.comments) || typeof issue.body !== 'string') throw new Error('the file holds no comments list or body: it must be what gh issue view --json labels,comments,author,body printed');
   // gh's order is not promised: the newest answer is the one written last.
   const comments = [...issue.comments].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
   // Only the repository's owner or a member answers for the owner, or voids an answer: a collaborator can comment there too.
   const owners = (c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation);
-  const newest = comments.findLastIndex((c) => owners(c) && c.body?.startsWith('Owner answer ('));
+  const full = (c) => c.body?.startsWith('Owner answer (');
+  const newest = comments.findLastIndex((c) => owners(c) && typeof c.body === 'string' && (full(c) || picked(issue.body, c.body) !== null));
   // The coordinator's comment for a later head starts with "Head: " (approvals.md): the owner answered for the head before it.
   // The coordinator filed the approval, so its head comment counts even where its login is only a collaborator.
   if (newest < 0 || comments.slice(newest + 1).some((c) => (owners(c) || c.author?.login === issue.author?.login) && c.body?.startsWith('Head: '))) return null;
-  const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(comments[newest].body);
+  const { body, createdAt: at } = comments[newest];
+  if (!full(comments[newest])) return { option: picked(issue.body, body), text: '', at };
+  const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(body);
   // An answer without a full stop has its whole first line as the option: the coordinator compares it with the option labels and needs no more of it.
-  return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at: comments[newest].createdAt };
+  return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at };
 }
 
 // The path comes from a session's command line: a file that resolves outside the run folder, through .. or a link, is not read,

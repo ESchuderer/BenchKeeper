@@ -85,12 +85,13 @@
     {
       "name": "Claude Code",
       "url": "https://code.claude.com/docs/en/setup",
-      "for": "agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only. Version 2.1.292 or later for the effort a skill passes to a subagent call, such as `xhigh` for a security review: an older one runs each subagent at the `effort` of its definition, `high` for the reviewer",
+      "for": "agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only. Version 2.1.292 or later for the effort a skill passes to a subagent call, such as `xhigh` for a security review: 2.1.267 to 2.1.291 run each subagent at the `effort` of its definition (`high` for the reviewer), and an older one ignores that field on Opus 4.7, Opus 4.8 and Fable 5",
       "evidence": [
         "docs/setup.md#agent-and-os-support",
         "plugins/benchkeeper/skills/orchestrating-projects/review-and-merge.md#review",
         "https://code.claude.com/docs/en/sub-agents#choose-an-effort-level",
-        "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21292"
+        "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21292",
+        "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21267"
       ]
     },
     {

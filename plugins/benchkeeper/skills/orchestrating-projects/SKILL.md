@@ -44,7 +44,7 @@ These hold in every step and for every outcome.
 1. **Pick**:
    - The pickable issues are the numbers `node <skill folder>/precheck.mjs <project paths>` prints per project, run once with every project of the run (its head says what counts), never a listing of your own.
    - An issue it prints in a `several projects:` line starts nowhere: list it for the owner.
-   - Per project with a free slot, take up to `issuesPerWorker` of its numbers with no worker or outcome yet in this run, oldest first: the lowest. Take one only where `models.worker` at the oldest one's tier is `fable` ([Rules](#rules)). They are one worker's batch ([spec-template.md](spec-template.md#batches)).
+   - Per project with a free slot, take up to `issuesPerWorker` of its numbers with no worker or outcome yet in this run, oldest first: the lowest. Take one only where `models.worker` at the tier of any of them is `fable` ([Rules](#rules)). They are one worker's batch ([spec-template.md](spec-template.md#batches)).
    - Read the issue's comments and milestone before its spec: one that defers, supersedes or delivers the work is an outcome, so list the issue for the owner and start nothing.
    - An issue starts once per run (a failed one retries once, [Outcomes](#outcomes)), so a verified no-change issue that stays open without `closeIssue` is not picked again.
    - One coordinator runs per project: the precheck prints a batch's issue until its PR exists, so pick nothing in a project the handoff file names for another live terminal, or while an earlier session of its schedule is alive.

@@ -21,8 +21,8 @@ Standard and full tier, except a change that only deletes: this session is the p
 - It runs each phase as a subagent with a fresh context and keeps the decision after each phase and the questions to the user, which a subagent cannot ask ([Claude Code withholds the question tool from subagents](https://code.claude.com/docs/en/sub-agents#available-tools)).
 - Where the plugin's agent named for a phase below is available (Claude Code), the phase runs as that agent, which sets its tools and effort.
 - The session passes the phase's model in the call: the alias named with the phase below, or the one the spec or the user names. For `inherit` it passes no model ([a call takes an alias only](https://code.claude.com/docs/en/sub-agents#choose-a-model)), so the phase runs on the session's own model.
-- A risky change, or one that touches CI, data formats, guards or money: Plan and Review pass `fable` at `high`, Implement stays `opus` and Test `sonnet`. The Review of a change to authentication, permissions, secrets, input validation or firmware safety passes `fable` at `xhigh`. A spec's Flow line wins over both.
 - Implement of a change that only renames, edits docs or edits tests passes `sonnet` at `high`.
+- A risky change, or one that touches CI, data formats, guards or money: Plan and Review pass `fable` at `high`, Implement stays `opus` and Test `sonnet`. The Review of a change to authentication, permissions, secrets, input validation or firmware safety passes `fable` at `xhigh`. A spec's Flow line wins over both.
 - A call overrides the effort only where the line above, the spec or the user names one; `xhigh` runs nowhere else.
 - A phase whose model the account refuses reruns once on `opus`, and the report says so.
 - Codex, or a setup without the plugin: a general subagent briefed with the phase step below.

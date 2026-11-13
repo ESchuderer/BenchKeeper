@@ -13,7 +13,7 @@ The build drifts from the plan (another design or scope), or a result cannot be 
 
 ## Review rounds
 
-The reviewer is a fresh session that does not edit (a subagent; Claude Code: `benchkeeper:review` where available, with the model and effort of the Review phase in [software.md](software.md#phases)). A review or re-review whose context was compacted is void: run it again on a smaller scope.
+The reviewer is a fresh session that does not edit (a subagent; Claude Code: `benchkeeper:review` where available, with the model and effort of the Review phase in [software.md](software.md#phases)). A review or re-review whose context was compacted is void: split its scope into parts that together cover all of it and review each part afresh. The review counts only when every part is done and none is void.
 
 Findings carry a class:
 - **Blocking**: wrong behavior, security, data loss, an acceptance row unmet.

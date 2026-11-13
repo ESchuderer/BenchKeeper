@@ -64,7 +64,7 @@ The class belongs to a head and to the policy as the reader prints it then: deci
 
 ## Review
 
-Start one fresh reviewer per pull request: a subagent that did not write the change and edits nothing. Start it only when `gh pr view <n> -R <owner/repo> --json mergeable --jq .mergeable` prints `MERGEABLE` and `gh pr checks <n> -R <owner/repo>` exits 0, every check of `<head>` green ([exit 8: a check still runs](https://cli.github.com/manual/gh_pr_checks)): a red check goes to the owning worker as [Ready](#ready) says, a conflict as a follow-up, and `UNKNOWN` or a running check is read again at a later wake-up. Its working directory is yours, never the clone ([Scratch clone](#scratch-clone)), and it reads nothing of yours: it reads the pull request through git in the scratch clone at `<head>`, never in the project's checkout or a worker's worktree.
+Start one fresh reviewer per pull request: a subagent that did not write the change and edits nothing. Start it only when `gh pr view <n> -R <owner/repo> --json mergeable --jq .mergeable` prints `MERGEABLE` and `gh pr checks <n> -R <owner/repo>` exits 0, every check of `<head>` green ([exit 8: a check still runs](https://cli.github.com/manual/gh_pr_checks)). A head with no check makes it print `no checks reported` and exit 1 ([source](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/checks/checks.go)): that counts as green only while `merge.requiredChecks` is empty, else as a running check. A red check goes to the owning worker as [Ready](#ready) says, a conflict as a follow-up, and `UNKNOWN` or a running check is read again at a later wake-up. Its working directory is yours, never the clone ([Scratch clone](#scratch-clone)), and it reads nothing of yours: it reads the pull request through git in the scratch clone at `<head>`, never in the project's checkout or a worker's worktree.
 
 - Claude Code with the plugin: the `benchkeeper:review` agent, with a model and effort passed in the call: for a routine change those of `models.phases.review`, `opus` and `high` for what the reader does not print; for a sensitive change those of `models.sensitive.independent`, or of `models.sensitive.security` when it changes authentication, permissions, secrets, input validation or firmware safety. For `inherit`, pass the model that pull request's worker was started with when that is an alias (`fable`, `opus`, `sonnet`, `haiku`), else `opus`: a call without a model would run the reviewer on your own. A call whose model the account refuses runs once more on `opus`, and the report says so. It runs `/code-review <level>` and, for a sensitive change, makes a security pass, as [The commands](#the-commands) says. Write the level into the brief every time: without one the command reuses the level typed last on that machine.
 - Another agent, or no plugin: a general subagent that makes the passes of the workflow skill's review before pushing, a correctness pass and, for a sensitive change, a security pass. The level decides nothing else there.
@@ -109,7 +109,7 @@ The reviewer's working directory is not the clone, so neither built-in command f
   - Every other head gets the plain diff: for a merge of more than two parents git prints no remerge diff, only a warning.
   - Any push to the branch after a review is such a fix, whoever made it, except a head whose verdict's `pin` is `clean-merges` ([Merge](#merge), step 2).
   - The head that re-review accepts is the new reviewed head.
-- A review or re-review that reports itself void counts as no review and no round: start a fresh one on a smaller scope.
+- A review or re-review that reports itself void counts as no review and no round: split its scope into parts that together cover all of it, and start a fresh one on each part. They count as one review: void while one part is void, and clean only when every part is.
 - A review with a Blocking or Important finding is a round. After the second round with findings, the follow-up tells the worker to rerun the phase the findings come from on a stronger model or a higher effort (`sonnet` to `opus`, `opus` to `fable`, or an effort below `high` to `high`; `xhigh` only as [SKILL.md](SKILL.md#policy) says). With no step left, the question goes to the owner at once.
 - A third round with findings is a question for the owner ([SKILL.md](SKILL.md#owner-decisions)): the pull request stays a draft and is named in the report. There is no fourth round.
 
@@ -117,7 +117,7 @@ The reviewer's working directory is not the clone, so neither built-in command f
 
 Read `<head>`. Mark the draft ready, `gh pr ready <n> -R <owner/repo>`, when all of these hold:
 
-- the last review was not void and left no Blocking or Important finding
+- the last review, every part of it where it was split, was not void and left no Blocking or Important finding
 - the verdict's `pin` is `reviewed` or `clean-merges` ([Merge](#merge), step 2). A head with `fail` gets its re-review first ([Rounds](#rounds))
 - every check in `merge.requiredChecks` is green on it (`gh pr checks <n> -R <owner/repo>`) and no review thread is unresolved
 - the body passes

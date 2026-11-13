@@ -11,7 +11,7 @@ Not installed by BenchKeeper.
 <!-- generated:prerequisites -->
 | Tool | Needed for |
 |---|---|
-| [Claude Code](https://code.claude.com/docs/en/setup) | agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only |
+| [Claude Code](https://code.claude.com/docs/en/setup) | agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only. Version 2.1.292 or later for the effort a skill passes to a subagent call, such as `xhigh` for a security review: an older one runs each subagent at the `effort` of its definition, `high` for the reviewer |
 | [Codex CLI](https://developers.openai.com/codex/cli) | agent, at least one; Gemini CLI and GitHub Copilot CLI get rules, skills, settings, doctor and project setup only |
 | [Git](https://git-scm.com/downloads) | clone, branches, commits |
 | [GitHub CLI](https://cli.github.com/) | issues and pull requests (optional, local branches without it) |

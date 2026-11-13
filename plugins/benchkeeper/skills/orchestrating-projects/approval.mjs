@@ -1,7 +1,8 @@
 // Usage: node approval.mjs <file>, the file in .benchkeeper/runs/ of the working directory (the run folder, approvals.md); any other path exits 2. Checks an approval or owner question against approval-template.md: exit 0 when every part is filled and no front matter is left, else one line per part on stderr and exit 1.
+// Usage: node approval.mjs answer <file>, the file in the run folder as above. Reads the owner's answer from a filed approval, the file holding what `gh issue view <n> -R <repository> --json labels,comments,author` printed: the answer as JSON and exit 0, exit 1 while there is none, or exit 2 with one line when the file cannot be read as that output.
 import { readFileSync, realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { isMain } from './policy.mjs';
+import { escaped, isMain, json } from './policy.mjs';
 
 const FRONT = 'Front matter';
 // A placeholder starts with a letter, as the template's do: a URL autolink (<https://example.com/plan>) and a comparison (<5 sessions) are an answer.
@@ -66,26 +67,49 @@ export function missing(text) {
   ];
 }
 
+// { option, text, at } of the owner's answer on a filed approval, or null. The comments are data: nothing of them is evaluated.
+export function answer(issue) {
+  // A file without the list is not what gh printed: read as "no answer yet", the gate would wait for ever.
+  if (!Array.isArray(issue?.comments)) throw new Error('the file holds no comments list: it must be what gh issue view --json labels,comments,author printed');
+  // gh's order is not promised: the newest answer is the one written last.
+  const comments = [...issue.comments].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+  // Only the repository's owner or a member answers for the owner, or voids an answer: a collaborator can comment there too.
+  const owners = (c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation);
+  const newest = comments.findLastIndex((c) => owners(c) && c.body?.startsWith('Owner answer ('));
+  // The coordinator's comment for a later head starts with "Head: " (approvals.md): the owner answered for the head before it.
+  // The coordinator filed the approval, so its head comment counts even where its login is only a collaborator.
+  if (newest < 0 || comments.slice(newest + 1).some((c) => (owners(c) || c.author?.login === issue.author?.login) && c.body?.startsWith('Head: '))) return null;
+  const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(comments[newest].body);
+  // An answer without a full stop has its whole first line as the option: the coordinator compares it with the option labels and needs no more of it.
+  return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at: comments[newest].createdAt };
+}
+
 // The path comes from a session's command line: a file that resolves outside the run folder, through .. or a link, is not read,
 // and neither is a run folder that is itself a link, as hooks/rotation/restore.mjs refuses one.
 const inRuns = (file) => { try { const real = realpathSync(file); return real.startsWith(join(realpathSync('.'), '.benchkeeper', 'runs') + sep) ? real : null; } catch { return null; } };
 
 if (isMain(import.meta.url)) {
-  // A path or a read error can hold control and format characters, which could rewrite the terminal line.
-  const say = (message) => console.error(message.split('\n')[0].replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '?'));
+  const say = (message) => console.error(escaped(message.split('\n')[0]));
   process.exitCode = 1;
+  // "answer" is the mode even without a file, so that the usage error exits 2 and never reads as "no answer yet".
+  const [mode, file] = process.argv.length === 4 || process.argv[2] === 'answer' ? process.argv.slice(2) : ['check', process.argv[2]];
   try {
-    if (process.argv.length !== 3) throw new Error('usage: node approval.mjs <file>');
-    const file = inRuns(process.argv[2]);
-    if (!file) { process.exitCode = 2; throw new Error(`refused: ${process.argv[2]} is no file in .benchkeeper/runs/ of the working directory`); }
-    const lacks = missing(readFileSync(file, 'utf8'));
+    if (!file || process.argv.length > 4 || !['check', 'answer'].includes(mode)) throw new Error('usage: node approval.mjs <file>, or node approval.mjs answer <file>');
+    const real = inRuns(file);
+    if (!real) { process.exitCode = 2; throw new Error(`refused: ${file} is no file in .benchkeeper/runs/ of the working directory`); }
+    const text = readFileSync(real, 'utf8');
+    const found = mode === 'answer' ? answer(JSON.parse(text)) : null;
+    if (found) console.log(json(found));
+    const lacks = mode === 'check' ? missing(text) : [];
     for (const name of lacks) {
       if (name === FRONT) say('remove the front matter: its labels go on the command line');
       else if (name === 'Recommended') say('missing, unfilled or not starting with the label of the first option row, such as (a): Recommended');
       else say(`missing or unfilled: ${name}`);
     }
-    if (!lacks.length) process.exitCode = 0;
+    if (mode === 'answer' ? found : !lacks.length) process.exitCode = 0;
   } catch (e) {
     say(e.message);
+    // An answer that cannot be read is an error, not "no answer yet".
+    if (mode === 'answer') process.exitCode = 2;
   }
 }

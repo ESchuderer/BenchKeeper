@@ -2,6 +2,8 @@
 
 For a coordinator that fans work out through Orca orchestration. Orca orchestration is experimental: turn it on under Settings, Experimental. Use the executable the `orchestration` skill resolves for `ORCA` (on Linux outside an Orca terminal that is `orca-ide`, not `orca`).
 
+This template serves an attended fan-out. The issue runs of the BenchKeeper plugin's `orchestrating-projects` skill use another, the skill's `spec-template.md`.
+
 ## Rules for the fan-out
 
 - One layer fans out: Orca places the workers. A worker is one session; inside it at most subagents, no agent teams.
@@ -44,7 +46,7 @@ Report: one `worker_done` with `--outcome`, sent exactly once, also on failure; 
   Next step: <what the coordinator or owner does next>
 ```
 
-The five fields from `Target` to `Observable acceptance` are the task-spec contract of the `orchestration` guide (`ORCA skills get orchestration`, Orca 1.4.237). The lines around them are BenchKeeper's: they carry what a new worktree does not carry on its own (tier, branch, commit and check conventions, the run marker) and the worker's authority, outcomes and handoff.
+The five fields from `Target` to `Observable acceptance` are the task-spec contract of the `orchestration` guide (`ORCA skills get orchestration`, Orca 1.4.254). The lines around them are BenchKeeper's: they carry what a new worktree does not carry on its own (tier, branch, commit and check conventions, the run marker) and the worker's authority, outcomes and handoff.
 
 ## New worktrees
 

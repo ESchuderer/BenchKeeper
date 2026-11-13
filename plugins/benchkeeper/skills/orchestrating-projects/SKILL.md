@@ -179,7 +179,7 @@ Take each project's policy from the reader, never from the JSON file: `node <ski
 | `hostWorkerLimit` | workers at once on this machine, all projects | 2 |
 | `stallMinutes` | time with no commit, PR or message before a worker counts as stalled | 20 |
 | `merge.allowed`, `merge.requiredChecks` | the coordinator may merge a reviewed PR when every listed check is green | no merge: leave the PR for the owner |
-| `merge.mode` | `strict` or `disjoint`: whether the head that merges must contain the default branch's tip ([review-and-merge.md](review-and-merge.md#merge)) | `strict` |
+| `merge.mode` | `strict` or `disjoint`: whether the head that merges must contain the default branch's tip ([review-and-merge.md](review-and-merge.md#merge)); in `disjoint`, a `trial` verdict at Merge step 3 reads [trial-merge.md](trial-merge.md) | `strict` |
 | `merge.additivePaths` | paths the PR and the default branch may both have changed in `disjoint` mode | none |
 | `merge.ownerOnlyPaths`, `merge.ownerOnlyNames` | the paths and names the reader prints: a PR that touches one is left for the owner. A policy adds paths only: names are built-in | the built-in ones |
 | `closeIssue` | the coordinator may close an issue after its PR merged or after a verified no-change finding | no close |

@@ -1,6 +1,6 @@
 # Approvals
 
-How an owner decision reaches the owner outside the session ([SKILL.md](SKILL.md#rules)): the text, where it goes, its labels and title, that it is filed once, and how its answer is read. `<owner/repo>`, `<tracker>`, `<n>` and `<head>` are the names of the worker's spec and of [review-and-merge.md](review-and-merge.md).
+How an owner decision reaches the owner outside the session ([SKILL.md](SKILL.md#owner-decisions)): the text, where it goes, its labels and title, that it is filed once, and how its answer is read. `<owner/repo>`, `<tracker>`, `<n>` and `<head>` are the names of the worker's spec and of [review-and-merge.md](review-and-merge.md).
 
 ## The text
 

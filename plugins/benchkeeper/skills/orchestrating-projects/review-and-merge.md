@@ -108,7 +108,7 @@ The reviewer's working directory is not the clone, so neither built-in command f
   - Any push to the branch after a review is such a fix, whoever made it, except a head whose verdict's `pin` is `clean-merges` ([Merge](#merge), step 2).
   - The head that re-review accepts is the new reviewed head.
 - A review with a Blocking or Important finding is a round. After the second round with findings, the follow-up tells the worker to rerun the phase the findings come from on a stronger model or a higher effort (`sonnet` to `opus`, `opus` to `fable`, or an effort below `high` to `high`; `xhigh` only as [SKILL.md](SKILL.md#policy) says). With no step left, the question goes to the owner at once.
-- A third round with findings is a question for the owner ([SKILL.md](SKILL.md#rules)): the pull request stays a draft and is named in the report. There is no fourth round.
+- A third round with findings is a question for the owner ([SKILL.md](SKILL.md#owner-decisions)): the pull request stays a draft and is named in the report. There is no fourth round.
 
 ## Ready
 
@@ -173,4 +173,4 @@ The verdict's `next` is never `merge` or `trial` without `merge.allowed` (its `a
    2. List its runs: `gh run list -R <owner/repo> --branch <default branch> --commit <merge commit> --json databaseId,status,conclusion,workflowName`. Read the list once, and again at each wake-up. GitHub creates the runs some time after the push, so an empty list does not mean that no CI runs, and a complete list read earlier can still lack a workflow.
    3. The watch ends when every run's `status` is `completed` in a list read 10 minutes or more after `mergedAt`. The end is by time, not by wake-ups, which can be seconds apart: a list still empty 10 minutes after `mergedAt` (UTC, against `date -u`) counts as no CI on the default branch, the watch ends, and the report says so.
    4. A run with the `conclusion` `cancelled` lists as `completed` and shows nothing: a newer run of the same workflow can have replaced it (a concurrency group), or someone cancelled it. It counts as replaced only by a run that `gh run list -R <owner/repo> --branch <default branch> --limit 30 --json databaseId,status,conclusion,workflowName,headSha,createdAt` lists with the same `workflowName`, a later `createdAt` and a `headSha` equal to the merge commit; take the newest such run. The watch waits for it in the cancelled one's place; a cancelled run with no such newer run counts as red.
-   5. Red is any other completed run whose `conclusion` is not `success`, `skipped` or `neutral`. A red default branch is fixed before the next merge: merge nothing more in this project and put the failing run to the owner ([SKILL.md](SKILL.md#rules)).
+   5. Red is any other completed run whose `conclusion` is not `success`, `skipped` or `neutral`. A red default branch is fixed before the next merge: merge nothing more in this project and put the failing run to the owner ([SKILL.md](SKILL.md#owner-decisions)).

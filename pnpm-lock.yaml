@@ -28,8 +28,8 @@ importers:
         specifier: 2.6.6
         version: 2.6.6
       '@mantine/mcp-server':
-        specifier: 9.7.5
-        version: 9.7.5
+        specifier: 9.8.0
+        version: 9.8.0
       '@types/node':
         specifier: 26.6.6
         version: 26.6.6
@@ -837,8 +837,8 @@ packages:
     peerDependencies:
       react: ^19.2.0
 
-  '@mantine/mcp-server@9.7.5':
-    resolution: {integrity: sha512-i01GggcQhE41l/J6vUrnSyFQU2BVgppT06UR9fS8RODoxt5o8roRpHqxGzEVyFriH1xyG0gCLF0uRfTunLPavg==}
+  '@mantine/mcp-server@9.8.0':
+    resolution: {integrity: sha512-BlzM6thLml/o7scmTvv5s7/YOa6QqQgYMQYz/KPkVQGzakKcu7HAifheRpv1xVJ8l32z4fZkJdkVYgJF1NpZiw==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -3484,7 +3484,7 @@ snapshots:
     dependencies:
       react: 19.3.1
 
-  '@mantine/mcp-server@9.7.5':
+  '@mantine/mcp-server@9.8.0':
     dependencies:
       '@modelcontextprotocol/server': 2.3.1
       zod: 4.6.7

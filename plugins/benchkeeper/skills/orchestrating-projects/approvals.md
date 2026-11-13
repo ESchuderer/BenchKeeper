@@ -9,7 +9,7 @@ Copy [approval-template.md](approval-template.md) without its front matter into 
 - What: the decision in one sentence, starting with its gate and subject: `design` with the issue as `<tracker>#<number>`; `merge` or `owner-only` (an owner-only file or a release) with the pull request as `<owner/repo>#<n>`; any other owner decision with one word of your own and its issue or pull request.
 - Runs on: the reader's `models` for the worker at the task's tier and each phase (a sensitive change: plan and review from `models.sensitive`), a phase it omits by the field table ([SKILL.md](SKILL.md#policy)), `inherit` as the worker's. Review: `review.*`. Merges: `merge.*`.
 - Recommended: starts with the label of the first option row, `(a)`.
-- Answer: what is true where the issue lands. In the hub: `run /benchkeeper:questions`. In any other repository: `comment "Owner answer (date): a." on this issue, with "b" or your own text in place of "a"`, since the question queue lists the hub only and only a comment that starts this way is read as the answer ([The answer](#the-answer)).
+- Answer: what is true where the issue lands. In the hub: `run /benchkeeper:questions`. In any other repository: `comment on this issue "a" or "b" alone, or "Owner answer (date): a." with "b" in place of "a" and your own text after it`, since the question queue lists the hub only and only these two forms are read as the answer ([The answer](#the-answer)).
 
 Run `node <skill folder>/approval.mjs <file>` from your working directory until it exits 0: it names each part that is missing, unfilled or at odds with the options. It exits 2 for a path outside `.benchkeeper/runs/` of that directory.
 
@@ -43,11 +43,11 @@ One approval per pull request and gate (a design: per issue), whatever the numbe
 At each wake-up, read the answer of every approval that `## Open` records with an issue, the first command's output going into a file of the run folder:
 
 ```text
-gh issue view <issue number> -R <repository> --json labels,comments,author
+gh issue view <issue number> -R <repository> --json labels,comments,author,body
 node <skill folder>/approval.mjs answer <file>
 ```
 
-- Exit 0 prints `{ option, text, at }` of the newest comment, by its time, that starts with `Owner answer (`, as the `questions` skill writes it (`Owner answer (<date>): <option>. <free text>`). `option` is the text up to the first full stop, at most 200 characters.
+- Exit 0 prints `{ option, text, at }` of the newest comment, by its time, in either form: one that starts with `Owner answer (`, as the `questions` skill writes it (`Owner answer (<date>): <option>. <free text>`), `option` being the text up to the first full stop, at most 200 characters; or one that, trimmed, in any case and with or without a full stop, is an option row's label (`(a)`) or, for a label of one letter or digit, that character alone (`a`), `option` being the label without its parentheses and `text` empty. A short answer that more than one row's label matches, such as `(a)` and `(A)`, is none. Both forms are read against the issue body as it is now, so an edit of the body can change what an older answer means.
 - Exit 1 is no answer yet. Only a comment of the repository's owner or a member counts (`authorAssociation` `OWNER` or `MEMBER`), not a collaborator's or anyone else's. An answer with a `Head:` comment of the owner, a member or the approval's author after it is none either: the owner answered for an older head.
 - Exit 2 is an error, a path outside `.benchkeeper/runs/` of your working directory or a file that is not the first command's output: the approval stays open, and the report names the line the script printed.
 - **The head.** An approval whose line names a head has an answer only while that head is the pull request's current one, the `headRefOid` that `gh pr view <n> -R <owner/repo> --json headRefOid` prints. When the head moved, first add the head comment ([Once per pull request and gate](#once-per-pull-request-and-gate)): the earlier answer then does not count.

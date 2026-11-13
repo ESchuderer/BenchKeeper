@@ -116,7 +116,7 @@ function pullSection(repo, list, exec) {
 // Open approvals with one of the labels, and closed ones answered in the last 24 hours.
 function approvalSection(tracker, labels, exec, now) {
   if (!tracker) return ['Not read: no --tracker.'];
-  const fields = ['--label', 'question', '--limit', '200', '--json', 'number,labels,comments,author'];
+  const fields = ['--label', 'question', '--limit', '200', '--json', 'number,labels,comments,author,body'];
   const open = data(read(exec, 'gh', ['issue', 'list', '-R', tracker, '--state', 'open', ...fields]));
   const closed = data(read(exec, 'gh', ['issue', 'list', '-R', tracker, '--state', 'closed', '--search', `closed:>=${new Date(now - DAY).toISOString().slice(0, 10)}`, ...fields]));
   if (!Array.isArray(open) || !Array.isArray(closed)) return [UNREAD];

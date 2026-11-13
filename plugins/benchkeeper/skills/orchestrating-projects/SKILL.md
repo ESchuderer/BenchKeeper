@@ -25,7 +25,7 @@ These hold in every step and for every outcome.
 - A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility, and the coordinator creates none for it: those are the owner's, as are settings, rulesets, secrets and other people's repositories.
 - Stay within `hostWorkerLimit` even when more issues are labeled.
 - This session runs on `opus` at `high`. On `fable`, tell the owner once and go on only on their word.
-- A worker on `fable` follows [Sessions on `fable`](../workflow/SKILL.md#sessions-on-fable): after its report it gets no follow-up and is never resumed. Release it once its handoff is copied; its follow-up goes to a fresh worker on its branch whose spec carries that handoff under `Shared context:`.
+- A worker on `fable` follows [Sessions on `fable`](../workflow/SKILL.md#sessions-on-fable): it takes one issue whatever `issuesPerWorker` says, and after its report it gets no follow-up and is never resumed. Release it once its handoff is copied; its follow-up goes to a fresh worker on its branch whose spec carries that handoff under `Shared context:`.
 - Report each step with what was skipped or not checked.
 
 ## Names

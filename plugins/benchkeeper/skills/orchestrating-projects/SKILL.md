@@ -21,8 +21,8 @@ These hold in every step and for every outcome.
 - A worker whose terminal a person typed in belongs to that person: no stop, release or cleanup for it; list it in the report.
 - Start every worker in its agent's default permission mode and write no flag that bypasses or skips permission prompts, for any agent. No worker and no coordinator bypasses, edits or disables a hook.
 - The policy decides: run the reader again before each pick, merge, issue close, branch deletion and decline ([Policy](#policy)). A policy that is silent on an action means no.
-- Three gates are the owner's, asked with the approval layout: approving the design of full-tier work, merging outside `merge.allowed`, a pull request with an owner-only file or a release. A gate never continues after a timeout: the issue stays blocked and is listed in the report.
-- A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility, and the coordinator creates none for it: those are the owner's.
+- Three gates are the owner's, asked with the approval layout ([Owner decisions](#owner-decisions)): approving the design of full-tier work, merging outside `merge.allowed`, a pull request with an owner-only file or a release. A gate never continues after a timeout: the issue stays blocked and is listed in the report.
+- A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility, and the coordinator creates none for it: those are the owner's, as are settings, rulesets, secrets and other people's repositories.
 - Stay within `hostWorkerLimit` even when more issues are labeled.
 - Report each step with what was skipped or not checked.
 
@@ -168,6 +168,8 @@ Take each project's policy from the reader, never from the JSON file: `node <ski
 - Exit 1 means no policy: no pick, merge, issue close, branch deletion or decline in that project, whoever started the run. List the errors it printed for the owner.
 - A skill folder copied without the plugin starts no worker ([spec-template.md](spec-template.md)).
 - Format: [orchestration.schema.json](orchestration.schema.json); example: [policy.example.json](policy.example.json).
+- A path entry names a file or folder from the repository root and covers it and everything below it; there are no globs.
+- `xhigh` runs only on the owner's request (policy or session).
 
 | Field | Meaning | Without the field |
 |---|---|---|
@@ -192,8 +194,6 @@ Take each project's policy from the reader, never from the JSON file: `node <ski
 | `issues.repository`, `issues.labels` | the tracker (`owner/repo`) that holds the project's issues, and labels an issue must carry besides `startLabel` | the project's own repository, no further label |
 | `minPlugin` | the oldest plugin version that may run this policy; on an older plugin the reader exits 1 | any |
 
-A path entry names a file or folder from the repository root and covers it and everything below it; there are no globs. Settings, rulesets, secrets and other people's repositories are the owner's. `xhigh` runs only on the owner's request (policy or session).
-
 ## Recurring runs
 
-A scheduled run starts a session only when there is work, so a tick with nothing to do costs no session. What a script decides instead of a model, the precheck and the disposable worktree: [orca.md](orca.md#scheduled-runs). A coordinator that must outlive usage limits and restarts (one owner, a handover in two files, a loop without a model, short cycles, a watchdog): [restart-safe coordinator](https://github.com/ESchuderer/BenchKeeper/blob/main/docs/restart-safe-coordinator.md).
+A scheduled run starts a session only when there is work, so a tick with nothing to do costs no session. Before you set up or run a scheduled or unattended run, read [orca.md](orca.md#scheduled-runs): what a script decides instead of a model, the precheck and the disposable worktree. A coordinator that must outlive usage limits and restarts (one owner, a handover in two files, a loop without a model, short cycles, a watchdog): [restart-safe coordinator](https://github.com/ESchuderer/BenchKeeper/blob/main/docs/restart-safe-coordinator.md).

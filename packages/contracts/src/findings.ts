@@ -183,7 +183,7 @@ export const Finding = z
       code: z.string(),
       message: z.string(),
     }),
-    /** A file of another kind where a profile belongs: BenchKeeper's profiles and presets are never imported (D33). */
+    /** A file of another kind where a profile belongs: the CedarLoom app's profiles and presets are never imported (D33). */
     finding("profile.foreign-kind", { kind: z.string() }),
     /** Where a profile holds a token-shaped value or an environment name for a credential; the value is never shown. */
     finding("profile.secret-like", { path: z.string() }),

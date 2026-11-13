@@ -33,7 +33,7 @@ const outcome = (result: Result<unknown>) => {
 const secret = (path: string) => ({ code: "profile.secret-like", params: { path } });
 const claude = ["machine", "settings.claude-code", "set"];
 
-test.for(["benchkeeper-profile", "benchkeeper-preset"])("a BenchKeeper file of kind %s is not read", (kind) => {
+test.for(["cedarloom-app-profile", "cedarloom-app-preset"])("a CedarLoom app file of kind %s is not read", (kind) => {
   expect(outcome(readProfile(set(defaults, ["kind"], kind)))).toEqual({
     code: "profile.foreign-kind",
     params: { kind },
@@ -402,9 +402,9 @@ test("a part left incomplete by every file, or an auto part without its probe, i
 const foreign = (kind: string) => ({ code: "profile.foreign-kind", params: { kind } });
 test("the root and each parent are read as profiles, so a file the reader refuses stops the composition", () => {
   expect([
-    outcome(composeProfile(child, () => ({ ok: true, value: { kind: "benchkeeper-profile" } }))),
-    outcome(composeProfile({ kind: "benchkeeper-preset" }, library)),
-  ]).toEqual([foreign("benchkeeper-profile"), foreign("benchkeeper-preset")]);
+    outcome(composeProfile(child, () => ({ ok: true, value: { kind: "cedarloom-app-profile" } }))),
+    outcome(composeProfile({ kind: "cedarloom-app-preset" }, library)),
+  ]).toEqual([foreign("cedarloom-app-profile"), foreign("cedarloom-app-preset")]);
 });
 
 const manual = (text: string) => ({

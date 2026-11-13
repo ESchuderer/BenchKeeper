@@ -10,6 +10,8 @@ const OWNER_ONLY = ['.github', 'CODEOWNERS', 'docs/CODEOWNERS', FILE, 'docs/agen
 const OWNER_ONLY_NAMES = ['.claude', '.mcp.json'];
 // A worker session's model and effort by the tier of its task. Every default effort is high: a higher one costs much more and is the owner's to ask for, in the policy.
 const TIERS = { quick: ['sonnet', 'high'], standard: ['opus', 'high'], full: ['opus', 'high'], research: ['fable', 'high'] };
+// A sensitive change is planned and reviewed on the strongest model; xhigh only for the first independent review of a security or firmware-safety change (owner, 2026-11-12).
+const SENSITIVE = { plan: ['fable', 'high'], review: ['fable', 'high'], independent: ['fable', 'high'], security: ['fable', 'xhigh'] };
 
 // Text of a file, a path, a remote or a program on its way to the terminal: a control or format character could rewrite the line or cut the message, so each becomes a ?, or what `to` gives.
 export const escaped = (text, to = '?') => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, to);
@@ -48,6 +50,18 @@ function supported(s, at = 'the schema') {
   return s;
 }
 
+// A "$ref" names an entry of the file's own "$defs"; inlining it keeps check() to the keywords above.
+function inlined(s, defs = s.$defs ?? {}) {
+  if (Array.isArray(s)) return s.map((x) => inlined(x, defs));
+  if (kind(s) !== 'object') return s;
+  if ('$ref' in s) {
+    const name = /^#\/\$defs\/([^/]+)$/.exec(s.$ref)?.[1];
+    if (Object.keys(s).length > 1 || !name || !Object.hasOwn(defs, name)) throw new Error(`the schema's $ref ${s.$ref} is no $defs entry the policy check implements`);
+    return inlined(defs[name], defs);
+  }
+  return Object.fromEntries(Object.entries(s).filter(([k]) => k !== '$defs').map(([k, v]) => [k, inlined(v, defs)]));
+}
+
 // The JSON Schema keywords the shipped schema uses, nothing more.
 function check(s, v, path, out) {
   const fail = (rule, message) => out.push({ rule, path, message });
@@ -77,7 +91,7 @@ function check(s, v, path, out) {
 export function validate(doc) {
   if (kind(doc) !== 'object') return [{ rule: 'not-object', path: '', message: 'must be a JSON object' }];
   const errors = [];
-  check(supported(shipped('./orchestration.schema.json')), doc, '', errors);
+  check(supported(inlined(shipped('./orchestration.schema.json'))), doc, '', errors);
   // On a tracker, startLabel is no label of the project's own: two projects with it alone would pick the same issue. GitHub compares label names without case.
   if (!errors.length && doc.issues?.repository && doc.issues.labels.every((label) => label.toLowerCase() === doc.startLabel?.toLowerCase())) errors.push({ rule: 'length', path: 'issues.labels', message: 'must have at least 1 entry besides startLabel' });
   return errors;
@@ -122,6 +136,7 @@ export function effective(doc, version = pluginVersion()) {
       models: {
         worker: Object.fromEntries(Object.entries(TIERS).map(([tier, [model, effort]]) => [tier, { model: models.worker?.model ?? model, effort: models.worker?.effort ?? effort }])),
         phases: Object.fromEntries(Object.entries(plain(models.phases ?? {})).map(([phase, named]) => [phase, plain(named)])),
+        sensitive: Object.fromEntries(Object.entries(SENSITIVE).map(([use, [model, effort]]) => [use, { model: models.sensitive?.[use]?.model ?? model, effort: models.sensitive?.[use]?.effort ?? effort }])),
       },
     },
   };

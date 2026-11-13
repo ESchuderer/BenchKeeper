@@ -9,7 +9,7 @@ What the lines take, policy fields as the reader prints them:
 - Names: `<owner/repo>` (always the project's repository), `<default branch>`, `<type>` and `<slug>` by the names rule of [SKILL.md](SKILL.md#names). `<tracker>` is `issues.repository`, or `<owner/repo>` where the policy names none.
 - `Agent:` takes `models.worker` at the tier you estimate: per issue the tier of the workflow skill's change-type table, a sensitive change ([review-and-merge.md](review-and-merge.md#sensitive-or-routine)) counting as full, in a batch the highest. A Claude Code worker gets that model and effort; a worker on another agent only a value the policy names (the same in all four tiers), else its agent's default. The estimate only chooses the model: `Tier:` stays as the block says.
 - `Review:` takes `review.depth`, or `review.sensitiveDepth` and the security review for an issue that reads as sensitive, in a batch when one of its issues does.
-- Flow takes each phase the reader prints under `models.phases`.
+- Flow takes each phase the reader prints under `models.phases`; for an issue that reads as sensitive, plan and review take `models.sensitive.plan` and `models.sensitive.review`.
 - `Worker rules:` takes two texts, each whole and unchanged.
   - The plugin's: the file `rules/worker.md` two folders above this skill folder, only where `content.json` lies beside that `rules` folder (the plugin, or the app's packed content).
   - A skill folder copied alone has neither, and a `rules` folder above it is not the plugin's: start no worker and tell the owner that the coordinator needs the plugin.
@@ -39,7 +39,7 @@ Repository rules: read AGENTS.md and the files it points to before the first edi
 Acknowledge: send one heartbeat through the runner's message command as your first action.
 
 Flow: work by the workflow skill at your tier.
-- Where its Phases section makes you the phase orchestrator (standard and full tier), its phases run as your subagents, each brief carries the Trusted authors line and the Authority block, and each call passes the model and effort this Flow block names for the phase: <phase, model and effort of each phase under models.phases of the policy, or "none named">.
+- Where its Phases section makes you the phase orchestrator (standard and full tier), its phases run as your subagents, each brief carries the Trusted authors line and the Authority block, and each call passes the model and effort this Flow block names for the phase: <phase, model and effort of each phase under models.phases of the policy, plan and review from models.sensitive for a sensitive issue, or "none named">.
 - For "inherit" pass no model, so that phase runs on your own; a phase, a model or an effort not named here takes the workflow skill's.
 - The brief of every subagent you start, for a phase or not, carries the Worker rules block.
 - Quick tier, in your own session: implement, run the checks AGENTS.md names, review the diff before pushing (one correctness pass against the issue, fixes made once), commit.
@@ -80,7 +80,7 @@ Review: <the level used, whether the security review ran, and why>
 Open risks: <what you did not check, what could break>
 Next step: <what the coordinator or owner does next>
 
-Follow-up: the coordinator can send a message about a pull request you opened (review findings, a conflict with the default branch, a title or a body to change), also after your report. Do what it asks on that pull request's branch, push, and answer with one status message through the runner's message command that names the head commit you pushed, or what you changed where nothing was to push. Where the runner hands you the follow-up as a task with a report command of its own, report through it as well.
+Follow-up: the coordinator can send a message about a pull request you opened (review findings, a conflict with the default branch, a title or a body to change), also after your report. Do what it asks on that pull request's branch, checking each review finding first: one you can disprove gets its evidence in your answer instead of a change. Push, and answer with one status message through the runner's message command that names the head commit you pushed, or what you changed where nothing was to push. Where the runner hands you the follow-up as a task with a report command of its own, report through it as well.
 ```
 
 ## Batches

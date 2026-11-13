@@ -7,7 +7,7 @@ How an owner decision reaches the owner outside the session ([SKILL.md](SKILL.md
 Copy [approval-template.md](approval-template.md) without its front matter into the run folder and fill each `<...>`:
 
 - What: the decision in one sentence, starting with its gate and subject: `design` with the issue as `<tracker>#<number>`; `merge` or `owner-only` (an owner-only file or a release) with the pull request as `<owner/repo>#<n>`; any other owner decision with one word of your own and its issue or pull request.
-- Runs on: the reader's `models` for the worker at the task's tier and each phase, a phase it omits by the field table ([SKILL.md](SKILL.md#policy)), `inherit` as the worker's. Review: `review.*`. Merges: `merge.*`.
+- Runs on: the reader's `models` for the worker at the task's tier and each phase (a sensitive change: plan and review from `models.sensitive`), a phase it omits by the field table ([SKILL.md](SKILL.md#policy)), `inherit` as the worker's. Review: `review.*`. Merges: `merge.*`.
 - Recommended: starts with the label of the first option row, `(a)`.
 - Answer: what is true where the issue lands. In the hub: `run /benchkeeper:questions`. In any other repository: `comment on this issue "a" or "b" alone, or "Owner answer (date): a." with "b" in place of "a" and your own text after it`, since the question queue lists the hub only and only these two forms are read as the answer ([The answer](#the-answer)).
 

@@ -140,6 +140,7 @@ const ANSWERS = [
   ['a label alone is read', [FIRST, said('(a)', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],
   ['a label or letter with a full stop is read', [said(' (B).\n', '2026-11-11T10:00:00Z')], { option: 'b', text: '', at: '2026-11-11T10:00:00Z' }],
   ['a letter that two labels share in two cases is none', [said('a', '2026-11-11T10:00:00Z')], null, FILLED.replace('| (b) Hold |', '| (A) Hold |')],
+  ['a letter whose label is also the Kelvin sign is none', [said('k', '2026-11-11T10:00:00Z')], null, FILLED.replace('| (a) Stream the export (Recommended) |', '| (k) Stream the export (Recommended) |').replace('| (b) Hold |', '| (K) Hold |')],
   ['a label of more than one character is read', [said('(OK)', '2026-11-11T10:00:00Z')], { option: 'ok', text: '', at: '2026-11-11T10:00:00Z' }, WORDS],
   ['the bare text of a label of more than one character is none', [said('ok', '2026-11-11T10:00:00Z')], null, WORDS],
   ['a label of an option table inside an HTML comment is none', [said('c', '2026-11-11T10:00:00Z')], null,

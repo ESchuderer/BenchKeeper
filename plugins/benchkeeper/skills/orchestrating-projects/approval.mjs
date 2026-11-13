@@ -74,9 +74,10 @@ export function missing(text) {
 
 // The letter of the option a comment names alone, as its label, such as "(a)", or its letter, in any case, with or without a full stop; null unless exactly one option row has that label.
 // Only a label of one letter or digit has a bare form: with a label such as "(ok)" or "(?)", a reply "ok" or "?" would answer.
+// The test runs on the lower-case form that is compared, so that "(K)" (Kelvin sign) and "(k)" share the bare form "k".
 function picked(labels, comment) {
   const said = comment.trim().replace(/\.$/, '').toLowerCase();
-  const found = labels.filter((label) => [label, /^\([a-z\d]\)$/i.test(label) && label.slice(1, -1)].some((form) => form && form.toLowerCase() === said));
+  const found = labels.filter((label) => { const low = label.toLowerCase(); return low === said || (/^\([a-z\d]\)$/.test(low) && low[1] === said); });
   return found.length === 1 ? found[0].slice(1, -1) : null;
 }
 

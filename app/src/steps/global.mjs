@@ -6,7 +6,7 @@ import { parse as parseToml } from 'smol-toml';
 import { accountEnv, listAccounts } from '../accounts.mjs';
 import { agent, forAgent, renderRules } from '../agents.mjs';
 import { childEnv } from '../childenv.mjs';
-import { contentDir, contentRefusal, library } from '../content.mjs';
+import { contentDir, contentRefusal, contentVersionOf, library } from '../content.mjs';
 import { cooldownEnv, cooled } from '../cooldown.mjs';
 import { exists, hashText, inside, listDir, listFiles, readText } from '../fsx.mjs';
 import { getBlock, mergeJson, parseJson, setToml } from '../merge.mjs';
@@ -87,13 +87,22 @@ export function localPlugins(ctx, dir) {
   } catch { /* the CLI below */ }
   return json(ctx.run(['claude', 'plugin', 'list', '--json']).stdout, []).filter((p) => p.scope === 'local' && p.projectPath === dir).map((p) => p.id);
 }
-// The commit of the BenchKeeper plugin Claude Code runs in a project folder: the folder's own install (local or project scope), else the user's.
-export function pluginCommit(ctx, dir) {
+// The install of the BenchKeeper plugin Claude Code runs in a project folder: the folder's own (local or project scope), else the user's.
+function ownInstall(ctx, dir) {
   try {
     const l = JSON.parse(readText(join(ctx.home, '.claude/plugins/installed_plugins.json'))).plugins[OWN.id];
-    const commit = (l.find((p) => ['local', 'project'].includes(p.scope) && p.projectPath === dir) ?? l.find((p) => p.scope === 'user'))?.gitCommitSha;
-    return typeof commit === 'string' ? commit : undefined;
+    return l.find((p) => ['local', 'project'].includes(p.scope) && p.projectPath === dir) ?? l.find((p) => p.scope === 'user');
   } catch { return undefined; }
+}
+// Its commit.
+export function pluginCommit(ctx, dir) {
+  const commit = ownInstall(ctx, dir)?.gitCommitSha;
+  return typeof commit === 'string' ? commit : undefined;
+}
+// Its scope and content version (content.json): the plugin's own version is its commit, so the content's is what a policy's minPlugin names.
+export function pluginContent(ctx, dir) {
+  const p = ownInstall(ctx, dir), version = typeof p?.installPath === 'string' ? contentVersionOf(p.installPath) : null;
+  return version ? { scope: p.scope, version } : null;
 }
 // Names that come from an agent's files end up as command arguments: a leading dash would be read as an option.
 const SAFE_NAME = /^[A-Za-z0-9][\w.@:-]*$/;

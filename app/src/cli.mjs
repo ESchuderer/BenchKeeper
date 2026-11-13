@@ -129,6 +129,7 @@ Usage: benchkeeper <command> [options]
                                     local (the default): CLAUDE.local.md, AGENTS.override.md and skills that git
                                     ignores (.git/info/exclude), listed in .worktreeinclude for new worktrees;
                                     --share commits them (AGENTS.md block, CLAUDE.md);
+                                    both write docs/agents/orchestration.json and worker-rules.md when absent, to commit;
                                     --caller writes that repo-standards workflow file (never GitHub settings);
                                     --paths writes the globs into an own or your skill's copied SKILL.md (Claude Code loads
                                     it only for matching files) and keeps them in the state file; skill= takes them out

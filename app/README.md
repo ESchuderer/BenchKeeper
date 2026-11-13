@@ -149,7 +149,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 #### Local and shared setup
 
 - Local is the default. In a repository that commits `AGENTS.md`, the plan warns that it loads next to the local block.
-- Local: the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (its block holds the text of `AGENTS.md` too, rebuilt on each apply; your lines outside it stay), the sandbox into `.claude/settings.local.json`, and every file written is listed in a marked block of `.git/info/exclude` (the repository's, shared by its worktrees).
+- Local: the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (its block holds the text of `AGENTS.md` too, rebuilt on each apply; your lines outside it stay), the sandbox into `.claude/settings.local.json`, and every file written except the coordinator's two files (below) is listed in a marked block of `.git/info/exclude` (the repository's, shared by its worktrees).
 - `--share` writes the block into `AGENTS.md` with a `CLAUDE.md` import and keeps only `CLAUDE.local.md` and `AGENTS.override.md` in the exclude block.
 - At a repository root, a marked block of `.worktreeinclude` lists the local files a new worktree copies (Claude Code `--worktree`, Orca). Your lines outside the block stay.
   - Local: the files written (`.benchkeeper/state.json`, not the folder) and the list itself, all git-ignored.
@@ -159,6 +159,7 @@ What `projects plan|apply` keeps, cleans up and leaves to other commands:
 
 - `skills disable <name>` moves a skill to `.benchkeeper/disabled/`, `skills enable <name>` moves it back.
 - Answers and each community skill's commit are kept in `.benchkeeper/state.json`.
+- Local and shared alike, a missing `docs/agents/orchestration.json` (the coordinator policy, `{"schemaVersion": 2}`) and a missing `docs/agents/worker-rules.md` (empty) are written, to be committed: the coordinator reads them from the default branch. From then on they are yours: the ledger records them as created, so an edit is no drift for `verify` or `doctor`, undo keeps an edited one, and no later apply or removal touches them. `verify <dir>` and `doctor` check the policy with the coordinator's reader; `doctor` also compares its `minPlugin` with the content version of the installed plugin and names each of the two files git does not track.
 - With Claude Code the state file also keeps, as `pluginCommit`, the commit of the BenchKeeper plugin installed for the project (its local or project scope install, else the user's) when an apply writes the file: another commit installed later is no change to apply and leaves the project current, and `doctor` names it as information.
 - A community skill is added again from the default branch of its source only when you ask for it (`skills update`, or Update in the Catalog), and the file then records the commit the install got.
 - Undo of a skills CLI command puts back the skill folders and `skills-lock.json` as they were before it, local edits included.

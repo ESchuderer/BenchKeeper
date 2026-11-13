@@ -23,8 +23,24 @@ export function newerPaths() {
   };
 }
 
+// The paths entry e left that no longer hold, each { path, removed } or { path, error }: a file edited or removed outside the app,
+// or one back after a removal. Each path settles the older entries' (seen); a seeded file is its owner's, so only its path counts.
+export function drift(e, seen) {
+  const out = [];
+  for (const [path, hash] of left(e)) {
+    if (!path) continue;
+    const done = seen.settled(path);
+    seen.add(path);
+    if (done || e.seed) continue;
+    let now;
+    try { now = hashPath(path); } catch (err) { out.push({ path, error: err.code ?? 'read error' }); continue; }
+    if (now !== hash) out.push({ path, removed: hash == null });
+  }
+  return out;
+}
+
 // A run that never finished, an unreadable run file, runs a newer app wrote, and each path whose newest recorded change
-// no longer holds: a file edited or removed outside the app, or one that came back after a removal.
+// no longer holds.
 export function ledgerIssues(ctx) {
   const out = ctx.ledger.broken().map((n) => ({ message: `ledger file ${n} is unreadable`, fix: `move it out of ${ctx.ledger.dir}: history and undo skip it until then` }));
   const foreign = ctx.ledger.foreign();
@@ -35,15 +51,9 @@ export function ledgerIssues(ctx) {
     if (!run.status && Date.now() - Date.parse(run.time) > 3600e3) out.push({ message: `run ${run.id} did not finish`, fix: `benchkeeper undo ${run.id} restores what it changed` });
     if (run.scope !== 'global' && !exists(run.scope)) continue;
     for (const e of [...run.entries].reverse()) {
-      for (const [path, hash] of left(e)) {
-        if (!path) continue;
-        // A newer entry settled it; it still settles the older entries under it.
-        const done = seen.settled(path);
-        seen.add(path);
-        if (done) continue;
-        let now;
-        try { now = hashPath(path); } catch (err) { out.push({ message: `${path} cannot be read (${err.code ?? 'read error'}) to compare it with run ${run.id}`, fix: 'fix its permissions, then run benchkeeper doctor again' }); continue; }
-        if (now !== hash) out.push({ message: hash == null ? `${path} is back after run ${run.id} removed it` : `${path} changed since run ${run.id}`, fix: 'edit it back, or run the step again (benchkeeper plan shows it); undo refuses a file changed after its run' });
+      for (const d of drift(e, seen)) {
+        if (d.error) out.push({ message: `${d.path} cannot be read (${d.error}) to compare it with run ${run.id}`, fix: 'fix its permissions, then run benchkeeper doctor again' });
+        else out.push({ message: d.removed ? `${d.path} is back after run ${run.id} removed it` : `${d.path} changed since run ${run.id}`, fix: 'edit it back, or run the step again (benchkeeper plan shows it); undo refuses a file changed after its run' });
       }
     }
   }

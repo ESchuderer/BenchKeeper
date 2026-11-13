@@ -6,13 +6,14 @@ import { Writable } from 'node:stream';
 import { test } from 'node:test';
 import { main } from '../src/cli.mjs';
 import { appVersion, contentVersion } from '../src/content.mjs';
-import { doctor, doctorReport } from '../src/doctor.mjs';
+import { doctor, doctorReport, projectChecks } from '../src/doctor.mjs';
 import { inventory } from '../src/inventory.mjs';
 import { containerProjects } from '../src/level.mjs';
 import { levelCounts } from '../src/levels.mjs';
 import { apply, context, preview } from '../src/runner.mjs';
 import { declineUnselected, globalPlan } from '../src/steps/global.mjs';
 import { dismissNote, dismissedNotes } from '../src/preferences.mjs';
+import { initRepo } from './helpers.mjs';
 
 const SECRET = 'value-not-for-reports';
 function machine({ engine = true } = {}) {
@@ -291,4 +292,27 @@ test('project skills: a link to a web page or an existing file is no finding', (
   writeFileSync(join(dir, '.agents/skills/a/ref.md'), '');
   writeFileSync(join(dir, '.agents/skills/a/SKILL.md'), '---\nname: a\ndescription: "A"\n---\nSee [ref](ref.md), [web](http://example.com) and [doc](missing.md).\n');
   assert.deepEqual(doctor(ctx, { agents: [], dir, env: {} }).filter((i) => i.check === 'skills').map((i) => [i.message, i.fix]), [[`skill a in ${dir}: .agents/skills/a/SKILL.md links missing.md, which does not exist`, 'restore the file or fix the link']]);
+});
+
+test('doctor: the coordinator policy against the plugin content Claude Code runs, and the coordinator files git does not track', () => {
+  const ctx = context({ home: mkdtempSync(join(tmpdir(), 'bk-doc-coord-')) });
+  const dir = mkdtempSync(join(tmpdir(), 'bk-doc-coord-p-'));
+  const git = initRepo(dir);
+  const coordinator = () => projectChecks(ctx, dir, ['claude']).filter((i) => i.check === 'coordinator').map((i) => [i.level, i.message, i.fix]);
+  const policy = (minPlugin) => writeFileSync(join(dir, 'docs/agents/orchestration.json'), JSON.stringify({ schemaVersion: 2, minPlugin }));
+  mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+  policy('6.27.0');
+  git('add', '-A');
+  git('commit', '-qm', 'policy');
+  assert.deepEqual(coordinator(), [], 'no plugin installed');
+  const content = join(ctx.home, 'plugin');
+  mkdirSync(content);
+  writeFileSync(join(content, 'content.json'), JSON.stringify({ contentVersion: '6.26.0' }));
+  mkdirSync(join(ctx.home, '.claude/plugins'), { recursive: true });
+  writeFileSync(join(ctx.home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', installPath: content }] } }));
+  assert.deepEqual(coordinator(), [['warning', 'docs/agents/orchestration.json needs the BenchKeeper plugin 6.27.0 or newer (minPlugin); the plugin Claude Code runs here is 6.26.0', 'claude plugin update benchkeeper@benchkeeper']]);
+  policy('6.26.0');
+  assert.deepEqual(coordinator(), []);
+  writeFileSync(join(dir, 'docs/agents/worker-rules.md'), '');
+  assert.deepEqual(coordinator(), [['info', 'docs/agents/worker-rules.md is not committed', 'commit it: the coordinator reads it from the default branch']]);
 });

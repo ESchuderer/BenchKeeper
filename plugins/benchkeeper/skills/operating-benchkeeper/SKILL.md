@@ -12,18 +12,18 @@ Every change the setup commands make is a plan, recorded as a run that `undo` re
 
 These are not undone by it. Before you run one, or ask approval for a plan that contains one, tell the user that undo does not reverse it:
 
-| Command | What remains after undo |
+| Command | After undo |
 |---|---|
 | `packs remove`, `presets remove` | the file is in `backup/packs/` or `backup/presets/` in the config folder |
 | `packs save`, `packs import`, `profile import` over an own pack of the same id | the pack is replaced; the old file is in `backup/packs/` |
-| `projects update`, `projects remove --setup`, `projects unshare` on a shared setup | the commit on a local branch: delete the branch |
+| `projects update`, `projects remove --setup`, `projects unshare` on a shared setup | the commit on a local branch stays: delete the branch |
 | `accounts remove` | the token is gone |
 | `webhook remove` | the URL and token are gone |
 | `machine remove` | the sign-out, signing key and config are gone; the account on GitHub stays until the user deletes it |
 | `knowledge clear` | the knowledge base is rebuilt by the next pass |
 | `sessions cache clear` | summaries of deleted transcripts are gone for good |
 | `automations remove` | undo restores the record only; the automation and its run history on the runner are gone, `install` creates it again |
-| `containers reconcile` | the containers it removed |
+| `containers reconcile` | the containers it removed stay removed |
 
 Every view of the web UI has a command except the UI's own controls; the Routes and commands table in the app README maps each route to its command.
 

@@ -84,7 +84,7 @@ test('local setup: rules merge into the user\'s deny list, the hook is registere
   assert.deepEqual(s.hooks.PreToolUse[1], HOOK);
   assert.equal(read(join(r.dir, GUARD_PATH)), guardScript());
   assert.equal(readState(r.dir).guards, true);
-  assert.equal(r.git('status', '--porcelain').toString(), '', 'git ignores the settings file and the hook');
+  assert.equal(r.git('status', '--porcelain').toString(), '?? docs/\n', 'git ignores the settings file and the hook');
   assert.deepEqual(guardChecks(r.dir, readState(r.dir)), []);
   assert.equal(undo(done.id, r.ctx).status, 'done');
   assert.equal(read(join(r.dir, '.claude/settings.local.json')), mine);

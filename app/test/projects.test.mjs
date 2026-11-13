@@ -520,7 +520,8 @@ test('projects unshare: a commit without the committed setup on a local branch; 
   assert.equal(out, '');
   assert.equal(await main(['projects', 'unshare', '--yes'], { out: w, ctx, input: Readable.from(['']) }), 0, out);
   assert.match(out, new RegExp(`^committed +${p.dir}  push: git -C '${p.dir}' push -u origin chore/agent-setup-local$`, 'm'));
-  assert.equal(p.git('ls-tree', '-r', '--name-only', 'chore/agent-setup-local'), 'README.md\n');
+  // The coordinator's files are committed in a local setup too.
+  assert.equal(p.git('ls-tree', '-r', '--name-only', 'chore/agent-setup-local'), 'README.md\ndocs/agents/orchestration.json\ndocs/agents/worker-rules.md\n');
   // The checkout keeps the committed copies until the merge is pulled; the registry keeps the state file.
   assert.equal(p.git('status', '--porcelain'), '');
   assert.equal(listProjects(ctx)[0].state.agents[0], 'claude');

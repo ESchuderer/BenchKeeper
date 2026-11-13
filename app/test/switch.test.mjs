@@ -334,7 +334,7 @@ test('server: project-plan switches packs and acts on one skill; /api/skills lis
   routes['POST /api/projects']({ action: 'add', path: r.dir });
   const q = (extra) => new URLSearchParams([['dir', r.dir], ...extra]);
   const status = (f) => { try { f(); } catch (e) { return e.status ?? 500; } return 200; };
-  mkdirSync(join(r.dir, 'docs'));
+  mkdirSync(join(r.dir, 'docs/guide'));
   let p = routes['GET /api/project-plan'](q([]));
   assert.deepEqual(p.packs.filter((x) => x.enabled).map((x) => x.id), ['ui-a']);
   // Each pack says when to pick it, and the ones the repository's files point to say why.
@@ -418,7 +418,6 @@ test('skill proposals: the remove and add fixes from Insights apply through the 
   assert.deepEqual(tree(r.dir), before);
   // A docs folder matches the library pack docs, whose skills the project lacks once ui-a is off.
   run(r, { packOff: ['ui-a'] });
-  mkdirSync(join(r.dir, 'docs'));
   writeFileSync(join(r.dir, 'docs/index.md'), '# Docs\n');
   before = tree(r.dir);
   const add = await proposal('skill-add');

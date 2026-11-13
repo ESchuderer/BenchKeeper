@@ -160,12 +160,12 @@ test('Remove BenchKeeper setup, local: exactly the recorded files go, nothing el
   const result = removeSetup(ctx, p.dir);
   assert.equal(result.status, 'removed', result.reason);
   const after = tree(p.dir);
-  // What is left is the project's own: its files as they were before the setup, and the exclude list without our block.
-  const own = ['AGENTS.md', 'README.md', 'docs/agents/issue-tracker.md', '.devcontainer/Dockerfile', '.claude/skills/mine/SKILL.md', '.git/info/exclude'].filter((f) => f in after);
+  // What is left is the project's own: its files as they were before the setup, the coordinator's files the setup gave it, and the exclude list without our block.
+  const own = ['AGENTS.md', 'README.md', 'docs/agents/issue-tracker.md', 'docs/agents/orchestration.json', 'docs/agents/worker-rules.md', '.devcontainer/Dockerfile', '.claude/skills/mine/SKILL.md', '.git/info/exclude'].filter((f) => f in after);
   assert.deepEqual(Object.keys(after).sort(), own.sort());
   assert.equal(readFileSync(join(p.dir, 'AGENTS.md'), 'utf8'), OWN);
   assert.doesNotMatch(readFileSync(join(p.dir, '.git/info/exclude'), 'utf8'), /benchkeeper/);
-  assert.equal(p.git('status', '--porcelain'), '');
+  assert.equal(p.git('status', '--porcelain'), '?? docs/agents/orchestration.json\n?? docs/agents/worker-rules.md\n');
   // The project stays registered, as not set up.
   assert.equal(listProjects(ctx)[0].path, p.dir);
   assert.equal(status(ctx, p.dir).setupVersion, null);

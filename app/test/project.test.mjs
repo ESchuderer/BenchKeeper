@@ -10,6 +10,7 @@ import { recordSession } from '../src/session.mjs';
 import { appVersion } from '../src/content.mjs';
 import { projectChecks } from '../src/doctor.mjs';
 import { harnessTest } from '../src/harness.mjs';
+import { ledgerIssues } from '../src/integrity.mjs';
 import { SKILLS_SPEC } from '../src/steps/global.mjs';
 import { ENVS, STATE, localSetup, projectCtx, projectPlan, quote, readState, slashRel, suggest, tryState } from '../src/steps/project.mjs';
 import { classify } from '../src/inventory.mjs';
@@ -69,7 +70,7 @@ test('local (the default): CLAUDE.local.md imports AGENTS.md, AGENTS.override.md
   assert.equal(readState(r.dir).share, false);
   const exclude = read(join(r.dir, '.git/info/exclude'));
   for (const p of ['/.benchkeeper/', '/CLAUDE.local.md', '/AGENTS.override.md', '/.claude/skills/designing-technical-uis/', '/.agents/skills/designing-technical-uis/']) assert.ok(exclude.includes(`\n${p}\n`), p);
-  assert.equal(r.git('status', '--porcelain').toString(), '');
+  assert.equal(r.git('status', '--porcelain').toString(), '?? docs/\n', 'only the coordinator\'s files, which are committed');
 
   apply(preview(plan(r, { share: true }).changes), r.ctx, { scope: r.dir });
   assert.match(read(join(r.dir, 'AGENTS.md')), /- Default tier: quick/);
@@ -195,7 +196,7 @@ test('the dev container wrapper and the worktree files: offered by what the proj
   // The offered files written are in the worktree list and the exclude list.
   for (const p of ['scripts/dc', 'orca.yaml']) assert.ok(read(join(r.dir, '.worktreeinclude')).split('\n').includes(p), p);
   for (const p of ['/scripts/dc', '/orca.yaml', '/.worktreeinclude']) assert.ok(read(join(r.dir, '.git/info/exclude')).split('\n').includes(p), p);
-  assert.equal(r.git('status', '--porcelain').toString(), '?? package-lock.json\n');
+  assert.equal(r.git('status', '--porcelain').toString(), '?? docs/\n?? package-lock.json\n');
   assert.equal(undo(run.id, r.ctx).status, 'done');
   for (const p of ['scripts/dc', 'orca.yaml', '.worktreeinclude']) assert.ok(!existsSync(join(r.dir, p)), p);
 
@@ -222,7 +223,7 @@ test('.worktreeinclude: every setup gives new worktrees the local files; shared 
     '.claude/skills/designing-technical-uis', '.agents/skills/designing-technical-uis', '.claude/skills/frontend-design', '.agents/skills/frontend-design', '.claude/skills/accessibility', '.agents/skills/accessibility', '.worktreeinclude']);
   assert.ok(!lines().includes('.benchkeeper') && !lines().some((l) => /^[^#].*[*?!]|^\//.test(l)));
   assert.ok(read(join(r.dir, '.git/info/exclude')).split('\n').includes('/.worktreeinclude'));
-  assert.equal(r.git('status', '--porcelain').toString(), '');
+  assert.equal(r.git('status', '--porcelain').toString(), '?? docs/\n');
   // Git ignores every entry here, so a worktree tool copies each one (Orca and Claude Code copy ignored files only).
   const ignored = r.git('check-ignore', '--', ...listed().filter((p) => existsSync(join(r.dir, p)))).toString().trim().split('\n');
   assert.deepEqual(ignored, listed().filter((p) => existsSync(join(r.dir, p))));
@@ -332,6 +333,7 @@ test('local: two projects in one repository keep their own exclude blocks; a dro
   }
   const exclude = () => read(join(r.dir, '.git/info/exclude'));
   for (const p of ['/web/CLAUDE.local.md', '/api/CLAUDE.local.md', '/web/.benchkeeper/', '/api/AGENTS.override.md']) assert.ok(exclude().includes(`\n${p}\n`), p);
+  // The coordinator reads its files at the root only, so a project in a subfolder gets none.
   assert.equal(r.git('status', '--porcelain').toString(), '');
 
   const web = at('web');
@@ -369,7 +371,7 @@ test('local in a linked worktree: the exclude list of the main repository, outsi
   const run = apply(preview(projectPlan({ ctx: pctx, dir: wt, answers: { agents: ['claude'], env: 'host-agent' } }).changes), pctx, { scope: wt });
   assert.equal(run.status, 'done', JSON.stringify(run.entries.filter((e) => e.error)));
   assert.match(read(join(r.dir, '.git/info/exclude')), /\n\/CLAUDE\.local\.md\n/);
-  assert.equal(execFileSync('git', ['-C', wt, 'status', '--porcelain'], { encoding: 'utf8' }), '');
+  assert.equal(execFileSync('git', ['-C', wt, 'status', '--porcelain'], { encoding: 'utf8' }), '?? docs/\n');
   assert.equal(undo(run.id, pctx).status, 'done');
   assert.ok(!read(join(r.dir, '.git/info/exclude')).includes('BenchKeeper'));
 });
@@ -741,4 +743,54 @@ test('bare skill names without plugin agents', () => {
   apply(preview(mp), mixed.ctx, { scope: mixed.dir, select: mp.map((c) => c.id) });
   assert.doesNotMatch(read(join(mixed.dir, 'AGENTS.md')), /benchkeeper:workflow/, 'one shared block, a name every chosen agent knows');
   assert.doesNotMatch(read(join(g.dir, 'AGENTS.md')), /benchkeeper:workflow/);
+});
+
+const POLICY = 'docs/agents/orchestration.json', RULES = 'docs/agents/worker-rules.md';
+const files = (changes) => changes.filter((c) => c.kind !== 'command').map((c) => c.id);
+
+test('the coordinator\'s files: apply writes the default policy and empty worker rules, a local setup neither hides nor removes them, an existing file is never planned', () => {
+  const r = repo();
+  const { changes } = plan(r, { agents: ['claude'], env: 'host' });
+  assert.equal(apply(preview(changes), r.ctx, { scope: r.dir, select: files(changes) }).status, 'done');
+  assert.equal(read(join(r.dir, POLICY)), '{\n  "schemaVersion": 2\n}\n');
+  assert.equal(read(join(r.dir, RULES)), '');
+  assert.doesNotMatch(read(join(r.dir, '.git/info/exclude')), /docs/);
+  assert.doesNotMatch(read(join(r.dir, '.worktreeinclude')), /docs/);
+  assert.deepEqual(localSetup(r.ctx, r.dir).filter((c) => c.path?.includes('docs')), []);
+  // A repository without a remote is enough, and nothing is fetched or kept under refs/benchkeeper.
+  assert.equal(r.git('for-each-ref', 'refs/benchkeeper').toString(), '');
+
+  const own = repo();
+  mkdirSync(join(own.dir, 'docs/agents'), { recursive: true });
+  writeFileSync(join(own.dir, POLICY), '{broken');
+  writeFileSync(join(own.dir, RULES), 'my rules\n');
+  const again = plan(own, { agents: ['claude'], env: 'host' }).changes;
+  assert.deepEqual(again.filter((c) => c.path?.includes('docs')), []);
+  apply(preview(again), own.ctx, { scope: own.dir, select: files(again) });
+  assert.equal(read(join(own.dir, POLICY)), '{broken');
+  assert.equal(read(join(own.dir, RULES)), 'my rules\n');
+});
+
+test('the coordinator\'s policy is the owner\'s once written: an edit is no ledger drift, and undo keeps it while it undoes the rest', () => {
+  const r = repo();
+  const { changes } = plan(r, { agents: ['claude'], env: 'host' });
+  const run = apply(preview(changes), r.ctx, { scope: r.dir, select: files(changes) });
+  writeFileSync(join(r.dir, POLICY), '{\n  "schemaVersion": 2,\n  "startLabel": "ready-for-agent"\n}\n');
+  assert.deepEqual(harnessTest(r.ctx, { agents: [], dir: r.dir }).find((c) => c.name === 'installed files match the ledger').problems, []);
+  assert.deepEqual(ledgerIssues(r.ctx).filter((i) => i.message.includes(POLICY)), []);
+  const u = undo(run.id, r.ctx);
+  assert.equal(u.status, 'done');
+  assert.equal(read(join(r.dir, POLICY)), '{\n  "schemaVersion": 2,\n  "startLabel": "ready-for-agent"\n}\n');
+  assert.ok(!existsSync(join(r.dir, RULES)), 'the unedited worker rules go');
+  assert.ok(!existsSync(join(r.dir, 'CLAUDE.local.md')));
+  assert.deepEqual(u.entries.filter((e) => e.status === 'manual').map((e) => e.reason), [`${join(r.dir, POLICY)} changed after this run: it is yours now and stays`]);
+
+  // A policy the owner writes after an undo removed the seeded one is theirs as well.
+  const s = repo();
+  const seeded = plan(s, { agents: ['claude'], env: 'host' }).changes;
+  assert.equal(undo(apply(preview(seeded), s.ctx, { scope: s.dir, select: files(seeded) }).id, s.ctx).status, 'done');
+  mkdirSync(join(s.dir, 'docs/agents'), { recursive: true });
+  writeFileSync(join(s.dir, POLICY), '{\n  "schemaVersion": 2\n}\n');
+  assert.deepEqual(harnessTest(s.ctx, { agents: [], dir: s.dir }).find((c) => c.name === 'installed files match the ledger').problems, []);
+  assert.deepEqual(ledgerIssues(s.ctx).filter((i) => i.message.includes(POLICY)), []);
 });

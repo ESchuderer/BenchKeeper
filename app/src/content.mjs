@@ -10,6 +10,10 @@ export const library = () => JSON.parse(readFileSync(`${contentDir}library/libra
 // content.json: { schemaVersion, contentVersion, minApp }. Content without the file (an older plugin) has no requirement.
 const content = () => { try { return JSON.parse(readFileSync(`${contentDir}content.json`, 'utf8')); } catch { return {}; } };
 export const contentVersion = content().contentVersion ?? appVersion;
+// The content version of the content in dir, null when it has none in x.y.z form.
+export function contentVersionOf(dir) {
+  try { const v = JSON.parse(readFileSync(`${dir}/content.json`, 'utf8')).contentVersion; return /^\d+\.\d+\.\d+$/.test(v) ? v : null; } catch { return null; }
+}
 const older = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i]; return false; };
 // The message when the content in dir needs a newer app than version, else null. An unreadable file or a version that is not x.y.z needs nothing.
 export function contentRefusal(dir, version = appVersion) {

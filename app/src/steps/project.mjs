@@ -8,11 +8,12 @@ import { agent, forAgent, skillDirs } from '../agents.mjs';
 import { appVersion, contentDir, contentVersion, library } from '../content.mjs';
 import { BASELINE_REPO, CALLERS, callerFile } from '../baseline.mjs';
 import { cooldownEnv } from '../cooldown.mjs';
-import { exists, hashPath, isLink, readText, realish } from '../fsx.mjs';
+import { exists, hashPath, isLink, listDir, readText, realish } from '../fsx.mjs';
 import { git } from '../git.mjs';
 import { GUARD_PATH, guardScript, guardsOff, guardsOn } from '../guards.mjs';
 import { machineEnv, ownEnv, withVars } from '../machine.mjs';
 import { getBlock, marks, mergeJson, parseJson, setBlock } from '../merge.mjs';
+import { FILES, format } from '../params.mjs';
 import { clashFix, copied, libraryWith, ownSkillFiles, packScope, scopeText, setsPaths, skillFolder, skippedLinks, warnings } from '../packs.mjs';
 import { unfit } from '../roots.mjs';
 import { itemState } from '../runner.mjs';
@@ -28,6 +29,8 @@ export const LOCAL_CLAUDE = 'CLAUDE.local.md';
 const OVERRIDE = 'AGENTS.override.md', LOCAL_SETTINGS = '.claude/settings.local.json';
 // The skills CLI's lockfile: its commands change it next to the skill folders.
 const LOCK = 'skills-lock.json';
+// The coordinator's policy and worker rules: it reads them from the default branch, so they are committed in every setup.
+export const COORDINATOR_FILES = [FILES.policy[0], 'docs/agents/worker-rules.md'];
 export const ENVS = {
   container: 'The agent runs inside the dev container (`.devcontainer/`): start it with `devcontainer exec --workspace-folder . <agent>`. Installs, builds, lint, tests and local MCP or browser tools run there too.',
   'host-agent': "The agent, Git and file edits run on the host. Installs, builds, lint, tests and local MCP or browser tools run in the dev container: prefix `devcontainer exec --workspace-folder .`, compound commands as `devcontainer exec --workspace-folder . sh -lc '...'`. If the container cannot start, report it and stop that command.",
@@ -304,7 +307,8 @@ export function suggest(dir) {
     ['frontend', dep(/^(react|vue|svelte|astro|next|preact|solid-js|@angular\/core)$/) && `package.json uses ${dep(/^(react|vue|svelte|astro|next|preact|solid-js|@angular\/core)$/)}`],
     ['testing', (dep(/^(@playwright\/test|playwright|cypress)$/) && `package.json uses ${dep(/^(@playwright\/test|playwright|cypress)$/)}`) || (['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs'].some(has) && 'a Playwright config')],
     ['security', has('.github/workflows') && 'CI workflows in .github/workflows'],
-    ['docs', (has('docs') && 'a docs folder') || (has('mkdocs.yml') && 'mkdocs.yml')],
+    // docs/agents/ alone holds the agents' files (the coordinator's, which the setup writes), not documentation.
+    ['docs', (listDir(join(dir, 'docs')).some((f) => f !== 'agents') && 'a docs folder') || (has('mkdocs.yml') && 'mkdocs.yml')],
     ['science', pyDep(/\b(numpy|scipy|jupyter|matplotlib|sympy)\b/) && `Python uses ${pyDep(/\b(numpy|scipy|jupyter|matplotlib|sympy)\b/)}`],
     ['data', pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/) && `Python uses ${pyDep(/\b(pandas|polars|duckdb|pyarrow)\b/)}`],
     ['operations', ['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has) && `${['compose.yaml', 'docker-compose.yml', 'k8s', 'helm', 'terraform'].find(has)} in the repository`],
@@ -674,6 +678,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
+  // The project folder is the root of its repository: worktree tools read .worktreeinclude there only.
+  const top = git(ctx, dir, ['rev-parse', '--show-prefix']), atRoot = top.code === 0 && top.stdout.trim() === '';
+  // Only while absent and at the root, where the coordinator reads them; seed: the ledger records the path, not the content.
+  const [policy, workerRules] = COORDINATOR_FILES;
+  if (atRoot && readText(at(policy)) == null) add('policy', `${policy}: the coordinator policy with the defaults, yours to edit and commit`, { kind: 'write', path: at(policy), after: format({ schemaVersion: 2 }), seed: true });
+  if (atRoot && readText(at(workerRules)) == null) add('worker-rules', `${workerRules}: extra rules for the coordinator's workers, empty, yours to edit and commit`, { kind: 'write', path: at(workerRules), after: '', seed: true });
   // The plugin's commit is read when an apply writes the file; the preview keeps the recorded one, so a plugin update alone is no pending change.
   const commit = (run) => (!a.agents.includes('claude') ? undefined : run ? pluginCommit(ctx, dir) : prev?.pluginCommit);
   const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.machine ? { machine: a.machine } : {}), ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
@@ -681,8 +691,6 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
-  // The project folder is the root of its repository: worktree tools read .worktreeinclude there only.
-  const top = git(ctx, dir, ['rev-parse', '--show-prefix']), atRoot = top.code === 0 && top.stdout.trim() === '';
   // What a local setup leaves in the project, relative to it.
   const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded || machine ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
     ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)),

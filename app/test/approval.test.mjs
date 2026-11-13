@@ -61,6 +61,7 @@ const CASES = [
   ['a closing tag as a cell', swap(COST, '| Cost | </b> |'), ['Cost']],
   ['a deferral in brackets', swap(COST, '| Cost | (TBD) |'), ['Cost']],
   ['a deferral as a link text', swap(COST, '| Cost | [TBD](x) |'), ['Cost']],
+  ['a deferral as a link text whose target holds a bracket', swap(COST, '| Cost | [TBD](x]y) |'), ['Cost']],
   ['a deferral after a zero-width space', swap(COST, '| Cost | ​TBD |'), ['Cost']],
   ['the Approval table inside a multi-line HTML comment', swap(APPROVAL, `<!--\n${APPROVAL}\n-->`),
     ['Recommended', 'Work if approved', 'Runs on', 'Review', 'Merges', 'Owner steps', 'Cost', 'Undo', 'Answer']],
@@ -119,6 +120,7 @@ const HEAD = `Head: ${'a'.repeat(40)}\n\nThe worker fixed both findings.`;
 const FIRST = said('Owner answer (2026-11-10): b. Not before the release.', '2026-11-10T09:00:00Z');
 const SECOND = said('Owner answer (2026-11-11): a. Go ahead, and keep the old flag.', '2026-11-11T10:00:00Z');
 const GO = { option: 'a', text: 'Go ahead, and keep the old flag.', at: '2026-11-11T10:00:00Z' };
+const WORDS = FILLED.replace('| (a) Stream the export (Recommended) |', '| (ok) Stream the export (Recommended) |').replace('| (b) Hold |', '| (hold) Hold |');
 const ANSWERS = [
   ['an owner\'s answer is read', [said('The plan looks fine to me.', '2026-11-11T09:00:00Z', 'COLLABORATOR'), SECOND], GO],
   ['a member\'s answer is read', [{ ...SECOND, authorAssociation: 'MEMBER' }], GO],
@@ -138,6 +140,8 @@ const ANSWERS = [
   ['a label alone is read', [FIRST, said('(a)', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],
   ['a label or letter with a full stop is read', [said(' (B).\n', '2026-11-11T10:00:00Z')], { option: 'b', text: '', at: '2026-11-11T10:00:00Z' }],
   ['a letter that two labels share in two cases is none', [said('a', '2026-11-11T10:00:00Z')], null, FILLED.replace('| (b) Hold |', '| (A) Hold |')],
+  ['a label of more than one character is read', [said('(OK)', '2026-11-11T10:00:00Z')], { option: 'ok', text: '', at: '2026-11-11T10:00:00Z' }, WORDS],
+  ['the bare text of a label of more than one character is none', [said('ok', '2026-11-11T10:00:00Z')], null, WORDS],
   ['a label of an option table inside an HTML comment is none', [said('c', '2026-11-11T10:00:00Z')], null,
     FILLED.replace('| Option |', '<!--\n| Option | What happens |\n|---|---|\n| (c) Wait | Nothing |\n-->\n\n| Option |')],
   ['a collaborator\'s label is none', [said('a', '2026-11-11T10:00:00Z', 'COLLABORATOR')], null],

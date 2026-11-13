@@ -9,12 +9,12 @@ const FRONT = 'Front matter';
 const PLACEHOLDER = /<(?![a-z][a-z0-9+.-]*:\S)[a-z][^<>]*>/i;
 // These leave the answer open, with or without punctuation or invisible characters around them; "none" is an answer, which the template offers for Owner steps.
 const OPEN = /^[^\p{L}\p{N}]*(tbd|todo|n\/a)[^\p{L}\p{N}]*$/iu;
+// Up to the last ")" every "](" finds its ")", so no attempt fails after a long scan: linear, where the pattern alone is quadratic on many "](".
+const untargeted = (text) => { const end = text.lastIndexOf(')') + 1; return text.slice(0, end).replace(/\]\([^)]*\)/g, ']') + text.slice(end); };
 // What the owner sees of a cell: a closing tag, an entity and a link target show no text, and emphasis, strike and code marks are no text. HTML comments are gone before cells are read (missing).
-const shown = (cell) => cell
+const shown = (cell) => untargeted(cell
   .replace(/<\/[a-z][^<>]*>/gi, '')
-  .replace(/&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/gi, ' ')
-  // A target ends at "]" too, so that a crafted cell of many "](" is scanned once, not once per "](".
-  .replace(/\]\([^)\]]*\)/g, ']')
+  .replace(/&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/gi, ' '))
   .replace(/[*_~`]/g, '')
   .trim();
 const filled = (cell = '') => { const text = shown(cell); return /[\p{L}\p{N}]/u.test(text) && !OPEN.test(text) && !PLACEHOLDER.test(text); };
@@ -73,9 +73,10 @@ export function missing(text) {
 }
 
 // The letter of the option a comment names alone, as its label, such as "(a)", or its letter, in any case, with or without a full stop; null unless exactly one option row has that label.
+// Only a label of one letter or digit has a bare form: with a label such as "(ok)" or "(?)", a reply "ok" or "?" would answer.
 function picked(labels, comment) {
   const said = comment.trim().replace(/\.$/, '').toLowerCase();
-  const found = labels.filter((label) => [label, label.slice(1, -1)].some((form) => form.toLowerCase() === said));
+  const found = labels.filter((label) => [label, /^\([a-z\d]\)$/i.test(label) && label.slice(1, -1)].some((form) => form && form.toLowerCase() === said));
   return found.length === 1 ? found[0].slice(1, -1) : null;
 }
 

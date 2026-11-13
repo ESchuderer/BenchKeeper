@@ -1,7 +1,7 @@
 // Usage: node facts.mjs write --run <run folder> --repo <owner/name> [--repo ...] [--tracker <owner/name> --labels <label,...>] [--accounts]. Writes <run folder>/facts.md from the job files, gh and cswap, exit 0: a source that cannot be read shows "unread" in its section.
 // Usage: node facts.mjs costs --run <run folder> --repo <owner/name> [--repo ...] --since <YYYY-MM-DD> --until <YYYY-MM-DD> [--json]. Per pull request merged in the period: its jobs' summed cost and its fix rounds (changes verdicts), then totals and medians; exit 2 when gh cannot list the merged pull requests.
 // The run folder is .benchkeeper/runs/ of the working directory or a folder below it, not a link; any other exits 2. The tracker is named on the command line only: a public repository must not name a private tracker.
-import { lstatSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, fstatSync, lstatSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import { answer } from './approval.mjs';
@@ -15,7 +15,7 @@ const BUCKETS = ['pass', 'fail', 'pending', 'skipping', 'cancel'];
 const THREADS = 'query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, first: 100) { nodes { number reviewThreads(first: 100) { nodes { isResolved } } } } } }';
 
 // Text from gh, cswap or a job file goes into a file a model reads: a pipe would split the cell and a control character could rewrite the line.
-const cell = (v) => (v === undefined || v === null || v === '' ? '-' : escaped(String(v)).replace(/\|/g, '\\|'));
+const cell = (v) => (v === undefined || v === null || v === '' ? '-' : escaped(String(v)).replace(/[\\|]/g, '\\$&'));
 const row = (cells) => `| ${cells.map(cell).join(' | ')} |`;
 const table = (head, rows) => (rows.length ? [row(head), `|${head.map(() => '---').join('|')}|`, ...rows.map(row)] : ['none']);
 const utc = (t) => { const ms = typeof t === 'string' ? Date.parse(t) : NaN; return Number.isNaN(ms) ? null : `${new Date(ms).toISOString().slice(0, 16)}Z`; };
@@ -27,7 +27,13 @@ const data = (text) => { try { return JSON.parse(text); } catch { return null; }
 // stdout of a command, or null when it failed.
 const read = (exec, cmd, args) => { try { return exec(cmd, args); } catch { return null; } };
 // undefined for a missing file, null for one that is no JSON; a link or a FIFO in the run folder is not followed.
-const file = (path) => { try { return lstatSync(path).isFile() ? data(readFileSync(path, 'utf8')) : null; } catch (e) { return e.code === 'ENOENT' ? undefined : null; } };
+const file = (path) => {
+  let fd;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    return fstatSync(fd).isFile() ? data(readFileSync(fd, 'utf8')) : null;
+  } catch (e) { return e.code === 'ENOENT' ? undefined : null; } finally { if (fd !== undefined) closeSync(fd); }
+};
 const money = (usd) => (typeof usd === 'number' ? usd.toFixed(2) : null);
 const prOf = (meta) => (meta?.pr === undefined || meta?.pr === null ? null : Number(String(meta.pr).replace(/^#/, '')));
 // A job file names its project by name; a job without one counts for every repository.
@@ -36,10 +42,11 @@ const inRepo = (meta, repo) => !meta?.project || [repo, repo.split('/')[1]].some
 // The run folder comes from a command line: one that is a link, or resolves outside .benchkeeper/runs of the working directory, is refused, as approval.mjs refuses a file there.
 export function runFolder(path) {
   try {
-    const full = resolve(path);
-    if (!lstatSync(full).isDirectory()) return null;
-    const real = realpathSync(full), runs = join(realpathSync('.'), '.benchkeeper', 'runs');
-    return real === runs || real.startsWith(runs + sep) ? real : null;
+    const cwd = realpathSync('.'), runs = join(cwd, '.benchkeeper', 'runs');
+    const full = resolve(cwd, path), real = realpathSync(full);
+    // A link anywhere below the working directory makes the real path differ.
+    if (real !== full || (real !== runs && !real.startsWith(runs + sep))) return null;
+    return lstatSync(real).isDirectory() ? real : null;
   } catch { return null; }
 }
 

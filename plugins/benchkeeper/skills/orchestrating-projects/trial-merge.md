@@ -4,10 +4,10 @@ Read this file only in `merge.mode` `disjoint`, when the verdict's `next` is `tr
 
 The trial is the one step that checks files out and runs the pull request's code, so it gets a fresh clone of its own: `<trial path>`, a new folder beside the scratch clone. It serves nothing after, and no session reads a file there or starts there. The trial merge is never pushed.
 
-The trial passes when `merge` exits 0 and the project's changed-files check passes in the trial clone, run as `AGENTS.md` says. Anything else, a trial that cannot run included, takes the `strict` step (`update` in step 3 of [Merge](review-and-merge.md#merge)). Steps 5 and 6 follow every check that ran, whatever its result.
+The trial passes when `merge` exits 0 and the project's changed-files check passes in the trial clone, run as `AGENTS.md` says. Anything else, a trial that cannot run included, takes the `strict` step (`update` in step 3 of [Merge](review-and-merge.md#merge)). Steps 5 and 6 follow every trial whose container started, whatever its result.
 
 1. **Default-branch commit.** Run `git -C <scratch path> rev-parse refs/remotes/origin/<default branch>`. `<default-branch commit>` is what it printed, the commit the trial merges: write it into the handoff file before the check runs, and never read it from the trial clone.
-2. **Whether the trial can run.** It cannot when one of these holds:
+2. **Whether the trial can run.** It cannot when one of these holds, and then you take the `update` case of step 3 of [Merge](review-and-merge.md#merge):
    - `AGENTS.md` runs no command in a dev container.
    - The check is more than one command and `AGENTS.md` names no compound form for it (step 4 runs the check as one command).
    - The check has a step that `AGENTS.md` runs on the host after one in the container.
@@ -23,13 +23,12 @@ The trial passes when `merge` exits 0 and the project's changed-files check pass
    ```
 
 4. **Check.** It runs the pull request's code, so it runs only in a dev container started for the trial clone, never on the host, where your session holds the owner's `gh` login, SSH keys and tokens. Where no container can be started for the trial clone, the trial cannot run.
-   - The container mounts the trial clone, so that code can rewrite it, and a host command there would follow what it wrote: git runs a `core.fsmonitor` command from `.git/config`, `devcontainer exec` hands the container a variable of your environment that a `remoteEnv` names, `devcontainer up` runs an `initializeCommand`.
-   - So start the container once and run the whole check in it as one command: the compound form of `AGENTS.md`, its parts joined by `&&`.
+   - Start the container once and run the whole check in it as one command, the compound form of `AGENTS.md` with its parts joined by `&&`: the container mounts the trial clone, so that code can rewrite it, and a host command there would follow what it wrote (git runs a `core.fsmonitor` command from `.git/config`, `devcontainer exec` hands the container a variable of your environment that a `remoteEnv` names, `devcontainer up` runs an `initializeCommand`).
    - After the container starts, that command is all you run on the host in `<trial path>` or with it as the workspace folder: no git command, no second `devcontainer up`, no second `devcontainer exec`.
    - With shared files, the last parts of the one command are the commands that regenerate the generated files, then `git -c core.quotePath=false status --porcelain`: `status` must then list no file under a `merge.additivePaths` entry.
 5. **Container.** Remove that container after the trial as [Clean up](SKILL.md#clean-up) removes a worktree's, with `<trial path>` as the folder.
 6. **New scratch clone.** Code that ran in your session can have rewritten every clone, as a worker can the checkout: after the check, make a new scratch clone in a new folder ([Scratch clone](review-and-merge.md#scratch-clone)), which is `<scratch path>` from here on.
-7. **Comment.** For a trial that passed, say that the pull request merges without an update, with both commits and the check, in a comment (`gh pr comment <n> -R <owner/repo> --body-file <file>`). Then go on with step 4 of [Merge](review-and-merge.md#merge).
+7. **Comment and return.** A trial that passed: say that the pull request merges without an update, with both commits and the check, in a comment (`gh pr comment <n> -R <owner/repo> --body-file <file>`), then go on with step 4 of [Merge](review-and-merge.md#merge). Any other result: the `update` case of step 3.
 
 ## Container files
 
@@ -43,7 +42,7 @@ Make the list from `<default-branch commit>`, never from `<head>`, whose copy la
 
 1. Start it with the paths of `git -c core.quotePath=false -C <scratch path> ls-tree -r --name-only <default-branch commit>` that pass the path test.
 2. Add every file of the repository that a container command of `AGENTS.md` names or runs on the host: a configuration file (`--config`, `--override-config`), a path given to `--docker-path` or `--docker-compose-path`, a script that wraps the command.
-3. Read each with `git -C <scratch path> show <default-branch commit>:<path>` and add every file of the repository that it loads or runs, as a path from the repository's root: the scripts an `initializeCommand` runs and what those source, import or start, a compose file's `extends`, `include` and `env_file` entries, the Dockerfile of a `build`.
+3. Read each file on the list so far (steps 1 and 2) with `git -C <scratch path> show <default-branch commit>:<path>` and add every file of the repository that it loads or runs, as a path from the repository's root: the scripts an `initializeCommand` runs and what those source, import or start, a compose file's `extends`, `include` and `env_file` entries, the Dockerfile of a `build`.
 4. Read each added file the same way until a pass adds none. A path the commit does not hold stays on the list unread.
 
 - A build context and a mounted folder add nothing: their files reach the image or the container, not the host.

@@ -46,7 +46,7 @@ export const real = (p) => (isLink(p) && existsSync(p) && !isDir(p) ? realpathSy
 export function writeAtomic(p, text, mode = existsSync(p) ? statSync(p).mode & 0o7777 : null) {
   mkdirSync(dirname(p), { recursive: true });
   // Random and created new (wx): a link planted at a guessable name must not be written through.
-  const tmp = `${p}.benchkeeper-${randomBytes(6).toString('hex')}`;
+  const tmp = `${p}.cedarloom-app-${randomBytes(6).toString('hex')}`;
   // The mode at creation: a settings file with tokens is never readable by others, not even before the chmod.
   writeFileSync(tmp, text, { flag: 'wx', ...(mode != null ? { mode } : {}) });
   try {
@@ -75,7 +75,7 @@ export function move(from, to) {
 // that looks complete. shortcut: onto an existing path (a link that writes go through, a folder that is merged) it writes in place.
 export function copy(from, to) {
   mkdirSync(dirname(to), { recursive: true });
-  const into = exists(to) ? to : `${to}.benchkeeper-${randomBytes(6).toString('hex')}`;
+  const into = exists(to) ? to : `${to}.cedarloom-app-${randomBytes(6).toString('hex')}`;
   try {
     // cpSync follows a top-level link, which fails for a dangling one.
     if (isLink(from)) symlinkSync(readlinkSync(from), into);

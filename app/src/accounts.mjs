@@ -104,7 +104,7 @@ export function newAccount(ctx, o) {
     // No default: the folder must be one the container's user can write, which depends on the image.
     const mount = o.mount;
     if (!MOUNT.test(mount ?? '') || mount.split('/').includes('..')) throw new Error('--mount is the absolute path inside the container where the volume is mounted: a folder its user can write, below its home folder');
-    return { ...base, mode: 'container', volume: `benchkeeper-${o.agent}-${o.name}`, mount };
+    return { ...base, mode: 'container', volume: `cedarloom-app-${o.agent}-${o.name}`, mount };
   }
   // Outside the config folder: the agent's own login file sits there, and the config folder is what the ledger and backups hold.
   const dir = resolve(o.dir ?? dataDir(ctx, o.name));
@@ -188,7 +188,7 @@ const execArgv = (engine, dir, a, cmd) => ['devcontainer', 'exec', '--docker-pat
 // stdin, that the launch reads and removes before it starts the agent.
 // The two scripts are the app's only shell, run inside the container, and take data only as "$1" and "$@" (security.test.mjs).
 // One file name per launch, so two launches of one account do not remove each other's file.
-const tokenFile = (a) => `${a.mount}/.benchkeeper-token-${randomUUID()}`;
+const tokenFile = (a) => `${a.mount}/.cedarloom-app-token-${randomUUID()}`;
 const writeToken = ['sh', '-c', 'umask 077 && rm -f "$1" && cat > "$1"', 'sh'];
 const withToken = ['sh', '-c', 'CLAUDE_CODE_OAUTH_TOKEN=$(cat "$1") && rm -f "$1" && export CLAUDE_CODE_OAUTH_TOKEN && shift && exec "$@"', 'sh'];
 const hasDevcontainer = (dir) => exists(join(dir, '.devcontainer')) || exists(join(dir, '.devcontainer.json'));

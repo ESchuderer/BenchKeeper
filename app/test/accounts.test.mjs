@@ -407,7 +407,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   const c = cli(m);
   assert.equal(await c.exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/accounts/boxed', '--yes']), 0);
   const a = findAccount(m.ctx, 'boxed');
-  assert.deepEqual([a.mode, a.volume, a.mount, a.dir], ['container', 'benchkeeper-claude-boxed', '/data/accounts/boxed', undefined]);
+  assert.deepEqual([a.mode, a.volume, a.mount, a.dir], ['container', 'cedarloom-app-claude-boxed', '/data/accounts/boxed', undefined]);
   // Not checked without a project: said so, nothing run.
   const s0 = cli(m);
   assert.equal(await s0.exec(['accounts', 'status', 'boxed']), 0);
@@ -418,7 +418,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   assert.equal(await l.exec(['accounts', 'login', 'boxed', '--project', project]), 0);
   const calls = m.calls().filter((x) => x.me === 'devcontainer');
   const up = calls.find((x) => x.args[0] === 'up');
-  assert.ok(up.args.includes('type=volume,source=benchkeeper-claude-boxed,target=/data/accounts/boxed'));
+  assert.ok(up.args.includes('type=volume,source=cedarloom-app-claude-boxed,target=/data/accounts/boxed'));
   assert.ok(up.args.includes('podman') || up.args.includes('docker'));
   const exec = calls.filter((x) => x.args[0] === 'exec').find((x) => x.args.includes('login'));
   assert.ok(exec.args.includes('CLAUDE_CONFIG_DIR=/data/accounts/boxed'));
@@ -430,7 +430,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   const miss = cli(m);
   assert.equal(await miss.exec(['accounts', 'login', 'boxed', '--project', project]), 1);
   assert.match(miss.text(), /is not mounted at \/data\/accounts\/boxed/);
-  assert.match(miss.text(), /devcontainer up .*--mount type=volume,source=benchkeeper-claude-boxed,target=\S+ --remove-existing-container/);
+  assert.match(miss.text(), /devcontainer up .*--mount type=volume,source=cedarloom-app-claude-boxed,target=\S+ --remove-existing-container/);
   // A project without a dev container, no engine.
   const bare = mkdtempSync(join(tmpdir(), 'bk-acct-bare-'));
   const nb = cli(m);

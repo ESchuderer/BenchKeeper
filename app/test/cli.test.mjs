@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -380,9 +380,9 @@ test('CEDARLOOM_APP_DEBUG=1 prints the stack of a failing command; without it on
 test('with HOME on a temp folder an apply records its run under .config/cedarloom-app and writes nothing under .config/cedarloom', () => {
   const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
   const { CEDARLOOM_APP_HOME: _, ...env } = process.env;
-  // Only node on PATH: no agent command runs, the file changes still apply and the run is recorded.
+  // PATH is the empty temp home: no agent, npm or git command runs (the CLI starts through process.execPath), the file changes still apply and the run is recorded.
   const r = spawnSync(process.execPath, [fileURLToPath(new URL('../bin/benchkeeper.mjs', import.meta.url)), 'apply', '--agents', 'claude', '--yes'],
-    { encoding: 'utf8', env: { ...env, HOME: home, USERPROFILE: home, PATH: dirname(process.execPath) } });
+    { encoding: 'utf8', env: { ...env, HOME: home, USERPROFILE: home, PATH: home } });
   assert.equal(readdirSync(join(home, '.config', 'cedarloom-app', 'ledger')).length, 1, r.stdout + r.stderr);
   assert.equal(existsSync(join(home, '.config', 'cedarloom')), false);
 });

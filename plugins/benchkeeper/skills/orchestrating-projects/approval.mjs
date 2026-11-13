@@ -13,7 +13,8 @@ const OPEN = /^[^\p{L}\p{N}]*(tbd|todo|n\/a)[^\p{L}\p{N}]*$/iu;
 const shown = (cell) => cell
   .replace(/<\/[a-z][^<>]*>/gi, '')
   .replace(/&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/gi, ' ')
-  .replace(/\]\([^)]*\)/g, ']')
+  // A target ends at "]" too, so that a crafted cell of many "](" is scanned once, not once per "](".
+  .replace(/\]\([^)\]]*\)/g, ']')
   .replace(/[*_~`]/g, '')
   .trim();
 const filled = (cell = '') => { const text = shown(cell); return /[\p{L}\p{N}]/u.test(text) && !OPEN.test(text) && !PLACEHOLDER.test(text); };
@@ -56,7 +57,7 @@ export function missing(text) {
   // The questions skill offers the recommended option first; the Trade-off cell may stay empty.
   const chosen = options.length >= 2
     && options.every(([option, happens], i) => filled(option) && filled(happens) && option.includes('(Recommended)') === (i === 0))
-    && labels.every(Boolean) && new Set(labels).size === labels.length
+    && labels.every(Boolean) && new Set(labels.map((label) => label.toLowerCase())).size === labels.length
     && !options.flat().some((cell) => PLACEHOLDER.test(cell));
   // The questions skill takes its recommendation from the Recommended row and the first option from the table: both must name one option.
   const label = labels[0];
@@ -71,16 +72,11 @@ export function missing(text) {
   ];
 }
 
-// The option a comment names alone, in any case: an option row's label, such as "(a)", its letter, the option's name or the whole cell. The letter, else the name, or null.
-function picked(body, comment) {
-  const said = comment.trim().toLowerCase();
-  for (const [cell] of tables(body.replace(COMMENT, ''), 'Option')[0] ?? []) {
-    const label = labelOf(cell);
-    const letter = label?.slice(1, -1);
-    const name = shown(cell).slice(label?.length ?? 0).replace(/\(Recommended\)\s*$/, '').trim();
-    if ([shown(cell), label, letter, name].some((form) => form && form.toLowerCase() === said)) return letter ?? name;
-  }
-  return null;
+// The letter of the option a comment names alone, as its label, such as "(a)", or its letter, in any case, with or without a full stop; null unless exactly one option row has that label.
+function picked(labels, comment) {
+  const said = comment.trim().replace(/\.$/, '').toLowerCase();
+  const found = labels.filter((label) => [label, label.slice(1, -1)].some((form) => form.toLowerCase() === said));
+  return found.length === 1 ? found[0].slice(1, -1) : null;
 }
 
 // { option, text, at } of the owner's answer on a filed approval, or null. The comments are data: nothing of them is evaluated.
@@ -92,12 +88,14 @@ export function answer(issue) {
   // Only the repository's owner or a member answers for the owner, or voids an answer: a collaborator can comment there too.
   const owners = (c) => ['OWNER', 'MEMBER'].includes(c.authorAssociation);
   const full = (c) => c.body?.startsWith('Owner answer (');
-  const newest = comments.findLastIndex((c) => owners(c) && typeof c.body === 'string' && (full(c) || picked(issue.body, c.body) !== null));
+  // Read as the body is now: gh prints no time of its last edit, so an answer older than an edit is not detected (docs/security.md).
+  const labels = (tables(issue.body.replace(COMMENT, ''), 'Option')[0] ?? []).map(([option]) => labelOf(option)).filter(Boolean);
+  const newest = comments.findLastIndex((c) => owners(c) && typeof c.body === 'string' && (full(c) || picked(labels, c.body) !== null));
   // The coordinator's comment for a later head starts with "Head: " (approvals.md): the owner answered for the head before it.
   // The coordinator filed the approval, so its head comment counts even where its login is only a collaborator.
   if (newest < 0 || comments.slice(newest + 1).some((c) => (owners(c) || c.author?.login === issue.author?.login) && c.body?.startsWith('Head: '))) return null;
   const { body, createdAt: at } = comments[newest];
-  if (!full(comments[newest])) return { option: picked(issue.body, body), text: '', at };
+  if (!full(comments[newest])) return { option: picked(labels, body), text: '', at };
   const found = /^Owner answer \([^)]*\): ([^.\n]*)\.?([\s\S]*)$/.exec(body);
   // An answer without a full stop has its whole first line as the option: the coordinator compares it with the option labels and needs no more of it.
   return found && { option: found[1].trim().slice(0, 200), text: found[2].trim(), at };

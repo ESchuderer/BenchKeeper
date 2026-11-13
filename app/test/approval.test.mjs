@@ -78,6 +78,7 @@ const CASES = [
   ['a placeholder in the options table', swap('| More code to review |', '| <trade-off> |'), ['Options']],
   ['an option without What happens', swap(HOLD, '| (b) Hold | | The export stays slow |'), ['Options']],
   ['two options with one label', swap('| (b) Hold |', '| (a) Hold |'), ['Options']],
+  ['two options with one label in two cases', swap('| (b) Hold |', '| (A) Hold |'), ['Options']],
   ['an option without a label', swap('| (b) Hold |', '| Hold |'), ['Options']],
   ['front matter left in', `---\nlabels: question, ready-for-human\n---\n\n${FILLED}`, ['Front matter']],
   // Every part of the template holds a placeholder: the Answer row depends on where the issue lands.
@@ -132,15 +133,19 @@ const ANSWERS = [
   ['the answer text later in a comment is none', [said('As I wrote: Owner answer (2026-11-11): a. Go ahead.', '2026-11-11T10:00:00Z')], null],
   ['a later comment that quotes an answer does not hide the answer', [SECOND, said('Thanks. You wrote: Owner answer (2026-11-10): b.', '2026-11-11T12:00:00Z')], GO],
   ['comments out of order are read by their time', [SECOND, FIRST], GO],
-  ['an option\'s name alone is read as its letter', [said(' Stream the export\n', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],
+  ['an option\'s name alone is none', [said('Stream the export', '2026-11-11T10:00:00Z')], null],
   ['a letter alone is read, in any case', [said('B', '2026-11-11T10:00:00Z')], { option: 'b', text: '', at: '2026-11-11T10:00:00Z' }],
   ['a label alone is read', [FIRST, said('(a)', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],
+  ['a label or letter with a full stop is read', [said(' (B).\n', '2026-11-11T10:00:00Z')], { option: 'b', text: '', at: '2026-11-11T10:00:00Z' }],
+  ['a letter that two labels share in two cases is none', [said('a', '2026-11-11T10:00:00Z')], null, FILLED.replace('| (b) Hold |', '| (A) Hold |')],
+  ['a label of an option table inside an HTML comment is none', [said('c', '2026-11-11T10:00:00Z')], null,
+    FILLED.replace('| Option |', '<!--\n| Option | What happens |\n|---|---|\n| (c) Wait | Nothing |\n-->\n\n| Option |')],
   ['a collaborator\'s label is none', [said('a', '2026-11-11T10:00:00Z', 'COLLABORATOR')], null],
   ['a label with a head comment after it is none', [said('a', '2026-11-11T10:00:00Z'), said(HEAD, '2026-11-11T11:00:00Z')], null],
-  ['free text that is no label is none', [said('a, go ahead', '2026-11-11T10:00:00Z'), said('Looks good', '2026-11-11T11:00:00Z')], null],
+  ['free text that is no label is none', [said('a, go ahead', '2026-11-11T10:00:00Z'), said('(a', '2026-11-11T10:30:00Z'), said('Looks good', '2026-11-11T11:00:00Z')], null],
   ['an option without a full stop is cut at 200 characters', [said(`Owner answer (2026-11-11): ${'x'.repeat(300)}`, '2026-11-11T10:00:00Z')], { option: 'x'.repeat(200), text: '', at: '2026-11-11T10:00:00Z' }],
 ];
-for (const [name, comments, expected] of ANSWERS) test(`approval: ${name}`, () => assert.deepEqual(answer({ labels: [{ name: 'question' }], author: { login: 'owner' }, body: FILLED, comments }), expected));
+for (const [name, comments, expected, body = FILLED] of ANSWERS) test(`approval: ${name}`, () => assert.deepEqual(answer({ labels: [{ name: 'question' }], author: { login: 'owner' }, body, comments }), expected));
 
 test('approval: the command line refuses a file outside the run folder with exit 2', () => {
   const script = fileURLToPath(new URL(`${SKILL}approval.mjs`, import.meta.url));

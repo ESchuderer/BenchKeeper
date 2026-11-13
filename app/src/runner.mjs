@@ -435,13 +435,14 @@ function undoRun(id, ctx, { step, unit } = {}) {
       } else {
         within(e.path, e.kind !== 'remove');
         // A seeded file the owner has edited since is theirs: it stays, and the run's other changes are still undone.
-        if (e.seed && e.status === 'done' && hashPath(e.path) !== e.hashAfter) { entry.status = 'manual'; entry.reason = `${e.path} changed after this run: it is yours now and stays`; continue; }
+        if (e.seed && e.status === 'done' && hashPath(e.path) !== e.hashAfter) { entry.status = 'manual'; entry.reason = exists(e.path) ? `${e.path} changed after this run: it is yours now and stays` : `${e.path} is gone already`; continue; }
         // Only a file as the run left it goes back, so a later change (another step's, or the user's) is not lost.
         // A whole run is undone newest first, so its own later edits of the file are undone before.
         if (e.status === 'done' && hashPath(e.path) !== e.hashAfter) throw new Error(`${e.path} changed after this change: undo what changed it later first`);
         stored(e.backup);
         if (e.existed && hashPath(e.backup) !== e.hashBefore) throw new Error(`the backup ${e.backup} is missing or changed`);
-        Object.assign(entry, { kind: 'write', path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path) });
+        // seed: a file written again after its undo is the owner's as well.
+        Object.assign(entry, { kind: 'write', path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path), ...(e.seed ? { seed: true } : {}) });
         // The current state goes to this run's backup, so the undo is reversible as well.
         if (entry.existed) entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, e.path);
         begin(entry);

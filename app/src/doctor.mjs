@@ -13,7 +13,7 @@ import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from 
 import { integrity } from './integrity.mjs';
 import { containerProjects, levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
-import { git } from './git.mjs';
+import { git, rootOf } from './git.mjs';
 import * as orca from './orca/index.mjs';
 import { clashFix, hiddenUserSkills, warnings } from './packs.mjs';
 import { bandChecks, styleChecks } from './ponytail.mjs';
@@ -91,19 +91,18 @@ const description = (text) => skillDescription(text).text;
 // The user's skills a library skill of the same name hides (#945).
 export const ownSkillClashes = (ctx) => hiddenUserSkills(ctx).map((n) => issue('warning', 'skills', `your skill ${n} is hidden by the library skill of that name`, clashFix(ctx, n)));
 
-// The coordinator's files, read from the working copy: the policy as its reader judges it, also against the plugin Claude Code runs
-// here, and each file git does not track yet.
+// Working copy only, at the repository root the coordinator reads: doctor must not fetch.
 function coordinatorChecks(ctx, dir) {
-  const out = [], [policy] = COORDINATOR_FILES, text = readText(join(dir, policy));
+  const root = rootOf(ctx, dir), out = [], [policy] = COORDINATOR_FILES, text = readText(join(root, policy));
   if (text != null) {
-    let r;
-    try { r = policyCheck(text); } catch (e) { r = { errors: [{ rule: 'unreadable', path: '', message: e.message }] }; }
-    for (const e of r.errors) out.push(issue('warning', 'coordinator', `${policy}: ${errorLine(e)}`, 'fix the file: the coordinator starts nothing while its reader refuses the policy'));
-    const plugin = !r.errors.length && r.doc?.minPlugin ? pluginContent(ctx, dir) : null;
+    let r, problems;
+    try { r = policyCheck(text); problems = r.errors.map(errorLine); } catch (e) { problems = [e.message]; }
+    for (const p of problems) out.push(issue('warning', 'coordinator', `${policy}: ${p}`, 'fix the file: the coordinator starts nothing while its reader refuses the policy'));
+    const plugin = !problems.length && r.doc?.minPlugin ? pluginContent(ctx, dir) : null;
     if (plugin && policyCheck(text, plugin.version).errors.length) out.push(issue('warning', 'coordinator', `${policy} needs the BenchKeeper plugin ${r.doc.minPlugin} or newer (minPlugin); the plugin Claude Code runs here is ${plugin.version}`, `claude plugin update ${plugin.scope === 'user' ? '' : `--scope ${plugin.scope} `}benchkeeper@benchkeeper`));
   }
   for (const f of COORDINATOR_FILES) {
-    const tracked = exists(join(dir, f)) && git(ctx, dir, ['ls-files', '--', f]);
+    const tracked = exists(join(root, f)) && git(ctx, root, ['ls-files', '--', f]);
     if (tracked?.code === 0 && !tracked.stdout.trim()) out.push(issue('info', 'coordinator', `${f} is not committed`, 'commit it: the coordinator reads it from the default branch'));
   }
   return out;

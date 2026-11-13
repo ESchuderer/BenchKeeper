@@ -678,10 +678,12 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
     const hash = at1 ? hashPath(at1) : installedHashes.get(s.name);
     return { ...(ref ? { ref } : {}), ...(hash ? { hash } : {}) };
   };
-  // Written only while absent, then the owner's: seed has the ledger record the path, not the content (integrity.mjs).
+  // The project folder is the root of its repository: worktree tools read .worktreeinclude there only.
+  const top = git(ctx, dir, ['rev-parse', '--show-prefix']), atRoot = top.code === 0 && top.stdout.trim() === '';
+  // Only while absent and at the root, where the coordinator reads them; seed: the ledger records the path, not the content.
   const [policy, workerRules] = COORDINATOR_FILES;
-  if (readText(at(policy)) == null) add('policy', `${policy}: the coordinator policy with the defaults, yours to edit and commit`, { kind: 'write', path: at(policy), after: format({ schemaVersion: 2 }), seed: true });
-  if (readText(at(workerRules)) == null) add('worker-rules', `${workerRules}: extra rules for the coordinator's workers, empty, yours to edit and commit`, { kind: 'write', path: at(workerRules), after: '', seed: true });
+  if (atRoot && readText(at(policy)) == null) add('policy', `${policy}: the coordinator policy with the defaults, yours to edit and commit`, { kind: 'write', path: at(policy), after: format({ schemaVersion: 2 }), seed: true });
+  if (atRoot && readText(at(workerRules)) == null) add('worker-rules', `${workerRules}: extra rules for the coordinator's workers, empty, yours to edit and commit`, { kind: 'write', path: at(workerRules), after: '', seed: true });
   // The plugin's commit is read when an apply writes the file; the preview keeps the recorded one, so a plugin update alone is no pending change.
   const commit = (run) => (!a.agents.includes('claude') ? undefined : run ? pluginCommit(ctx, dir) : prev?.pluginCommit);
   const state = (run, runCtx) => ({ schemaVersion: STATE_SCHEMA, appVersion: a.partial && prev?.appVersion ? prev.appVersion : appVersion, contentVersion: a.partial && prev?.contentVersion ? prev.contentVersion : contentVersion, agents: a.agents, env: a.env, sandbox: a.sandbox, share: a.share, guards: a.guards, ...(a.machine ? { machine: a.machine } : {}), ...(a.workflowLoad ? {} : { workflowLoad: false }), packs: [...a.packs, ...[...offIds].filter(([, c]) => run?.entries.some((e) => e.id === c && e.status !== 'done')).map(([id]) => id)], singles: a.skills, tier: a.tier, paths: a.paths, disabled: a.disabled,
@@ -689,8 +691,6 @@ export function projectPlan({ ctx, dir, answers, plugins = {} }) {
   // always: the commit of an install is only known once it ran, so the preview of the file may look unchanged.
   add('state', `${STATE}: setup version ${contentVersion}${installs.size ? ', commits of the installed skills' : ''}`, { kind: 'write', path: at(STATE), always: installs.size > 0, edit: (_, run, runCtx) => `${JSON.stringify(state(run, runCtx), null, 2)}\n` });
 
-  // The project folder is the root of its repository: worktree tools read .worktreeinclude there only.
-  const top = git(ctx, dir, ['rev-parse', '--show-prefix']), atRoot = top.code === 0 && top.stdout.trim() === '';
   // What a local setup leaves in the project, relative to it.
   const local = [...new Set([STATE.split('/')[0] + '/', LOCK, ...(a.agents.includes('claude') ? [LOCAL_CLAUDE] : []), ...(a.agents.includes('codex') ? [OVERRIDE] : []), ...(a.sandbox || guarded || machine ? [LOCAL_SETTINGS] : []), ...(guarded ? [GUARD_PATH] : []),
     ...skills.flatMap((s) => skillDirs(a.agents.filter((x) => s.agents !== 'codex' || x === 'codex'), 'project', dir).map(({ dir: d }) => `${rel(join(d, s.name))}/`)),

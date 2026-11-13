@@ -1,7 +1,7 @@
 // Git helpers: working tree snapshots that leave the user's index alone.
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 // Variables that point git at another repository (set when the app runs from a hook or `git rebase --exec`) never reach it:
 // -C names the repository. index: the caller sets GIT_INDEX_FILE itself.
@@ -124,6 +124,8 @@ export const fileMode = (ctx, root, tree, path) => git(ctx, root, ['ls-tree', tr
 // False when git no longer has the tree: an unreferenced snapshot is removed by gc.
 export const hasTree = (ctx, root, tree) => git(ctx, root, ['cat-file', '-e', `${tree}^{tree}`]).code === 0;
 export const repoRoot = (ctx, dir) => git(ctx, dir, ['rev-parse', '--show-toplevel']).stdout.trim();
+// Relative to dir, so a path the user typed through a symlink stays in that form; dir itself outside a repository.
+export const rootOf = (ctx, dir) => { const r = git(ctx, dir, ['rev-parse', '--show-cdup']); return r.code === 0 ? resolve(dir, r.stdout.trim()) : dir; };
 
 // A status that fails is not a clean tree.
 export const clean = (ctx, dir, pin = []) => { const r = git(ctx, dir, [...pin, 'status', '--porcelain']); return r.code === 0 && r.stdout.trim() === ''; };

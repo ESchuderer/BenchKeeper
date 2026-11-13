@@ -23,15 +23,14 @@ export function newerPaths() {
   };
 }
 
-// The paths entry e left that no longer hold, each { path, removed } or { path, error }: a file edited or removed outside the app,
-// or one back after a removal. Each path settles the older entries' (seen); a seeded file is its owner's, so only its path counts.
+// Seeded files are the owner's and a clone records no hash, so their paths only settle the older entries'.
 export function drift(e, seen) {
   const out = [];
   for (const [path, hash] of left(e)) {
     if (!path) continue;
     const done = seen.settled(path);
     seen.add(path);
-    if (done || e.seed) continue;
+    if (done || e.seed || e.kind === 'clone') continue;
     let now;
     try { now = hashPath(path); } catch (err) { out.push({ path, error: err.code ?? 'read error' }); continue; }
     if (now !== hash) out.push({ path, removed: hash == null });

@@ -333,7 +333,8 @@ test('local: two projects in one repository keep their own exclude blocks; a dro
   }
   const exclude = () => read(join(r.dir, '.git/info/exclude'));
   for (const p of ['/web/CLAUDE.local.md', '/api/CLAUDE.local.md', '/web/.benchkeeper/', '/api/AGENTS.override.md']) assert.ok(exclude().includes(`\n${p}\n`), p);
-  assert.equal(r.git('status', '--porcelain').toString(), '?? api/\n?? web/\n');
+  // The coordinator reads its files at the root only, so a project in a subfolder gets none.
+  assert.equal(r.git('status', '--porcelain').toString(), '');
 
   const web = at('web');
   apply(preview(projectPlan({ ctx: web.ctx, dir: web.dir, answers: { agents: ['claude'] } }).changes), web.ctx, { scope: web.dir });
@@ -783,4 +784,13 @@ test('the coordinator\'s policy is the owner\'s once written: an edit is no ledg
   assert.ok(!existsSync(join(r.dir, RULES)), 'the unedited worker rules go');
   assert.ok(!existsSync(join(r.dir, 'CLAUDE.local.md')));
   assert.deepEqual(u.entries.filter((e) => e.status === 'manual').map((e) => e.reason), [`${join(r.dir, POLICY)} changed after this run: it is yours now and stays`]);
+
+  // A policy the owner writes after an undo removed the seeded one is theirs as well.
+  const s = repo();
+  const seeded = plan(s, { agents: ['claude'], env: 'host' }).changes;
+  assert.equal(undo(apply(preview(seeded), s.ctx, { scope: s.dir, select: files(seeded) }).id, s.ctx).status, 'done');
+  mkdirSync(join(s.dir, 'docs/agents'), { recursive: true });
+  writeFileSync(join(s.dir, POLICY), '{\n  "schemaVersion": 2\n}\n');
+  assert.deepEqual(harnessTest(s.ctx, { agents: [], dir: s.dir }).find((c) => c.name === 'installed files match the ledger').problems, []);
+  assert.deepEqual(ledgerIssues(s.ctx).filter((i) => i.message.includes(POLICY)), []);
 });

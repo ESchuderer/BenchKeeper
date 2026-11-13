@@ -315,4 +315,7 @@ test('doctor: the coordinator policy against the plugin content Claude Code runs
   assert.deepEqual(coordinator(), []);
   writeFileSync(join(dir, 'docs/agents/worker-rules.md'), '');
   assert.deepEqual(coordinator(), [['info', 'docs/agents/worker-rules.md is not committed', 'commit it: the coordinator reads it from the default branch']]);
+  // A project in a subfolder: the files at the repository root, where the coordinator reads them.
+  mkdirSync(join(dir, 'web'));
+  assert.deepEqual(projectChecks(ctx, join(dir, 'web'), ['claude']).filter((i) => i.check === 'coordinator').map((i) => i.message), ['docs/agents/worker-rules.md is not committed']);
 });

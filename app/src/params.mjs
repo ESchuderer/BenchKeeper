@@ -17,13 +17,13 @@ export function load(family, text) {
   if (typeof VALIDATE[family] !== 'function') throw new Error(`the content in ${contentDir} has no usable policy reader (${reader.failed ?? 'policy.mjs exports no validate'}): update it`);
   return { doc, errors: VALIDATE[family](doc) };
 }
-// A policy text as the coordinator's reader judges it: with version (the content version of the plugin that will read it), also
-// the minPlugin rule, through the reader's effective(); without, the schema alone. Reads nothing else and fetches nothing.
+// version: the content version of the plugin that will read the policy, so its minPlugin is judged as the reader does.
 export function policyCheck(text, version) {
   const r = load('policy', text);
   return r.errors.length || r.doc == null || !version ? r : { doc: r.doc, errors: reader.effective(r.doc, version).errors };
 }
-export const errorLine = (e) => `${e.rule}${e.path ? ` at ${e.path}` : ''}: ${e.message}`;
+// Only called on errors load returned, so the reader loaded.
+export const errorLine = (e) => reader.errorLine(e);
 // The one way a document is written back: two-space indent, key order as read.
 export const format = (doc) => `${JSON.stringify(doc, null, 2)}\n`;
 

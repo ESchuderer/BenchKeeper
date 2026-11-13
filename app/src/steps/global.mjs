@@ -94,7 +94,6 @@ function ownInstall(ctx, dir) {
     return l.find((p) => ['local', 'project'].includes(p.scope) && p.projectPath === dir) ?? l.find((p) => p.scope === 'user');
   } catch { return undefined; }
 }
-// Its commit.
 export function pluginCommit(ctx, dir) {
   const commit = ownInstall(ctx, dir)?.gitCommitSha;
   return typeof commit === 'string' ? commit : undefined;

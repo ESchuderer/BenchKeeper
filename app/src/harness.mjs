@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentDir } from './content.mjs';
 import { exists, readText } from './fsx.mjs';
+import { rootOf } from './git.mjs';
 import { drift, newerPaths } from './integrity.mjs';
 import { errorLine, policyCheck } from './params.mjs';
 import { copied } from './packs.mjs';
@@ -36,13 +37,13 @@ function pluginCheck(ctx, agents) {
   return check('each agent has the expected skills', problems);
 }
 
-// The coordinator's policy as its reader judges it; a project without a setup can have one too.
-function coordinatorPolicy(dir) {
-  const text = readText(join(dir, COORDINATOR_FILES[0]));
+// At the repository root, where the coordinator reads it; a project without a setup can have one too.
+function coordinatorPolicy(ctx, dir) {
+  const root = rootOf(ctx, dir), text = readText(join(root, COORDINATOR_FILES[0]));
   if (text == null) return [];
   let problems;
   try { problems = policyCheck(text).errors.map(errorLine); } catch (e) { problems = [e.message]; }
-  return [check(`the coordinator policy is valid (${dir})`, problems)];
+  return [check(`the coordinator policy is valid (${root})`, problems)];
 }
 
 // Library skills of the project: own copies present, community skills in skills-lock.json.
@@ -65,5 +66,5 @@ function projectCheck(dir) {
 }
 
 export function harnessTest(ctx, { agents, dir } = {}) {
-  return [ledgerCheck(ctx), pluginCheck(ctx, agents), ...(dir ? [...coordinatorPolicy(dir), ...projectCheck(dir)] : [])];
+  return [ledgerCheck(ctx), pluginCheck(ctx, agents), ...(dir ? [...coordinatorPolicy(ctx, dir), ...projectCheck(dir)] : [])];
 }

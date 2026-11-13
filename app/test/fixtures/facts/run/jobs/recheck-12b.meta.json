@@ -1,0 +1,1 @@
+{"name":"recheck-12b","kind":"recheck","project":"app","cwd":"/work/app","model":"opus","effort":"high","account":3,"startedAt":"2026-11-13T10:40:00Z","endedAt":"2026-11-13T11:00:00Z","pid":100,"sessionId":"s-recheck-12b","resumedFrom":"review-12a","pr":12,"head":"2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b","exit":0}

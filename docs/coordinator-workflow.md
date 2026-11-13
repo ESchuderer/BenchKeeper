@@ -169,6 +169,7 @@ The default is false because an open run spends a turn at every tick, and a sche
 | A worker is released only once it has settled (after its report, or after it was stopped), and one with a pull request only after the merge or once the pull request is left for the owner | `orca.md:125` | exists |
 | Phases with a gate between them: plan, implement, test, review | skill text (`skills/workflow/software.md:11-20`) | exists |
 | One digest file: merges, decisions on the owner's behalf, open questions, risks, models | the `daily-digest` automation and `SKILL.md:71` | exists |
+| A wake-up and a restart read the run's state from a generated file instead of `gh` status turns: jobs, open pull requests with head, required checks, open threads and the verdict for the current head, approvals, account limits and the default branch's CI; the job cost and fix rounds per merged pull request come from the same script | `facts.mjs` (`write` and `costs`), read at `SKILL.md:55`; `docs/restart-safe-coordinator.md:18` | exists |
 
 The source run posted a plan in the issue before a larger piece of work fanned out. In the loop one issue is one pull request, so the owner splits the issue instead, and the coordinator needs no right to write plans into the tracker.
 

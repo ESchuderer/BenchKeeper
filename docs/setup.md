@@ -117,7 +117,7 @@ Lite level, plugin only: `npx benchkeeper@6.27.0 apply --level lite`, or by hand
    - Options: `--agents` names the agents the repository uses; `--pack <id>` adds [library packs](../plugins/benchkeeper/library/README.md#packs); `--tier` sets the default tier; `--env` says where the agent runs.
    - It writes a block (the repository rules of `rules/project.md`; where commands run, default tier, skill pointers), the packs' skills from the default branch of their source, and `.benchkeeper/state.json`, whose answers later runs reuse.
    - By default the setup stays on this machine: the block goes into `CLAUDE.local.md` (which imports `AGENTS.md`) and `AGENTS.override.md` (Codex reads it instead of `AGENTS.md`, so the app's block there also holds the text of `AGENTS.md`, rebuilt on each apply; your lines outside the block stay). Every file the app writes is listed in `.git/info/exclude`, so nothing lands in the repository.
-   - `--share` commits it instead: the block in `AGENTS.md` and `CLAUDE.md` with `@AGENTS.md`. Your own `AGENTS.md` text, `docs/agents/` and `.devcontainer/` stay committed either way.
+   - `--share` commits the setup instead: the block in `AGENTS.md` and `CLAUDE.md` with `@AGENTS.md`. Your own `AGENTS.md` text, `docs/agents/` and `.devcontainer/` stay committed either way.
    - With `.devcontainer/` it offers `scripts/dc`, which runs one command in the dev container (`scripts/dc npm test`), and names it in the block.
    - New worktrees (Claude Code `--worktree`, its subagent and desktop worktrees, Orca) get the local setup through `.worktreeinclude` at the root, which the setup keeps a marked block in (your lines outside it stay).
      - The block lists the files it wrote, one literal path per line, `.benchkeeper/state.json` rather than the folder, and the list itself, also in `.git/info/exclude`.
@@ -164,12 +164,12 @@ Several logins per agent, for example work and personal, each in a folder of its
     - `plugin`: the level only
     - `benchkeeper`: the windows only
     - `none`: nothing
-    - The level is left out while Ponytail's `hideStatus` or `PONYTAIL_HIDE_STATUS` hides it.
+  - The level is left out while Ponytail's `hideStatus` or `PONYTAIL_HIDE_STATUS` hides it.
   - The windows are recorded in every style. They keep the used percentage and reset time of the 5-hour and 7-day window, and the type and time of a failed turn (one of the 12 documented error types, such as rate limit, expired login or billing error), never a credential.
   - `accounts status`, `doctor` and the Accounts view show what is left per window (100 minus the used percentage; a reading counts only until its window resets, after that it is unknown, not full), a notice below twice the minimum and the last failure.
   - Below the minimum headroom (defaults: 5-hour 8 percent, 7-day 3 percent, not claims about what a task needs; `accounts limits` changes them, per account too) `run` shows the account, window, what is left and the reset time, and asks before it starts. `--yes` or `accounts limits --continue-below on` starts anyway.
-  - Between the notice level and the minimum, `run` names the account and window and starts; the choice of another account (`--account <name>`) stays yours.
   - A status line in a project's own settings takes precedence over the account's, and then no reading is kept.
+  - Between the notice level and the minimum, `run` names the account and window and starts; the choice of another account (`--account <name>`) stays yours.
 - Usage, Codex: it has no feed, so `accounts status`, `doctor`, `run` and the Accounts view ask its app-server once ([`account/rateLimits/read`](https://learn.chatgpt.com/docs/app-server), run with the account's `CODEX_HOME`; a signed-in host account only) and apply the same thresholds and notices. `codex login status` reports stored credentials, not whether they still work. Auto-pick and rotation never apply to Codex accounts: the manual choice per launch and the notices stay.
 - Opt-in auto-pick for Claude Code accounts, off by default (`accounts limits --auto-pick on`, and `accounts limits <name> --pool <pool>` for the accounts of one person): a new `run` under the default account that is below its minimum starts under the pool member with the most headroom, or, with no member at or above its minimum, stops with the reason or (`--when-none wait`) waits for the earliest reset. The account used is printed. It never acts inside a running session and never for an account named with `--account`. Rotating accounts at a limit may be read as bypassing a protective measure: the provider's consumer terms prohibit "bypassing any of our systems or protective measures" ([text](https://www.anthropic.com/legal/consumer-terms), section 3) and do not say either way, so the setting is yours to carry.
 - Opt-in rotation by handover, Claude Code only. Default: off.
@@ -263,7 +263,7 @@ The Accounts view of the app does the same with fewer steps. Add Claude Code acc
     - A repository that still has its setup committed (set up before 6.3) gets a commit that removes the committed copies instead (branch `chore/agent-setup-local`, also `benchkeeper projects unshare`). After you push, merge and pull it, the next Update all writes the setup locally from the answers it kept. `projects apply` refuses a local setup there until that removal is merged and pulled (`--share` keeps it committed).
     - Shared projects with uncommitted changes and projects without a state file are skipped, and one project's failure does not stop the others.
   - Manage the list in Projects or with `projects rename|relocate|remove`:
-    - a display name and notes (kept in the list only);
+    - `rename` for a display name and notes (kept in the list only);
     - Relocate for a folder that moved (the answers and the history follow);
     - `remove` to unregister;
     - `remove --setup` to take BenchKeeper's setup out of a project and keep it registered: every file is listed first, a local setup is one run you can undo, a shared one a commit on the local branch `chore/remove-agent-setup` for you to push.
@@ -328,12 +328,11 @@ Set the options with `/plugin` or under `pluginConfigs` for `benchkeeper@benchke
 Per Claude Code and Codex session on this machine, the board shows:
 
 - project, tier and change type (first and last tier line)
-- the pattern:
+- the pattern (when several apply, the first of Orca worker, loop, group wins):
   - loop: `/goal`, `/loop` or a scheduled wakeup ran
   - group: subagents ran, their count is shown
   - Orca worker: a dispatched Orca worker, with the run id from the `Orca run:` line of the worker-spec template
   - single: none of these
-  - when several apply, the first of Orca worker, loop, group wins
 - the setup installed at the time (BenchKeeper version, Matt Pocock's skills, Ponytail, packs)
 - the skills used, the last test run, pull request links (without their state) and time
 - tokens and the API-equivalent cost: for Claude Code as its transcript records it, for Codex estimated from its token counts and OpenAI's API prices, marked estimated, models without a published price left out

@@ -14,7 +14,7 @@ Reads every agent session of this machine from the agent tools' own session logs
 - Tests: the last test run with a readable result decides.
   - Runs are found by tokenizing the command with `shell-quote`, heredoc bodies left out: `npm test`, `pnpm --filter x run test`, `pytest`, `go test` and the like. One behind a wrapper (`timeout 600 npm test`, `devcontainer exec ... pnpm test`) is not found.
   - A run's exit code is its result when the run is the command's last step.
-  - Piped on (`npm test 2>&1 | tail`) or followed by another command, the summary line in the command's output is (`2 failed`, `2 errors in`, `Errors  1 error`, `11 passed`), a later command's line such as `1 failing` from `gh pr checks` included.
+  - Piped on (`npm test 2>&1 | tail`) or followed by another command, the result is the summary line in the command's output (`2 failed`, `2 errors in`, `Errors  1 error`, `11 passed`), a later command's line such as `1 failing` from `gh pr checks` included.
   - A run without a readable result, or one that never ran, leaves the earlier result.
   - Codex records command results only in its paginated history mode, so its sessions in the default mode show none. It records the shell by its path (`/bin/zsh -lc 'npm test'`), and a run the user declined or that did not start (exit code -1) never ran.
   - A PowerShell `-Command` run on Windows is not found.

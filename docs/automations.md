@@ -148,7 +148,7 @@ The generic templates, ranked by what the projects need. Every row is shipped as
 | `maintenance-sweep`: Maintenance sweep of the maintaining-repos skill with its knowledge base; reports first. [Details](#maintenance-sweep) | monthly | at least `min_merged` pull requests merged since the last pass in the knowledge base (`benchkeeper knowledge show`) | the knowledge base; in act mode at most `max_prs` pull requests, one per finding group, a docs drift one prose only | template, [#348](https://github.com/ESchuderer/BenchKeeper/issues/348) |
 | `ci-audit`: CI and quality audit of the project checkout with `benchkeeper projects audit`, findings grouped by what one pull request fixes. [Details](#ci-audit) | monthly | no report yet, or a workflow or dependency file changed since the commit on the first line of the last report (`file`) | the report (`file`); in act mode at most `max_prs` pull requests by fix workers, one per finding group | template, [#359](https://github.com/ESchuderer/BenchKeeper/issues/359) |
 | `dependency-triage`: Dependency and advisory triage over `repos` and the repositories of `owners`. [Details](#dependency-triage) | weekly | open dependency bot pull requests or Dependabot alerts (an alert the token cannot read is reported once) | in act mode: bot pull request branches, comments and closes, fix pull requests; never a lockfile by hand | template, [#349](https://github.com/ESchuderer/BenchKeeper/issues/349) |
-| `ci-health`: CI health of `repos` and `workflows` (file names): one rerun, then one issue per failing workflow. [Details](#ci-health) | daily | a failed default-branch or scheduled run in the last day, or a green run after a recorded failure | in act mode: one rerun of a first attempt, one issue per workflow | template, [#350](https://github.com/ESchuderer/BenchKeeper/issues/350) |
+| `ci-health`: CI health of `repos` and `workflows` (file names): reruns a failed run once, opens one issue per workflow that fails again. [Details](#ci-health) | daily | a failed default-branch or scheduled run in the last day, or a green run after a recorded failure | in act mode: one rerun of a first attempt, one issue per workflow | template, [#350](https://github.com/ESchuderer/BenchKeeper/issues/350) |
 | `worktree-cleanup`: Worktree and container cleanup of the project checkout; lists before it removes. [Details](#worktree-cleanup) | daily | temporary space above `tmp_limit_percent`, or a removable worktree or branch | in act mode: those worktrees, containers, volumes and branches, only through its `sweep.sh` | template, [#351](https://github.com/ESchuderer/BenchKeeper/issues/351) |
 | `daily-digest`: Daily digest for the owner: decisions, blocked, risks, merged, running workers and account headroom. [Details](#daily-digest) | daily | a pull request or an issue changed since the last digest (with a dated `file`, the file with the latest date in its name; its last commit's author time when the file is committed and unchanged), apart from `issue` in the checkout's repository | one local file (`file`), an optional desktop notification (`notify`); in act mode, optionally a commit of that file (`commit`) and one issue comment (`issue`). [Writes](#daily-digest) | template, [#352](https://github.com/ESchuderer/BenchKeeper/issues/352) |
 | `issue-triage`: Issue triage over `repos`: suggests labels, links likely duplicates and lists the owner's open questions. [Details](#issue-triage) | every 4 hours | open issues with none of `labels` | in act mode: labels from `labels` and one comment per issue | template, [#353](https://github.com/ESchuderer/BenchKeeper/issues/353) |
@@ -167,7 +167,7 @@ Not offered: merging external pull requests, applying the agent label, changing 
 ### `ci-audit`
 
 - Audits the project checkout with `benchkeeper projects audit`: workflow, test, code and own-tool findings, grouped by what one pull request fixes.
-- Checks the project has no tool for are listed as skipped.
+- A check the project has no tool for is listed as skipped.
 - Never lowers a threshold or floor, raises a budget, removes a check or adds a suppression to turn a result green.
 
 ### `dependency-triage`
@@ -205,7 +205,7 @@ Not offered: merging external pull requests, applying the agent label, changing 
   - An optional desktop notification (`notify`).
   - In act mode, optionally a commit of that file alone, pushed to the default branch when the checkout is on it and neither ahead nor behind (`commit`).
   - In act mode, optionally one comment with the digest on an issue of the checkout's repository (`issue`); its links show on the linked issues and pull requests as references.
-- Allow rules for the writes, exactly these, filled in, for a `file` without `YYYY-MM-DD`. A rule without `*` matches that one command ([permissions](https://code.claude.com/docs/en/permissions)):
+- The writes need exactly these allow rules, filled in, for a `file` without `YYYY-MM-DD`. A rule without `*` matches that one command ([permissions](https://code.claude.com/docs/en/permissions)):
 
   ```text
   Bash(git fetch origin <default branch>)

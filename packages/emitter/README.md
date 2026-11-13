@@ -37,9 +37,9 @@ CedarLoom's default workflow, `feature`, ships as an export folder in the core p
 Claude Code runs the package under two hooks from `@cedarloom/orchestration`, bundled into one file each (`pnpm --filter @cedarloom/orchestration run build`); `buildPackage` takes their contents.
 
 - **The guard**, before every shell call and agent of every session with the package on.
-  - What it binds: only a workflow's own agents, a workflow script's (`agent_type` `workflow-subagent` with an agent id) and a step of this package that runs as its own subagent (`<plugin>:<step>` with an agent id).
-  - What they meet: all of it. Pushes and pull requests reach only the working folder's `origin` and this machine's hub and memory repositories, and what the guard cannot read, such as a subshell, PowerShell or a remote agent, is refused. It refuses `claude` and `codex` by name and an Agent call of a type it does not bind, one without a type (general-purpose) included.
-  - What passes, as the guard stops an agent's mistakes, not a hostile agent (coordinator decision on the forked skill, 2026-11-09):
+  - What it binds: only a workflow's own agents: a workflow script's (`agent_type` `workflow-subagent` with an agent id) and a step of this package that runs as its own subagent (`<plugin>:<step>` with an agent id).
+  - What the bound agents meet: the whole guard. Pushes and pull requests reach only the working folder's `origin` and this machine's hub and memory repositories, and what the guard cannot read, such as a subshell, PowerShell or a remote agent, is refused. It refuses `claude` and `codex` by name and an Agent call of a type it does not bind, one without a type (general-purpose) included.
+  - Passes untouched (the guard stops an agent's mistakes, not a hostile agent; coordinator decision on the forked skill, 2026-11-09):
     - other launchers (`npx` or `pnpm dlx` of Claude Code, `node` running its `cli.js`, a `script` or `tmux` wrapper, `orca orchestration worker-start`, other agent CLIs);
     - a skill with `context: fork`, whose forked agent arrives as `general-purpose` with an agent id of its own and nothing that links it to the agent that ran the skill (seen with Claude Code 2.1.316);
     - tools outside the hook's matcher (Skill, SendMessage, MCP tools).

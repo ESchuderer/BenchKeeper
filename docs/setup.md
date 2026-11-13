@@ -28,9 +28,9 @@ Three levels, from the smallest: the BenchKeeper plugin ships no rule file and n
 <!-- generated:levels -->
 | Level | Contains | Writes | Command |
 |---|---|---|---|
-| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `ask`, `questions`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.26.0 apply --level lite` |
-| Standard | lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list | local files in each project you run `projects apply` in | `npx benchkeeper@6.26.0 apply --level standard && npx benchkeeper@6.26.0 projects apply` |
-| Full | standard plus the global rules, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.26.0 apply --level full` |
+| Lite | the BenchKeeper plugin: the `workflow`, `tier`, `ask`, `questions`, `setting-up-projects`, `maintaining-repos`, `orchestrating-projects`, `operating-benchkeeper` and `reviewing-rules` skills | nothing outside the plugin install, besides the app's run record for undo | `npx benchkeeper@6.27.0 apply --level lite` |
+| Standard | lite plus the local project block: `CLAUDE.local.md`, `AGENTS.override.md` and the git exclude list | local files in each project you run `projects apply` in | `npx benchkeeper@6.27.0 apply --level standard && npx benchkeeper@6.27.0 projects apply` |
+| Full | standard plus the global rules, Claude Code and Codex settings, packs and the app | global rule files, settings and packs | `npx benchkeeper@6.27.0 apply --level full` |
 <!-- /generated:levels -->
 
 Claude Code, Codex, Gemini CLI and GitHub Copilot CLI are each optional. The app configures the agents it finds on `PATH`. It does not install agent CLIs.
@@ -63,7 +63,7 @@ Operating systems: Linux and macOS are tested. Native Windows is supported for t
 
 Manual Windows checklist, for when a machine is available (nothing below runs in CI):
 
-- `npx benchkeeper@6.26.0 doctor` runs and lists the installed agents.
+- `npx benchkeeper@6.27.0 doctor` runs and lists the installed agents.
 - `plan` previews the rules, skills and settings of an installed agent and writes nothing; `apply` writes them under the user profile, `history` lists the run and `undo <run>` reverses it.
 - `projects plan` and `projects apply` in a repository on an NTFS drive, with Git for Windows.
 - The browser UI starts and "Choose folder" reports that no dialog is available, without an error.
@@ -71,7 +71,7 @@ Manual Windows checklist, for when a machine is available (nothing below runs in
 
 ## Setup details
 
-The examples write `benchkeeper` for `npx benchkeeper@6.26.0`. A clone of the default branch runs a change that is not on npm yet ([app/README.md](../app/README.md#setup)).
+The examples write `benchkeeper` for `npx benchkeeper@6.27.0`. A clone of the default branch runs a change that is not on npm yet ([app/README.md](../app/README.md#setup)).
 
 `plan` lists each change, file changes with their diff and commands as the command line. `apply` asks per change: `--yes` applies the default selection without questions, `--all` lists the removals and asks once whether to apply all changes, including removals (`--yes --all` without the question; neither removes a plugin BenchKeeper did not install), `--pack matt-pocock` adds Matt Pocock's skills. In the browser, the Dashboard shows the doctor findings, and Fix everything walks through the global plan, the projects you pick and the steps left by hand. Each skills CLI install in a plan runs first, on a click, in a scratch folder inside an OS sandbox, so the plan lists the files it would write without a write outside that folder (Windows has no sandbox: the preview is off unless you ask for it without one; see [docs/security.md](security.md)).
 
@@ -104,14 +104,14 @@ Undo: each run is recorded in `$HOME/.config/benchkeeper/ledger/`, and replaced 
 
 The app writes its setup files below your home directory and in the projects you choose, plus scratch folders in the system temp folder and the Dev Containers CLI in your npm prefix. It needs no root, sends no telemetry and never runs on its own. In a terminal it makes one request to the npm registry for a newer version and shows it (off with `BENCHKEEPER_NO_UPDATE_CHECK=1`, and when `CI` is set).
 
-Lite level, plugin only: `npx benchkeeper@6.26.0 apply --level lite`, or by hand `claude plugin marketplace add ESchuderer/BenchKeeper#stable --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper@stable --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).
+Lite level, plugin only: `npx benchkeeper@6.27.0 apply --level lite`, or by hand `claude plugin marketplace add ESchuderer/BenchKeeper#stable --sparse .claude-plugin plugins && claude plugin install benchkeeper@benchkeeper` (Codex: `codex plugin marketplace add ESchuderer/BenchKeeper@stable --sparse .claude-plugin --sparse plugins && codex plugin add benchkeeper@benchkeeper`).
 
 ## Per repo
 
 1. Project setup, in the repository root:
 
    ```sh
-   npx benchkeeper@6.26.0 projects apply --agents claude,codex
+   npx benchkeeper@6.27.0 projects apply --agents claude,codex
    ```
 
    - Options: `--agents` names the agents the repository uses; `--pack <id>` adds [library packs](../plugins/benchkeeper/library/README.md#packs); `--tier` sets the default tier; `--env` says where the agent runs.
@@ -128,8 +128,8 @@ Lite level, plugin only: `npx benchkeeper@6.26.0 apply --level lite`, or by hand
    - `skills disable <name>` moves a skill to `.benchkeeper/disabled/` and `skills enable <name>` moves it back.
    - Own packs: `benchkeeper packs save <id> --skill <name>...`, shared as one file with `packs export <id>` and `packs import <file>`; a pack file names library skills only.
 
-   Presets start new projects with the answers of an existing one: `npx benchkeeper@6.26.0 presets save <id> --project <dir>` saves the answers of a set-up project (agents, environment, packs, skills, tier) under a name, and `npx benchkeeper@6.26.0 projects create <new-dir> --preset <id>` creates the folder, shows the setup plan, applies it and registers the folder, then recommends skills to turn off and packs to add as a second plan with nothing selected. In the app, New from preset in the Projects view does the same. `presets list` shows the saved presets.
-2. The steps that need an agent, as a recorded session: `npx benchkeeper@6.26.0 sessions record -- claude '/benchkeeper:setting-up-projects'` (Codex: `npx benchkeeper@6.26.0 sessions record -- codex '$benchkeeper:setting-up-projects'`) for stack skills, the commands in `AGENTS.md` and the dev container. The repository must be a Git repository: the app snapshots it before and after, records the changed files (tracked and untracked, not ignored ones) and the Claude Code or Codex transcript when it finds one, and `benchkeeper undo <run>` restores those files. With the `matt-pocock` pack you can run `/mattpocock-skills:setup-matt-pocock-skills` yourself (issue tracker, triage labels, domain docs in `docs/agents/`). In the app, the setup form shows the recorded-session line for the project with a Copy button; the app does not run it, you paste it in your own terminal.
+   Presets start new projects with the answers of an existing one: `npx benchkeeper@6.27.0 presets save <id> --project <dir>` saves the answers of a set-up project (agents, environment, packs, skills, tier) under a name, and `npx benchkeeper@6.27.0 projects create <new-dir> --preset <id>` creates the folder, shows the setup plan, applies it and registers the folder, then recommends skills to turn off and packs to add as a second plan with nothing selected. In the app, New from preset in the Projects view does the same. `presets list` shows the saved presets.
+2. The steps that need an agent, as a recorded session: `npx benchkeeper@6.27.0 sessions record -- claude '/benchkeeper:setting-up-projects'` (Codex: `npx benchkeeper@6.27.0 sessions record -- codex '$benchkeeper:setting-up-projects'`) for stack skills, the commands in `AGENTS.md` and the dev container. The repository must be a Git repository: the app snapshots it before and after, records the changed files (tracked and untracked, not ignored ones) and the Claude Code or Codex transcript when it finds one, and `benchkeeper undo <run>` restores those files. With the `matt-pocock` pack you can run `/mattpocock-skills:setup-matt-pocock-skills` yourself (issue tracker, triage labels, domain docs in `docs/agents/`). In the app, the setup form shows the recorded-session line for the project with a Copy button; the app does not run it, you paste it in your own terminal.
 3. Commit the result.
 
 Where the agent runs (`--env`):
@@ -149,7 +149,7 @@ Setup scopes container mounts to the project: no host home, engine socket, privi
 
 ## Accounts
 
-Several logins per agent, for example work and personal, each in a folder of its own. Register one with `npx benchkeeper@6.26.0 accounts add` (asks for the name and the agent; `--container --mount <path>` for a named volume in the project's dev container, mounted at that folder of the container: one its user can write, below its home folder), sign in with `accounts login <name>`, start the agent with `run --account <name> -- claude` (`codex` the same), and see the state with `accounts status` (`accounts list` shows the sign-in of each account too).
+Several logins per agent, for example work and personal, each in a folder of its own. Register one with `npx benchkeeper@6.27.0 accounts add` (asks for the name and the agent; `--container --mount <path>` for a named volume in the project's dev container, mounted at that folder of the container: one its user can write, below its home folder), sign in with `accounts login <name>`, start the agent with `run --account <name> -- claude` (`codex` the same), and see the state with `accounts status` (`accounts list` shows the sign-in of each account too).
 
 - The sign-in opens in a private browser window (Firefox, Chrome, Chromium or Edge), where no session of another account exists, so the sign-in page asks which account to use. Without such a browser, on a machine without a display or with `--no-browser`, the link is printed (Codex: with its one-time code). When the browser shows a code, paste it at the prompt.
 - On the host an account is the folder `CLAUDE_CONFIG_DIR` (Claude Code) or `CODEX_HOME` (Codex) with its own login, settings and history. In a dev container it is a named volume mounted as that folder, so the sign-in survives a rebuild; the sign-in runs inside the container. A mount applies when the container is created: `accounts login` starts the container with the volumes of all container accounts and prints the command that recreates an existing one that lacks them.
@@ -191,7 +191,7 @@ Optional, off until you set it up. Agent sessions then commit, push and open pul
 
 GitHub's terms ([B.3, Account Requirements](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service#3-account-requirements)) allow it: "A machine account is an Account set up by an individual human who accepts the Terms on behalf of the Account, provides a valid email address, and is responsible for its actions. A machine account is used exclusively for performing automated tasks. Multiple users may direct the actions of a machine account, but the owner of the Account is ultimately responsible for the machine's actions. You may maintain no more than one free machine account in addition to your free Personal Account." The terms say nothing about AI agents: reading an agent's commits and pull requests as "automated tasks" is BenchKeeper's interpretation, not a permission GitHub states. You are responsible for what the account does. GitHub's Acceptable Use Policies forbid "automated excessive bulk activity and coordinated inauthentic activity".
 
-1. `npx benchkeeper@6.26.0 machine setup` in a checkout of a repository (or `--repos owner/name,..`, or `--owner <user or organization>` for all of its repositories, after a question). GitHub's sign-up opens: create the account yourself in a private window or another browser profile (account creation cannot be automated, the terms want a person), with the suggested login `<your login>-agent`, an address of your own, two-factor authentication, and a profile note such as "Machine account of @you. Its commits and pull requests are made by AI coding agents, supervised by @you." Press Enter, and enter the code gh prints on the device page that opens, in that window.
+1. `npx benchkeeper@6.27.0 machine setup` in a checkout of a repository (or `--repos owner/name,..`, or `--owner <user or organization>` for all of its repositories, after a question). GitHub's sign-up opens: create the account yourself in a private window or another browser profile (account creation cannot be automated, the terms want a person), with the suggested login `<your login>-agent`, an address of your own, two-factor authentication, and a profile note such as "Machine account of @you. Its commits and pull requests are made by AI coding agents, supervised by @you." Press Enter, and enter the code gh prints on the device page that opens, in that window.
 2. The rest is automatic: gh signs the account in into BenchKeeper's own gh folder (`machine/gh` in the config folder; your own gh login stays as it is), your gh invites it with write access (never admin) to the repositories, its gh accepts, and an ssh signing key is created and uploaded (`--no-signing` skips it), so its commits are signed. Whether GitHub shows them as Verified with the noreply address is not confirmed yet (see [security](security.md#machine-account-sessions)).
 3. Use it: `benchkeeper machine enable --global` for every Claude Code and Codex session (a plan with a diff, undo restores it), `benchkeeper projects apply --machine on` for one project, `--machine off` to keep one project yours while it is on globally; or for one session `benchkeeper run --as-machine -- claude`, or `benchkeeper machine shell`.
 4. Check it: `benchkeeper machine status`, `benchkeeper doctor`. Stop: `benchkeeper machine remove`, then delete the signing key or the account on the pages it prints.

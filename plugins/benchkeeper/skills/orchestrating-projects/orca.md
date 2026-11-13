@@ -1,6 +1,6 @@
 # Orca commands
 
-Orca is the runner this skill drives. `ORCA` stands for the executable the session resolved and used for `ORCA skills get orchestration`; substitute it, do not run `ORCA` literally. Load that guide first: it is the version-matched source for the commands and states below. This file only maps the skill's steps onto them. Prefer `--json`.
+Orca is the runner this skill drives. `ORCA` stands for the executable the session resolved and used for `ORCA skills get orchestration`; substitute it, do not run `ORCA` literally. Load that guide first: it is the version-matched source for the commands and states below. This file maps the skill's steps onto them; [Scheduled runs](#scheduled-runs) also holds the rules of a scheduled run for any runner. Prefer `--json`.
 
 Contents:
 
@@ -91,7 +91,7 @@ Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` o
 
 How the coordinator waits, by its agent:
 
-- **Any agent.** The coordinator never polls and never runs `check --wait` in the background: a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator.
+- **Any agent.** The coordinator never polls, but for the foreground wait of an agent with no background wake (below), and never runs `check --wait` in the background: a background wait keeps a task alive at every turn end, so the plugin never clears an idle coordinator.
 - **Claude Code.** End the turn after starting or messaging workers. At run start, create one recurring session cron (`CronCreate`), every `stallMinutes` / 2 on minutes off the hour (`3-59/10 * * * *` for a `stallMinutes` of 20), whose prompt names the run id and runs the wake-up checks, so a silent worker is seen without mail.
   - The cron fires only while the session is idle and survives `/clear`.
   - It expires after 7 days, and an expired cron cannot wake the session, so name its expiry date in the report of each wake and replace it before then.
@@ -167,7 +167,7 @@ The BenchKeeper plugin hands the handoff file back after a `/clear` or compactio
 The file's Resume section holds these steps, in this order, with the run id and the absolute path of this skill's folder filled in:
 
 1. `ORCA orchestration check --json`, always first: it returns the mail that arrived meanwhile. Orca types a wake only once per unread message, and a wake can merge into the resume prompt. Act on its output only after step 2.
-2. Read `<skill folder>/SKILL.md` in full, and the reference file the Next section's step needs. A `/clear` empties the context, the skill included, and a compaction returns only the start of it.
+2. Read `<skill folder>/SKILL.md` and `<skill folder>/orca.md` in full, then the reference file that the mail of step 1 or the Next section's step needs. A `/clear` empties the context, the skill included, and a compaction returns only the start of it.
 3. When `check` said no run is bound: `ORCA orchestration run-use --id <run id> --json`, then `check` again.
 4. `ORCA orchestration run-current --json`
 5. `ORCA orchestration task-list --ready --brief --json`

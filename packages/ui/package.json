@@ -40,10 +40,10 @@
     "@xyflow/react": "12.12.1",
     "elkjs": "0.12.1",
     "fast-check": "catalog:",
-    "lucide-react": "1.70.0",
+    "lucide-react": "1.71.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "vite": "8.3.6",
+    "vite": "8.3.7",
     "zod": "catalog:"
   }
 }

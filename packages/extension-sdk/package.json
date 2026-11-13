@@ -30,6 +30,6 @@
     "vscode-jsonrpc": "10.0.0"
   },
   "devDependencies": {
-    "rolldown": "1.3.0"
+    "rolldown": "1.3.1"
   }
 }

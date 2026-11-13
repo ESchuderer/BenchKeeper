@@ -39,7 +39,7 @@ Branch check before each `worker-start`, for the branch of each issue: `git -C <
 ORCA orchestration send --to dispatch:<dispatch id> --subject "Follow-up" --body "$(cat <follow-up file>)" --json
 ```
 
-By Orca's guide, a worker that already reported gets the follow-up as a task of its own and settles it with another `worker_done`; the receipt of `send` says which case it was. Such a follow-up counts like a start ([Host limit](#host-limit)).
+A worker on `fable` that already reported gets no follow-up: release it and start a fresh worker on the branch ([SKILL.md](SKILL.md#rules)). By Orca's guide, any other worker that already reported gets the follow-up as a task of its own and settles it with another `worker_done`; the receipt of `send` says which case it was. Such a follow-up counts like a start ([Host limit](#host-limit)).
 
 Acknowledgement: the worker's first heartbeat. A missing one sends no mail, so a Claude Code coordinator creates a one-shot session cron (`recurring: false`) two minutes after starting workers, whose prompt runs this check. With no heartbeat within 60 seconds, read `worker-read` once; when it shows no agent turn, `worker-stop` it and start one replacement. A retry takes the task in place of the spec and inherits no other option, so it repeats them, in the stopped worker's worktree (its path is in `worker-show`):
 

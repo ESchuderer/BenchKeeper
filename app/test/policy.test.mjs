@@ -27,6 +27,7 @@ const DEFAULTS = {
   models: {
     worker: { quick: { model: 'sonnet', effort: 'high' }, standard: { model: 'opus', effort: 'high' }, full: { model: 'opus', effort: 'high' }, research: { model: 'fable', effort: 'high' } },
     phases: {},
+    sensitive: { plan: { model: 'fable', effort: 'high' }, review: { model: 'fable', effort: 'high' }, independent: { model: 'fable', effort: 'high' }, security: { model: 'fable', effort: 'xhigh' } },
   },
 };
 const rules = (errors) => errors.map((e) => [e.rule, e.path]);
@@ -93,6 +94,16 @@ test('policy: models.worker replaces the model of every tier and keeps the tier\
   assert.deepEqual(effective({ models: { '//': 'note', worker: { model: 'fable' }, phases: { '//': 'note', review: { model: 'inherit', effort: 'max' } } } }, '6.26.0').policy.models, {
     worker: { quick: { model: 'fable', effort: 'high' }, standard: { model: 'fable', effort: 'high' }, full: { model: 'fable', effort: 'high' }, research: { model: 'fable', effort: 'high' } },
     phases: { review: { model: 'inherit', effort: 'max' } },
+    sensitive: DEFAULTS.models.sensitive,
+  });
+});
+
+test('policy: models.sensitive fills each entry and field it does not name', () => {
+  assert.deepEqual(effective({ schemaVersion: 2, models: { sensitive: { '//': 'no fable on this account', security: { model: 'opus' }, plan: { effort: 'medium' } } } }, '6.26.0').policy.models.sensitive, {
+    plan: { model: 'fable', effort: 'medium' },
+    review: { model: 'fable', effort: 'high' },
+    independent: { model: 'fable', effort: 'high' },
+    security: { model: 'opus', effort: 'xhigh' },
   });
 });
 
@@ -123,6 +134,9 @@ const REFUSED = [
   ...['', '--dangerously-skip-permissions', 'opus; id', 'opus fast', `o${'p'.repeat(128)}`].map((model) => [{ models: { worker: { model } } }, 'pattern', 'models.worker.model']),
   [{ later: true }, 'unknown-key', 'later'],
   [{ models: { phases: { plan: { modle: 'opus' } } } }, 'unknown-key', 'models.phases.plan.modle'],
+  [{ models: { sensitive: { implement: { model: 'opus' } } } }, 'unknown-key', 'models.sensitive.implement'],
+  [{ models: { sensitive: { independent: { model: 'claude-fable-5-2' } } } }, 'enum', 'models.sensitive.independent.model'],
+  [{ models: { sensitive: { security: { effort: 'ultra' } } } }, 'enum', 'models.sensitive.security.effort'],
   // A key is shown without the characters that could rewrite a terminal line or cut the message.
   [{ 'later\u001B[2K\nmerge': true }, 'unknown-key', 'later?[2K?merge'],
 ];

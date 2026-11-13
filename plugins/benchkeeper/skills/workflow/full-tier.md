@@ -13,14 +13,17 @@ The build drifts from the plan (another design or scope), or a result cannot be 
 
 ## Review rounds
 
-The reviewer is a fresh session that does not edit (a subagent; Claude Code: `benchkeeper:review` where available, with the model `opus` passed in the call unless the spec or the user names another, as [software.md](software.md#phases) says).
+The reviewer is a fresh session that does not edit (a subagent; Claude Code: `benchkeeper:review` where available, with the model and effort of the Review phase in [software.md](software.md#phases)). A review or re-review whose context was compacted is void: run it again on a smaller scope.
 
 Findings carry a class:
 - **Blocking**: wrong behavior, security, data loss, an acceptance row unmet.
 - **Important**: likely defect, or a missing test the [test rule](SKILL.md#verify) calls for.
 - **Minor**: style, naming. Minor findings are listed in the pull request, not fixed in a round.
 
-A review with a Blocking or Important finding is a round: one remediation pass fixes those findings, then a scoped re-review reads only the changed lines and the findings.
+A review with a Blocking or Important finding is a round:
+- Risky change, first round (trial): before the fix, a fresh verifier that did not write the code or the review (Claude Code: `benchkeeper:verify`) marks each Blocking and Important finding confirmed or disputed with evidence. A disputed finding goes with its evidence to the re-review unfixed.
+- One remediation pass checks each finding first, fixes the ones that hold, and answers one it disproves with evidence instead of a change.
+- A scoped re-review by a fresh subagent (Claude Code: `benchkeeper:recheck`) reads only the changed lines and the findings, and keeps or drops each disputed one. It runs on the review's model at `high`; after a review on `fable`, on `opus`, unless the fix changes security or safety logic.
 
 1. First round with findings: remediation, then re-review.
 2. Second round with findings: remediation, then re-review.

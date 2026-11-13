@@ -28,7 +28,7 @@ One `worker-start` per worker, a batch being one worker:
 - `--model` and `--effort` take the model and effort of the spec's `Agent:` line, the model in quotes as the reader printed it. Leave out what that line gives as the agent default, and `--effort` whenever `--model` is left out (it needs `--model`).
 - Orca hands the model id to the agent as it is. When `worker-start` refuses the model, start without `--model` and `--effort` and say so in the report (unverified: that Orca accepts a Claude Code alias such as `opus` there).
 - `--name` takes the first issue of a batch.
-- `--keep-open` keeps the worker's terminal after its report, so that a follow-up reaches the session that did the work while its pull request is in review or merge: a settled worker that is not kept open is released by Orca itself (`autoReleaseAt` in `worker-show`). `worker-release` ends the keep-open ([Clean up](#clean-up)). A worker started without the flag gets the same from `ORCA orchestration worker-keep-open --dispatch <dispatch id> --json`.
+- `--keep-open` keeps the worker's terminal after its report, so that a follow-up reaches the session that did the work while its pull request is in review or merge: a settled worker that is not kept open is released by Orca itself (`autoReleaseAt` in `worker-show`). `worker-release` ends the keep-open ([Clean up](#clean-up)). A worker started without the flag can be kept open later with `ORCA orchestration worker-keep-open --dispatch <dispatch id> --json`.
 - Keep the returned dispatch id and task id per worker with its project, issues and branch names (the spec's `<type>/<number>-<slug>`); every later command takes the dispatch id. `<branch>`, `<default branch>` and `<owner/repo>` in this file are the names of that spec.
 - `worker-show` gives the worktree path.
 - A non-zero exit means no worker: read `failedStage` and `residualResources` before trying again.
@@ -87,7 +87,7 @@ ORCA orchestration worker-read --dispatch <dispatch id> --limit 50 --json
 gh pr list -R <owner/repo> --head <branch> --state merged --json number,title,mergedAt
 ```
 
-Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent. A `status` message wakes it too, as observed: its terminal is told "You have 1 orchestration message" (unverified: Orca does not document it). So the next wake-up reads a `status` message at the latest.
+Orca wakes the coordinator when mail arrives, a `worker_done`, an `escalation` or a `question`, whatever its agent. A `status` message wakes it too: its terminal is told "You have 1 orchestration message" (unverified: observed, not in Orca's documentation). So the next wake-up reads a `status` message at the latest.
 
 How the coordinator waits, by its agent:
 
@@ -103,7 +103,7 @@ How the coordinator waits, by its agent:
 
 A wait's deadline ([SKILL.md](SKILL.md#waiting)) is checked at a wake: it is a point to report at and ends no run.
 
-At each wake-up, including an empty one, in this order:
+At each wake-up, including an empty one, run these in this order; a wake-up that skips them lets a failed or finished worker go unseen:
 
 1. `worker-list` for state, with `--full` because the concise rows carry no `projection`.
 2. `gh pr list` for merged PRs.
@@ -114,7 +114,6 @@ For a row whose `projection.attention.requiresAction` is true:
 
 - Run `ORCA` with its `projection.nextAction.argv` only when that command is `worker-read` or `worker-show`, or `worker-release` for a worker that the release rule lets go ([Clean up](#clean-up)): one whose pull request is in review or merge stays, whatever the row asks.
 - Any other next action goes in the report.
-- A wake-up that runs none of them lets a failed or finished worker go unseen.
 
 Acknowledge a delivery only after its outcome is handled (`check --ack <delivery_id>`).
 
@@ -141,7 +140,7 @@ ORCA orchestration worker-read --dispatch <dispatch id> --source terminal --limi
 ORCA terminal send --terminal <terminal> --text $'\x1b'
 ```
 
-That Escape declines the call is observed for Claude Code (unverified: not documented).
+Escape declines the call in Claude Code (unverified: observed, not documented).
 
 - `$'\x1b'` is the Escape byte in Bash and Zsh only (`ORCA terminal send --help` names the two). A shell without that quoting, dash for example, hands Orca the characters `$\x1b`, and Orca would type them into the dialog.
 - So decline only when the shell that runs your commands is one of the two: `echo "$BASH_VERSION$ZSH_VERSION"`, run the way you run the `send`, prints a version number there, and an empty line or its own text in another shell. From any other shell send nothing: the worker stays blocked for the owner.
@@ -173,7 +172,7 @@ The file's Resume section holds these steps, in this order, with the run id and 
 4. `ORCA orchestration run-current --json`
 5. `ORCA orchestration task-list --ready --brief --json`
 6. `ORCA orchestration inbox --terminal run:<run id> --limit 50 --json`: the mail already handled.
-7. Claude Code only: `CronList`. When it no longer shows the run's stall-check cron (a restarted process loses it), or that cron expires within 2 days, replace it as [Watch](#watch) says.
+7. Claude Code only: `CronList`. When it no longer shows the run's stall-check cron (a restarted process loses it), or that cron expires within 2 days, replace it as the Watch section of `<skill folder>/orca.md` says.
 
 ## Clean up
 
@@ -184,7 +183,7 @@ ORCA worktree rm --worktree path:<worktree path> --run-hooks --json
 
 `--run-hooks` runs the project's `orca.yaml` archive script before the removal; the one BenchKeeper's project setup writes removes the worktree's dev containers and exits 0 even when that fails, so the removal goes ahead. After the removal, list what is left (`podman ps -aq --filter label=devcontainer.local_folder=<worktree path>`, or `docker`) and remove those containers with `rm -f`.
 
-A worker whose terminal a person typed in gets no cleanup ([SKILL.md](SKILL.md#clean-up) has the rule). With Orca, its `worker-read` output shows input no `send` carried. Keep it with `ORCA orchestration worker-retain --dispatch <dispatch id> --json`: no stop, no release, no worktree removal. The coordinator's own Escape ([A permission dialog](#a-permission-dialog)) does not make a terminal a person's. Orca's `send` is the runner's message command, the only way into a worker terminal ([SKILL.md](SKILL.md#rules) has the rule).
+A worker whose terminal a person typed in gets no cleanup ([SKILL.md](SKILL.md#clean-up) has the rule). With Orca, such a worker's `worker-read` output shows input that no `send` carried. Keep it with `ORCA orchestration worker-retain --dispatch <dispatch id> --json`: no stop, no release, no worktree removal. The coordinator's own Escape ([A permission dialog](#a-permission-dialog)) does not make a terminal a person's. Orca's `send` is the runner's message command, the only way into a worker terminal ([SKILL.md](SKILL.md#rules) has the rule).
 
 Release:
 

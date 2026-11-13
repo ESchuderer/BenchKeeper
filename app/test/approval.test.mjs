@@ -61,6 +61,7 @@ const CASES = [
   ['a closing tag as a cell', swap(COST, '| Cost | </b> |'), ['Cost']],
   ['a deferral in brackets', swap(COST, '| Cost | (TBD) |'), ['Cost']],
   ['a deferral as a link text', swap(COST, '| Cost | [TBD](x) |'), ['Cost']],
+  ['a deferral as a link text whose target holds a bracket', swap(COST, '| Cost | [TBD](x]y) |'), ['Cost']],
   ['a deferral after a zero-width space', swap(COST, '| Cost | ​TBD |'), ['Cost']],
   ['the Approval table inside a multi-line HTML comment', swap(APPROVAL, `<!--\n${APPROVAL}\n-->`),
     ['Recommended', 'Work if approved', 'Runs on', 'Review', 'Merges', 'Owner steps', 'Cost', 'Undo', 'Answer']],
@@ -78,6 +79,7 @@ const CASES = [
   ['a placeholder in the options table', swap('| More code to review |', '| <trade-off> |'), ['Options']],
   ['an option without What happens', swap(HOLD, '| (b) Hold | | The export stays slow |'), ['Options']],
   ['two options with one label', swap('| (b) Hold |', '| (a) Hold |'), ['Options']],
+  ['two options with one label in two cases', swap('| (b) Hold |', '| (A) Hold |'), ['Options']],
   ['an option without a label', swap('| (b) Hold |', '| Hold |'), ['Options']],
   ['front matter left in', `---\nlabels: question, ready-for-human\n---\n\n${FILLED}`, ['Front matter']],
   // Every part of the template holds a placeholder: the Answer row depends on where the issue lands.
@@ -100,14 +102,14 @@ test('approval: the command line exits 0 for a filled approval and 1 with the mi
   assert.equal(lacking.status, 1);
   assert.match(lacking.stderr, /\bCost\b/);
   // The answer of a filed approval: printed with exit 0, a format character of its text escaped; exit 1 while there is none.
-  const answered = run('answered.json', JSON.stringify({ comments: [said('Owner answer (2026-11-11): b. Hold\u202E it.', '2026-11-11T10:00:00Z')] }), 'answer');
+  const answered = run('answered.json', JSON.stringify({ body: FILLED, comments: [said('Owner answer (2026-11-11): b. Hold\u202E it.', '2026-11-11T10:00:00Z')] }), 'answer');
   assert.equal(answered.status, 0, answered.stderr);
   assert.ok(!answered.stdout.includes('\u202E'));
   assert.deepEqual(JSON.parse(answered.stdout), { option: 'b', text: 'Hold\u202E it.', at: '2026-11-11T10:00:00Z' });
-  const open = run('open.json', JSON.stringify({ comments: [] }), 'answer');
+  const open = run('open.json', JSON.stringify({ body: FILLED, comments: [] }), 'answer');
   assert.deepEqual([open.status, open.stdout], [1, '']);
   // No answer yet is exit 1; a file that cannot be read as an issue is exit 2, so that an error never reads as "keep waiting".
-  const errors = [run('cut.json', '{ "comments": [', 'answer'), run('other.json', '{ "labels": [] }', 'answer'), spawnSync(process.execPath, [script, 'answer', join(dir, 'absent.json')], { encoding: 'utf8' }), spawnSync(process.execPath, [script, 'answer'], { cwd: dir, encoding: 'utf8' })];
+  const errors = [run('cut.json', '{ "comments": [', 'answer'), run('no-body.json', '{ "comments": [] }', 'answer'), run('other.json', '{ "labels": [] }', 'answer'), spawnSync(process.execPath, [script, 'answer', join(dir, 'absent.json')], { encoding: 'utf8' }), spawnSync(process.execPath, [script, 'answer'], { cwd: dir, encoding: 'utf8' })];
   for (const r of errors) {
     assert.deepEqual([r.status, r.stdout], [2, '']);
     assert.equal(r.stderr.trim().split('\n').length, 1, r.stderr);
@@ -118,6 +120,7 @@ const HEAD = `Head: ${'a'.repeat(40)}\n\nThe worker fixed both findings.`;
 const FIRST = said('Owner answer (2026-11-10): b. Not before the release.', '2026-11-10T09:00:00Z');
 const SECOND = said('Owner answer (2026-11-11): a. Go ahead, and keep the old flag.', '2026-11-11T10:00:00Z');
 const GO = { option: 'a', text: 'Go ahead, and keep the old flag.', at: '2026-11-11T10:00:00Z' };
+const WORDS = FILLED.replace('| (a) Stream the export (Recommended) |', '| (ok) Stream the export (Recommended) |').replace('| (b) Hold |', '| (hold) Hold |');
 const ANSWERS = [
   ['an owner\'s answer is read', [said('The plan looks fine to me.', '2026-11-11T09:00:00Z', 'COLLABORATOR'), SECOND], GO],
   ['a member\'s answer is read', [{ ...SECOND, authorAssociation: 'MEMBER' }], GO],
@@ -132,9 +135,22 @@ const ANSWERS = [
   ['the answer text later in a comment is none', [said('As I wrote: Owner answer (2026-11-11): a. Go ahead.', '2026-11-11T10:00:00Z')], null],
   ['a later comment that quotes an answer does not hide the answer', [SECOND, said('Thanks. You wrote: Owner answer (2026-11-10): b.', '2026-11-11T12:00:00Z')], GO],
   ['comments out of order are read by their time', [SECOND, FIRST], GO],
+  ['an option\'s name alone is none', [said('Stream the export', '2026-11-11T10:00:00Z')], null],
+  ['a letter alone is read, in any case', [said('B', '2026-11-11T10:00:00Z')], { option: 'b', text: '', at: '2026-11-11T10:00:00Z' }],
+  ['a label alone is read', [FIRST, said('(a)', '2026-11-11T10:00:00Z')], { option: 'a', text: '', at: '2026-11-11T10:00:00Z' }],
+  ['a label or letter with a full stop is read', [said(' (B).\n', '2026-11-11T10:00:00Z')], { option: 'b', text: '', at: '2026-11-11T10:00:00Z' }],
+  ['a letter that two labels share in two cases is none', [said('a', '2026-11-11T10:00:00Z')], null, FILLED.replace('| (b) Hold |', '| (A) Hold |')],
+  ['a letter whose label is also the Kelvin sign is none', [said('k', '2026-11-11T10:00:00Z')], null, FILLED.replace('| (a) Stream the export (Recommended) |', '| (k) Stream the export (Recommended) |').replace('| (b) Hold |', '| (K) Hold |')],
+  ['a label of more than one character is read', [said('(OK)', '2026-11-11T10:00:00Z')], { option: 'ok', text: '', at: '2026-11-11T10:00:00Z' }, WORDS],
+  ['the bare text of a label of more than one character is none', [said('ok', '2026-11-11T10:00:00Z')], null, WORDS],
+  ['a label of an option table inside an HTML comment is none', [said('c', '2026-11-11T10:00:00Z')], null,
+    FILLED.replace('| Option |', '<!--\n| Option | What happens |\n|---|---|\n| (c) Wait | Nothing |\n-->\n\n| Option |')],
+  ['a collaborator\'s label is none', [said('a', '2026-11-11T10:00:00Z', 'COLLABORATOR')], null],
+  ['a label with a head comment after it is none', [said('a', '2026-11-11T10:00:00Z'), said(HEAD, '2026-11-11T11:00:00Z')], null],
+  ['free text that is no label is none', [said('a, go ahead', '2026-11-11T10:00:00Z'), said('(a', '2026-11-11T10:30:00Z'), said('Looks good', '2026-11-11T11:00:00Z')], null],
   ['an option without a full stop is cut at 200 characters', [said(`Owner answer (2026-11-11): ${'x'.repeat(300)}`, '2026-11-11T10:00:00Z')], { option: 'x'.repeat(200), text: '', at: '2026-11-11T10:00:00Z' }],
 ];
-for (const [name, comments, expected] of ANSWERS) test(`approval: ${name}`, () => assert.deepEqual(answer({ labels: [{ name: 'question' }], author: { login: 'owner' }, comments }), expected));
+for (const [name, comments, expected, body = FILLED] of ANSWERS) test(`approval: ${name}`, () => assert.deepEqual(answer({ labels: [{ name: 'question' }], author: { login: 'owner' }, body, comments }), expected));
 
 test('approval: the command line refuses a file outside the run folder with exit 2', () => {
   const script = fileURLToPath(new URL(`${SKILL}approval.mjs`, import.meta.url));

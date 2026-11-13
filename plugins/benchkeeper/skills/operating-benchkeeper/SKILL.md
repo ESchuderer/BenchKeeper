@@ -1,12 +1,31 @@
 ---
 name: operating-benchkeeper
-description: "How an agent manages its own BenchKeeper setup through the benchkeeper CLI alone, without the web UI: plan, review the diff, apply with --yes, read the JSON, undo a run, run doctor and verify, update one project. Use when asked to install, update, check, change or undo the BenchKeeper setup of this machine or a repository, or to read its state (projects, skills, packs, history, settings, rules) from the command line."
+description: "Manages the BenchKeeper setup of this machine or a repository through the benchkeeper CLI alone, without the web UI: plan, review the diff, apply with --yes, read the JSON, undo a run, run doctor and verify, update one project. Use when asked to install, update, check, change or undo the BenchKeeper setup, or to read its state (projects, skills, packs, history, settings, rules) from the command line."
 writes: "What the `benchkeeper` commands you approve write: rules, skills, settings and project setup files, each run recorded for `benchkeeper undo`."
 ---
 
 # Operating BenchKeeper through the CLI
 
-`npx benchkeeper@6 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option. Every change the setup commands make is a plan, recorded as a run that `undo` reverses: a change that writes a file shows a diff, a removal is marked `destructive: true` and shows none. These are not undone by it: `packs remove` and `presets remove` (the file goes to `backup/packs/` or `backup/presets/` in the config folder), `packs save`, `packs import` and `profile import` over an own pack of the same id (the pack is replaced, the old file goes to `backup/packs/`), the commit on a local branch that `projects update`, `projects remove --setup` and `projects unshare` make for a shared setup (delete the branch), a token removed by `accounts remove`, the URL and token `webhook remove` deletes, the sign-out, signing key and config `machine remove` deletes (the account on GitHub stays until the user deletes it), `knowledge clear` (the knowledge base is rebuilt by the next pass), `sessions cache clear` (summaries of deleted transcripts are gone for good), `automations remove` (undo restores the record only; the automation and its run history on the runner are gone, `install` creates it again) and the containers `containers reconcile` removes. Before you run one of these commands, or ask approval for a plan that contains one, tell the user that undo does not reverse it. Every view of the web UI has a command except the UI's own controls; the Routes and commands table in the app README maps each route to its command.
+`npx benchkeeper@6 <command>` (below `benchkeeper <command>`). `benchkeeper help` lists every option.
+
+Every change the setup commands make is a plan, recorded as a run that `undo` reverses: a change that writes a file shows a diff, a removal is marked `destructive: true` and shows none.
+
+These are not undone by it. Before you run one, or ask approval for a plan that contains one, tell the user that undo does not reverse it:
+
+| Command | What remains after undo |
+|---|---|
+| `packs remove`, `presets remove` | the file is in `backup/packs/` or `backup/presets/` in the config folder |
+| `packs save`, `packs import`, `profile import` over an own pack of the same id | the pack is replaced; the old file is in `backup/packs/` |
+| `projects update`, `projects remove --setup`, `projects unshare` on a shared setup | the commit on a local branch: delete the branch |
+| `accounts remove` | the token is gone |
+| `webhook remove` | the URL and token are gone |
+| `machine remove` | the sign-out, signing key and config are gone; the account on GitHub stays until the user deletes it |
+| `knowledge clear` | the knowledge base is rebuilt by the next pass |
+| `sessions cache clear` | summaries of deleted transcripts are gone for good |
+| `automations remove` | undo restores the record only; the automation and its run history on the runner are gone, `install` creates it again |
+| `containers reconcile` | the containers it removed |
+
+Every view of the web UI has a command except the UI's own controls; the Routes and commands table in the app README maps each route to its command.
 
 ## Safe order
 
@@ -21,7 +40,7 @@ Never run `apply`, `undo`, `restore` or `projects update` against a home folder 
 
 ## Commands
 
-`--json` prints one document on stdout (`schemaVersion`, `command`, the keys; a failure has `error`), logs go to stderr. Exit 0 clean, 1 a finding of level `error`, a failed check or a change that cannot be made, 2 a usage or read failure. [app/README.md](https://github.com/ESchuderer/BenchKeeper/blob/main/app/README.md#machine-readable-output) has the keys of each document.
+`--json` prints one document on stdout (`schemaVersion`, `command`, the keys; a failure has `error`), logs go to stderr. Exit 0 clean, 1 a finding of level `error`, a failed check or a change that cannot be made, 2 a usage or read failure. [app/README.md](https://github.com/ESchuderer/BenchKeeper/blob/main/app/README.md#machine-readable-output) has the keys of each document: read only that section (it ends at `## Web UI`).
 
 | Need | Command |
 |---|---|

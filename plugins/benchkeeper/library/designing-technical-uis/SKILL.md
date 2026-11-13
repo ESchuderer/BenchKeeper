@@ -31,8 +31,8 @@ Facts (limits, prices, durations, counts, units) come from the code or the user.
 
 ## Inputs and selection
 
-- Start empty and let the reader choose. No preselected items in comparisons, overlays or charts. The empty state is the picker ("Add powder"), not a sample selection.
-- Comparison works the same way everywhere in the product: pick items, then "Compare". Follow the pattern the product already uses (for example its bullet comparison) instead of a new one.
+- Start empty and let the reader choose. No preselected items in comparisons, overlays or charts. The empty state is the picker ("Add item"), not a sample selection.
+- Comparison works the same way everywhere in the product: pick items, then "Compare". Follow the pattern the product already uses (for example its side-by-side comparison) instead of a new one.
 - Defaults only where a value has one correct starting point (a standard, the user's last saved setting). A default is a real value, not a placeholder.
 - Prefer undo over a confirmation. A confirmation names the action and count ("Delete 3 loads?") and its buttons repeat it. Buttons are a verb plus the outcome ("Save load").
 
@@ -49,7 +49,7 @@ Facts (limits, prices, durations, counts, units) come from the code or the user.
 | Toggle "Dark mode", helper text: "Turn this on to use a dark theme." | Toggle "Dark mode" |
 | Field "Timeout", helper text: "Seconds before a request is cancelled." | Field "Timeout (s)" |
 | Column "Reward" with tooltip "The reward of the run" | Column "Reward", tooltip with the definition from the code, or none |
-| Burn rate overlay opens with three powders preselected | Empty overlay with "Add powder", then "Compare", as in the bullet comparison |
+| Overlay opens with three items preselected | Empty overlay with "Add item", then "Compare", as in a side-by-side comparison |
 | Unit menu with "gr" and "g" | One-click toggle "gr / g" in the field suffix |
 
 ## Reviews

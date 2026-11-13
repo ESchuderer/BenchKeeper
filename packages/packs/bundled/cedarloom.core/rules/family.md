@@ -1,7 +1,7 @@
 ## Before you push
 
 - Run the checks of the changed files before every push; never commit or push with `--no-verify`.
-- Wait for CI with `gh run watch <run-id> --compact --exit-status` or `gh pr checks --watch`, never by polling.
+- Wait for CI with `gh run watch <run-id> --interval 30 --compact --exit-status` or `gh pr checks --watch --interval 30`, never by polling.
 - `main` stays releasable: a red `main` is fixed before anything else merges.
 
 ## Code

@@ -1,5 +1,20 @@
 # Changelog
 
+## [6.28.0](https://github.com/ESchuderer/BenchKeeper/compare/app-v6.27.0...app-v6.28.0) (2026-11-13)
+
+
+### Features
+
+* **app:** projects apply writes the coordinator policy and worker rules ([#1331](https://github.com/ESchuderer/BenchKeeper/issues/1331)) ([7011e9f](https://github.com/ESchuderer/BenchKeeper/commit/7011e9f92711b4b3647ca96e4feb8de4dee2ebed))
+* **plugin:** an owner's comment that is an option's label or letter alone answers an approval ([#1333](https://github.com/ESchuderer/BenchKeeper/issues/1333)) ([2eb17fb](https://github.com/ESchuderer/BenchKeeper/commit/2eb17fb6e1f953baef937739d5d1889ba2de03e4))
+* **plugin:** facts generator for the coordinator run folder ([#1334](https://github.com/ESchuderer/BenchKeeper/issues/1334)) ([70a394d](https://github.com/ESchuderer/BenchKeeper/commit/70a394d9e295abefad5c584af3d5ebd018f734f4))
+* **plugin:** sensitive-change model defaults, gather, recheck and verify agents, and the review loop rules ([#1330](https://github.com/ESchuderer/BenchKeeper/issues/1330)) ([cb8ff0d](https://github.com/ESchuderer/BenchKeeper/commit/cb8ff0deb4ec62cea50e6d7c6fc02986635997e8))
+
+
+### Bug Fixes
+
+* **plugin:** facts generator follow-ups from the review ([#1335](https://github.com/ESchuderer/BenchKeeper/issues/1335)) ([d11e1d6](https://github.com/ESchuderer/BenchKeeper/commit/d11e1d627ed0cd27b26ac9805dd3d229ea192db1))
+
 ## [6.27.0](https://github.com/ESchuderer/BenchKeeper/compare/app-v6.26.0...app-v6.27.0) (2026-11-12)
 
 

@@ -22,7 +22,7 @@
     "statusStyle": {
       "type": "string",
       "title": "What BenchKeeper's status line prints (accounts with usage tracking)",
-      "description": "merged (default): the usage windows and Ponytail's level. plugin: Ponytail's level only. benchkeeper: the usage windows only. none: nothing. Any other value counts as merged. The usage windows are recorded in every style. Applies only where benchkeeper accounts track installed the status line.",
+      "description": "merged (default): the usage windows and Ponytail's level. plugin: Ponytail's level only. cedarloom-app: the usage windows only. none: nothing. Any other value counts as merged. The usage windows are recorded in every style. Applies only where benchkeeper accounts track installed the status line.",
       "default": "merged"
     },
     "rotateAtTokens": {

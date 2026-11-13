@@ -19,7 +19,7 @@ function precheck(values, knowledge, merged = 0) {
   for (const [name, entries] of Object.entries(knowledge ?? {})) writeFileSync(join(dir, '.benchkeeper/knowledge', name), JSON.stringify({ entries }));
   writeFileSync(join(bin, 'npx'), `#!/bin/sh\necho "$@" >> '${bin}/log'\nshift 2\nexec '${process.execPath}' '${cli}' "$@" '${dir}'\n`, { mode: 0o755 });
   writeFileSync(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> '${bin}/log'\necho ${merged}\n`, { mode: 0o755 });
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, BENCHKEEPER_HOME: join(bin, 'home') };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, CEDARLOOM_APP_HOME: join(bin, 'home') };
   const r = spawnSync('sh', ['-c', fill(template(), values).precheck], { cwd: genericDir, env });
   let log = '';
   try { log = readFileSync(join(bin, 'log'), 'utf8'); } catch {}

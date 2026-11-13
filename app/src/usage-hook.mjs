@@ -35,7 +35,7 @@ const shown = (r) => ['fiveHour', 'sevenDay'].filter((k) => r[k]).map((k) => `${
 const read = (p) => { try { return readFileSync(p, 'utf8').replace(/^\uFEFF/, ''); } catch { return null; } };
 const parsed = (t) => { try { return JSON.parse(t); } catch { return null; } };
 // The plugin option is a plain string (an option list stops older Claude Code versions from loading the plugin): any other value is merged.
-const STYLES = ['merged', 'plugin', 'benchkeeper', 'none'];
+const STYLES = ['merged', 'plugin', 'cedarloom-app', 'none'];
 const styleOf = (account) => {
   const v = parsed(read(join(account, 'settings.json')))?.pluginConfigs?.['benchkeeper@benchkeeper']?.options?.statusStyle;
   return STYLES.includes(v) ? v : 'merged';
@@ -65,9 +65,9 @@ function main(mode, text, dir, now = Date.now(), env = process.env) {
       writeFileSync(tmp, `${JSON.stringify(r)}\n`, { mode: 0o600 });
       renameSync(tmp, join(dir, 'usage.json'));
     }
-    // The script sits in <account>/benchkeeper/, so the account folder is its parent.
+    // The script sits in <account>/cedarloom-app/, so the account folder is its parent.
     const account = dirname(dir), style = styleOf(account);
-    const usage = r && ['merged', 'benchkeeper'].includes(style) ? shown(r) : '';
+    const usage = r && ['merged', 'cedarloom-app'].includes(style) ? shown(r) : '';
     const segment = ['merged', 'plugin'].includes(style) ? ponytailSegment(account, env) : '';
     return [usage, segment].filter(Boolean).join('  ');
   }

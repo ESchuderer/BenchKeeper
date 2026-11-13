@@ -95,7 +95,7 @@ test('childEnv: tools keep their way to the network and their folders, credentia
   assert.deepEqual(Object.keys(childEnv({ DO_NOT_TRACK: '1' }, env)).sort(), ['CLAUDE_CONFIG_DIR', 'DO_NOT_TRACK', 'GIT_TERMINAL_PROMPT', 'HOME', 'HTTPS_PROXY', 'LC_ALL', 'NODE_EXTRA_CA_CERTS', 'PATH', 'npm_config_registry']);
   // The owner names what a tool may still see; the change's own env always passes.
   const { GIT_DIR, ...inRepo } = env;
-  const passed = childEnv({ X: '1' }, { ...inRepo, BENCHKEEPER_PASS_ENV: 'gh_token, ssh_auth_sock, git_askpass, git_config_count, git_config_key_0, git_config_value_0' });
+  const passed = childEnv({ X: '1' }, { ...inRepo, CEDARLOOM_APP_PASS_ENV: 'gh_token, ssh_auth_sock, git_askpass, git_config_count, git_config_key_0, git_config_value_0' });
   assert.equal(passed.GH_TOKEN, 'g');
   assert.deepEqual([passed.GIT_ASKPASS, passed.GIT_CONFIG_COUNT, passed.GIT_CONFIG_KEY_0, passed.GIT_CONFIG_VALUE_0, passed.GIT_SSH_COMMAND], ['/ask', '1', 'http.extraheader', 'Authorization: Basic x', undefined]);
   assert.equal(passed.SSH_AUTH_SOCK, '/s');
@@ -108,7 +108,7 @@ test('childEnv: a passphrase stays out like a password, agentEnv keeps it for it
   assert.equal(childEnv({}, env).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, undefined);
   assert.equal(agentEnv('codex', env).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, undefined);
   assert.equal(agentEnv('claude', env).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, 'hunter2');
-  assert.equal(childEnv({}, { ...env, BENCHKEEPER_PASS_ENV: 'CLAUDE_CODE_CLIENT_KEY_PASSPHRASE' }).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, 'hunter2');
+  assert.equal(childEnv({}, { ...env, CEDARLOOM_APP_PASS_ENV: 'CLAUDE_CODE_CLIENT_KEY_PASSPHRASE' }).CLAUDE_CODE_CLIENT_KEY_PASSPHRASE, 'hunter2');
 });
 
 test('cooled: published for 7 days, still installable, a plain release, a string time', () => {
@@ -128,16 +128,16 @@ test('the skills CLI minimum and the srt pin have their publish date recorded, a
 test('the skills CLI is the newest release at least 7 days old, never below the minimum, and an exact override wins', () => {
   const old = new Date(Date.now() - 30 * 864e5).toISOString(), fresh = new Date(Date.now() - 864e5).toISOString();
   const registry = (time) => context({ home: tmp(), run: () => ({ code: 0, stdout: JSON.stringify({ time, versions: Object.keys(time) }), stderr: '' }) });
-  const forced = process.env.BENCHKEEPER_SKILLS_CLI;
-  delete process.env.BENCHKEEPER_SKILLS_CLI;
+  const forced = process.env.CEDARLOOM_APP_SKILLS_CLI;
+  delete process.env.CEDARLOOM_APP_SKILLS_CLI;
   try {
     assert.equal(skillsCli(registry({ '1.7.2': old, '1.8.0': old, '1.9.0': fresh })), '1.8.0', 'a release under 7 days old is held back');
     assert.equal(skillsSpec(registry({ '1.8.0': old })), 'skills@npm:skills@1.8.0');
     assert.equal(skillsCli(registry({ '1.6.0': old })), SKILLS_CLI, 'an older answer never undercuts the minimum');
     assert.equal(skillsCli(context({ home: tmp(), run: () => ({ code: 1, stdout: '', stderr: 'offline' }) })), SKILLS_CLI, 'no registry: the minimum');
-    process.env.BENCHKEEPER_SKILLS_CLI = '1.7.9';
+    process.env.CEDARLOOM_APP_SKILLS_CLI = '1.7.9';
     assert.equal(skillsCli(registry({ '1.8.0': old })), '1.7.9');
-  } finally { process.env.BENCHKEEPER_SKILLS_CLI = forced; }
+  } finally { process.env.CEDARLOOM_APP_SKILLS_CLI = forced; }
 });
 
 test('the host tool and the skills CLI resolve their dependencies at releases at least 7 days old, the check and the install alike', () => {
@@ -279,7 +279,7 @@ test('a backup outside HOME holds no drive colon; Windows compares HOME case-ins
 test('eval outputs and results are private, also in folders an earlier version made', posix, async () => {
   const home = tmp();
   const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : { code: 0, stdout: '{"type":"system"}\n', stderr: '' }) });
-  const evals = join(home, '.config/benchkeeper/evals');
+  const evals = join(home, '.config/cedarloom-app/evals');
   mkdirSync(join(evals, 'outputs'), { recursive: true });
   chmodSync(evals, 0o755);
   chmodSync(join(evals, 'outputs'), 0o755);
@@ -333,7 +333,7 @@ test('an eval session that exits non-zero is no missed trigger and stores no res
   const home = tmp();
   const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: 1, stdout: '', stderr: `error: unknown option, ${TOKEN}` } : { code: 0, stdout: '', stderr: '' }) });
   await assert.rejects(runEval(ctx, [{ target: 'skill:x', agent: 'claude', hash: 'h', cases: [{ id: 'a', query: 'q', should: true }] }]), (e) => /claude exited with 1 on case a of skill:x: error: unknown option, \*\*\*$/.test(e.message));
-  assert.equal(existsSync(join(home, '.config/benchkeeper/evals/results.jsonl')), false);
+  assert.equal(existsSync(join(home, '.config/cedarloom-app/evals/results.jsonl')), false);
 });
 
 test('a failed eval session shows the sentence of its result event, also when it exits 0', async () => {
@@ -353,7 +353,7 @@ test('a rule target whose second case fails keeps no output of its first case', 
   const ctx = context({ home, run: (argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : argv.includes('q') ? { code: n++ ? 1 : 0, stdout: '{"type":"system"}\n', stderr: 'x' } : { code: 0, stdout: '', stderr: '' }) });
   const cases = ['a', 'b'].map((id) => ({ id, query: 'q', should: true, expected: 'e' }));
   await assert.rejects(runEval(ctx, [{ target: 'rule:global', agent: 'claude', hash: 'h', cases }]), /exited with 1 on case b/);
-  const outputs = join(home, '.config/benchkeeper/evals/outputs');
+  const outputs = join(home, '.config/cedarloom-app/evals/outputs');
   assert.deepEqual(existsSync(outputs) ? readdirSync(outputs) : [], []);
 });
 

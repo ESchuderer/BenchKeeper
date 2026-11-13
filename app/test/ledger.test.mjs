@@ -76,11 +76,11 @@ test('prune: only run folders older than the period go; the default is 90 days; 
   for (const n of [edge, past, fresh, '20260101T000000Z-zzzzzz', 'x20260101T000000Z-abcdef']) mkdirSync(join(l.backups, n), { recursive: true });
   assert.deepEqual(l.prune(Number.NaN, now), [], 'a period that is not a number keeps everything');
   assert.deepEqual(l.prune(-1, now), []);
-  const env = process.env.BENCHKEEPER_BACKUP_DAYS;
+  const env = process.env.CEDARLOOM_APP_BACKUP_DAYS;
   try {
-    process.env.BENCHKEEPER_BACKUP_DAYS = '1';
+    process.env.CEDARLOOM_APP_BACKUP_DAYS = '1';
     assert.deepEqual(l.prune(undefined, now).sort(), [edge, past].sort(), 'the variable sets the period');
-  } finally { if (env === undefined) delete process.env.BENCHKEEPER_BACKUP_DAYS; else process.env.BENCHKEEPER_BACKUP_DAYS = env; }
+  } finally { if (env === undefined) delete process.env.CEDARLOOM_APP_BACKUP_DAYS; else process.env.CEDARLOOM_APP_BACKUP_DAYS = env; }
   for (const n of [edge, past]) mkdirSync(join(l.backups, n));
   assert.deepEqual(l.prune(undefined, now), [past], 'exactly 90 days old stays');
   assert.ok(existsSync(join(l.backups, '20260101T000000Z-zzzzzz')) && existsSync(join(l.backups, 'x20260101T000000Z-abcdef')));

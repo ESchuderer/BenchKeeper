@@ -15,7 +15,7 @@ const MAX_TEXT = 4000;
 // The prompt is one command-line argument (Windows allows about 32,000 characters in all): the most severe findings, the rest counted.
 const MAX_FINDINGS = 25;
 const consentFile = (ctx) => join(ctx.config, 'insights-narrative.json');
-const cacheFile = (ctx) => join(ctx.home, '.cache/benchkeeper', 'insights-narrative.json');
+const cacheFile = (ctx) => join(ctx.home, '.cache/cedarloom-app', 'insights-narrative.json');
 // A path in a doctor message is cut to its last segment, as a project is named by its folder.
 const PATH = /(^|[\s'"`(=])((?:~|[A-Za-z]:)[\\/][^\s'"`),;:]*|[\\/][^\s'"`),;:]*[\\/][^\s'"`),;:]*)/g;
 const last = (path) => path.split(/[\\/]/).filter(Boolean).at(-1) ?? '';

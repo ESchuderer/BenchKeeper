@@ -13,7 +13,7 @@ export const ROTATE = ['off', 'handover'];
 // The agents rotation can be turned on for. Codex is left out for now: a stored codex handover counts as off and the flag is
 // refused. Adding 'codex' here turns its rotation back on.
 export const ROTATABLE = ['claude'];
-export const STATE_DIR = 'benchkeeper';
+export const STATE_DIR = 'cedarloom-app';
 export const HOOK_SOURCE = readFileSync(new URL('./usage-hook.mjs', import.meta.url), 'utf8');
 const FAILURE_HOURS = 24;
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);

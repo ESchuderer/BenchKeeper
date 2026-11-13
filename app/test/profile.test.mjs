@@ -55,7 +55,7 @@ test('export holds choices only; import registers projects, saves packs, sets up
 test('import asks before it saves own packs and registers projects: no input refuses, n stops, both write nothing', async () => {
   const b = machine(), proj = tmp('bk-prof-proj-');
   const file = join(tmp('bk-prof-file-'), 'p.json');
-  writeFileSync(file, JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] }, packs: [{ id: 'ui', skills: ['accessibility'] }], projects: [{ path: proj }] }));
+  writeFileSync(file, JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'] }, packs: [{ id: 'ui', skills: ['accessibility'] }], projects: [{ path: proj }] }));
   for (const [input, code] of [['', 2], ['n\n', 1]]) {
     let out = '', err = '';
     const r = await main(['profile', 'import', file], { out: new Writable({ write(c, _, done) { out += c; done(); } }), err: new Writable({ write(c, _, done) { err += c; done(); } }), ctx: b, input: Readable.from([input]) });
@@ -68,7 +68,7 @@ test('import asks before it saves own packs and registers projects: no input ref
 });
 
 test('profile files are checked before anything is applied', () => {
-  const base = { kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] } };
+  const base = { kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'] } };
   assert.throws(() => readProfile('x'), /profile:/);
   assert.throws(() => readProfile(JSON.stringify({ ...base, kind: 'other' })), /not a BenchKeeper profile/);
   assert.throws(() => readProfile(JSON.stringify({ ...base, schemaVersion: 9 })), /schemaVersion 9/);
@@ -81,7 +81,7 @@ test('one answer stream serves several questions in one command', async () => {
   let out = '';
   const w = new Writable({ write(c, _, done) { out += c; done(); } });
   const file = join(tmp('bk-prof-file-'), 'p.json');
-  writeFileSync(file, JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] } }));
+  writeFileSync(file, JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'] } }));
   await main(['profile', 'import', file], { out: w, ctx: b, input: Readable.from(['y\n', 'n\n'.repeat(80)]) });
   assert.ok(existsSync(join(b.home, '.claude/rules/00-global.md')));
   assert.ok(!existsSync(join(b.home, '.claude/settings.json')) || !readFileSync(join(b.home, '.claude/settings.json'), 'utf8').includes('opusplan'));
@@ -119,7 +119,7 @@ test('a state file this app cannot read: export names the project, import skips 
 
 test('an own pack this library cannot take is skipped with its reason; the other packs, the projects and the plans go on', async () => {
   const proj = tmp('bk-prof-proj-');
-  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] },
+  const text = JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] },
     packs: [{ id: 'ui', skills: ['accessibility'] }, { id: 'newer', skills: ['accessibility', 'not-a-skill'] }],
     projects: [{ path: proj, answers: { agents: ['claude'], env: 'host', packs: ['ui'], tier: 'quick' } }] });
   const b = machine();
@@ -186,6 +186,6 @@ test('an import writes no pack scope: its plans follow the scopes saved here', (
 });
 
 test('a profile scope must be one of the pack scopes', () => {
-  const base = { kind: 'benchkeeper-profile', schemaVersion: 1 };
+  const base = { kind: 'cedarloom-app-profile', schemaVersion: 1 };
   assert.throws(() => readProfile(JSON.stringify({ ...base, global: { agents: ['claude'], scopes: { ui: 'everywhere' } } })), /scope of pack ui must be one of global, projects/);
 });

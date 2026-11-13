@@ -194,7 +194,7 @@ test('a profile import registers no home folder and gives it no plan', () => {
   const h = home();
   const c = context({ home: h });
   const dir = home();
-  const p = readProfile(JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] }, projects: [{ path: h, answers: { agents: ['claude'] } }, { path: dir }] }));
+  const p = readProfile(JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'] }, projects: [{ path: h, answers: { agents: ['claude'] } }, { path: dir }] }));
   const done = importChoices(c, p);
   assert.deepEqual(done.projects, [dir]);
   assert.match(done.refused[0], /home folder/);
@@ -258,7 +258,7 @@ test('Update all clears only its own stale worktree record, never the records of
   git(p.dir, 'worktree', 'add', '-q', '-b', 'mine', other);
   execFileSync('rm', ['-rf', other]);
   // This app's own worktree: registered, its folder gone (a run that was cut off).
-  const tree = join(h, '.cache/benchkeeper/worktrees', `${p.dir.split('/').pop()}-${hashText(p.dir).slice(0, 8)}-agent-setup-${appVersion}`);
+  const tree = join(h, '.cache/cedarloom-app/worktrees', `${p.dir.split('/').pop()}-${hashText(p.dir).slice(0, 8)}-agent-setup-${appVersion}`);
   git(p.dir, 'worktree', 'add', '-q', '-B', `chore/agent-setup-${appVersion}`, tree);
   execFileSync('rm', ['-rf', tree]);
   const [r] = updateAll(c, { paths: [p.dir] });

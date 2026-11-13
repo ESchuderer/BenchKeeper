@@ -58,7 +58,7 @@ test('windowsTool and context defaults', () => {
   if (root === undefined) delete process.env.SystemRoot; else process.env.SystemRoot = root;
   const h = home();
   const c = context({ home: h });
-  assert.deepEqual([c.config, c.roots, c.appVersion, c.run, typeof c.runAsync, 'refuse' in c, 'undoable' in c], [join(h, '.config/benchkeeper'), [h], '0.0.0', runCommand, 'function', false, false]);
+  assert.deepEqual([c.config, c.roots, c.appVersion, c.run, typeof c.runAsync, 'refuse' in c, 'undoable' in c], [join(h, '.config/cedarloom-app'), [h], '0.0.0', runCommand, 'function', false, false]);
   const run = () => ok;
   const more = () => true;
   const d = context({ home: h, run, refuse: () => 'x', undoable: more, roots: [join(h, 'a')] });

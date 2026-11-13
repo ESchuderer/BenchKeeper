@@ -105,7 +105,7 @@ test('an agent session gets its own agent\'s login variables and nothing else th
   assert.deepEqual(Object.keys(agentEnv('codex', env)).sort(), ['CODEX_HOME', 'HOME', 'OPENAI_API_KEY', 'PATH']);
   assert.deepEqual(Object.keys(agentEnv('gemini', env)).sort(), ['CODEX_HOME', 'GEMINI_API_KEY', 'HOME', 'PATH']);
   assert.ok(!('GH_TOKEN' in agentEnv('claude', env)) && !('OPENAI_API_KEY' in agentEnv('claude', env)) && !('ANTHROPIC_API_KEY' in agentEnv('codex', env)));
-  assert.ok('GH_TOKEN' in agentEnv('claude', { ...env, BENCHKEEPER_PASS_ENV: 'gh_token' }));
+  assert.ok('GH_TOKEN' in agentEnv('claude', { ...env, CEDARLOOM_APP_PASS_ENV: 'gh_token' }));
   // Both sessions pass it: advice through ctx.run, an eval case through the session runner.
   let seen;
   await adviseSetup({ run: (a, o) => { if (!a.includes('--help')) seen = o.env; return { code: 0, stdout: JSON.stringify({ result: '{}' }), stderr: '' }; } }, { dir: '/p', agent: 'claude', lib });

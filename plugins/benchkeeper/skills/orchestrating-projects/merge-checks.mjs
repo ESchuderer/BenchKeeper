@@ -1,5 +1,5 @@
 // Usage: node merge-checks.mjs <project path> <scratch path> <default branch> <reviewed head> <head>. Decides steps 1 to 3 of Merge (review-and-merge.md) for one pull request head in its scratch clone and prints { next, allowed, ownerOnly, unsafePaths, sensitive, pin, upToDate, shared } as JSON, exit 0.
-// Exit 2 with one line on stderr is no verdict (a refused policy, a failed git command, a bad argument, a scratch path that is no clone of its own, a head with several merge bases): nothing merges. It runs no fetch of the default branch, so fetch in the clone first: a clone whose default branch differs from the remote's gets no verdict. It changes no working file and no ref but the policy reader's refs/benchkeeper/policy in the clone.
+// Exit 2 with one line on stderr is no verdict (a refused policy, a failed git command, a bad argument, a scratch path that is no clone of its own, a head with several merge bases): nothing merges. It runs no fetch of the default branch, so fetch in the clone first: a clone whose default branch differs from the remote's gets no verdict. It changes no working file and no ref but the policy reader's refs/cedarloom-app/policy in the clone.
 import { realpathSync } from 'node:fs';
 import { errorLine, escaped, isMain, json, read, sh } from './policy.mjs';
 

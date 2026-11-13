@@ -169,15 +169,15 @@ if (!DEMO) {
 
 // Two Claude Code accounts for the Accounts view: work with a usage reading, personal not tracked.
 if (DEMO) {
-  const acct = (name) => join(home, '.local/share/benchkeeper/accounts', name);
+  const acct = (name) => join(home, '.local/share/cedarloom-app/accounts', name);
   const entry = (name, more) => ({ name, agent: 'claude', mode: 'host', dir: acct(name), token: null, added: '2026-10-01T09:00:00.000Z', ...more });
   writeFileSync(join(ctx.config, 'accounts.json'), JSON.stringify({ schemaVersion: 1, accounts: [entry('work', { default: true }), entry('personal')] }));
   mkdirSync(acct('personal'), { recursive: true });
-  mkdirSync(join(acct('work'), 'benchkeeper'), { recursive: true });
+  mkdirSync(join(acct('work'), 'cedarloom-app'), { recursive: true });
   const hour = Math.ceil(Date.now() / 3600e3) * 3600;
   // The usage script accounts track installs: Preferences shows the status line select of work.
-  writeFileSync(join(acct('work'), 'benchkeeper/usage.mjs'), '');
-  writeFileSync(join(acct('work'), 'benchkeeper/usage.json'), JSON.stringify({ checkedAt: new Date().toISOString(), fiveHour: { used: 28, resetsAt: hour + 2 * 3600 }, sevenDay: { used: 59, resetsAt: hour + 4 * 86400 } }));
+  writeFileSync(join(acct('work'), 'cedarloom-app/usage.mjs'), '');
+  writeFileSync(join(acct('work'), 'cedarloom-app/usage.json'), JSON.stringify({ checkedAt: new Date().toISOString(), fiveHour: { used: 28, resetsAt: hour + 2 * 3600 }, sevenDay: { used: 59, resetsAt: hour + 4 * 86400 } }));
 }
 
 // Claude Code's auto memory of shop, for the Rules view: an index and two topic notes.

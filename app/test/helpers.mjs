@@ -30,8 +30,8 @@ export const sh = { skip: process.platform === 'win32' && 'sh helpers' };
 // A host account folder below ctx.home; a tracked one holds the usage script.
 export function hostAccount(ctx, name, tracked) {
   const dir = join(ctx.home, `acct-${name}`);
-  mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
-  if (tracked) writeFileSync(join(dir, 'benchkeeper/usage.mjs'), '');
+  mkdirSync(join(dir, 'cedarloom-app'), { recursive: true });
+  if (tracked) writeFileSync(join(dir, 'cedarloom-app/usage.mjs'), '');
   return { name, agent: 'claude', mode: 'host', dir };
 }
 

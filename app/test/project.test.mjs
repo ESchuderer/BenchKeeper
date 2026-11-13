@@ -178,8 +178,8 @@ test('the dev container wrapper and the worktree files: offered by what the proj
   mkdirSync(join(r.dir, '.devcontainer'));
   writeFileSync(join(r.dir, 'package-lock.json'), '{}\n');
   // A dispatched worker session the board scan cached for this repository.
-  mkdirSync(join(r.ctx.home, '.cache/benchkeeper'), { recursive: true });
-  writeFileSync(join(r.ctx.home, '.cache/benchkeeper/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
+  mkdirSync(join(r.ctx.home, '.cache/cedarloom-app'), { recursive: true });
+  writeFileSync(join(r.ctx.home, '.cache/cedarloom-app/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
   const { changes } = plan(r, opts);
   const shown = preview(changes);
   const dc = shown.find((c) => c.step === 'dc'), files = shown.filter((c) => c.step === 'worktrees');
@@ -280,8 +280,8 @@ test('the worktree setup hook: the install command of the one lockfile at the ro
   ];
   for (const [files, command] of cases) {
     const r = repo();
-    mkdirSync(join(r.ctx.home, '.cache/benchkeeper'), { recursive: true });
-    writeFileSync(join(r.ctx.home, '.cache/benchkeeper/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
+    mkdirSync(join(r.ctx.home, '.cache/cedarloom-app'), { recursive: true });
+    writeFileSync(join(r.ctx.home, '.cache/cedarloom-app/sessions.json'), JSON.stringify({ schema: 1, files: { '/w.jsonl': { key: 'k', kind: 'claude', d: { orca: true, repo: r.dir } } } }));
     for (const f of files) { mkdirSync(dirname(join(r.dir, f)), { recursive: true }); writeFileSync(join(r.dir, f), ''); }
     const yaml = plan(r, { agents: ['claude'], env: 'host-agent' }).changes.find((c) => basename(c.path ?? '') === 'orca.yaml');
     if (command) {
@@ -757,8 +757,8 @@ test('the coordinator\'s files: apply writes the default policy and empty worker
   assert.doesNotMatch(read(join(r.dir, '.git/info/exclude')), /docs/);
   assert.doesNotMatch(read(join(r.dir, '.worktreeinclude')), /docs/);
   assert.deepEqual(localSetup(r.ctx, r.dir).filter((c) => c.path?.includes('docs')), []);
-  // A repository without a remote is enough, and nothing is fetched or kept under refs/benchkeeper.
-  assert.equal(r.git('for-each-ref', 'refs/benchkeeper').toString(), '');
+  // A repository without a remote is enough, and nothing is fetched or kept under refs/cedarloom-app.
+  assert.equal(r.git('for-each-ref', 'refs/cedarloom-app').toString(), '');
 
   const own = repo();
   mkdirSync(join(own.dir, 'docs/agents'), { recursive: true });

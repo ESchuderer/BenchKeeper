@@ -2,7 +2,7 @@
 // It denies the commands the project rules forbid in the forms a deny rule's text pattern misses: combined short flags,
 // `git -C dir push`, a path to the program, `bash -c '...'`, `eval`, command substitution, heredocs for a shell.
 // It only denies (exit 2 and one line on stderr); it never approves and writes nothing. It reads its input and, since machine
-// account sessions (#817), its environment: while BENCHKEEPER_MACHINE_EMAIL is set (benchkeeper machine enable, run --as-machine,
+// account sessions (#817), its environment: while CEDARLOOM_APP_MACHINE_EMAIL is set (benchkeeper machine enable, run --as-machine,
 // machine shell) it also denies the usual ways to commit or push under another identity, and an approving review, which the
 // machine account must never give the owner's pull requests (it has write access). Without that variable
 // nothing else of the environment is read.
@@ -123,7 +123,7 @@ function configWrite(rest) {
 
 // git commit and push flags, and in a machine session the identity checks: the reason to deny, or null.
 function git(args, env) {
-  const machine = !!env.BENCHKEEPER_MACHINE_EMAIL;
+  const machine = !!env.CEDARLOOM_APP_MACHINE_EMAIL;
   let i = 0;
   while (i < args.length && args[i].startsWith('-')) {
     const pair = args[i] === '-c' || args[i] === '--config-env' ? args[i + 1] ?? '' : args[i].startsWith('--config-env=') ? args[i].slice(13) : null;
@@ -133,7 +133,7 @@ function git(args, env) {
   const sub = args[i];
   if (machine && sub === 'config') return configWrite(args.slice(i + 1));
   if (sub !== 'commit' && sub !== 'push') return null;
-  if (machine && (env.GIT_AUTHOR_EMAIL !== env.BENCHKEEPER_MACHINE_EMAIL || env.GIT_COMMITTER_EMAIL !== env.BENCHKEEPER_MACHINE_EMAIL)) return { machine: `git ${sub} while the session's author or committer is not the machine account` };
+  if (machine && (env.GIT_AUTHOR_EMAIL !== env.CEDARLOOM_APP_MACHINE_EMAIL || env.GIT_COMMITTER_EMAIL !== env.CEDARLOOM_APP_MACHINE_EMAIL)) return { machine: `git ${sub} while the session's author or committer is not the machine account` };
   if (machine && sub === 'commit' && args.slice(i + 1).some((a) => a === '--author' || a.startsWith('--author='))) return { machine: 'git commit --author' };
   const found = new Set();
   const rest = args.slice(i + 1);
@@ -163,11 +163,11 @@ function git(args, env) {
 function check(cmd, args, bodies, depth, env) {
   if (cmd === 'sudo') return 'sudo';
   if (cmd === 'git') return git(args, env);
-  if (env.BENCHKEEPER_MACHINE_EMAIL && ['export', 'declare', 'typeset', 'readonly', 'unset', 'setenv'].includes(cmd)) {
+  if (env.CEDARLOOM_APP_MACHINE_EMAIL && ['export', 'declare', 'typeset', 'readonly', 'unset', 'setenv'].includes(cmd)) {
     const name = args.map((a) => a.split('=')[0]).find((a) => IDENTITY_VARS.test(a));
     return name ? { machine: `${cmd} ${name}` } : null;
   }
-  if (env.BENCHKEEPER_MACHINE_EMAIL && cmd === 'gh') return approval(args);
+  if (env.CEDARLOOM_APP_MACHINE_EMAIL && cmd === 'gh') return approval(args);
   if (cmd === 'terraform' || cmd === 'kubectl') return args.includes('apply') ? `${cmd} apply` : null;
   if (cmd === 'helm') return args.includes('upgrade') ? 'helm upgrade' : null;
   if (cmd === 'eval') return denyReason(args.join(' '), depth + 1, env);
@@ -211,7 +211,7 @@ export function denyReason(text, depth = 0, env = {}) {
       while (/^(-|\d|[A-Za-z_]\w*=)/.test(words[i + 1] ?? '')) i++;
     }
     // An assignment before the command (VAR=x git commit, env VAR=x git push) sets the identity for that one command.
-    const set = env.BENCHKEEPER_MACHINE_EMAIL && words.slice(0, i).map((w) => w.split('=')[0]).find((w) => IDENTITY_VARS.test(w));
+    const set = env.CEDARLOOM_APP_MACHINE_EMAIL && words.slice(0, i).map((w) => w.split('=')[0]).find((w) => IDENTITY_VARS.test(w));
     if (set) return { machine: `setting ${set}` };
     // shortcut: after such a wrapper every later word counts as the command, so `timeout 5 echo sudo` is denied too.
     for (let j = i; j < (wide ? words.length : i + 1); j++) {
@@ -227,7 +227,7 @@ export function decide(input, env = process.env) {
   let call;
   try { call = JSON.parse(input); } catch { return null; }
   const why = call?.tool_name === 'Bash' ? denyReason(call.tool_input?.command, 0, env) : null;
-  if (why?.machine) return `BenchKeeper guard: ${why.machine} is denied in a machine account session (${env.BENCHKEEPER_MACHINE_EMAIL}): commit and push without author, identity or credential settings and they go as the machine account; it never approves a pull request; to act as yourself, the user turns the machine account off`;
+  if (why?.machine) return `BenchKeeper guard: ${why.machine} is denied in a machine account session (${env.CEDARLOOM_APP_MACHINE_EMAIL}): commit and push without author, identity or credential settings and they go as the machine account; it never approves a pull request; to act as yourself, the user turns the machine account off`;
   return why &&`BenchKeeper guard: ${why} is denied in this project (the rules without exceptions); ask the user to run it themselves`;
 }
 

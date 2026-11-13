@@ -27,7 +27,7 @@ test('update check: shown when newer, silent when off, offline or older', async 
   assert.equal(await updateNotice('6.0.0', {}, reply('6.1.0', true, 5)), null);
   assert.equal(await updateNotice('6.0.0', {}, async () => { throw new Error('offline'); }), null);
   let asked = false;
-  assert.equal(await updateNotice('6.0.0', { BENCHKEEPER_NO_UPDATE_CHECK: '1' }, async () => { asked = true; }), null);
+  assert.equal(await updateNotice('6.0.0', { CEDARLOOM_APP_NO_UPDATE_CHECK: '1' }, async () => { asked = true; }), null);
   assert.equal(asked, false);
 });
 

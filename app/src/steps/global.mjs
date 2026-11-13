@@ -259,9 +259,9 @@ export function newest(ctx, pkg, now = Date.now()) {
 
 // The skills CLI a command runs: the newest release at least 7 days old (as the host tools), the app's minimum when the
 // registry gives none or an older one. The signature check and the run get the same version and the same `before` date.
-// BENCHKEEPER_SKILLS_CLI=x.y.z runs exactly that version.
+// CEDARLOOM_APP_SKILLS_CLI=x.y.z runs exactly that version.
 export function skillsCli(ctx) {
-  const forced = process.env.BENCHKEEPER_SKILLS_CLI;
+  const forced = process.env.CEDARLOOM_APP_SKILLS_CLI;
   if (/^\d+\.\d+\.\d+$/.test(forced ?? '')) return forced;
   const v = newest(ctx, 'skills');
   return v && bySemver(v, SKILLS_CLI) > 0 ? v : SKILLS_CLI;

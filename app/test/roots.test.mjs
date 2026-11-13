@@ -7,7 +7,7 @@ import { unfit, unscannable } from '../src/roots.mjs';
 
 const base = mkdtempSync(join(tmpdir(), 'bk-roots-'));
 const home = join(base, 'home');
-const ctx = { home, config: join(home, '.config', 'benchkeeper') };
+const ctx = { home, config: join(home, '.config', 'cedarloom-app') };
 mkdirSync(ctx.config, { recursive: true });
 const root = parse(base).root;
 

@@ -107,8 +107,8 @@ async function refresh($: EngineInterface) {
 
 // The board the app writes on each scan of its Sessions view, and on benchkeeper sessions board; the band only opens it.
 async function openBoard($: EngineInterface) {
-  const home = (await $.env.get('BENCHKEEPER_HOME')) ?? (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
-  const file = `${home}/.config/benchkeeper/board.html`
+  const home = (await $.env.get('CEDARLOOM_APP_HOME')) ?? (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE'))
+  const file = `${home}/.config/cedarloom-app/board.html`
   if (!(await $.fs.exists(file))) return $.ui.toast('No sessions board yet: open Sessions in the BenchKeeper app, or run benchkeeper sessions board')
   const windows = (await $.env.get('OS')) === 'Windows_NT'
   const mac = !windows && (await $.process.run(['uname'])).stdout.trim() === 'Darwin'

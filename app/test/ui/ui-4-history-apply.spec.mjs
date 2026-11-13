@@ -306,7 +306,7 @@ test.describe('views', () => {
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export profile' }).click();
     const file = await download;
-    expect(file.suggestedFilename()).toBe('benchkeeper-profile.json');
+    expect(file.suggestedFilename()).toBe('cedarloom-app-profile.json');
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Import profile' }).click();
     await (await chooser).setFiles(await file.path());

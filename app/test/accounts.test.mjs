@@ -27,7 +27,7 @@ test('add, list, use and remove: plans with a diff, a ledger run each, undo rest
   assert.equal(await c.exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']), 0);
   const list = listAccounts(m.ctx);
   assert.deepEqual(list.map((a) => [a.name, a.agent, !!a.default]), [['work', 'claude', true], ['home', 'claude', false], ['dev', 'codex', true]]);
-  assert.equal(list[0].dir, join(m.home, '.local/share/benchkeeper/accounts/work'));
+  assert.equal(list[0].dir, join(m.home, '.local/share/cedarloom-app/accounts/work'));
   assert.equal(list[1].label, 'private plan');
   assert.deepEqual(list[0].token, null);
   assert.equal(await c.exec(['accounts', 'use', 'home', '--yes']), 0);
@@ -224,7 +224,7 @@ test('token (Claude Code): setup-token kept in the credential store, recorded wi
   assert.match(findAccount(m.ctx, 'work').token.created, /^\d{4}-\d\d-\d\dT/);
   // The acceptance grep: no file of the state folder (registry, ledger, backups, everything under the config folder) or of
   // the home outside the agent's own account folder holds the token or the inherited ones.
-  const accountFolder = join(m.home, '.local/share/benchkeeper/accounts');
+  const accountFolder = join(m.home, '.local/share/cedarloom-app/accounts');
   for (const secret of [CLAUDE_TOKEN, 'inherited-oauth-token-dummy', 'dummy-api-key', 'dummy-gh']) {
     assert.deepEqual(grep(m.ctx.config, secret), [], secret);
     assert.deepEqual(grep(m.home, secret).filter((p) => !p.startsWith(accountFolder)), [], secret);
@@ -245,7 +245,7 @@ test('token (Claude Code): setup-token kept in the credential store, recorded wi
   m.ctx.credentials = { ...m.ctx.credentials, delete: () => { throw new Error('the keyring is locked'); } };
   const locked = cli(m);
   assert.equal(await locked.exec(['accounts', 'remove', 'work', '--yes']), 1);
-  assert.match(locked.text(), /the keyring is locked\nthe account work stays listed: delete the token by hand \(service benchkeeper, account work\)/);
+  assert.match(locked.text(), /the keyring is locked\nthe account work stays listed: delete the token by hand \(service cedarloom-app, account work\)/);
   assert.ok(findAccount(m.ctx, 'work').token);
   assert.equal(m.kept.get('work'), CLAUDE_TOKEN);
   m.ctx.credentials = { ...m.ctx.credentials, delete: deleteToken };
@@ -500,8 +500,8 @@ test('accountEnv: an inherited folder variable of either agent is replaced, neve
   assert.equal(host.CLAUDE_CONFIG_DIR, undefined);
   assert.equal(host.OPENAI_API_KEY, undefined);
   assert.equal(accountEnv(ctx, { agent: 'claude', mode: 'host', dir: '/acct' }, { token: 'tok-dummy' }).CLAUDE_CODE_OAUTH_TOKEN, 'tok-dummy');
-  // The launch that carries a token takes no endpoint from the shell, also when BENCHKEEPER_PASS_ENV names it.
-  const routed = { env: { PATH: '/bin', ANTHROPIC_BASE_URL: 'https://example.invalid', BENCHKEEPER_PASS_ENV: 'ANTHROPIC_BASE_URL' } };
+  // The launch that carries a token takes no endpoint from the shell, also when CEDARLOOM_APP_PASS_ENV names it.
+  const routed = { env: { PATH: '/bin', ANTHROPIC_BASE_URL: 'https://example.invalid', CEDARLOOM_APP_PASS_ENV: 'ANTHROPIC_BASE_URL' } };
   assert.equal(accountEnv(routed, { agent: 'claude', mode: 'host', dir: '/acct' }, { token: 'tok-dummy' }).ANTHROPIC_BASE_URL, undefined);
   assert.equal(accountEnv(routed, { agent: 'claude', mode: 'host', dir: '/acct' }).ANTHROPIC_BASE_URL, 'https://example.invalid');
   // In a container the account variable is a --remote-env of the command, not part of the host environment.

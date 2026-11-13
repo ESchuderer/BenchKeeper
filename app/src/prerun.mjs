@@ -80,7 +80,7 @@ export async function rehearse(ctx, c, { signal, timeout = 5 * 60e3, unconfined 
     const env = {
       ...childEnv(c.env), HOME: h, USERPROFILE: h, ...Object.fromEntries(MOVED.map((k) => [k, undefined])),
       // npm keeps the user's cache and, without credentials, its settings.
-      // The home is the machine's context home, so BENCHKEEPER_HOME isolates the rehearsal too.
+      // The home is the machine's context home, so CEDARLOOM_APP_HOME isolates the rehearsal too.
       // In a sandbox the cache is below the scratch folder: a cache the command can write is one the real run would read.
       npm_config_cache: sb.tool ? join(t, 'npm-cache') : process.env.npm_config_cache ?? (process.platform === 'win32' ? join(process.env.LOCALAPPDATA ?? join(ctx.home, 'AppData/Local'), 'npm-cache') : join(ctx.home, '.npm')),
       npm_config_userconfig: npmrc,

@@ -94,7 +94,7 @@ function registryChange(title, ctx, f, g = (s) => s) {
 }
 export const commit = (ctx, change, select) => apply(preview([change]), ctx, { scope: 'global', select });
 
-const dataDir = (ctx, name) => join(home(ctx), '.local/share/benchkeeper/accounts', name);
+const dataDir = (ctx, name) => join(home(ctx), '.local/share/cedarloom-app/accounts', name);
 // The entry `accounts add` plans; opts: { name, agent, container, label, dir, mount (container accounts) }.
 export function newAccount(ctx, o) {
   if (!NAME.test(o.name ?? '')) throw refusal('the name is 1 to 32 characters: lower case letters, digits, - and _, starting with a letter or digit');
@@ -164,7 +164,7 @@ export const store = (ctx) => ctx.credentials ?? credentialStore(ctx.run, { env:
 // that names the account's folder. An inherited folder variable is dropped first, and so is any credential name (childEnv).
 // token (Claude Code, host, explicit launch only) adds the token variable in its place.
 export function accountEnv(ctx, a, { token } = {}) {
-  // With a token, no inherited ANTHROPIC_ variable (an endpoint, a proxy key) comes along, even when BENCHKEEPER_PASS_ENV names it.
+  // With a token, no inherited ANTHROPIC_ variable (an endpoint, a proxy key) comes along, even when CEDARLOOM_APP_PASS_ENV names it.
   const env = Object.fromEntries(Object.entries(where(ctx)).filter(([k]) => !Object.values(VAR).includes(k.toUpperCase()) && !(token && k.toUpperCase().startsWith('ANTHROPIC_'))));
   return childEnv({ ...(a.mode === 'host' ? { [VAR[a.agent]]: a.dir } : {}), ...(token && a.mode === 'host' ? { [TOKEN_VAR]: token } : {}) }, env);
 }
@@ -354,7 +354,7 @@ export function runAs(ctx, a, args, { dir = process.cwd(), useToken = false, say
   used(a);
   // The folder is for this user alone, also when the agent creates its first files there.
   if (a.mode === 'host') mkdirSync(a.dir, { recursive: true, mode: 0o700 });
-  // A machine session reaches GitHub only through its gh folder: a GitHub token that BENCHKEEPER_PASS_ENV lets through would win over it.
+  // A machine session reaches GitHub only through its gh folder: a GitHub token that CEDARLOOM_APP_PASS_ENV lets through would win over it.
   const env = Object.fromEntries(Object.entries(accountEnv(ctx, a, { token })).filter(([k]) => !(machine && /^(GH|GITHUB)_(ENTERPRISE_)?TOKEN$/i.test(k))));
   if (a.mode === 'host') return ctx.run(machine ? machine.args(args) : args, { cwd: dir, env: { ...env, ...machine?.env }, stdio: 'inherit' }).code;
   const engine = engineOf(ctx), opts = { cwd: dir, env: baseEnv(ctx), timeout: 60e3 };
@@ -387,7 +387,7 @@ export const ROTATE_WARNING = {
   codex: 'warning: OpenAI\'s Terms of Use forbid circumventing rate limits (https://openai.com/policies/terms-of-use/), and its Sign in with ChatGPT Terms forbid rotating accounts to bypass usage limits (https://openai.com/policies/sign-in-with-chatgpt-terms/). The risk is yours; this is not legal advice.',
 };
 // A login variable in the environment takes precedence over the account's folder in the agent. childEnv drops these names,
-// so one reaches a session only when BENCHKEEPER_PASS_ENV names it.
+// so one reaches a session only when CEDARLOOM_APP_PASS_ENV names it.
 const LOGIN_VARS = { claude: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'], codex: ['OPENAI_API_KEY', 'CODEX_API_KEY'] };
 export const loginVars = (ctx, agent) => LOGIN_VARS[agent].filter((k) => where(ctx)[k]);
 

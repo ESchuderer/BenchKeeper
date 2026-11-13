@@ -32,7 +32,7 @@ test('apply stops before any change when the content needs a newer app; a plan r
 
 test('an installed plugin whose content needs a newer app is an error in doctor and a refusal for apply', () => {
   const home = tmp('bk-inst-');
-  const dir = contentAt(join(home, 'cache/benchkeeper'), '99.0.0');
+  const dir = contentAt(join(home, 'cache/cedarloom-app'), '99.0.0');
   mkdirSync(join(home, '.claude/plugins'), { recursive: true });
   writeFileSync(join(home, '.claude/plugins/installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'benchkeeper@benchkeeper': [{ scope: 'user', version: '99.0.0', installPath: dir }] } }));
   writeFileSync(join(home, '.claude/plugins/known_marketplaces.json'), JSON.stringify({ benchkeeper: {} }));
@@ -49,7 +49,7 @@ test('an installed plugin whose content needs a newer app is an error in doctor 
 
 test('an installed plugin is refused when the agent state files are unreadable and the CLI lists it', () => {
   const home = tmp('bk-cli-');
-  const dir = contentAt(join(home, 'cache/benchkeeper'), '99.0.0');
+  const dir = contentAt(join(home, 'cache/cedarloom-app'), '99.0.0');
   contentAt(join(home, '.codex/plugins/cache/benchkeeper/benchkeeper/99.0.0'), '99.0.0');
   const out = { 'claude plugin list --json': JSON.stringify([{ id: 'benchkeeper@benchkeeper', version: '99.0.0', enabled: true, scope: 'user', installPath: dir }]),
     'codex plugin list --json': JSON.stringify({ installed: [{ pluginId: 'benchkeeper@benchkeeper', version: '99.0.0', enabled: true }] }) };

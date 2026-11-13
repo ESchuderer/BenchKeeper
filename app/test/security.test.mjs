@@ -87,8 +87,8 @@ test('a relative dangling link is resolved from the real folder of the link', ()
   assert.equal(inside(join(root, 'via', 'rel', 'x'), [root]), false);
 });
 
-test('an empty BENCHKEEPER_HOME is not the working directory', () => {
-  assert.equal(machineContext({ BENCHKEEPER_HOME: '' }).home, homedir());
+test('an empty CEDARLOOM_APP_HOME is not the working directory', () => {
+  assert.equal(machineContext({ CEDARLOOM_APP_HOME: '' }).home, homedir());
 });
 
 test('a command that fails after its snapshot is taken can still be undone', () => {
@@ -226,9 +226,9 @@ test('commands without a folder of their own run in the home, not in the folder 
 test('a pack file whose id is not a plain id is ignored, so removing it cannot reach other files', () => {
   const c = context({ home: home() });
   mkdirSync(join(c.config, 'packs'), { recursive: true });
-  writeFileSync(join(c.config, 'packs', 'a.json'), JSON.stringify({ kind: 'benchkeeper-pack', id: '../../victim', skills: [] }));
+  writeFileSync(join(c.config, 'packs', 'a.json'), JSON.stringify({ kind: 'cedarloom-app-pack', id: '../../victim', skills: [] }));
   writeFileSync(join(c.config, 'packs', 'b.json'), '{');
-  writeFileSync(join(c.config, 'packs', 'c.json'), JSON.stringify({ kind: 'benchkeeper-pack', id: 'other', skills: [] }));
+  writeFileSync(join(c.config, 'packs', 'c.json'), JSON.stringify({ kind: 'cedarloom-app-pack', id: 'other', skills: [] }));
   writeFileSync(join(c.home, '.config', 'victim.json'), 'keep');
   assert.deepEqual(ownPacks(c), []);
   assert.throws(() => removePack(c, '../../victim'), /no own pack/);
@@ -238,14 +238,14 @@ test('a pack file whose id is not a plain id is ignored, so removing it cannot r
 test('an eval set with a target or case id that is a path is refused when read', () => {
   const c = context({ home: home() });
   mkdirSync(join(c.config, 'evals'), { recursive: true });
-  const set = (target, id) => JSON.stringify({ kind: 'benchkeeper-evals', schemaVersion: 1, target, cases: [{ id, query: 'q', should: true }] });
+  const set = (target, id) => JSON.stringify({ kind: 'cedarloom-app-evals', schemaVersion: 1, target, cases: [{ id, query: 'q', should: true }] });
   writeFileSync(join(c.config, 'evals', 'x.json'), set('skill:../../x', 'c1'));
   assert.throws(() => loadCases(c), /outside letters/);
   writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', '../../results'));
   assert.throws(() => loadCases(c), /outside letters/);
-  writeFileSync(join(c.config, 'evals', 'x.json'), JSON.stringify({ kind: 'benchkeeper-evals', schemaVersion: 1, target: 'rule:ok', cases: null }));
+  writeFileSync(join(c.config, 'evals', 'x.json'), JSON.stringify({ kind: 'cedarloom-app-evals', schemaVersion: 1, target: 'rule:ok', cases: null }));
   assert.throws(() => loadCases(c), /outside letters/);
-  writeFileSync(join(c.config, 'evals', 'x.json'), JSON.stringify({ kind: 'benchkeeper-evals', schemaVersion: 1, target: ['rule:ok'], cases: [] }));
+  writeFileSync(join(c.config, 'evals', 'x.json'), JSON.stringify({ kind: 'cedarloom-app-evals', schemaVersion: 1, target: ['rule:ok'], cases: [] }));
   assert.throws(() => loadCases(c), /outside letters/);
   writeFileSync(join(c.config, 'evals', 'x.json'), set('rule:ok', 'c1'));
   assert.ok(loadCases(c)['rule:ok']);

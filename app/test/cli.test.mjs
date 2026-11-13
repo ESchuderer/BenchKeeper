@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -231,7 +231,7 @@ test('board writes the sessions page for this user only', async () => {
   const c = cli();
   writeSessions(c.home);
   assert.equal(await c.exec(['sessions', 'board', '--no-open']), 0);
-  const file = join(c.home, '.config/benchkeeper/board.html');
+  const file = join(c.home, '.config/cedarloom-app/board.html');
   assert.match(c.text(), /3 sessions: .*board\.html/);
   assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.match(readFileSync(file, 'utf8'), /"id":"c1"/);
@@ -331,8 +331,8 @@ test('sessions record runs the command after -- and records its files; sessions 
 
 test('skills cli checks the signatures of the release a skill install runs and prints its command prefix', async () => {
   const old = new Date(Date.now() - 30 * 864e5).toISOString();
-  const forced = process.env.BENCHKEEPER_SKILLS_CLI;
-  delete process.env.BENCHKEEPER_SKILLS_CLI;
+  const forced = process.env.CEDARLOOM_APP_SKILLS_CLI;
+  delete process.env.CEDARLOOM_APP_SKILLS_CLI;
   try {
     for (const verified of [0, 1]) {
       const calls = [];
@@ -350,7 +350,7 @@ test('skills cli checks the signatures of the release a skill install runs and p
       else assert.equal(text, `DO_NOT_TRACK=1 npm_config_registry=https://registry.npmjs.org/ npm_config_ignore_scripts=true npm_config_before=${check.opts.env.npm_config_before} npx -y skills@npm:skills@9.1.0\n`);
     }
   } finally {
-    if (forced !== undefined) process.env.BENCHKEEPER_SKILLS_CLI = forced;
+    if (forced !== undefined) process.env.CEDARLOOM_APP_SKILLS_CLI = forced;
   }
 });
 
@@ -367,14 +367,24 @@ test('ui: a busy port ends with one line and exit 1, a bad --port with exit 2', 
   assert.match(c.text(), /--port must be a whole number from 0 to 65535\n$/);
 });
 
-test('BENCHKEEPER_DEBUG=1 prints the stack of a failing command; without it only the message', () => {
+test('CEDARLOOM_APP_DEBUG=1 prints the stack of a failing command; without it only the message', () => {
   const bin = fileURLToPath(new URL('../bin/benchkeeper.mjs', import.meta.url));
-  const run = (env) => spawnSync(process.execPath, [bin, 'doctor', '--zzz'], { encoding: 'utf8', env: { ...process.env, BENCHKEEPER_HOME: mkdtempSync(join(tmpdir(), 'bk-cli-')), BENCHKEEPER_DEBUG: '', ...env } });
+  const run = (env) => spawnSync(process.execPath, [bin, 'doctor', '--zzz'], { encoding: 'utf8', env: { ...process.env, CEDARLOOM_APP_HOME: mkdtempSync(join(tmpdir(), 'bk-cli-')), CEDARLOOM_APP_DEBUG: '', ...env } });
   const plain = run({});
   assert.deepEqual([plain.status, plain.stderr], [2, 'unknown option --zzz for doctor, see benchkeeper --help\n']);
-  const debug = run({ BENCHKEEPER_DEBUG: '1' });
+  const debug = run({ CEDARLOOM_APP_DEBUG: '1' });
   assert.equal(debug.status, 2);
   assert.match(debug.stderr, /^Error: unknown option --zzz for doctor, see benchkeeper --help\n\s+at .*cli\.mjs:\d+/);
+});
+
+test('with HOME on a temp folder an apply records its run under .config/cedarloom-app and writes nothing under .config/cedarloom', () => {
+  const home = mkdtempSync(join(tmpdir(), 'bk-cli-'));
+  const { CEDARLOOM_APP_HOME: _, ...env } = process.env;
+  // Only node on PATH: no agent command runs, the file changes still apply and the run is recorded.
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../bin/benchkeeper.mjs', import.meta.url)), 'apply', '--agents', 'claude', '--yes'],
+    { encoding: 'utf8', env: { ...env, HOME: home, USERPROFILE: home, PATH: dirname(process.execPath) } });
+  assert.equal(readdirSync(join(home, '.config', 'cedarloom-app', 'ledger')).length, 1, r.stdout + r.stderr);
+  assert.equal(existsSync(join(home, '.config', 'cedarloom')), false);
 });
 
 test('doctor and verify refuse a folder that does not exist, exit 2 in the terminal and with --json; an existing folder still runs', async () => {

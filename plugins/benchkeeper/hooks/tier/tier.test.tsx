@@ -123,7 +123,7 @@ test('on: the board button opens the board the app wrote, or says how to get one
   const toasts: string[] = []
   let written = false
   on('env.get', (_, e) => ({ value: e.name === 'HOME' ? '/home/u' : undefined }))
-  on('fs.exists', (_, e) => ({ value: written && e.path === '/home/u/.config/benchkeeper/board.html' }))
+  on('fs.exists', (_, e) => ({ value: written && e.path === '/home/u/.config/cedarloom-app/board.html' }))
   on('process.run', (_, e) => {
     ran.push([...e.argv])
     return { value: { exitCode: 0, stdout: 'Linux\n', stderr: '' } } as never
@@ -138,7 +138,7 @@ test('on: the board button opens the board the app wrote, or says how to get one
   expect(ran).toEqual([])
   written = true
   await ui.press({ key: 'board' })
-  expect(ran).toEqual([['uname'], ['xdg-open', '/home/u/.config/benchkeeper/board.html']])
+  expect(ran).toEqual([['uname'], ['xdg-open', '/home/u/.config/cedarloom-app/board.html']])
   await ui.unmount()
 })
 
@@ -154,7 +154,7 @@ test('on: on Windows the board button opens the board through explorer, never cm
   })
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await ui.press({ key: 'board' })
-  expect(ran).toEqual([['explorer.exe', 'C:\\Users\\A&B %PATH%\\.config\\benchkeeper\\board.html']])
+  expect(ran).toEqual([['explorer.exe', 'C:\\Users\\A&B %PATH%\\.config\\cedarloom-app\\board.html']])
   await ui.unmount()
 })
 

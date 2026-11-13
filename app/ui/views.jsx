@@ -583,7 +583,7 @@ function Profile({ overview, refresh }) {
       {error && <Note color="red" title="Failed">{error}</Note>}
       {skipped.map((m) => <Note key={m} color="yellow">{m}</Note>)}
       <Group>
-        <Button leftSection={icon(IconDownload)} variant="default" disabled={!agents.length} onClick={run(async () => { const r = await api(`/api/profile-export?agents=${agents.join(',')}`); download('benchkeeper-profile.json', r.text); setSkipped(r.skipped); })}>Export profile</Button>
+        <Button leftSection={icon(IconDownload)} variant="default" disabled={!agents.length} onClick={run(async () => { const r = await api(`/api/profile-export?agents=${agents.join(',')}`); download('cedarloom-app-profile.json', r.text); setSkipped(r.skipped); })}>Export profile</Button>
         <FileButton key={file?.name ?? 'none'} accept="application/json,.json"
           onChange={run(async (f) => { setPlans(null); setFile(null); setSkipped([]); if (!f) return; const text = await f.text(); setFile({ name: f.name, text, ...(await api('/api/profile-import', { text })) }); })}>
           {(props) => <Button leftSection={icon(IconUpload)} variant="default" {...props}>Import profile</Button>}
@@ -606,7 +606,7 @@ function Profile({ overview, refresh }) {
           {plans.plans.map((p) => <Section key={p.planId} title={`Changes in ${p.path}`}><Plan plan={p} onDone={refresh} scope="project" /></Section>)}
         </>
       )}
-      <Cli>{`benchkeeper profile export benchkeeper-profile.json --agents ${agents.join(',') || '<a,b>'}\nbenchkeeper profile import benchkeeper-profile.json`}</Cli>
+      <Cli>{`benchkeeper profile export cedarloom-app-profile.json --agents ${agents.join(',') || '<a,b>'}\nbenchkeeper profile import cedarloom-app-profile.json`}</Cli>
     </Section>
   );
 }
@@ -650,16 +650,16 @@ export function Settings({ overview, refresh, keys }) {
       <EditorSetting overview={overview} refresh={refresh} />
       <Section title="Files">
         <List spacing={4} size="sm">
-          <List.Item><Code>~/.config/benchkeeper/ledger/</Code>: one JSON file per run</List.Item>
-          <List.Item><Code>~/.config/benchkeeper/backup/</Code>: replaced and removed files per run</List.Item>
-          <List.Item><Code>~/.config/benchkeeper/projects.json</Code>: registered projects</List.Item>
-          <List.Item><Code>~/.config/benchkeeper/preferences.json</Code>: the app's own preferences (Editors) and what you dismissed or declined (Agent settings notes, global changes, Doctor findings)</List.Item>
-          <List.Item><Code>~/.config/benchkeeper/packs/</Code>: own packs</List.Item>
-          <List.Item><Code>~/.config/benchkeeper/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
-          <List.Item><Code>~/.config/benchkeeper/insights-triage.json</Code>: Insights findings you dismissed or snoozed (finding ids and dates)</List.Item>
-          <List.Item><Code>.cache/benchkeeper/sessions.json</Code> in your home folder: session summaries for the Sessions board</List.Item>
+          <List.Item><Code>~/.config/cedarloom-app/ledger/</Code>: one JSON file per run</List.Item>
+          <List.Item><Code>~/.config/cedarloom-app/backup/</Code>: replaced and removed files per run</List.Item>
+          <List.Item><Code>~/.config/cedarloom-app/projects.json</Code>: registered projects</List.Item>
+          <List.Item><Code>~/.config/cedarloom-app/preferences.json</Code>: the app's own preferences (Editors) and what you dismissed or declined (Agent settings notes, global changes, Doctor findings)</List.Item>
+          <List.Item><Code>~/.config/cedarloom-app/packs/</Code>: own packs</List.Item>
+          <List.Item><Code>~/.config/cedarloom-app/evals/</Code>: own eval cases and <Code>results.jsonl</Code></List.Item>
+          <List.Item><Code>~/.config/cedarloom-app/insights-triage.json</Code>: Insights findings you dismissed or snoozed (finding ids and dates)</List.Item>
+          <List.Item><Code>.cache/cedarloom-app/sessions.json</Code> in your home folder: session summaries for the Sessions board</List.Item>
         </List>
-        <Text size="sm"><Code>BENCHKEEPER_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
+        <Text size="sm"><Code>CEDARLOOM_APP_NO_UPDATE_CHECK=1</Code> turns off the registry request for a newer version. It runs only in a terminal and never installs.</Text>
       </Section>
       <Divider />
       <SessionsHistory cache={cache} clear />

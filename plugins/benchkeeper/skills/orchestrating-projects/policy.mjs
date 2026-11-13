@@ -143,7 +143,7 @@ export function effective(doc, version = pluginVersion()) {
 }
 
 // The reader's own ref for the remote's HEAD: the default branch as the remote has it now, not as a stale or locally moved origin/HEAD names it, and no name the remote chooses becomes an argument.
-const REF = 'refs/benchkeeper/policy';
+const REF = 'refs/cedarloom-app/policy';
 const unreadable = (message) => ({ policy: null, errors: [{ rule: 'unreadable', path: '', message }] });
 
 // The effective policy of the project in dir. A project without the file gets the defaults, which start and merge nothing.

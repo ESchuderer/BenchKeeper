@@ -59,9 +59,9 @@ test('the input is an allowlist of finding fields: a planted marker, a full path
 test('a path with spaces under the home folder, the config folder or a registered project is cut to its last segment', () => {
   const finding = (message) => ({ id: 'x', signal: 'hygiene', severity: 'warning', message, evidence: {}, fix: 'fix' });
   const cut = (message, known) => narrativeInput({ samples: {} }, [finding(message)], known).findings[0].message;
-  const mac = narrativePaths({ home: '/Users/me', config: '/Users/me/.config/benchkeeper' }, [{ path: '/Volumes/Data/Client Work/acme corp' }]);
+  const mac = narrativePaths({ home: '/Users/me', config: '/Users/me/.config/cedarloom-app' }, [{ path: '/Volumes/Data/Client Work/acme corp' }]);
   assert.equal(cut('/Users/me/My Projects/client-acme/app/.claude/skills/x/SKILL.md changed since run 1', mac), 'SKILL.md changed since run 1');
-  assert.equal(cut('C:\\Users\\Jane Doe\\work\\acme-secret\\AGENTS.md has a summary', narrativePaths({ home: 'C:\\Users\\Jane Doe', config: 'C:\\Users\\Jane Doe\\.config\\benchkeeper' })), 'AGENTS.md has a summary');
+  assert.equal(cut('C:\\Users\\Jane Doe\\work\\acme-secret\\AGENTS.md has a summary', narrativePaths({ home: 'C:\\Users\\Jane Doe', config: 'C:\\Users\\Jane Doe\\.config\\cedarloom-app' })), 'AGENTS.md has a summary');
   assert.equal(cut('~/Client Work/acme-corp/repo is back after run 2', mac), 'repo is back after run 2');
   assert.equal(cut('/Volumes/Data/Client Work/acme corp/AGENTS.md has a summary', mac), 'AGENTS.md has a summary', 'a registered project with a space');
   assert.equal(cut('in "/Volumes/Data/Client Work/acme corp" and /Users/me/a b/c.md, see /Users/meg/x', mac), 'in "acme corp" and c.md, see x', 'a quoted project, a comma, a folder that only starts like the home folder');
@@ -122,7 +122,7 @@ test('consent comes first; the preview equals the input the fake model command r
     assert.equal(third.narrative, null);
     assert.equal(sessions.length, 1);
     assert.notEqual(third.id, first.id);
-    assert.ok(!existsSync(join(ctx.home, '.cache/benchkeeper/insights-narrative.json')), 'the old text is gone');
+    assert.ok(!existsSync(join(ctx.home, '.cache/cedarloom-app/insights-narrative.json')), 'the old text is gone');
   } finally { if (ci !== undefined) process.env.CI = ci; }
 });
 
@@ -152,7 +152,7 @@ test('insights --narrative: no run without --yes, the input goes to stderr first
     const again = JSON.parse((await go([...base, '--narrative', '--agent', 'claude'])).text);
     assert.equal(again.narrative.cached, true);
     assert.equal(sessions.length, 1);
-    assert.ok(!readFileSync(join(ctx.home, '.cache/benchkeeper/insights-narrative.json'), 'utf8').includes(SECRET));
+    assert.ok(!readFileSync(join(ctx.home, '.cache/cedarloom-app/insights-narrative.json'), 'utf8').includes(SECRET));
   } finally { if (ci !== undefined) process.env.CI = ci; }
 });
 

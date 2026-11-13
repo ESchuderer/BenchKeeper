@@ -49,7 +49,7 @@ test('keychain: security reads its commands from stdin, so the token is not in t
   const s = credentialStore(run, { platform: 'darwin', env: {} });
   s.set('work', TOKEN);
   assert.deepEqual(calls[0].argv, ['security', '-i']);
-  assert.match(calls[0].input, /^add-generic-password -U -s benchkeeper -a "work" -w "dummy-token/);
+  assert.match(calls[0].input, /^add-generic-password -U -s cedarloom-app -a "work" -w "dummy-token/);
   assert.equal(s.get('work'), TOKEN);
   assert.ok(calls.every((c) => !c.argv.join(' ').includes(TOKEN)));
 });

@@ -39,7 +39,7 @@ test('sandbox: the registry hosts of the npm settings and of the registry variab
 
 // The real sandbox, where the dev container provides it (bubblewrap, socat, ripgrep, an unmasked /proc, the registry): the
 // command goes through the function the preview uses.
-test('sandbox: srt confines a real command to its scratch folder and to the allowed hosts', { skip: process.env.BENCHKEEPER_SANDBOX_TEST !== '1' && 'needs bubblewrap, socat and ripgrep (the dev container)' }, async (t) => {
+test('sandbox: srt confines a real command to its scratch folder and to the allowed hosts', { skip: process.env.CEDARLOOM_APP_SANDBOX_TEST !== '1' && 'needs bubblewrap, socat and ripgrep (the dev container)' }, async (t) => {
   const home = mkdtempSync(join(tmpdir(), 'bk-sandbox-home-'));
   const outside = join(tmpdir(), `bk-sandbox-outside-${process.pid}.txt`);
   t.after(() => { rmSync(home, { recursive: true, force: true }); rmSync(outside, { force: true }); });

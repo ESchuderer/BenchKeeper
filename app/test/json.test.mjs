@@ -80,12 +80,12 @@ test('--json: a clean doctor exits 0; usage failures exit 2 with an error docume
   const bad = await run(ctx, ['--agents', 'claude', 'doctor', '--nope', '--json']);
   assert.equal(bad.code, 2);
   assert.equal(bad.doc.command, 'doctor');
-  put(join(home, '.config/benchkeeper/projects.json'), '{ not json');
+  put(join(home, '.config/cedarloom-app/projects.json'), '{ not json');
   const registry = await run(ctx, ['projects', 'list', '--json']);
   assert.equal(registry.code, 2);
   assert.equal(registry.doc.command, 'projects list');
   assert.match(registry.doc.error, /registered projects file is not valid JSON/);
-  put(join(home, '.config/benchkeeper/projects.json'), 'null');
+  put(join(home, '.config/cedarloom-app/projects.json'), 'null');
   assert.match((await run(ctx, ['projects', 'list', '--json'])).doc.error, /has no projects list/);
   // doctor and plan read the registry too: a broken one is a read failure, not an empty result.
   for (const args of [['doctor', mkdtempSync(join(TMP, 'bk-json-broken-'))], ['plan', '--agents', 'claude']]) {
@@ -152,7 +152,7 @@ test('--json: the read-only list commands print their documented keys and no val
     assert.ok(!JSON.stringify(board).includes('onerror'));
 
     const profile = await shape(['profile', 'export', '--agents', 'claude'], 'profile export', ['profile']);
-    assert.deepEqual([profile.profile.kind, profile.profile.schemaVersion, profile.profile.projects.map((p) => p.path)], ['benchkeeper-profile', 1, [dir]]);
+    assert.deepEqual([profile.profile.kind, profile.profile.schemaVersion, profile.profile.projects.map((p) => p.path)], ['cedarloom-app-profile', 1, [dir]]);
   } finally {
     if (before === undefined) delete process.env.DO_NOT_TRACK; else process.env.DO_NOT_TRACK = before;
   }
@@ -186,7 +186,7 @@ test('--json: an invalid argument to a list command exits 2 with an error docume
     assert.match(r.err, message);
   }
   // A broken registry is a read failure for the commands that read it.
-  put(join(ctx.home, '.config/benchkeeper/projects.json'), '{ not json');
+  put(join(ctx.home, '.config/cedarloom-app/projects.json'), '{ not json');
   for (const args of [['projects', 'scan', dir], ['profile', 'export']]) assert.equal((await run(ctx, [...args, '--json'])).code, 2, args.join(' '));
   // Without --json the commands print what they printed.
   const text = async (args) => { let t = ''; await main(args, { out: new Writable({ write(c, _, d) { t += c; d(); } }), err: new Writable({ write(_c, _e, d) { d(); } }), ctx }); return t; };
@@ -307,7 +307,7 @@ test('--json: the read commands of the web UI print their documented keys, refus
     const cache = await shape(['sessions', 'cache', 'show'], 0, 'sessions cache show', ['keepDays', 'sessions']);
     assert.ok(cache.keepDays === null && cache.sessions > 0);
     // Without --yes a change exits 2 and the cache file stays as it was.
-    const file = join(home, '.cache/benchkeeper/sessions.json'), bytes = readFileSync(file, 'utf8');
+    const file = join(home, '.cache/cedarloom-app/sessions.json'), bytes = readFileSync(file, 'utf8');
     assert.match((await shape(['sessions', 'cache', 'set', '--keep-days', '30'], 2, 'sessions cache set', ['error'])).error, /add --yes/);
     assert.match((await shape(['sessions', 'cache', 'clear'], 2, 'sessions cache clear', ['error'])).error, /add --yes/);
     assert.equal(readFileSync(file, 'utf8'), bytes);

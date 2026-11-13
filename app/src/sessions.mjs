@@ -14,7 +14,7 @@ import * as orca from './orca/index.mjs';
 export const MIGRATE = {};
 const schema = () => Object.keys(MIGRATE).length + 1;
 const MAX_DAYS = 3650;
-const cacheDir = (ctx) => join(ctx.home, '.cache/benchkeeper');
+const cacheDir = (ctx) => join(ctx.home, '.cache/cedarloom-app');
 const TIERS = ['quick', 'standard', 'full'];
 const TIER = /^Tier: (quick|standard|full|research)(?: \(([^)]+)\))?/gm;
 // In command position only: at the start of a chain part, after variables or a runner (npx playwright test), also as the

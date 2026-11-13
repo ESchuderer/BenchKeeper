@@ -34,13 +34,13 @@ export function exportProfile(ctx, { agents, packs = [], origins = [], warn = ()
     return { path, ...(origin ? { origin } : {}), ...(s ? { answers: savedAnswers(s) } : {}), ...(existsSync(path) ? { rules: ruleStates(ctx, { agents, dir: path }) } : {}) };
   });
   const own = ownPacks(ctx).map(({ id, title, skills }) => ({ id, title, skills }));
-  return `${JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: PROFILE_SCHEMA, appVersion, global: { agents, packs: [...new Set([...packs, ...globalSkillPacks(ctx).map((p) => p.id)])], scopes: storedScopes(ctx), rules: ruleStates(ctx, { agents }) }, packs: own, projects }, null, 2)}\n`;
+  return `${JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: PROFILE_SCHEMA, appVersion, global: { agents, packs: [...new Set([...packs, ...globalSkillPacks(ctx).map((p) => p.id)])], scopes: storedScopes(ctx), rules: ruleStates(ctx, { agents }) }, packs: own, projects }, null, 2)}\n`;
 }
 
 export function readProfile(text) {
   let p;
   try { p = JSON.parse(text); } catch (e) { throw new Error(`profile: ${e.message}`); }
-  if (p?.kind !== 'benchkeeper-profile') throw new Error('not a BenchKeeper profile');
+  if (p?.kind !== 'cedarloom-app-profile') throw new Error('not a BenchKeeper profile');
   if (p.schemaVersion !== PROFILE_SCHEMA) throw new Error(`profile schemaVersion ${p.schemaVersion}, this app reads ${PROFILE_SCHEMA}`);
   if (!Array.isArray(p.global?.agents)) throw new Error('profile: global.agents missing');
   for (const a of p.global.agents) agent(a);

@@ -1,5 +1,5 @@
 // The API key from the token exchange; this origin's storage keeps it for reloads and new tabs.
-const KEY = 'benchkeeper-key';
+const KEY = 'cedarloom-app-key';
 let key = null;
 export function setKey(k) {
   key = k;
@@ -11,7 +11,7 @@ export const NO_SESSION = 'This tab has no session with the running BenchKeeper 
 
 // Every request carries the key; every change is a POST.
 export async function api(path, body, { signal } = {}) {
-  const headers = { 'x-benchkeeper': current() };
+  const headers = { 'x-cedarloom-app': current() };
   const send = () => fetch(path, body === undefined ? { headers, signal } : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
   let r;
   try {

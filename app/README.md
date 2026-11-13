@@ -10,7 +10,7 @@ Node.js 22 and at least one agent, Claude Code or Codex ([full list](../docs/set
 ### App
 
 ```sh
-npx benchkeeper@6.26.0
+npx benchkeeper@6.27.0
 ```
 
 Opens the browser on the Dashboard with the doctor findings (the read-only checks of this machine). Select Fix everything, review the changes and press Apply; nothing is written before.
@@ -18,18 +18,18 @@ Opens the browser on the Dashboard with the doctor findings (the read-only check
 ### CLI
 
 ```sh
-npx benchkeeper@6.26.0 plan
+npx benchkeeper@6.27.0 plan
 ```
 
 Lists each change and writes nothing.
 
 ```sh
-npx benchkeeper@6.26.0 apply
+npx benchkeeper@6.27.0 apply
 ```
 
 Asks per change. `--yes` applies the default selection without questions.
 
-After either path, restart the agents. `npx benchkeeper@6.26.0 history` lists what changed, `npx benchkeeper@6.26.0 undo <run>` reverses a run.
+After either path, restart the agents. `npx benchkeeper@6.27.0 history` lists what changed, `npx benchkeeper@6.27.0 undo <run>` reverses a run.
 
 [Lite level, the plugin alone](../docs/setup.md#levels). [Full setup description](../docs/setup.md#setup-details). [What the app writes and what it never does](../docs/setup.md#what-the-app-writes-and-what-it-never-does).
 <!-- /generated:quickstart -->
@@ -38,7 +38,7 @@ After either path, restart the agents. `npx benchkeeper@6.26.0 history` lists wh
 
 Node.js 22 or newer, and at least one agent. Linux and macOS are tested; Windows runs only a CI smoke test (start, plan, apply with a ledger run) and is untested by the owner.
 
-- From npm: `npx benchkeeper@6.26.0 <command>`. A clone of the branch `stable` runs the latest release (each release moves it); to run a change that is not on npm yet, clone the default branch (`--branch main`).
+- From npm: `npx benchkeeper@6.27.0 <command>`. A clone of the branch `stable` runs the latest release (each release moves it); to run a change that is not on npm yet, clone the default branch (`--branch main`).
 - From a clone: `git clone --depth 1 --branch stable https://github.com/ESchuderer/BenchKeeper.git && npm ci --prefix BenchKeeper/app --omit=dev`, then `node BenchKeeper/app/bin/benchkeeper.mjs <command>`. The web UI needs a build first: `npm ci --prefix BenchKeeper/app && npm run build --prefix BenchKeeper/app`.
 
 Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) 3.3.1 (JSON settings with comments), [smol-toml](https://github.com/squirrelchat/smol-toml) 1.9.1 (Codex TOML), [yaml](https://github.com/eemeli/yaml) 2.9.1 (workflow files for `projects audit`). The web UI (React, Mantine) is built into `dist/` and ships in the package.
@@ -50,32 +50,32 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | Command | Does |
 |---|---|
 | `ui [--no-open] [--port N]` | the web UI (default command), see [Web UI](#web-ui) |
-| `plan`, `apply [--yes] [--all]` | global setup for the installed agents (`--agents a,b`, `--pack matt-pocock`): each change (file changes as a diff, commands as their command line), then a question per change; `--yes` applies the default selection without a question; `--all` alone lists the removals and asks once whether to apply all changes, including removals; `--yes --all` applies every change including removals without a question. Neither removes a plugin BenchKeeper did not install. Only the BenchKeeper plugin is pinned (the branch `stable`, which each release moves, at least at this app's version); Ponytail and Matt Pocock's skills follow their source. The agent's own update, run by hand (third-party marketplaces have auto-update off by default), moves an installed plugin along the ref its marketplace was added at; a marketplace at another ref stays there until you remove and add it again ([Update](../docs/setup.md#update)). A registered host account whose BenchKeeper plugin is older than this app's version gets update steps, a newer one is kept. Plugin state is read from `~/.claude/plugins/` and `~/.codex/config.toml`, the agent CLIs only when those cannot be read. A plugin whose marketplace was added at another ref than the pin is a step by hand, with the commands: moving the marketplace removes it, which deletes the plugin's data. An installed pack plugin whose pack no registered project uses is offered for removal, not preselected (uninstalling deletes the plugin's data); one BenchKeeper did not install is kept unless you answer its own question (`--yes` and `--all` skip it), with the command that adds its pack to a project and the one that brings it back. `apply` takes `--json` (see [Machine-readable output](#machine-readable-output)) |
+| `plan`, `apply [--yes] [--all]` | global setup for the installed agents (`--agents a,b`, `--pack matt-pocock`), see [plan and apply](#plan-and-apply) |
 | `apply --level lite\|standard\|full` | the install level; default: the level found, full on a machine without BenchKeeper. lite and standard plan the BenchKeeper plugin alone and nothing else on the machine; undo uninstalls it. standard adds the local block that `projects apply` writes per repository. `doctor` names the level it finds |
 | `history show <run>` | one run: each change with its status and the diff of each file it wrote (settings values masked), a recorded session's files between its snapshots (the first 50) |
-| `history`, `undo <run> [--step s] [--unit u]`, `restore <name>` | recorded runs, undo of a run, step or unit (an installed skill, pack, plugin or rules: `history show --json` names each change's `unit`), restore of a `setup.sh` backup folder. A command is undone with its recorded reverse command (an install with its uninstall); a command without one, such as removing a plugin you had, is reported as manual. Undo puts a file back only while it is as the run (or the recorded session) left it and its backup is intact; otherwise it fails for that change and names the file. Each change is journaled before it starts, so a change cut off by a crash shows in history and can be undone. `undo` takes `--json` (see [Machine-readable output](#machine-readable-output)) |
-| `projects plan\|apply [dir]` | project setup in `dir` or `--project <dir>` (both naming different folders is refused): `--agents`, `--env container\|host-agent\|sandbox\|host`, `--sandbox`, `--no-guards` (no deny rules or guard hook; `--guards` turns them on again), `--machine on\|off\|none` (Claude Code: the machine account's variables in the project's `.claude/settings.local.json`, or with `off` your own git identity, `gh`'s default folder, no `GIT_CONFIG` pairs and no guard address over the values of `machine enable --global`; `none` takes the setting out; kept in the state file), `--no-workflow-load` (no rule line that loads the `workflow` skill before each task; `--workflow-load` puts it back), `--pack`, `--skill`, `--paths '<skill>=<glob>,<glob>'` (writes `paths:` into an own or your skill's copied `SKILL.md`, which Claude Code then loads only for matching files; kept in the state file, other skills' entries stay; `<skill>=` takes the entry out; a skill whose own `SKILL.md` sets `paths:` keeps its key: globs for it are refused, and an entry kept from before is not written, which the plan warns about), `--tier`, `--share` or `--local`, `--caller lint-js\|lint-python\|sonar` (writes that [repo-standards](https://github.com/ESchuderer/repo-standards) caller workflow as a file in the checkout; one that differs from yours is offered, not preselected; no GitHub setting is ever changed). Local (the default; in a repository that commits `AGENTS.md`, the plan warns that it loads next to the local block): the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (its block holds the text of `AGENTS.md` too, rebuilt on each apply; your lines outside it stay), the sandbox into `.claude/settings.local.json`, and every file written is listed in a marked block of `.git/info/exclude` (the repository's, shared by its worktrees); `--share` writes the block into `AGENTS.md` with a `CLAUDE.md` import and keeps only `CLAUDE.local.md` and `AGENTS.override.md` in the exclude block. At a repository root, a marked block of `.worktreeinclude` lists the local files a new worktree copies (Claude Code `--worktree`, Orca): local, the files written (`.benchkeeper/state.json`, not the folder) and the list itself, all git-ignored; `--share`, committed, only `CLAUDE.local.md` and `AGENTS.override.md`. Your lines outside the block stay. `skills disable <name>` moves a skill to `.benchkeeper/disabled/`, `skills enable <name>` moves it back. Answers and each community skill's commit are kept in `.benchkeeper/state.json`, and with Claude Code the commit of the BenchKeeper plugin installed for the project (its local or project scope install, else the user's) when an apply writes the file, as `pluginCommit`: another commit installed later is no change to apply and leaves the project current, and `doctor` names it as information; a community skill is added again from the default branch of its source only when you ask for it (`skills update`, or Update in the Catalog), and the file then records the commit the install got. Undo of a skills CLI command puts back the skill folders and `skills-lock.json` as they were before it, local edits included. A changed answer cleans up: sandbox off removes `sandbox.enabled` and BenchKeeper's excluded commands, a dropped agent loses the `CLAUDE.md` import, the Gemini CLI context setting and skill folders no chosen agent reads. A warning names hand-written AGENTS.md text on where commands run. `projects apply` takes `--json` (see [Machine-readable output](#machine-readable-output)) |
-| `sessions list [--run id]` | one line per orchestrated run (Orca workers, matched by the `Orca run:` line and the task id of the worker's first prompt) with sessions, cost (API-equivalent; Codex estimated from its token counts and OpenAI's API prices), tokens and the concrete models, from the same scan as `sessions board`; `--run` adds a line per task of that run and exits 2 when no session has that run |
-| `sessions cache show\|clear\|set [--keep-days N\|none] [--yes]` | the summaries the sessions scan keeps after an agent deletes a transcript: `show` counts them with the retention; `set --keep-days` (1 to 3650, `none`: for good) changes the retention, the next scan drops older ones; `clear` removes every summary, those of deleted transcripts for good. Both show the change and ask. The command cannot see a scan the web UI runs, which writes the old summaries back: clear while none runs |
+| `history`, `undo <run> [--step s] [--unit u]`, `restore <name>` | recorded runs, undo of a run, step or unit, restore of a `setup.sh` backup folder, see [history and undo](#history-and-undo) |
+| `projects plan\|apply [dir]` | project setup in `dir` or `--project <dir>` (both naming different folders is refused), see [projects](#projects) |
+| `sessions list [--run id]` | one line per orchestrated run with sessions, cost, tokens and the concrete models, see [sessions](#sessions) |
+| `sessions cache show\|clear\|set [--keep-days N\|none] [--yes]` | the summaries the sessions scan keeps after an agent deletes a transcript, see [sessions](#sessions) |
 | `sessions record [--project dir] -- <agent> [args]` | runs an agent session in a Git repository and records the files it changed (tracked and untracked, not ignored ones) and its Claude Code or Codex transcript when found, so `undo` restores them; exits with the agent's exit code (127 when it does not start) |
 | `rules show <file> [--agent a] [--project dir]` | the text of one file `rules list` shows |
 | `skills show <name>` | the SKILL.md of a library skill BenchKeeper ships or of your own; for any other skill its source |
 | `automations [list]`, `automations show <id>` | the [automation templates](../docs/automations.md) of both tiers and which are installed; one template with its fields, parameters and prompt |
-| `automations install <id> [--param name=value..] [--project dir] [--yes]`, `automations update\|remove <id> [--yes]` | install creates the automation on the runner (Orca, through `orca automations create`), disabled, in the project folder (default: the current one), and records template id, version, parameter values and the runner's id in `automations.json` of the config folder; undo removes it. update shows the diff, then edits the runner's automation back to the template (its enabled state stays); undo edits it back. remove deletes it on the runner with its run history and drops the record: undo restores the record only, so `status` reports it removed and `install` creates it again. Without Orca the three refuse and change nothing |
-| `automations export <id> [--param name=value..] [--project dir]` | prints a sh script that runs the template without the runner: it unpacks the helpers into a temporary folder, runs the precheck in the project folder (default: the current one) and starts `claude -p` or `codex exec` only when the precheck exits 0. Its header has the crontab line of the template's schedule. Refuses a template without a cron schedule, another agent or workspace `new-worktree`. Nothing is written ([Without Orca](../docs/automations.md#without-orca)) |
+| `automations install <id> [--param name=value..] [--project dir] [--yes]`, `automations update\|remove <id> [--yes]` | an automation on the runner (Orca): install creates it, update edits it back to the template, remove deletes it, see [automations](#automations) |
+| `automations export <id> [--param name=value..] [--project dir]` | prints a sh script that runs the template without the runner; the command writes nothing ([Without Orca](../docs/automations.md#without-orca)), see [automations](#automations) |
 | `automations diff <id>`, `automations status` | the installed automation as the runner holds it against the template now; per installed automation `current`, `outdated` (the template changed), `modified` (changed on the runner: the fields), `removed` (gone from the runner) or `unknown` (runner or template unreadable), exit 1 when one is not current. Nothing is written |
-| `containers reconcile [--dry-run]` | stops and removes (`podman rm -f`, or Docker) each dev container whose workspace folder (its `devcontainer.local_folder` label) no longer exists while the folder above it does, so a worktree removed without its container is caught; volumes stay. A container without that label, whose folder exists or cannot be read (permission denied), or whose label is not an absolute path inside the home folder (another user's folder, a Windows path, a folder on a remote engine's host) is never touched, and a missing parent folder (an unmounted drive) keeps the container. `--dry-run` lists them. Meant for cron or a timer; exit 1 when a removal fails. Linux only: other systems skip it and say so. `doctor` (level full) reports, by count only, these orphaned containers, stopped ones still present, ones whose folder could not be checked and unlabelled ones, and warns when the user key quota (`/proc/key-users` against `kernel.keys.maxkeys`) is at 80 percent or more, since each running container holds keys and new ones fail at the limit |
-| `webhook set\|remove\|status`, `webhook send --state finished\|failed\|needs-person [--run id] [--automation id] [--task id]` | the webhook a run calls when it finishes or needs a person, off until set. `set` reads the URL (https, or http to this machine, no user or password in it) from the first line of stdin and an optional bearer token from the second, and keeps both in the OS credential store under `app.webhook`, never in a file; `remove` deletes them after a question; `status` shows whether one is set and the last failed send, never the URL or token. `send` posts one JSON body `{"event":"run","state",["run"],["automation"],["task"],"time"}` with ids of fixed shapes only (no objective text; another shape exits 2), from a detached process with a 5 second limit, no redirect and no retry, and returns at once; without a webhook it does nothing. A failure appends the time and an HTTP status or error code, without the URL, to `.cache/benchkeeper/webhook.log` in the home folder. Nothing calls `send` on its own: a run that is killed sends nothing |
-| `machine setup [--repos owner/name,..] [--owner name] [--no-signing] [--no-browser] [--yes] [--project dir]`, `machine status` | your GitHub machine account for agent sessions ([setup](../docs/setup.md#agent-sessions-as-your-github-machine-account)). You create the account yourself: `setup` opens GitHub's sign-up, suggests the login `<your login>-agent` (your login from your own `gh api user`), and names the profile note and two-factor authentication. Then `gh auth login --hostname github.com --git-protocol https --web --scopes write:ssh_signing_key` signs it in with `GH_CONFIG_DIR` set to `machine/gh` in the config folder, with no terminal on stdin so gh asks nothing (it neither offers itself as git's credential helper nor adds the `workflow` scope; `GIT_CONFIG_GLOBAL` points at a file of the machine folder as well); the device page opens and gh prints the code. The token stays in gh's store, BenchKeeper never reads or prints it. A sign-in as your own account (the same id) is refused and signed out. Access: with your gh, `PUT /repos/{owner}/{repo}/collaborators/<machine>` with `permission=push` (never admin or maintain) for `--repos`, every repository of `--owner` (listed, archived ones left out, after a question), else the folder's origin; then the machine's gh accepts the invitations; a refused repository (an organization's policy) is named with the fix and exits 1. Signing (default on, `--no-signing` skips): an ed25519 key in `machine/signing_key` (0600) uploaded with `POST /user/ssh_signing_keys`. `machine.json` keeps both accounts by numeric id and their logins for display, the `gh` path and the signing choice, never a token. `status` reads both logins again (a rename is written back; the commit address follows), shows the sign-in, the address and the key |
-| `machine enable\|disable --global [--yes]`, `machine shell [--project dir]`, `machine remove [--yes]` | `enable --global` writes the machine variables into the `env` of Claude Code's user settings and into `[shell_environment_policy.set]` of Codex's `config.toml`, where `~/.claude` or `~/.codex` exists, as a plan with a diff (undo restores the files); `disable --global` takes out exactly these names. The variables: `GIT_AUTHOR_*` and `GIT_COMMITTER_*` (`<login>`, `<id>+<login>@users.noreply.github.com`); `GIT_CONFIG_COUNT` pairs that reset the credential helpers of `https://github.com` and set `!GH_CONFIG_DIR=<machine folder> <gh> auth git-credential`, send pushes to an ssh address of github.com over https (`pushInsteadOf`), and with signing `gpg.format=ssh`, `user.signingkey=<key>` and `commit.gpgsign=true`; `GH_CONFIG_DIR` (every `gh` call acts as the machine account); `BENCHKEEPER_MACHINE_EMAIL` for the guard hook. A project: `projects apply --machine on\|off\|none`. `shell` starts your `$SHELL` with your environment minus `GH_TOKEN`, `GITHUB_TOKEN` and outer `GIT_CONFIG_*` pairs plus these variables; nothing goes into a shell start file. `remove` asks, takes the variables out of the agent settings (a run), signs the machine account out of the machine folder, deletes the folder with the key and config, and prints the pages to delete the signing key or the account (signed in as the machine account) |
+| `containers reconcile [--dry-run]` | stops and removes (`podman rm -f`, or Docker) each dev container whose workspace folder no longer exists while the folder above it does, see [containers](#containers) |
+| `webhook set\|remove\|status`, `webhook send --state finished\|failed\|needs-person [--run id] [--automation id] [--task id]` | the webhook a run calls when it finishes or needs a person, off until set, see [webhook](#webhook) |
+| `machine setup [--repos owner/name,..] [--owner name] [--no-signing] [--no-browser] [--yes] [--project dir]`, `machine status` | your GitHub machine account for agent sessions ([setup](../docs/setup.md#agent-sessions-as-your-github-machine-account)), see [machine](#machine) |
+| `machine enable\|disable --global [--yes]`, `machine shell [--project dir]`, `machine remove [--yes]` | the machine variables in the agents' settings or in a shell, and the removal of the machine account, see [machine](#machine) |
 | `packs warnings <id>` | the pairs of the pack's skills whose descriptions overlap, so an agent may pick the wrong one |
 | `projects advise [dir] [--agent claude\|codex]` | the env, packs and skills an agent suggests for a registered project, each with a reason: one read-only session on your login (default: the first installed of Claude Code, Codex), refused in CI |
 | `packs list\|show\|save\|export\|import\|remove` | library packs and own packs; `show <id>` adds the registered projects that use it; a pack file names library skills only; `remove` refuses an own pack a registered project's setup still names and lists those projects |
-| `packs enable\|disable <id>.. [--project dir \| --global] [--yes]` | switches packs without a new setup: a plan on top of the saved answers, with a diff and an undo like any run. `--project` (default: the current folder) changes the project's packs, and disabling removes exactly the skills no other enabled pack and no single pick still needs; `--global` installs or removes the plugin of a pack that has one. Enabling and then disabling the same pack returns the project's files to what they were. `packs enable` and `disable` take `--json` (see [Machine-readable output](#machine-readable-output)) |
-| `packs scope <id> [global\|projects] [--yes]` | a pack's install scope. `global` installs it once on the machine for every project; `projects` installs it in each registered project whose setup selects it (Claude Code plugins at local scope, on this machine only). Defaults: the plugin packs `global`, the skill packs `projects`. Without a scope it prints the current one and the scopes each agent offers, with the reason where an agent offers one only (Codex installs plugins for the user only; its other scopes are unverified). With a scope it plans the move: out of one place, into the other, and the scope recorded, with a diff and an undo like any run. A pack at `global` is never offered for removal because no project selects it |
-| `skills [list]`, `skills update\|reset\|remove\|adopt\|add\|enable\|disable [name..] [--project dir] [--yes]` | skills of one project: `list` gives each skill's state (`current`, `outdated`, `modified`, `removed`, `disabled`), the commit installed and, with `--check`, the commit the source's default branch is at (one `git ls-remote` per source, per repository, so a repository with many skills counts as moved when any file changed), and the skill folders no BenchKeeper setup installed (`untracked`, also in the agents' global folders; no update or apply touches them). `update` adds the named skills again from the source's default branch and brings removed ones back (no name: checks the sources, then updates every outdated one); `reset` replaces a skill edited here (the plan shows the diff and the edit goes to the run's backup; a plan without `reset` leaves an edited skill alone); `remove` takes a single pick out of the project (a skill a pack brings leaves with the pack); `adopt` makes an untracked library skill a single pick of the project and keeps its folder; `add` makes a library skill the project lacks a single pick (a name is required); `disable` moves a skill to `.benchkeeper/disabled/` and `enable` moves it back (a name is required). Own skills are compared with the library's files, community skills by the commit and by the hash of their folder recorded when the install ran. `skills update` takes `--json` (see [Machine-readable output](#machine-readable-output)) |
-| `skills new <name> [--file path \| --description text]`, `skills edit <name> --file path`, `skills delete <name>` | your own skills, one folder each in `~/.config/benchkeeper/skills/<name>/` (`SKILL.md` and any other files). The name follows the [Agent Skills rules](https://agentskills.io/specification) (1 to 64 lowercase letters, digits and single hyphens, repeated as `name` in the front matter, with a `description` of 1 to 1024 characters) and must not be a library skill's. When a newer library adds a skill of the same name, the library's wins: `doctor` and `skills list --library` name the clash, and a project that picked yours keeps its files until the skill is reset. A project or own pack picks one like a library skill, and the setup copies its folder into the agents' skill folders; an edit reaches a project on its next apply. `new` starts from `--file` or a `SKILL.md` with the name and `--description`; `edit` replaces the `SKILL.md`; `delete` is refused while a registered project, own pack or preset names the skill. `projects plan\|apply --skill` refuses a name that is neither a library skill nor yours (exit 2); a stored pick that no longer resolves stays picked, and the plan warns. Each is a plan with a diff, undone in History. `packs export` refuses an own pack that names your skills, naming them: a pack file carries library skills only. Each takes `--yes` and `--json` |
-| `projects list\|add\|scan\|remove\|rename\|relocate\|unshare\|confirm-git`, `projects update [dir..] [--yes] [--dry-run] [--unattended]` | registered projects (`add` refuses another worktree of a registered repository unless `--worktree`; `rename <dir> [name] [--notes text]` sets the display name and notes in `projects.json`; `relocate <old> <new>` moves the entry, its kept answers and its history to a moved folder; `remove` only unregisters, `remove <dir>.. --setup [--yes]` lists every file, then takes BenchKeeper's setup out and keeps the project registered: a local setup as one run in the checkout (`benchkeeper undo <run>`), a shared one as a commit on the local branch `chore/remove-agent-setup`); `projects update` takes registered project folders to update only those (`--dry-run` and `--baseline` follow the list; an unregistered folder is refused, exit 2); `--unattended` skips and lists a project whose repository git config that runs code or sends git elsewhere (hooks, `core.hooksPath`, `core.sshCommand`, credential helper, push URL, URL rewrites, filters, signing and the like) differs from the list confirmed with `projects confirm-git <dir>..`, which shows that list (values redacted, hooks by name) and stores keys and value hashes in `projects.json` after a yes typed in a terminal (no `--yes`; exit 2 when stdin is not a terminal); `--unattended` does not imply `--yes`. Update all applies a local setup in the checkout, and for a shared one builds branch `chore/agent-setup-<version>` per project in a worktree and commits; it pushes nothing, and each result names the `git -C <dir> push -u origin <branch>` command while the branch holds commits to push. A repository that still tracks `.benchkeeper/state.json` while the setup is local gets a commit that removes the committed setup (`committedSetup`: the `AGENTS.md` block, an import-only `CLAUDE.md`, BenchKeeper's sandbox keys, the recorded and locked skills, `skills-lock.json`, `.benchkeeper/`) on branch `chore/agent-setup-local`; `projects unshare` does the same for the projects named or all. The checkout stays as it is until the merge is pulled, and the state file is kept in `projects.json` until Update all has written the local setup again. An unmerged branch from an earlier run gets the new commit on top and may hold only commits Update all made (recorded by id in the ledger); a project whose apply or commit fails keeps its worktree under `.cache/benchkeeper/worktrees/` in the home folder until you remove it. `projects add`, `remove`, `rename` and `relocate` take `--json` (see [Machine-readable output](#machine-readable-output)) |
+| `packs enable\|disable <id>.. [--project dir \| --global] [--yes]` | switches packs without a new setup: a plan on top of the saved answers, with a diff and an undo like any run, see [packs](#packs) |
+| `packs scope <id> [global\|projects] [--yes]` | a pack's install scope, see [packs](#packs) |
+| `skills [list]`, `skills update\|reset\|remove\|adopt\|add\|enable\|disable [name..] [--project dir] [--yes]` | skills of one project, see [skills](#skills) |
+| `skills new <name> [--file path \| --description text]`, `skills edit <name> --file path`, `skills delete <name>` | your own skills, one folder each in `~/.config/benchkeeper/skills/<name>/` (`SKILL.md` and any other files), see [skills](#skills) |
+| `projects list\|add\|scan\|remove\|rename\|relocate\|unshare\|confirm-git`, `projects update [dir..] [--yes] [--dry-run] [--unattended]` | registered projects, and Update all for them, see [projects](#projects) |
 | `projects create <dir> --preset <id> [--yes] [--all]`, `presets [list\|save <id> --project dir\|remove <id>]` | a preset is the setup answers of a project (agents, environment, packs, single skills, tier and the rest a profile keeps), saved under a name in `presets/` of the config folder; a pack is a set of skills switched on in a project, a preset starts a new project with its packs. `presets save` copies the answers of a project with a setup and never replaces a preset of the same id; `remove` moves the file to the backup. `projects create` refuses a folder that exists, a missing parent folder, a folder inside a registered project and an unknown preset; otherwise it shows the setup plan with a diff, applies the chosen changes and registers the folder (no `git init`: `projects apply` in the repository later adds the git exclude list). A check then recommends, each with its reason, skills to turn off (also installed in a global skill folder, or a description that overlaps another of the project's skills) and packs to add (on in at least half of the other registered projects that share an agent, two projects at least), as a second plan with no change selected: `--yes` takes none of them, `--all` all |
 | `projects status [dir]` | app version, install level, the agents with their BenchKeeper plugin, and per registered project (or only `dir`) the setup version, origin's setup, the checkout, branch, clean state and the pending changes; nothing is written |
 | `skills list --library` | the library's skills with the number of registered projects that have each |
@@ -98,6 +98,223 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `evals cases add --target skill:<name>\|rule:<name> --expected <text> [--should-not] [--project dir] [--scope project\|user]` | records an agent miss as an eval case; the prompt comes from `--run <session run>`, `--transcript`, `--query` or `--description`. A library skill keeps its name. Without one, the skill is your own: the case is stored under `skill:<name>@project-<id>` (the skill is in `--project`, or the project of `--run`, in a skill folder of any agent) or `skill:<name>@user` (in a skill folder of your home), and `--scope` names which one when the library has the same name. A skill that is neither in the library nor found there keeps the plain `skill:<name>` (a case for a skill installed later; `--scope` then fails with no such skill). The cases of an own project skill are stored with the project path in your own evals folder |
 | `verify [dir] [--project dir]` | deterministic checks, no agent session: files match the ledger, expected plugins or skill copies, project community skills in `skills-lock.json`. Exit 1 on a failure |
 | `evals plan\|run [--agents a,b] [--model m] [--target t] [--all]` | trigger cases (`plugins/benchkeeper/evals/` and your own) as real agent sessions in scratch repositories; miss and false-trigger rates per skill, agent, agent version and model. Uses your subscription; `plan` lists the targets and the number of sessions and starts none, `run` asks first (`--yes` answers it) and refuses when `CI` is set; runs only targets whose skill or cases changed unless `--all`. `--target` takes an id as printed, or `skill:<name>` for an own skill (the library skill of that name when there is one). An own skill's text is part of the target hash, so a changed own skill runs again; its result records `scope` (`project` with the `project` path, or `user`); one that no longer exists is left out of the plan |
+
+### `plan` and `apply`
+
+- Each change is shown (file changes as a diff, commands as their command line), then a question per change.
+- `--yes` applies the default selection without a question.
+- `--all` alone lists the removals and asks once whether to apply all changes, including removals.
+- `--yes --all` applies every change including removals without a question.
+- Neither removes a plugin BenchKeeper did not install.
+- Only the BenchKeeper plugin is pinned (the branch `stable`, which each release moves, at least at this app's version); Ponytail and Matt Pocock's skills follow their source.
+- The agent's own update, run by hand (third-party marketplaces have auto-update off by default), moves an installed plugin along the ref its marketplace was added at; a marketplace at another ref stays there until you remove and add it again ([Update](../docs/setup.md#update)).
+- A registered host account whose BenchKeeper plugin is older than this app's version gets update steps, a newer one is kept.
+- Plugin state is read from `~/.claude/plugins/` and `~/.codex/config.toml`, the agent CLIs only when those cannot be read.
+- A plugin whose marketplace was added at another ref than the pin is a step by hand, with the commands: moving the marketplace removes it, which deletes the plugin's data.
+- An installed pack plugin whose pack no registered project uses is offered for removal, not preselected (uninstalling deletes the plugin's data).
+  - A pack plugin BenchKeeper did not install is kept unless you answer its own question (`--yes` and `--all` skip it), with the command that adds its pack to a project and the one that brings it back.
+- `apply` takes `--json` (see [Machine-readable output](#machine-readable-output)).
+
+### `history` and `undo`
+
+- A unit is an installed skill, pack, plugin or rules: `history show --json` names each change's `unit`.
+- A command is undone with its recorded reverse command (an install with its uninstall); a command without one, such as removing a plugin you had, is reported as manual.
+- Undo puts a file back only while it is as the run (or the recorded session) left it and its backup is intact; otherwise it fails for that change and names the file.
+- Each change is journaled before it starts, so a change cut off by a crash shows in history and can be undone.
+- `undo` takes `--json` (see [Machine-readable output](#machine-readable-output)).
+
+### `projects`
+
+`projects plan|apply` options:
+
+- `--agents`
+- `--env container|host-agent|sandbox|host`
+- `--sandbox`
+- `--no-guards`: no deny rules or guard hook; `--guards` turns them on again.
+- `--machine on|off|none` (Claude Code), kept in the state file:
+  - `on`: the machine account's variables in the project's `.claude/settings.local.json`.
+  - `off`: your own git identity, `gh`'s default folder, no `GIT_CONFIG` pairs and no guard address over the values of `machine enable --global`.
+  - `none` takes the setting out.
+- `--no-workflow-load`: no rule line that loads the `workflow` skill before each task; `--workflow-load` puts it back.
+- `--pack`
+- `--skill`
+- `--paths '<skill>=<glob>,<glob>'`, kept in the state file:
+  - It writes `paths:` into an own or your skill's copied `SKILL.md`, which Claude Code then loads only for matching files.
+  - Other skills' entries stay; `<skill>=` takes the entry out.
+  - A skill whose own `SKILL.md` sets `paths:` keeps its key: globs for it are refused, and an entry kept from before is not written, which the plan warns about.
+- `--tier`
+- `--share` or `--local`: see [Local and shared setup](#local-and-shared-setup).
+- `--caller lint-js|lint-python|sonar`: writes that [repo-standards](https://github.com/ESchuderer/repo-standards) caller workflow as a file in the checkout; one that differs from yours is offered, not preselected; no GitHub setting is ever changed.
+
+#### Local and shared setup
+
+- Local is the default. In a repository that commits `AGENTS.md`, the plan warns that it loads next to the local block.
+- Local: the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (its block holds the text of `AGENTS.md` too, rebuilt on each apply; your lines outside it stay), the sandbox into `.claude/settings.local.json`, and every file written is listed in a marked block of `.git/info/exclude` (the repository's, shared by its worktrees).
+- `--share` writes the block into `AGENTS.md` with a `CLAUDE.md` import and keeps only `CLAUDE.local.md` and `AGENTS.override.md` in the exclude block.
+- At a repository root, a marked block of `.worktreeinclude` lists the local files a new worktree copies (Claude Code `--worktree`, Orca). Your lines outside the block stay.
+  - Local: the files written (`.benchkeeper/state.json`, not the folder) and the list itself, all git-ignored.
+  - `--share`, committed: only `CLAUDE.local.md` and `AGENTS.override.md`.
+
+What `projects plan|apply` keeps, cleans up and leaves to other commands:
+
+- `skills disable <name>` moves a skill to `.benchkeeper/disabled/`, `skills enable <name>` moves it back.
+- Answers and each community skill's commit are kept in `.benchkeeper/state.json`.
+- With Claude Code the state file also keeps, as `pluginCommit`, the commit of the BenchKeeper plugin installed for the project (its local or project scope install, else the user's) when an apply writes the file: another commit installed later is no change to apply and leaves the project current, and `doctor` names it as information.
+- A community skill is added again from the default branch of its source only when you ask for it (`skills update`, or Update in the Catalog), and the file then records the commit the install got.
+- Undo of a skills CLI command puts back the skill folders and `skills-lock.json` as they were before it, local edits included.
+- A changed answer cleans up: sandbox off removes `sandbox.enabled` and BenchKeeper's excluded commands, a dropped agent loses the `CLAUDE.md` import, the Gemini CLI context setting and skill folders no chosen agent reads.
+- A warning names hand-written AGENTS.md text on where commands run.
+- `projects apply` takes `--json` (see [Machine-readable output](#machine-readable-output)).
+
+`projects list|add|scan|remove|rename|relocate|unshare|confirm-git`:
+
+- `add` refuses another worktree of a registered repository unless `--worktree`.
+- `rename <dir> [name] [--notes text]` sets the display name and notes in `projects.json`.
+- `relocate <old> <new>` moves the entry, its kept answers and its history to a moved folder.
+- `remove` only unregisters.
+- `remove <dir>.. --setup [--yes]` lists every file, then takes BenchKeeper's setup out and keeps the project registered: a local setup as one run in the checkout (`benchkeeper undo <run>`), a shared one as a commit on the local branch `chore/remove-agent-setup`.
+- `confirm-git <dir>..` shows the git config list that `--unattended` compares (values redacted, hooks by name) and stores keys and value hashes in `projects.json` after a yes typed in a terminal (no `--yes`; exit 2 when stdin is not a terminal).
+- `projects add`, `remove`, `rename` and `relocate` take `--json` (see [Machine-readable output](#machine-readable-output)).
+
+`projects update` (Update all):
+
+- `projects update <dir>..` with registered project folders updates only those (`--dry-run` and `--baseline` follow the list; an unregistered folder is refused, exit 2).
+- `--unattended` skips and lists a project whose repository git config that runs code or sends git elsewhere (hooks, `core.hooksPath`, `core.sshCommand`, credential helper, push URL, URL rewrites, filters, signing and the like) differs from the list confirmed with `projects confirm-git <dir>..`.
+- `--unattended` does not imply `--yes`.
+- Update all applies a local setup in the checkout, and for a shared one builds branch `chore/agent-setup-<version>` per project in a worktree and commits.
+- It pushes nothing, and each result names the `git -C <dir> push -u origin <branch>` command while the branch holds commits to push.
+- A repository that still tracks `.benchkeeper/state.json` while the setup is local gets a commit that removes the committed setup (`committedSetup`: the `AGENTS.md` block, an import-only `CLAUDE.md`, BenchKeeper's sandbox keys, the recorded and locked skills, `skills-lock.json`, `.benchkeeper/`) on branch `chore/agent-setup-local`.
+  - `projects unshare` does the same for the projects named or all.
+  - The checkout stays as it is until the merge is pulled, and the state file is kept in `projects.json` until Update all has written the local setup again.
+- An unmerged branch from an earlier run gets the new commit on top and may hold only commits Update all made (recorded by id in the ledger).
+- A project whose apply or commit fails keeps its worktree under `.cache/benchkeeper/worktrees/` in the home folder until you remove it.
+
+### `sessions`
+
+`sessions list`:
+
+- A run is made of the sessions of its Orca workers, matched by the `Orca run:` line and the task id of each worker's first prompt.
+- Cost is API-equivalent; Codex estimated from its token counts and OpenAI's API prices.
+- It reads the same scan as `sessions board`.
+- `--run` adds a line per task of that run and exits 2 when no session has that run.
+
+`sessions cache`:
+
+- `show` counts the summaries with the retention.
+- `set --keep-days` (1 to 3650, `none`: for good) changes the retention, the next scan drops older ones.
+- `clear` removes every summary, those of deleted transcripts for good.
+- `set` and `clear` show the change and ask.
+- The command cannot see a scan the web UI runs, which writes the old summaries back: clear while none runs.
+
+### `automations`
+
+`automations install`, `update` and `remove`:
+
+- `install` creates the automation on the runner (Orca, through `orca automations create`), disabled, in the project folder (default: the current one), and records template id, version, parameter values and the runner's id in `automations.json` of the config folder; undo removes it.
+- `update` shows the diff, then edits the runner's automation back to the template (its enabled state stays); undo edits it back.
+- `remove` deletes it on the runner with its run history and drops the record: undo restores the record only, so `status` reports it removed and `install` creates it again.
+- Without Orca the three refuse and change nothing.
+
+`automations export`:
+
+- The script unpacks the helpers into a temporary folder, runs the precheck in the project folder (default: the current one) and starts `claude -p` or `codex exec` only when the precheck exits 0.
+- Its header has the crontab line of the template's schedule.
+- The command refuses a template without a cron schedule, another agent or workspace `new-worktree`.
+
+### `containers`
+
+- The workspace folder is read from the container's `devcontainer.local_folder` label.
+- So a worktree removed without its container is caught; volumes stay.
+- A container without that label, whose folder exists or cannot be read (permission denied), or whose label is not an absolute path inside the home folder (another user's folder, a Windows path, a folder on a remote engine's host) is never touched.
+- A missing parent folder (an unmounted drive) keeps the container.
+- `--dry-run` lists the containers it would remove.
+- Meant for cron or a timer; exit 1 when a removal fails.
+- Linux only: other systems skip it and say so.
+- `doctor` (level full) reports, by count only, these orphaned containers, stopped ones still present, ones whose folder could not be checked and unlabelled ones.
+- `doctor` (level full) warns when the user key quota (`/proc/key-users` against `kernel.keys.maxkeys`) is at 80 percent or more, since each running container holds keys and new ones fail at the limit.
+
+### `webhook`
+
+- `set` reads the URL (https, or http to this machine, no user or password in it) from the first line of stdin and an optional bearer token from the second, and keeps both in the OS credential store under `app.webhook`, never in a file.
+- `remove` deletes them after a question.
+- `status` shows whether one is set and the last failed send, never the URL or token.
+- `send` posts one JSON body `{"event":"run","state",["run"],["automation"],["task"],"time"}` with ids of fixed shapes only (no objective text; another shape exits 2).
+- `send` posts from a detached process with a 5 second limit, no redirect and no retry, and returns at once; without a webhook it does nothing.
+- A failure appends the time and an HTTP status or error code, without the URL, to `.cache/benchkeeper/webhook.log` in the home folder.
+- Nothing calls `send` on its own: a run that is killed sends nothing.
+
+### `machine`
+
+`machine setup` and `machine status`:
+
+- You create the account yourself: `setup` opens GitHub's sign-up, suggests the login `<your login>-agent` (your login from your own `gh api user`), and names the profile note and two-factor authentication.
+- Then `gh auth login --hostname github.com --git-protocol https --web --scopes write:ssh_signing_key` signs it in with `GH_CONFIG_DIR` set to `machine/gh` in the config folder, with no terminal on stdin so gh asks nothing (it neither offers itself as git's credential helper nor adds the `workflow` scope; `GIT_CONFIG_GLOBAL` points at a file of the machine folder as well); the device page opens and gh prints the code.
+- The token stays in gh's store, BenchKeeper never reads or prints it.
+- A sign-in as your own account (the same id) is refused and signed out.
+- Access: with your gh, `PUT /repos/{owner}/{repo}/collaborators/<machine>` with `permission=push` (never admin or maintain) for `--repos`, every repository of `--owner` (listed, archived ones left out, after a question), else the folder's origin; then the machine's gh accepts the invitations.
+- A refused repository (an organization's policy) is named with the fix and exits 1.
+- Signing (default on, `--no-signing` skips): an ed25519 key in `machine/signing_key` (0600) uploaded with `POST /user/ssh_signing_keys`.
+- `machine.json` keeps both accounts by numeric id and their logins for display, the `gh` path and the signing choice, never a token.
+- `status` reads both logins again (a rename is written back; the commit address follows), shows the sign-in, the address and the key.
+
+`machine enable|disable --global`, `machine shell` and `machine remove`:
+
+- `enable --global` writes the machine variables into the `env` of Claude Code's user settings and into `[shell_environment_policy.set]` of Codex's `config.toml`, where `~/.claude` or `~/.codex` exists, as a plan with a diff (undo restores the files).
+- `disable --global` takes out exactly these names.
+- The variables:
+  - `GIT_AUTHOR_*` and `GIT_COMMITTER_*` (`<login>`, `<id>+<login>@users.noreply.github.com`).
+  - `GIT_CONFIG_COUNT` pairs that reset the credential helpers of `https://github.com` and set `!GH_CONFIG_DIR=<machine folder> <gh> auth git-credential`, send pushes to an ssh address of github.com over https (`pushInsteadOf`), and with signing `gpg.format=ssh`, `user.signingkey=<key>` and `commit.gpgsign=true`.
+  - `GH_CONFIG_DIR` (every `gh` call acts as the machine account).
+  - `BENCHKEEPER_MACHINE_EMAIL` for the guard hook.
+- A project: `projects apply --machine on|off|none`.
+- `shell` starts your `$SHELL` with your environment minus `GH_TOKEN`, `GITHUB_TOKEN` and outer `GIT_CONFIG_*` pairs plus these variables; nothing goes into a shell start file.
+- `remove` asks, takes the variables out of the agent settings (a run), signs the machine account out of the machine folder, deletes the folder with the key and config, and prints the pages to delete the signing key or the account (signed in as the machine account).
+
+### `packs`
+
+`packs enable` and `packs disable`:
+
+- `--project` (default: the current folder) changes the project's packs, and disabling removes exactly the skills no other enabled pack and no single pick still needs.
+- `--global` installs or removes the plugin of a pack that has one.
+- Enabling and then disabling the same pack returns the project's files to what they were.
+- `packs enable` and `disable` take `--json` (see [Machine-readable output](#machine-readable-output)).
+
+`packs scope`:
+
+- `global` installs the pack once on the machine for every project.
+- `projects` installs the pack in each registered project whose setup selects it (Claude Code plugins at local scope, on this machine only).
+- Defaults: the plugin packs `global`, the skill packs `projects`.
+- Without a scope it prints the current one and the scopes each agent offers, with the reason where an agent offers one only (Codex installs plugins for the user only; its other scopes are unverified).
+- With a scope it plans the move: out of one place, into the other, and the scope recorded, with a diff and an undo like any run.
+- A pack at `global` is never offered for removal because no project selects it.
+
+### `skills`
+
+`skills [list]` and the commands that change one project's skills:
+
+- `list` gives each skill's state (`current`, `outdated`, `modified`, `removed`, `disabled`), the commit installed and, with `--check`, the commit the source's default branch is at (one `git ls-remote` per source, per repository, so a repository with many skills counts as moved when any file changed).
+- `list` also gives the skill folders no BenchKeeper setup installed (`untracked`, also in the agents' global folders; no update or apply touches them).
+- `update` adds the named skills again from the source's default branch and brings removed ones back (no name: checks the sources, then updates every outdated one).
+- `reset` replaces a skill edited here (the plan shows the diff and the edit goes to the run's backup; a plan without `reset` leaves an edited skill alone).
+- `remove` takes a single pick out of the project (a skill a pack brings leaves with the pack).
+- `adopt` makes an untracked library skill a single pick of the project and keeps its folder.
+- `add` makes a library skill the project lacks a single pick (a name is required).
+- `disable` moves a skill to `.benchkeeper/disabled/` and `enable` moves it back (a name is required).
+- Own skills are compared with the library's files, community skills by the commit and by the hash of their folder recorded when the install ran.
+- `skills update` takes `--json` (see [Machine-readable output](#machine-readable-output)).
+
+Your own skills (`skills new`, `edit` and `delete`):
+
+- The name follows the [Agent Skills rules](https://agentskills.io/specification) (1 to 64 lowercase letters, digits and single hyphens, repeated as `name` in the front matter, with a `description` of 1 to 1024 characters) and must not be a library skill's.
+- When a newer library adds a skill of the same name, the library's wins: `doctor` and `skills list --library` name the clash, and a project that picked yours keeps its files until the skill is reset.
+- A project or own pack picks one like a library skill, and the setup copies its folder into the agents' skill folders; an edit reaches a project on its next apply.
+- `new` starts from `--file` or a `SKILL.md` with the name and `--description`.
+- `edit` replaces the `SKILL.md`.
+- `delete` is refused while a registered project, own pack or preset names the skill.
+- `projects plan|apply --skill` refuses a name that is neither a library skill nor yours (exit 2); a stored pick that no longer resolves stays picked, and the plan warns.
+- `new`, `edit` and `delete` are each a plan with a diff, undone in History.
+- `packs export` refuses an own pack that names your skills, naming them: a pack file carries library skills only.
+- `new`, `edit` and `delete` each take `--yes` and `--json`.
 
 ## Machine-readable output
 
@@ -165,7 +382,7 @@ The exit codes are the same with and without `--json`.
 
 ## Web UI
 
-`benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link works once and for 10 minutes, and only as printed: at `http://127.0.0.1:<port>` with the printed port, not at `localhost` or through a forwarded port with another number. A used, expired or wrong-host link, and a tab left open after the server was started again, show what happened; start the app again (`npx benchkeeper@6.26.0`) and open the new link. The browser gets a file only you can read, which forwards to the link, so the token stays out of process arguments other local users can see. The link's token becomes an HttpOnly, SameSite=Strict session cookie named per port (`bk_session_<port>`) and an API key that the page keeps in its own origin's storage. API requests need both: browsers send the cookie to every server on `127.0.0.1`, the key stays with this page. The sessions board frame, which cannot send a header, loads with a one-time ticket the page asks for with the key. The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and API requests without the key in the `x-benchkeeper` header. It stops with Ctrl+C in its terminal or with the Stop button in the header, which the server refuses while an apply or eval runs; scans and setup suggestions still running are cancelled. Recorded agent sessions run from the CLI only. Applies, evals and setup suggestions run on the server: while one runs, the header shows it and opens its progress, also after a reload.
+`benchkeeper ui` serves on `127.0.0.1` at a free port and opens the browser with a one-time link (`--no-open` prints it). The link works once and for 10 minutes, and only as printed: at `http://127.0.0.1:<port>` with the printed port, not at `localhost` or through a forwarded port with another number. A used, expired or wrong-host link, and a tab left open after the server was started again, show what happened; start the app again (`npx benchkeeper@6.27.0`) and open the new link. The browser gets a file only you can read, which forwards to the link, so the token stays out of process arguments other local users can see. The link's token becomes an HttpOnly, SameSite=Strict session cookie named per port (`bk_session_<port>`) and an API key that the page keeps in its own origin's storage. API requests need both: browsers send the cookie to every server on `127.0.0.1`, the key stays with this page. The sessions board frame, which cannot send a header, loads with a one-time ticket the page asks for with the key. The server rejects other Host headers, foreign or `null` origins, cross-site fetches, changes sent with GET, and API requests without the key in the `x-benchkeeper` header. It stops with Ctrl+C in its terminal or with the Stop button in the header, which the server refuses while an apply or eval runs; scans and setup suggestions still running are cancelled. Recorded agent sessions run from the CLI only. Applies, evals and setup suggestions run on the server: while one runs, the header shows it and opens its progress, also after a reload.
 
 The sidebar groups the views: Overview (Dashboard, History), Projects (Projects), Catalog (Skills, Packs), Analysis (Sessions, Runs, Insights, Evals), Agent configuration (Global setup, Agent settings, Rules, Extensions, Accounts), Machine (Automations, Preferences), and Advanced while Editors is on.
 

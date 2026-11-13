@@ -1,5 +1,35 @@
 # Changelog
 
+## [6.27.0](https://github.com/ESchuderer/BenchKeeper/compare/app-v6.26.0...app-v6.27.0) (2026-11-12)
+
+
+### Features
+
+* **app,plugin:** projects plan and apply take --paths for a copied skill's globs ([#1295](https://github.com/ESchuderer/BenchKeeper/issues/1295)) ([74e1c9e](https://github.com/ESchuderer/BenchKeeper/commit/74e1c9ef00b3e3ed0bf3002a70b86f4dfe895c06))
+* **app:** remove the agent-file sources and their agency-agents catalog entry ([#1281](https://github.com/ESchuderer/BenchKeeper/issues/1281)) ([2f85c27](https://github.com/ESchuderer/BenchKeeper/commit/2f85c27daa998cccec94e0fafc19d78770b8264b))
+* **app:** the project's state records the commit of the installed BenchKeeper plugin, and doctor names a different one ([#1318](https://github.com/ESchuderer/BenchKeeper/issues/1318)) ([1a1b731](https://github.com/ESchuderer/BenchKeeper/commit/1a1b73190decd1514e674fd0a1472025f0ae6828))
+* **audit:** no coverage-floor check, and the workflow skill adds a test only where the test rule calls for one ([#1132](https://github.com/ESchuderer/BenchKeeper/issues/1132)) ([8712d4d](https://github.com/ESchuderer/BenchKeeper/commit/8712d4d2be7311586bb527e139d45ce61b662418))
+* **automations:** the daily digest writes one file per day, digests/YYYY-MM-DD.md ([#1319](https://github.com/ESchuderer/BenchKeeper/issues/1319)) ([c28a98a](https://github.com/ESchuderer/BenchKeeper/commit/c28a98ae880ba1abc255315d1e9aa7b16bf38eaf))
+* Matt Pocock's setup prompt goes, find-skills is off, and the workflow and ask texts close the tdd and chat-interview gaps ([#1283](https://github.com/ESchuderer/BenchKeeper/issues/1283)) ([177996e](https://github.com/ESchuderer/BenchKeeper/commit/177996e2b13a475ceb250fac46eaed1db3c41565))
+* **plugin:** /benchkeeper:questions asks the open question issues and allows terminal questions for the session ([#1264](https://github.com/ESchuderer/BenchKeeper/issues/1264)) ([370e779](https://github.com/ESchuderer/BenchKeeper/commit/370e7791cf7092026d8a91d3f0c13fc16e94e62c))
+* **plugin:** an idle Orca coordinator clears its context above a threshold and resumes from its handoff file ([#1270](https://github.com/ESchuderer/BenchKeeper/issues/1270)) ([32177a9](https://github.com/ESchuderer/BenchKeeper/commit/32177a94c771e2e2b375c3933dcece2f75c8520c))
+* **plugin:** no question tool by default, and /benchkeeper:ask allows terminal questions for a while ([#1260](https://github.com/ESchuderer/BenchKeeper/issues/1260)) ([a4a678b](https://github.com/ESchuderer/BenchKeeper/commit/a4a678b1c6b2b7dec178eea2b40d54b12b933148))
+* **plugin:** one approval layout with model, effort, review, merges and cost for owner gates and questions ([#1312](https://github.com/ESchuderer/BenchKeeper/issues/1312)) ([252f2f8](https://github.com/ESchuderer/BenchKeeper/commit/252f2f85c8bcb0529c47a1df0f4fee5a5bf26c75))
+* **plugin:** one daily digest file that the automation can commit and mirror to an issue ([#1289](https://github.com/ESchuderer/BenchKeeper/issues/1289)) ([aae5852](https://github.com/ESchuderer/BenchKeeper/commit/aae58522d8d5c085caa977939114422b71f12693))
+* **plugin:** policy schema version 2 and a reader for the effective policy; a policy key the schema does not name now starts nothing ([#1310](https://github.com/ESchuderer/BenchKeeper/issues/1310)) ([0285fd4](https://github.com/ESchuderer/BenchKeeper/commit/0285fd401570668553611d2e0838da77f60e960e))
+* **plugin:** stuck signals in the implement agent, git drift in the restored handoff ([#1294](https://github.com/ESchuderer/BenchKeeper/issues/1294)) ([fdd8304](https://github.com/ESchuderer/BenchKeeper/commit/fdd830481a7290f54b4dce016eca217c4cf75f77))
+* **plugin:** the owner-only match, the merge pin and the pick are scripts with fixed cases, and the owner's answer to an approval is read back ([#1314](https://github.com/ESchuderer/BenchKeeper/issues/1314)) ([d0874b8](https://github.com/ESchuderer/BenchKeeper/commit/d0874b85ef1681785049245131cdba5ff4cb6822))
+* **rules:** the global rules keep only small universal rules; questions, best practice and writing move to the project rules ([#1258](https://github.com/ESchuderer/BenchKeeper/issues/1258)) ([74357aa](https://github.com/ESchuderer/BenchKeeper/commit/74357aafeaf10f737d54ded37b40eb7c8c40c683))
+* **setup:** every apply writes the shared rules into the BenchKeeper block; the setup skill commits the setup of a repository without an AGENTS.md of its own, and merges into a committed one only the parts you pick ([#1125](https://github.com/ESchuderer/BenchKeeper/issues/1125)) ([34f03c1](https://github.com/ESchuderer/BenchKeeper/commit/34f03c1ddccce1edbdc7ae05ccd059cf35bdf6b1))
+
+
+### Bug Fixes
+
+* **app,plugin:** digest follow-ups: models in sessions list, git options in the helper lint, origin in the precheck ([#1293](https://github.com/ESchuderer/BenchKeeper/issues/1293)) ([d440d68](https://github.com/ESchuderer/BenchKeeper/commit/d440d68b6bc048377276833b6b0f39b819c8facf))
+* **app:** a stored --paths entry is not written into a skill that sets paths itself ([#1303](https://github.com/ESchuderer/BenchKeeper/issues/1303)) ([69afc97](https://github.com/ESchuderer/BenchKeeper/commit/69afc970be43155809a3e4c521ec8357e88d8a1b))
+* **app:** no AI attribution by default in setup, doctor and machine launches ([#1320](https://github.com/ESchuderer/BenchKeeper/issues/1320)) ([df05006](https://github.com/ESchuderer/BenchKeeper/commit/df05006463ab9c8af0995b97bd2b7b42c43fed2c))
+* **plugin,app:** setting-up-projects applies the AGENTS.override.md change again after its AGENTS.md edits, and the Copy status has a UI check ([#1287](https://github.com/ESchuderer/BenchKeeper/issues/1287)) ([f2e36e8](https://github.com/ESchuderer/BenchKeeper/commit/f2e36e8a795296126b9655b36defa29c5e8a4e18))
+
 ## [6.26.0](https://github.com/ESchuderer/BenchKeeper/compare/app-v6.25.0...app-v6.26.0) (2026-11-05)
 
 

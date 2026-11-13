@@ -37,5 +37,4 @@ Questions for the owner go into your final answer, not into an issue or a pull r
 3. Per issue: a type label and an area label from the list above, the issues it likely duplicates with their links, and the questions the owner must answer before work can start.
 4. Mode report: stop here. Answer per repository with each issue, its suggested labels, the likely duplicates and the questions. Write nothing to GitHub.
 5. Mode act: per issue add the suggested labels (`gh issue edit <number> --repo <repo> --add-label`) and one comment that names the likely duplicates and ends with the marker line `automation-issue-triage`; an issue that already has such a comment gets no second one. Remove no label.
-6. List the questions of step 3 per issue in your final answer.
-7. Answer per repository with each issue, what was done and the links. Change nothing else.
+6. Answer per repository with each issue, what was done, the links and the questions of step 3. Change nothing else.

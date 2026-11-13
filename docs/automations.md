@@ -141,20 +141,146 @@ Limits:
 
 ## Catalogue
 
-The generic templates, ranked by what the projects need. Every row is shipped as a template file; its issue holds the details. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
+The generic templates, ranked by what the projects need. Every row is shipped as a template file; its issue holds the details, and the section of the template below the table says what it does. Each template in `plugins/benchkeeper/automations/` has a row that names its id (checked by `app/test/automations.test.mjs`).
 
 | Template | Schedule | Precheck reads | May change | Status |
 |---|---|---|---|---|
-| `maintenance-sweep`: Maintenance sweep of the maintaining-repos skill with its knowledge base: dead code, test audit, dependency and documentation drift (`paths`, each claim with file and line); reports first | monthly | at least `min_merged` pull requests merged since the last pass in the knowledge base (`benchkeeper knowledge show`) | the knowledge base; in act mode at most `max_prs` pull requests, one per finding group, a docs drift one prose only | template, [#348](https://github.com/ESchuderer/BenchKeeper/issues/348) |
-| `ci-audit`: CI and quality audit of the project checkout with `benchkeeper projects audit`: workflow, test, code and own-tool findings grouped by what one pull request fixes, checks the project has no tool for listed as skipped; never lowers a threshold or floor, raises a budget, removes a check or adds a suppression to turn a result green | monthly | no report yet, or a workflow or dependency file changed since the commit on the first line of the last report (`file`) | the report (`file`); in act mode at most `max_prs` pull requests by fix workers, one per finding group | template, [#359](https://github.com/ESchuderer/BenchKeeper/issues/359) |
-| `dependency-triage`: Dependency and advisory triage over `repos` and the repositories of `owners`: a minor or patch update is reported for the owner to merge, a major one gets a worker (at most `max_workers`) that fixes the build or closes the pull request with the reason, an advisory gets a fix pull request; a bot pull request with a commit by someone else is listed only | weekly | open dependency bot pull requests or Dependabot alerts (an alert the token cannot read is reported once) | in act mode: bot pull request branches, comments and closes, fix pull requests; never a lockfile by hand | template, [#349](https://github.com/ESchuderer/BenchKeeper/issues/349) |
-| `ci-health`: CI health of `repos` and `workflows` (file names): a failed run of the default branch or a schedule is rerun once; the second failure in a row opens one issue per workflow with the run link, failing job and step, first failing commit and flaky suspicion, a later one updates it, a green run closes it; never edits or disables a workflow | daily | a failed default-branch or scheduled run in the last day, or a green run after a recorded failure | in act mode: one rerun of a first attempt, one issue per workflow | template, [#350](https://github.com/ESchuderer/BenchKeeper/issues/350) |
-| `worktree-cleanup`: Worktree and container cleanup of the project checkout: a linked worktree whose pull request is merged with its head commit, that is clean, holds no ignored file outside `rebuildable` folders (a `.worktreeinclude` entry, or a file in one, equal to the checkout's copy counts as rebuildable, so does a folder Git ignores whose files all are) and in which no process works, its stopped devcontainer containers and volumes, its branch and merged local branches checked out nowhere; lists before it removes; reports the largest entries of the temporary folder and every kept worktree with the reason, never deletes there | daily | temporary space above `tmp_limit_percent`, or a removable worktree or branch | in act mode: those worktrees, containers, volumes and branches, only through its `sweep.sh` | template, [#351](https://github.com/ESchuderer/BenchKeeper/issues/351) |
-| `daily-digest`: Daily digest: decisions for the owner, blocked, risks, merged, decisions taken on the owner's behalf, running workers, the model behind each alias (the handoff file's `Models:` line maps each alias, checked against the models `sessions list` reports; risks and decisions from the coordinator's handoff file, about `repos` only), and account headroom; report mode writes nothing to GitHub. Act mode writes only when the checkout's `origin` repository is private or internal, since the digest holds private items. Its writes need exactly these allow rules, filled in, for a `file` without `YYYY-MM-DD`: `Bash(git fetch origin <default branch>)`, `Bash(git add -- <file>)`, `Bash(git commit -m "docs: daily digest" -- <file>)`, `Bash(git push origin HEAD:<default branch>)` and `Bash(gh issue comment <issue> --repo <owner/name> --body-file <file>)`; a rule without `*` matches that one command ([permissions](https://code.claude.com/docs/en/permissions)). In an exported run the template's hook (`daily-digest/guard.sh`) allows, in mode `act`, exactly `git add -- <path>` and `git commit -m "docs: daily digest" -- <path>` (`commit` true) and `gh issue comment <issue> --repo <owner/name> --body-file <path>` (`issue` set, `<owner/name>` the `origin` repository of the project folder in any case, not of a nested checkout the run may `cd` into), with `<path>` the `file` value and a real date in place of `YYYY-MM-DD`; it denies every other call with the adjacent words `git add`, `git commit`, `gh issue comment` or `gh pr comment` (a second path or `--repo`, a tab, `${IFS}`, `..`, a subfolder, a name that is no date), so these three need no allow rule there, and the six deny rules below may stay, since deny rules apply even to a call a hook allows. A runner install does not start the hook, and that is accepted: on the runner the three `*` rules and the six deny rules below are the limit, with the gaps named below, and the exact form holds in an exported run only (`commit` and `issue` are off by default and write in act mode only). There a rule cannot name a date, so with the default `digests/YYYY-MM-DD.md` three of them take `*` in its place: `Bash(git add -- digests/*.md)`, `Bash(git commit -m "docs: daily digest" -- digests/*.md)` and `Bash(gh issue comment <issue> --repo <owner/name> --body-file digests/*.md)`. A `*` matches any text, spaces included, so these also allow further paths, and a second `--repo` and `--body-file` that post another file to another repository. Deny rules are checked before allow rules: add these six, which refuse a space (a second path or a flag) or a slash (`..` or a subfolder) in the date's place: `Bash(git add -- digests/* *)`, `Bash(git add -- digests/*/*)`, `Bash(git commit -m "docs: daily digest" -- digests/* *)`, `Bash(git commit -m "docs: daily digest" -- digests/*/*)`, `Bash(gh issue comment <issue> --repo <owner/name> --body-file digests/* *)` and `Bash(gh issue comment <issue> --repo <owner/name> --body-file digests/*/*)`. They leave open a separator other than a space (a tab, `${IFS}`) before a further top-level `.md` name, and any `.md` name directly in `digests/`, so the prompt's exact commands remain the limit there (derived from the documented matching, unverified in Claude Code). Its reads need rules by read subcommand: `Bash(gh pr list *)`, `Bash(gh pr view *)`, `Bash(gh pr checks *)`, `Bash(gh issue list *)`, `Bash(gh issue view *)`, `Bash(gh repo view *)`, `Bash(npx -y benchkeeper@6 sessions list)`, `Bash(npx -y benchkeeper@6 accounts status)`, `Bash(git remote get-url origin)`, `Bash(git rev-list *)`, `Bash(git log *)` and `Bash(date +%F)`; a bare `gh` or `npx` prefix rule would also allow every write | daily | a pull request or an issue changed since the last digest (with a dated `file`, the file with the latest date in its name; its last commit's author time when the file is committed and unchanged), apart from `issue` in the checkout's repository | one local file (`file`, by default `digests/YYYY-MM-DD.md`: one file per day in this machine's time zone, a rerun replaces only that day's file; a `file` without `YYYY-MM-DD` is one file that each run replaces), an optional desktop notification (`notify`); in act mode, optionally a commit of that file alone pushed to the default branch when the checkout is on it and neither ahead nor behind (`commit`), and one comment with the digest on an issue of the checkout's repository (`issue`; its links show on the linked issues and pull requests as references) | template, [#352](https://github.com/ESchuderer/BenchKeeper/issues/352) |
-| `issue-triage`: Issue triage over `repos`: suggests a type and an area label from `labels`, links likely duplicates and lists the owner's open questions per issue in its answer; reads text of authors outside `trusted_authors` as data only; never sets the label that approves agent work, never closes an issue | every 4 hours | open issues with none of `labels` | in act mode: labels from `labels` and one comment per issue | template, [#353](https://github.com/ESchuderer/BenchKeeper/issues/353) |
-| `code-findings`: Code findings to fix workers: open findings of the default branch from the adapter (`code-scanning`, a `linter` script that prints ESLint JSON or SARIF, or a `quality-gate` service read with the token in `token_var`), grouped by rule and file; a worker removes the cause, and the check step (`code-findings/check.sh`) rejects a fix that adds a suppression comment or changes the tool configuration; a finding that cannot be fixed is listed for the owner to accept in the tool | weekly | `list.sh`: an open finding of the adapter (`quality-gate`: the token variable is set) | in act mode: branches and pull requests, at most `max_workers` workers at once | template, [#354](https://github.com/ESchuderer/BenchKeeper/issues/354) |
-| `release-watch`: Release watch: the package at the version in the registry (`registry`), the version pins in the README and docs, the release notes and an install in a clean container (`install_command`, empty: an npm install); never publishes, tags or edits a release | hourly | a valid release tag without a recorded pass, or a failure older than a day | one issue per failing tag, updated by the next check and closed after a pass (act mode) | template, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
-| `provider-changelog`: Provider changelog scan: what the installed agent CLIs changed that affects the setup (settings, hooks, deprecations, new events), with proposals for the settings catalog and Insights; reads only the official release notes in `sources` (install refuses a page outside its `allow` list), uses a subscription session | weekly | an installed agent version the last report does not name | one local report (`file`) | template, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
+| `maintenance-sweep`: Maintenance sweep of the maintaining-repos skill with its knowledge base; reports first. [Details](#maintenance-sweep) | monthly | at least `min_merged` pull requests merged since the last pass in the knowledge base (`benchkeeper knowledge show`) | the knowledge base; in act mode at most `max_prs` pull requests, one per finding group, a docs drift one prose only | template, [#348](https://github.com/ESchuderer/BenchKeeper/issues/348) |
+| `ci-audit`: CI and quality audit of the project checkout with `benchkeeper projects audit`, findings grouped by what one pull request fixes. [Details](#ci-audit) | monthly | no report yet, or a workflow or dependency file changed since the commit on the first line of the last report (`file`) | the report (`file`); in act mode at most `max_prs` pull requests by fix workers, one per finding group | template, [#359](https://github.com/ESchuderer/BenchKeeper/issues/359) |
+| `dependency-triage`: Dependency and advisory triage over `repos` and the repositories of `owners`. [Details](#dependency-triage) | weekly | open dependency bot pull requests or Dependabot alerts (an alert the token cannot read is reported once) | in act mode: bot pull request branches, comments and closes, fix pull requests; never a lockfile by hand | template, [#349](https://github.com/ESchuderer/BenchKeeper/issues/349) |
+| `ci-health`: CI health of `repos` and `workflows` (file names): one rerun, then one issue per failing workflow. [Details](#ci-health) | daily | a failed default-branch or scheduled run in the last day, or a green run after a recorded failure | in act mode: one rerun of a first attempt, one issue per workflow | template, [#350](https://github.com/ESchuderer/BenchKeeper/issues/350) |
+| `worktree-cleanup`: Worktree and container cleanup of the project checkout; lists before it removes. [Details](#worktree-cleanup) | daily | temporary space above `tmp_limit_percent`, or a removable worktree or branch | in act mode: those worktrees, containers, volumes and branches, only through its `sweep.sh` | template, [#351](https://github.com/ESchuderer/BenchKeeper/issues/351) |
+| `daily-digest`: Daily digest for the owner: decisions, blocked, risks, merged, running workers and account headroom. [Details](#daily-digest) | daily | a pull request or an issue changed since the last digest (with a dated `file`, the file with the latest date in its name; its last commit's author time when the file is committed and unchanged), apart from `issue` in the checkout's repository | one local file (`file`), an optional desktop notification (`notify`); in act mode, optionally a commit of that file (`commit`) and one issue comment (`issue`). [Writes](#daily-digest) | template, [#352](https://github.com/ESchuderer/BenchKeeper/issues/352) |
+| `issue-triage`: Issue triage over `repos`: suggests labels, links likely duplicates and lists the owner's open questions. [Details](#issue-triage) | every 4 hours | open issues with none of `labels` | in act mode: labels from `labels` and one comment per issue | template, [#353](https://github.com/ESchuderer/BenchKeeper/issues/353) |
+| `code-findings`: Code findings to fix workers: open findings of the default branch, grouped by rule and file. [Details](#code-findings) | weekly | `list.sh`: an open finding of the adapter (`quality-gate`: the token variable is set) | in act mode: branches and pull requests, at most `max_workers` workers at once | template, [#354](https://github.com/ESchuderer/BenchKeeper/issues/354) |
+| `release-watch`: Release watch: the package at the version in the registry, the version pins, the release notes and a clean install; never publishes. [Details](#release-watch) | hourly | a valid release tag without a recorded pass, or a failure older than a day | one issue per failing tag, updated by the next check and closed after a pass (act mode) | template, [#355](https://github.com/ESchuderer/BenchKeeper/issues/355) |
+| `provider-changelog`: Provider changelog scan: what the installed agent CLIs changed that affects the setup. [Details](#provider-changelog) | weekly | an installed agent version the last report does not name | one local report (`file`) | template, [#357](https://github.com/ESchuderer/BenchKeeper/issues/357) |
 | `update-all`: Update all for the registered projects; skips a project whose git config that runs code is not confirmed (`benchkeeper projects confirm-git <dir>`) | weekly | a project the dry run reports ready | setup commits on local branches in act mode, never pushed; the report names each push command | template, [#358](https://github.com/ESchuderer/BenchKeeper/issues/358) |
 
 Not offered: merging external pull requests, applying the agent label, changing settings or rulesets, switching accounts automatically.
+
+### `maintenance-sweep`
+
+- Runs the maintaining-repos skill with its knowledge base: dead code, test audit, dependency and documentation drift (`paths`, each claim with file and line).
+- Reports first.
+
+### `ci-audit`
+
+- Audits the project checkout with `benchkeeper projects audit`: workflow, test, code and own-tool findings, grouped by what one pull request fixes.
+- Checks the project has no tool for are listed as skipped.
+- Never lowers a threshold or floor, raises a budget, removes a check or adds a suppression to turn a result green.
+
+### `dependency-triage`
+
+- Covers `repos` and the repositories of `owners`.
+- A minor or patch update is reported for the owner to merge.
+- A major update gets a worker (at most `max_workers`) that fixes the build or closes the pull request with the reason.
+- An advisory gets a fix pull request.
+- A bot pull request with a commit by someone else is listed only.
+
+### `ci-health`
+
+- Covers `repos` and `workflows` (file names).
+- A failed run of the default branch or a schedule is rerun once.
+- The second failure in a row opens one issue per workflow with the run link, failing job and step, first failing commit and flaky suspicion. A later failure updates it, a green run closes it.
+- Never edits or disables a workflow.
+
+### `worktree-cleanup`
+
+- Cleans up the project checkout's worktrees and containers.
+- A linked worktree goes when its pull request is merged with its head commit, it is clean, it holds no ignored file outside `rebuildable` folders, and no process works in it.
+  - A `.worktreeinclude` entry, or a file in one, equal to the checkout's copy counts as rebuildable, so does a folder Git ignores whose files all are.
+- Also removed: its stopped devcontainer containers and volumes, its branch and merged local branches checked out nowhere.
+- Lists before it removes.
+- Reports the largest entries of the temporary folder and every kept worktree with the reason, never deletes there.
+
+### `daily-digest`
+
+- Content: decisions for the owner, blocked, risks, merged, decisions taken on the owner's behalf, running workers, the model behind each alias, and account headroom.
+  - The model behind each alias: the handoff file's `Models:` line maps each alias, checked against the models `sessions list` reports.
+  - Risks and decisions come from the coordinator's handoff file, about `repos` only.
+- Report mode writes nothing to GitHub. Act mode writes only when the checkout's `origin` repository is private or internal, since the digest holds private items.
+- Writes:
+  - One local file (`file`), by default `digests/YYYY-MM-DD.md`: one file per day in this machine's time zone, and a rerun replaces only that day's file. A `file` without `YYYY-MM-DD` is one file that each run replaces.
+  - An optional desktop notification (`notify`).
+  - In act mode, optionally a commit of that file alone, pushed to the default branch when the checkout is on it and neither ahead nor behind (`commit`).
+  - In act mode, optionally one comment with the digest on an issue of the checkout's repository (`issue`); its links show on the linked issues and pull requests as references.
+- Allow rules for the writes, exactly these, filled in, for a `file` without `YYYY-MM-DD`. A rule without `*` matches that one command ([permissions](https://code.claude.com/docs/en/permissions)):
+
+  ```text
+  Bash(git fetch origin <default branch>)
+  Bash(git add -- <file>)
+  Bash(git commit -m "docs: daily digest" -- <file>)
+  Bash(git push origin HEAD:<default branch>)
+  Bash(gh issue comment <issue> --repo <owner/name> --body-file <file>)
+  ```
+
+- In an exported run the template's hook (`daily-digest/guard.sh`) allows, in mode `act`, exactly these calls, with `<path>` the `file` value and a real date in place of `YYYY-MM-DD`:
+  - `git add -- <path>`
+  - `git commit -m "docs: daily digest" -- <path>` (`commit` true)
+  - `gh issue comment <issue> --repo <owner/name> --body-file <path>` (`issue` set, `<owner/name>` the `origin` repository of the project folder in any case, not of a nested checkout the run may `cd` into)
+- The hook denies every other call with the adjacent words `git add`, `git commit`, `gh issue comment` or `gh pr comment` (a second path or `--repo`, a tab, `${IFS}`, `..`, a subfolder, a name that is no date). So these three need no allow rule there, and the six deny rules below may stay, since deny rules apply even to a call a hook allows.
+- A runner install does not start the hook, and that is accepted: on the runner the three `*` rules and the six deny rules below are the limit, with the gaps named below, and the exact form holds in an exported run only (`commit` and `issue` are off by default and write in act mode only).
+- On the runner a rule cannot name a date, so with the default `digests/YYYY-MM-DD.md` three of the allow rules take `*` in its place:
+
+  ```text
+  Bash(git add -- digests/*.md)
+  Bash(git commit -m "docs: daily digest" -- digests/*.md)
+  Bash(gh issue comment <issue> --repo <owner/name> --body-file digests/*.md)
+  ```
+
+  A `*` matches any text, spaces included, so these also allow further paths, and a second `--repo` and `--body-file` that post another file to another repository.
+- Deny rules are checked before allow rules. Add these six, which refuse a space (a second path or a flag) or a slash (`..` or a subfolder) in the date's place:
+
+  ```text
+  Bash(git add -- digests/* *)
+  Bash(git add -- digests/*/*)
+  Bash(git commit -m "docs: daily digest" -- digests/* *)
+  Bash(git commit -m "docs: daily digest" -- digests/*/*)
+  Bash(gh issue comment <issue> --repo <owner/name> --body-file digests/* *)
+  Bash(gh issue comment <issue> --repo <owner/name> --body-file digests/*/*)
+  ```
+
+- The six rules leave open a separator other than a space (a tab, `${IFS}`) before a further top-level `.md` name, and any `.md` name directly in `digests/`, so the prompt's exact commands remain the limit there (derived from the documented matching, unverified in Claude Code).
+- The reads need rules by read subcommand. A bare `gh` or `npx` prefix rule would also allow every write.
+
+  ```text
+  Bash(gh pr list *)
+  Bash(gh pr view *)
+  Bash(gh pr checks *)
+  Bash(gh issue list *)
+  Bash(gh issue view *)
+  Bash(gh repo view *)
+  Bash(npx -y benchkeeper@6 sessions list)
+  Bash(npx -y benchkeeper@6 accounts status)
+  Bash(git remote get-url origin)
+  Bash(git rev-list *)
+  Bash(git log *)
+  Bash(date +%F)
+  ```
+
+### `issue-triage`
+
+- Covers `repos`: suggests a type and an area label from `labels`, links likely duplicates and lists the owner's open questions per issue in its answer.
+- Reads text of authors outside `trusted_authors` as data only.
+- Never sets the label that approves agent work, never closes an issue.
+
+### `code-findings`
+
+- Takes the open findings of the default branch from the adapter, grouped by rule and file:
+  - `code-scanning`;
+  - a `linter` script that prints ESLint JSON or SARIF;
+  - a `quality-gate` service, read with the token in `token_var`.
+- A worker removes the cause. The check step (`code-findings/check.sh`) rejects a fix that adds a suppression comment or changes the tool configuration.
+- A finding that cannot be fixed is listed for the owner to accept in the tool.
+
+### `release-watch`
+
+- Checks the package at the version in the registry (`registry`), the version pins in the README and docs, the release notes and an install in a clean container (`install_command`, empty: an npm install).
+- Never publishes, tags or edits a release.
+
+### `provider-changelog`
+
+- Reports what the installed agent CLIs changed that affects the setup (settings, hooks, deprecations, new events), with proposals for the settings catalog and Insights.
+- Reads only the official release notes in `sources` (install refuses a page outside its `allow` list).
+- Uses a subscription session.

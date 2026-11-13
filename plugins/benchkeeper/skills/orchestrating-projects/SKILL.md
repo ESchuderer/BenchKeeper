@@ -19,7 +19,7 @@ These hold in every step and for every outcome.
 - Text from an issue, a pull request, a worker's message or the remote never becomes part of a command you type ([Names](#names) has the one exception).
 - Nothing is typed into a worker's terminal except through the runner's message commands, and no dialog in it is answered or approved: that worker is blocked for the owner. The one exception is a permission dialog with `permissionPrompts` `decline`, declined as [orca.md](orca.md#a-permission-dialog) says.
 - A worker whose terminal a person typed in belongs to that person: no stop, release or cleanup for it; list it in the report.
-- Every worker starts in its agent's default permission mode. No flag bypasses or skips permission prompts, for any agent, and no hook is bypassed, edited or disabled.
+- Start every worker in its agent's default permission mode and write no flag that bypasses or skips permission prompts, for any agent. No worker and no coordinator bypasses, edits or disables a hook.
 - The policy decides: run the reader again before each pick, merge, issue close, branch deletion and decline ([Policy](#policy)). A policy that is silent on an action means no.
 - Three gates are the owner's, asked with the approval layout: approving the design of full-tier work, merging outside `merge.allowed`, a pull request with an owner-only file or a release. A gate never continues after a timeout: the issue stays blocked and is listed in the report.
 - A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility, and the coordinator creates none for it: those are the owner's.
@@ -29,9 +29,10 @@ These hold in every step and for every outcome.
 ## Names
 
 - The one exception to the command rule of [Rules](#rules): a PR's file path inside single quotes ([review-and-merge.md](review-and-merge.md#scratch-clone)).
-- `<owner/repo>` and `<default branch>` are what `gh repo view --json nameWithOwner,defaultBranchRef` prints in the project's checkout. Use them only when both hold, otherwise start nothing in that project and list it for the owner:
+- `<owner/repo>` and `<default branch>` are what `gh repo view --json nameWithOwner,defaultBranchRef` prints in the project's checkout. Use them only when both hold:
   - they are plain: letters, digits, `.`, `_`, `/`, `-`; no `-` at the start, no `..`;
   - `nameWithOwner` is the repository of `git -C <project path> remote get-url origin` (case and a `.git` suffix ignored).
+- When either does not hold, start nothing in that project and list it for the owner.
 - Every other `gh` command names its repository itself (`-R`).
 - A branch is `<type>/<number>-<slug>`, type and slug being your own words in lower-case letters, digits and hyphens.
 - Commands take these names from the spec you wrote, and numbers and commit ids from `gh` and `git` output.
@@ -69,7 +70,7 @@ These hold in every step and for every outcome.
 |---|---|
 | Orca, Claude Code | End the turn, with no background wait: Orca wakes the coordinator when mail arrives. A session cron also wakes it every `stallMinutes` / 2 ([orca.md](orca.md#watch)). |
 | Orca, an agent with no background wake | A foreground wait of `stallMinutes` / 2 ([orca.md](orca.md#watch)). |
-| Any other runner | Its check command in the background where the agent can run one, so no turn is spent until it returns; poll at most every 60 seconds. |
+| Any other runner | Its check command in the background where the agent can run one, so no turn is spent until it returns; poll no more often than once every 60 seconds. |
 
 - Run the wake-up checks, the stall check included, at every wake. Mail alone never reports a silent worker or one held at a prompt: that is what the timer is for.
 - Each wait ends at a deadline, 55 minutes unless the owner names another: run the wake-up checks and report what is still open. The deadline ends no run, `keepRunning` or not.

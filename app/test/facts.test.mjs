@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { costs, costTable, facts } from '../../plugins/benchkeeper/skills/orchestrating-projects/facts.mjs';
+import { costs, costTable, facts, jobs } from '../../plugins/benchkeeper/skills/orchestrating-projects/facts.mjs';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/facts/', import.meta.url));
 const SCRIPT = fileURLToPath(new URL('../../plugins/benchkeeper/skills/orchestrating-projects/facts.mjs', import.meta.url));
@@ -66,4 +66,26 @@ test('facts write: a gh that cannot start still writes facts.md, exit 0; a run f
     assert.match(refused.stderr, /^refused: /, folder);
   }
   assert.ok(!existsSync(join(home, 'outside', 'facts.md')));
+});
+
+test('facts jobs: a jobs folder or a job file that is a link reads as no job, and a job file in a real folder reads', () => {
+  const home = mkdtempSync(join(tmpdir(), 'facts-jobs-'));
+  const meta = JSON.stringify({ kind: 'work', pr: 5, startedAt: '2026-11-13T09:00:00Z', endedAt: '2026-11-13T10:00:00Z', exit: 0 });
+  mkdirSync(join(home, 'elsewhere', 'jobs'), { recursive: true });
+  writeFileSync(join(home, 'elsewhere', 'jobs', 'work-5.meta.json'), meta);
+  mkdirSync(join(home, 'linked-folder'));
+  symlinkSync(join(home, 'elsewhere', 'jobs'), join(home, 'linked-folder', 'jobs'), 'dir');
+  assert.deepEqual(jobs(join(home, 'linked-folder')), []);
+
+  mkdirSync(join(home, 'real', 'jobs'), { recursive: true });
+  writeFileSync(join(home, 'real', 'jobs', 'work-6.meta.json'), meta);
+  symlinkSync(join(home, 'elsewhere', 'jobs', 'work-5.meta.json'), join(home, 'real', 'jobs', 'work-5.meta.json'));
+  assert.deepEqual(jobs(join(home, 'real')).map(({ name, state }) => [name, state]), [['work-5', 'unread'], ['work-6', 'done']]);
+});
+
+test('facts: a pull request missing from the review threads answer reads unread, not 0', () => {
+  const graphql = 'gh api graphql -f query=<query> -f owner=octo -f name=app';
+  const text = write({ ...COMMANDS, [graphql]: { out: { data: { repository: { pullRequests: { nodes: [{ number: 16, reviewThreads: { nodes: [] } }] } } } } } });
+  assert.ok(text.includes('| 16 | feat: export \\| csv | 6f6f6f6 | MERGEABLE | 1 pass, 1 pending | 0 | approve (review-16) |'));
+  assert.ok(text.includes('| 17 | fix: crash on start | 7a7a7a7 | CONFLICTING | 1 pass, 2 fail | unread | - |'));
 });

@@ -1,6 +1,6 @@
-// Usage: node facts.mjs write --run <run folder> --repo <owner/name> [--repo ...] [--tracker <owner/name> --labels <label,...>] [--accounts]. Writes <run folder>/facts.md from the job files, gh and cswap, exit 0: a source that cannot be read shows "unread" in its section.
-// Usage: node facts.mjs costs --run <run folder> --repo <owner/name> [--repo ...] --since <YYYY-MM-DD> --until <YYYY-MM-DD> [--json]. Per pull request merged in the period: its jobs' summed cost and its fix rounds (changes verdicts), then totals and medians; exit 2 when gh cannot list the merged pull requests.
-// The run folder is .benchkeeper/runs/ of the working directory or a folder below it, not a link; any other exits 2. The tracker is named on the command line only: a public repository must not name a private tracker.
+// Usage: node facts.mjs write --run <run folder, relative to the working directory> --repo <owner/name> [--repo ...] [--tracker <owner/name> --labels <label,...>] [--accounts]. Writes <run folder>/facts.md from the job files, gh and cswap, exit 0: a source that cannot be read shows "unread" in its section.
+// Usage: node facts.mjs costs --run <run folder, relative to the working directory> --repo <owner/name> [--repo ...] --since <YYYY-MM-DD> --until <YYYY-MM-DD> [--json]. Per pull request merged in the period: its jobs' summed cost and its fix rounds (changes verdicts), then totals and medians; exit 2 when gh cannot list the merged pull requests.
+// The run folder is .benchkeeper/runs/ of the working directory or a folder below it, given relative to the working directory (an absolute path passes only when no link lies on it), not a link; any other exits 2. The tracker is named on the command line only: a public repository must not name a private tracker.
 import { closeSync, constants, fstatSync, lstatSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -26,12 +26,13 @@ const age = (ms) => {
 const data = (text) => { try { return JSON.parse(text); } catch { return null; } };
 // stdout of a command, or null when it failed.
 const read = (exec, cmd, args) => { try { return exec(cmd, args); } catch { return null; } };
-// undefined for a missing file, null for one that is no JSON; a link or a FIFO in the run folder is not followed.
+// undefined for a missing file, null for one that is no JSON; a link or a FIFO in the run folder is not followed. Windows has no O_NOFOLLOW: there the fstat of the opened file and the lstat of the path must name the same file.
 const file = (path) => {
   let fd;
   try {
     fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    return fstatSync(fd).isFile() ? data(readFileSync(fd, 'utf8')) : null;
+    const opened = fstatSync(fd, { bigint: true }), named = lstatSync(path, { bigint: true });
+    return opened.isFile() && named.isFile() && opened.dev === named.dev && opened.ino === named.ino ? data(readFileSync(fd, 'utf8')) : null;
   } catch (e) { return e.code === 'ENOENT' ? undefined : null; } finally { if (fd !== undefined) closeSync(fd); }
 };
 const money = (usd) => (typeof usd === 'number' ? usd.toFixed(2) : null);
@@ -44,7 +45,7 @@ export function runFolder(path) {
   try {
     const cwd = realpathSync('.'), runs = join(cwd, '.benchkeeper', 'runs');
     const full = resolve(cwd, path), real = realpathSync(full);
-    // A link anywhere below the working directory makes the real path differ.
+    // A link anywhere on the path, above or below the working directory, makes the real path differ.
     if (real !== full || (real !== runs && !real.startsWith(runs + sep))) return null;
     return lstatSync(real).isDirectory() ? real : null;
   } catch { return null; }
@@ -55,7 +56,11 @@ const pidAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (e)
 // Every job of jobs/<name>.meta.json with its result: { name, meta, result, state, cost, verdict }. state as job.mjs status says it: running, lost, failed or done.
 export function jobs(run, alive = pidAlive) {
   let names;
-  try { names = readdirSync(join(run, 'jobs')).filter((f) => f.endsWith('.meta.json')).map((f) => f.slice(0, -'.meta.json'.length)); } catch { return []; }
+  try {
+    // readdirSync and openSync follow a link in the folder part of a path, so the folder is checked itself.
+    if (!lstatSync(join(run, 'jobs')).isDirectory()) return [];
+    names = readdirSync(join(run, 'jobs')).filter((f) => f.endsWith('.meta.json')).map((f) => f.slice(0, -'.meta.json'.length));
+  } catch { return []; }
   return names.sort().map((name) => {
     const meta = file(join(run, 'jobs', `${name}.meta.json`)) ?? null, result = file(join(run, 'jobs', `${name}.json`));
     if (!meta || typeof meta !== 'object') return { name, meta: null, result: null, state: UNREAD, cost: UNREAD, verdict: null };
@@ -76,7 +81,7 @@ function jobSection(list, now) {
   }));
 }
 
-// gh pr checks exits 8 while a check is pending and still prints the checks; with no required check it fails and says so.
+// With --json, gh pr checks prints the checks and exits 0 for pending and failing ones (exit 8 is the table output only, kept as a fallback); with no required check it fails and says so.
 function requiredChecks(exec, repo, number) {
   let text;
   try { text = exec('gh', ['pr', 'checks', String(number), '-R', repo, '--required', '--json', 'name,bucket']); } catch (e) {
@@ -96,7 +101,7 @@ function pullSection(repo, list, exec) {
   const nodes = data(read(exec, 'gh', ['api', 'graphql', '-f', `query=${THREADS}`, '-f', `owner=${owner}`, '-f', `name=${name}`]))?.data?.repository?.pullRequests?.nodes;
   const open = (number) => {
     const threads = Array.isArray(nodes) ? nodes.find((n) => n.number === number)?.reviewThreads?.nodes : null;
-    return Array.isArray(threads) ? threads.filter((t) => !t.isResolved).length : Array.isArray(nodes) ? 0 : UNREAD;
+    return Array.isArray(threads) ? threads.filter((t) => !t.isResolved).length : UNREAD;
   };
   // The reviewer's job result is the verdict's source (a pull request comment can be written by anyone with the login), and only one for the current head counts.
   const verdict = (number, head) => list.filter((j) => j.verdict?.head === head && prOf(j.meta) === number && inRepo(j.meta, repo))
@@ -208,7 +213,7 @@ export function costTable({ prs, total, median: mid }) {
 
 const REPO = /^[A-Za-z0-9][A-Za-z0-9-]*\/(?!\.\.?$)[A-Za-z0-9._-]+$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const USAGE = 'usage: node facts.mjs write --run <run folder> --repo <owner/name> [--repo ...] [--tracker <owner/name> --labels <label,...>] [--accounts], or node facts.mjs costs --run <run folder> --repo <owner/name> [--repo ...] --since <YYYY-MM-DD> --until <YYYY-MM-DD> [--json]';
+const USAGE = 'usage: node facts.mjs write --run <run folder, relative to the working directory> --repo <owner/name> [--repo ...] [--tracker <owner/name> --labels <label,...>] [--accounts], or node facts.mjs costs --run <run folder, relative to the working directory> --repo <owner/name> [--repo ...] --since <YYYY-MM-DD> --until <YYYY-MM-DD> [--json]';
 
 function main(argv) {
   const [mode, ...rest] = argv;
@@ -223,7 +228,7 @@ function main(argv) {
   const labels = v.labels ? v.labels.split(',').map((l) => l.trim()).filter(Boolean) : [];
   if (v.tracker && !labels.length) throw new Error(USAGE);
   const run = runFolder(v.run);
-  if (!run) throw new Error(`refused: ${v.run} is no folder in .benchkeeper/runs/ of the working directory, or it is a link`);
+  if (!run) throw new Error(`refused: ${v.run} is no folder in .benchkeeper/runs/ of the working directory, or a link lies on its path: pass it relative to the working directory`);
   const exec = (cmd, args) => sh(process.cwd(), cmd, args);
   if (mode === 'costs') {
     const found = costs({ run, repos, since: v.since, until: v.until, exec });

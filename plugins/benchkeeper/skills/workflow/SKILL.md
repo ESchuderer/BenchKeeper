@@ -49,7 +49,7 @@ Every tier:
    - The full suite, end-to-end and browser tests and builds run once, after the last edit, in a subagent that returns only failures and key lines.
    - Reviews start then and follow the tier playbook, including its remediation and re-review rounds.
    - A long check writes to a log file and is read by its failures and last lines.
-   - Read-only lookups and mechanical reading (file searches, log and CI output, inventories, pull request status) run in a subagent on `sonnet` at `medium` that edits no file (Claude Code: `benchkeeper:gather`), on `haiku` only for a bounded lookup with a brief under 100,000 tokens.
+   - Read-only lookups and mechanical reading (file searches, log and CI output, inventories, pull request status) run in a subagent on `sonnet` at `medium` that edits no file (Claude Code: `benchkeeper:gather`), on `haiku` only for a bounded lookup whose whole input stays under 100,000 tokens.
    - Fixes follow the project's commit convention, and failed checks rerun.
    - Waiting for pull request checks: watch them in the background (GitHub: `gh pr checks --watch --interval 30`; a host without a watch command: one until-loop Monitor, 30 seconds or slower), never a leading `sleep`. Load a deferred tool's schema (ToolSearch) before the first call.
 6. **Report done** with each check's command and result, a "steps skipped" line naming the checklist steps not run (or "none") and what was not checked. After a merge or when the next task is unrelated, suggest a new session (`/clear` in Claude Code).
@@ -60,7 +60,7 @@ A session that itself runs on `fable`:
 - works one ticket and ends with that ticket's handoff (a coordinator's worker: the handoff block of its spec);
 - hands off at a task boundary once its context holds 100,000 to 150,000 tokens;
 - goes on only in a new session started from that handoff, never by resuming this one and never under another account;
-- starts no subagents in parallel: it works its items one after another and waits only on a result its next step needs.
+- waits on no other session, and starts one subagent at a time, waiting only on the one that runs its own current step.
 
 ## Change types
 

@@ -44,7 +44,7 @@ These hold in every step and for every outcome.
 1. **Pick**:
    - The pickable issues are the numbers `node <skill folder>/precheck.mjs <project paths>` prints per project, run once with every project of the run (its head says what counts), never a listing of your own.
    - An issue it prints in a `several projects:` line starts nowhere: list it for the owner.
-   - Per project with a free slot, take up to `issuesPerWorker` of its numbers with no worker or outcome yet in this run, oldest first: the lowest. They are one worker's batch ([spec-template.md](spec-template.md#batches)).
+   - Per project with a free slot, take up to `issuesPerWorker` of its numbers with no worker or outcome yet in this run, oldest first: the lowest. Take one only where `models.worker` at the oldest one's tier is `fable` ([Rules](#rules)). They are one worker's batch ([spec-template.md](spec-template.md#batches)).
    - Read the issue's comments and milestone before its spec: one that defers, supersedes or delivers the work is an outcome, so list the issue for the owner and start nothing.
    - An issue starts once per run (a failed one retries once, [Outcomes](#outcomes)), so a verified no-change issue that stays open without `closeIssue` is not picked again.
    - One coordinator runs per project: the precheck prints a batch's issue until its PR exists, so pick nothing in a project the handoff file names for another live terminal, or while an earlier session of its schedule is alive.
@@ -171,7 +171,7 @@ Take each project's policy from the reader, never from the JSON file: `node <ski
 - A skill folder copied without the plugin starts no worker ([spec-template.md](spec-template.md)).
 - Format: [orchestration.schema.json](orchestration.schema.json); example: [policy.example.json](policy.example.json).
 - A path entry names a file or folder from the repository root and covers it and everything below it; there are no globs.
-- `xhigh` runs only as the default of `models.sensitive.security` and on the owner's request (policy or session).
+- `xhigh` runs only for the first review of a security or firmware-safety change (the default of `models.sensitive.security`, and the workflow skill's Review phase without a Flow line) and on the owner's request (policy or session).
 
 | Field | Meaning | Without the field |
 |---|---|---|

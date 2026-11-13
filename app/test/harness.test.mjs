@@ -11,6 +11,7 @@ import { harnessTest } from '../src/harness.mjs';
 import { apply, context, preview, runCommand } from '../src/runner.mjs';
 import { globalPlan } from '../src/steps/global.mjs';
 import { projectPlan } from '../src/steps/project.mjs';
+import { initRepo } from './helpers.mjs';
 
 const tmp = (p) => mkdtempSync(join(tmpdir(), p));
 const PLUGINS = JSON.stringify([{ id: 'benchkeeper@benchkeeper', enabled: true }, { id: 'ponytail@ponytail', enabled: true }]);
@@ -258,4 +259,36 @@ test('doctor and verify ledger checks: files of a folder a newer run removed, an
   save('20261101T000003Z-aaaaaa', [write(files[0])]);
   assert.deepEqual(ledgerIssues(c).map((i) => i.message), []);
   assert.equal(ledgerOk().ok, true, ledgerOk().problems.join('; '));
+  // A file seeded after a removal of its path (the coordinator's policy) settles it and is its owner's to edit.
+  const policy = join(c.home, 'proj', 'docs', 'agents', 'orchestration.json');
+  mkdirSync(join(c.home, 'proj', 'docs', 'agents'), { recursive: true });
+  save('20261101T000004Z-aaaaaa', [{ id: 'rm2', step: 'r', title: 'remove', kind: 'remove', path: policy, status: 'done', hashAfter: null }]);
+  writeFileSync(policy, '{\n  "schemaVersion": 2\n}\n');
+  save('20261101T000005Z-aaaaaa', [{ ...write(policy), seed: true }]);
+  writeFileSync(policy, '{\n  "schemaVersion": 2,\n  "startLabel": "go"\n}\n');
+  assert.deepEqual(ledgerIssues(c).map((i) => i.message), []);
+  assert.equal(ledgerOk().ok, true, ledgerOk().problems.join('; '));
+  // A clone records no hash, so its folder is no drift.
+  const clone = join(c.home, 'proj', 'cloned');
+  mkdirSync(clone);
+  save('20261101T000006Z-aaaaaa', [{ id: 'clone', step: 'c', title: 'clone', kind: 'clone', path: clone, status: 'done' }]);
+  assert.deepEqual(ledgerIssues(c).map((i) => i.message), []);
+  assert.equal(ledgerOk().ok, true, ledgerOk().problems.join('; '));
+});
+
+test('benchkeeper verify <dir> fails on a coordinator policy its reader refuses, with or without a project setup', async () => {
+  const ctx = machine((argv, o) => (argv[0] === 'git' ? runCommand(argv, o) : null));
+  const dir = tmp('bk-harn-policy-');
+  mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+  writeFileSync(join(dir, 'docs/agents/orchestration.json'), '{\n  "schemaVersion": 2,\n  "issuesPerWorker": 0\n}\n');
+  let text = '';
+  const out = new Writable({ write(c, _, done) { text += c; done(); } });
+  assert.equal(await main(['verify', dir, '--agents', 'claude'], { out, ctx }), 1);
+  assert.ok(text.includes(`fail  the coordinator policy is valid (${dir})\n      range at issuesPerWorker: must be at least 1\n`), text);
+  // A project in a subfolder: the coordinator reads the policy at the repository root.
+  initRepo(dir);
+  mkdirSync(join(dir, 'web'));
+  text = '';
+  assert.equal(await main(['verify', join(dir, 'web'), '--agents', 'claude'], { out, ctx }), 1);
+  assert.ok(text.includes(`fail  the coordinator policy is valid (${dir})\n      range at issuesPerWorker: must be at least 1\n`), text);
 });

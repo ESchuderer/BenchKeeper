@@ -201,7 +201,8 @@ function* applySteps(changes, ctx, { scope = 'global', select, note, stop } = {}
       } else {
         const path = c.kind === 'write' && !c.from ? real(c.path) : resolve(c.path);
         if (!allowed(path, ctx, c.kind !== 'remove')) throw new Error(`${path} is outside ${ctx.roots.join(', ')}`);
-        Object.assign(entry, { path, existed: exists(path), hashBefore: hashPath(path) });
+        // seed: a file written once and then its owner's (projectPlan), so readers of the ledger compare its path, not its content.
+        Object.assign(entry, { path, existed: exists(path), hashBefore: hashPath(path), ...(c.seed ? { seed: true } : {}) });
         // A whole-file write is what the preview showed only while the file is as it was then (an earlier change of this run excepted).
         if ('planHash' in c && !run.entries.some((x) => x.path === path && x.status === 'done') && entry.hashBefore !== c.planHash) throw new Error(`${path} changed since the plan: make the plan again`);
         // Edits apply to the file as it is now, so a deselected earlier edit is not carried along.
@@ -433,12 +434,15 @@ function undoRun(id, ctx, { step, unit } = {}) {
         if (r.code !== 0) throw new Error(failure(r, 10));
       } else {
         within(e.path, e.kind !== 'remove');
+        // A seeded file the owner has edited since is theirs: it stays, and the run's other changes are still undone.
+        if (e.seed && e.status === 'done' && hashPath(e.path) !== e.hashAfter) { entry.status = 'manual'; entry.reason = exists(e.path) ? `${e.path} changed after this run: it is yours now and stays` : `${e.path} is gone already`; continue; }
         // Only a file as the run left it goes back, so a later change (another step's, or the user's) is not lost.
         // A whole run is undone newest first, so its own later edits of the file are undone before.
         if (e.status === 'done' && hashPath(e.path) !== e.hashAfter) throw new Error(`${e.path} changed after this change: undo what changed it later first`);
         stored(e.backup);
         if (e.existed && hashPath(e.backup) !== e.hashBefore) throw new Error(`the backup ${e.backup} is missing or changed`);
-        Object.assign(entry, { kind: 'write', path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path) });
+        // seed: a file written again after its undo is the owner's as well.
+        Object.assign(entry, { kind: 'write', path: e.path, existed: exists(e.path), hashBefore: hashPath(e.path), ...(e.seed ? { seed: true } : {}) });
         // The current state goes to this run's backup, so the undo is reversible as well.
         if (entry.existed) entry.backup = ctx.ledger.backupPath(run.id, run.entries.length, e.path);
         begin(entry);

@@ -3,11 +3,13 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { agent } from './agents.mjs';
 import { contentDir } from './content.mjs';
-import { exists, hashPath, readText } from './fsx.mjs';
-import { newerPaths } from './integrity.mjs';
+import { exists, readText } from './fsx.mjs';
+import { rootOf } from './git.mjs';
+import { drift, newerPaths } from './integrity.mjs';
+import { errorLine, policyCheck } from './params.mjs';
 import { copied } from './packs.mjs';
 import { PLUGINS, pluginState } from './steps/global.mjs';
-import { readState } from './steps/project.mjs';
+import { COORDINATOR_FILES, readState } from './steps/project.mjs';
 
 const check = (name, problems) => ({ name, ok: problems.length === 0, problems });
 
@@ -17,12 +19,7 @@ function ledgerCheck(ctx) {
   for (const run of ctx.ledger.list()) {
     if (run.scope !== 'global' && !exists(run.scope)) continue;
     for (const e of [...run.entries].reverse()) {
-      if (!e.path || e.status !== 'done' || e.undone) continue;
-      const done = seen.settled(e.path);
-      seen.add(e.path);
-      if (done) continue;
-      if (e.kind === 'write' && hashPath(e.path) !== e.hashAfter) problems.push(`${e.path} changed since run ${run.id}`);
-      if (e.kind === 'remove' && exists(e.path)) problems.push(`${e.path} is back after run ${run.id} removed it`);
+      for (const d of drift(e, seen)) problems.push(d.error ? `${d.path} cannot be read (${d.error})` : d.removed ? `${d.path} is back after run ${run.id} removed it` : `${d.path} changed since run ${run.id}`);
     }
   }
   return check('installed files match the ledger', problems);
@@ -38,6 +35,15 @@ function pluginCheck(ctx, agents) {
     for (const s of readdirSync(join(contentDir, 'skills'))) if (!exists(join(ctx.home, agent(a).global.skills, s, 'SKILL.md'))) problems.push(`${agent(a).name}: skill ${s} missing`);
   }
   return check('each agent has the expected skills', problems);
+}
+
+// At the repository root, where the coordinator reads it; a project without a setup can have one too.
+function coordinatorPolicy(ctx, dir) {
+  const root = rootOf(ctx, dir), text = readText(join(root, COORDINATOR_FILES[0]));
+  if (text == null) return [];
+  let problems;
+  try { problems = policyCheck(text).errors.map(errorLine); } catch (e) { problems = [e.message]; }
+  return [check(`the coordinator policy is valid (${root})`, problems)];
 }
 
 // Library skills of the project: own copies present, community skills in skills-lock.json.
@@ -60,5 +66,5 @@ function projectCheck(dir) {
 }
 
 export function harnessTest(ctx, { agents, dir } = {}) {
-  return [ledgerCheck(ctx), pluginCheck(ctx, agents), ...(dir ? projectCheck(dir) : [])];
+  return [ledgerCheck(ctx), pluginCheck(ctx, agents), ...(dir ? [...coordinatorPolicy(ctx, dir), ...projectCheck(dir)] : [])];
 }

@@ -13,17 +13,19 @@ import { instructionChecks, pluginSkills, skillDescription, skillOverlap } from 
 import { integrity } from './integrity.mjs';
 import { containerProjects, levelFor } from './level.mjs';
 import { exists, readText } from './fsx.mjs';
+import { git, rootOf } from './git.mjs';
 import * as orca from './orca/index.mjs';
 import { clashFix, hiddenUserSkills, warnings } from './packs.mjs';
 import { bandChecks, styleChecks } from './ponytail.mjs';
 import { rulesChecks } from './rules.mjs';
+import { errorLine, policyCheck } from './params.mjs';
 import { pick } from './sandbox.mjs';
 import { preview } from './runner.mjs';
 import { settingsChecks } from './settings.mjs';
 import { skillFiles, unfinishedSkills } from './skills.mjs';
-import { declineId, globalPlan, installedRefusal, pluginCommit } from './steps/global.mjs';
+import { declineId, globalPlan, installedRefusal, pluginCommit, pluginContent } from './steps/global.mjs';
 import { dismissedNotes } from './preferences.mjs';
-import { quote, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
+import { COORDINATOR_FILES, quote, readState, tracksState, tryState, upToDate } from './steps/project.mjs';
 
 const FEATURE_VARS = ['DISABLE_TELEMETRY', 'DO_NOT_TRACK', 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', 'DISABLE_GROWTHBOOK', 'CLAUDE_CODE_DISABLE_ADVISOR_TOOL'];
 const RC = ['.bashrc', '.bash_profile', '.profile', '.zshrc', '.zprofile', '.zshenv', '.config/fish/config.fish'];
@@ -89,6 +91,23 @@ const description = (text) => skillDescription(text).text;
 // The user's skills a library skill of the same name hides (#945).
 export const ownSkillClashes = (ctx) => hiddenUserSkills(ctx).map((n) => issue('warning', 'skills', `your skill ${n} is hidden by the library skill of that name`, clashFix(ctx, n)));
 
+// Working copy only, at the repository root the coordinator reads: doctor must not fetch.
+function coordinatorChecks(ctx, dir) {
+  const root = rootOf(ctx, dir), out = [], [policy] = COORDINATOR_FILES, text = readText(join(root, policy));
+  if (text != null) {
+    let r, problems;
+    try { r = policyCheck(text); problems = r.errors.map(errorLine); } catch (e) { problems = [e.message]; }
+    for (const p of problems) out.push(issue('warning', 'coordinator', `${policy}: ${p}`, 'fix the file: the coordinator starts nothing while its reader refuses the policy'));
+    const plugin = !problems.length && r.doc?.minPlugin ? pluginContent(ctx, dir) : null;
+    if (plugin && policyCheck(text, plugin.version).errors.length) out.push(issue('warning', 'coordinator', `${policy} needs the BenchKeeper plugin ${r.doc.minPlugin} or newer (minPlugin); the plugin Claude Code runs here is ${plugin.version}`, `claude plugin update ${plugin.scope === 'user' ? '' : `--scope ${plugin.scope} `}benchkeeper@benchkeeper`));
+  }
+  for (const f of COORDINATOR_FILES) {
+    const tracked = exists(join(root, f)) && git(ctx, root, ['ls-files', '--', f]);
+    if (tracked?.code === 0 && !tracked.stdout.trim()) out.push(issue('info', 'coordinator', `${f} is not committed`, 'commit it: the coordinator reads it from the default branch'));
+  }
+  return out;
+}
+
 export function projectChecks(ctx, dir, agents) {
   const out = [];
   const agentsMd = readText(join(dir, 'AGENTS.md'));
@@ -108,6 +127,7 @@ export function projectChecks(ctx, dir, agents) {
   if (state && !upToDate(state)) out.push(issue('warning', 'project', `project setup: app ${state.appVersion}, content ${state.contentVersion}; this app ${appVersion}, content ${contentVersion}`, 'benchkeeper projects update, or benchkeeper projects apply in the project'));
   const commit = typeof state?.pluginCommit === 'string' && pluginCommit(ctx, dir);
   if (commit && commit !== state.pluginCommit) out.push(issue('info', 'project', `the BenchKeeper plugin Claude Code runs here is at commit ${commit.slice(0, 12)}; the project setup recorded ${state.pluginCommit.slice(0, 12)}`, 'nothing to do: the next benchkeeper projects apply that changes the setup records the new commit'));
+  out.push(...coordinatorChecks(ctx, dir));
   if (state && ['container', 'host-agent'].includes(state.env) && ctx.run(['devcontainer', '--version']).code !== 0) out.push(issue('error', 'tools', `env ${state.env} needs the Dev Containers CLI`, 'benchkeeper apply installs it'));
   for (const u of unfinishedSkills(ctx, dir, state)) out.push(issue('warning', 'skills', `skill ${u.name} from ${u.source}: its install did not finish (${u.folders.join(', ')})`, `benchkeeper projects apply --project ${quote(dir)}: it installs the unfinished folders again`));
   out.push(...guardChecks(dir, state));

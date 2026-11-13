@@ -54,7 +54,7 @@ These hold in every step and for every outcome.
    - Before each start, check the branch of each issue: when the issue's branch or an open PR for it (none from a fork) exists, a follow-up goes to the worker that owns it as a runner message, and a new worker starts on that branch only after the owning one is released.
 4. **Watch** until every worker has settled.
    - A worker with no acknowledgement within 60 seconds of its start gets one fresh dispatch from the same spec; a second miss goes to the owner.
-   - Each wake-up checks worker messages (a report, a batch's status message, a question), worker state, merged PRs, PRs whose merge waits and the owner's answers to the approvals in the handoff file's `## Open`.
+   - Each wake-up checks worker messages (a report, a batch's status message, a question), worker state, merged PRs, PRs whose merge waits and the owner's answers to the approvals in the handoff file's `## Open`. Where the run folder holds a `facts.md` that [facts.mjs](facts.mjs) wrote, read them there first and ask `gh` only for what it lacks or shows `unread`.
    - A PR merged by the owner or a bot settles that issue's work even when its worker never reported.
    - Read and act on an owner's answer as [approvals.md](approvals.md#the-answer) says: an answer lifts a `design` gate only and merges nothing.
    - Questions: [Questions and owner decisions](#questions-and-owner-decisions). Dialogs: [Rules](#rules).

@@ -20,9 +20,9 @@ Your evidence is the task, its acceptance table, the decisions that apply (the p
    - The brief names nothing for a command: run it in the working tree of the change.
      - `/code-review <level>` with the brief's level (`high` when it names none) and the brief's range as target (`refs/remotes/origin/<default branch>...HEAD` when it names none; that needs an `origin` in the working tree, so skip the command without one).
      - `/security-review` for a risky change or when the brief asks for it. It needs the `origin` too, documents no argument and compares the branch with origin's default branch ([commands](https://code.claude.com/docs/en/commands)): where its result covers another diff than the brief's range, say so and make that pass over the range yourself.
-   - A re-review runs neither command.
    - Wait for the results and merge their findings with yours.
-6. A re-review reads only the changed lines and the earlier findings.
+6. Run the instrument of each acceptance row that CI does not run, unless the brief says nothing of the change runs, and name each row you ran.
+7. When your context is compacted, stop and report the review as void.
 
 Return as your final message the scope line (branch or diff range, and the issue it implements when there is one), then each finding with its class, file and line, evidence and suggested fix:
 - **Blocking**: wrong behavior, security, data loss, an acceptance row unmet.

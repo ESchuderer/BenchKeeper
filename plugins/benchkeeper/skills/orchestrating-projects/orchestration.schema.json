@@ -4,6 +4,9 @@
   "type": "object",
   "additionalProperties": false,
   "patternProperties": { "^//": {} },
+  "$defs": {
+    "phase": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } }
+  },
   "properties": {
     "$schema": { "type": "string" },
     "schemaVersion": { "enum": [1, 2] },
@@ -45,11 +48,22 @@
           "additionalProperties": false,
           "patternProperties": { "^//": {} },
           "properties": {
-            "plan": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
-            "implement": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
-            "test": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
-            "review": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } },
-            "research": { "type": "object", "additionalProperties": false, "patternProperties": { "^//": {} }, "properties": { "model": { "enum": ["fable", "opus", "sonnet", "haiku", "inherit"] }, "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] } } }
+            "plan": { "$ref": "#/$defs/phase" },
+            "implement": { "$ref": "#/$defs/phase" },
+            "test": { "$ref": "#/$defs/phase" },
+            "review": { "$ref": "#/$defs/phase" },
+            "research": { "$ref": "#/$defs/phase" }
+          }
+        },
+        "sensitive": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": { "^//": {} },
+          "properties": {
+            "plan": { "$ref": "#/$defs/phase" },
+            "review": { "$ref": "#/$defs/phase" },
+            "independent": { "$ref": "#/$defs/phase" },
+            "security": { "$ref": "#/$defs/phase" }
           }
         }
       }

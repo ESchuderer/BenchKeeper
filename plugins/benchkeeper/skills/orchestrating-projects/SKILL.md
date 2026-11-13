@@ -24,6 +24,8 @@ These hold in every step and for every outcome.
 - Three gates are the owner's, asked with the approval layout ([Owner decisions](#owner-decisions)): approving the design of full-tier work, merging outside `merge.allowed`, a pull request with an owner-only file or a release. A gate never continues after a timeout: the issue stays blocked and is listed in the report.
 - A worker creates no release, tag, package publish, repository, organization, token or GitHub App and changes no visibility, and the coordinator creates none for it: those are the owner's, as are settings, rulesets, secrets and other people's repositories.
 - Stay within `hostWorkerLimit` even when more issues are labeled.
+- This session runs on `opus` at `high`. On `fable`, tell the owner once and go on only on their word.
+- A worker on `fable` follows [Sessions on `fable`](../workflow/SKILL.md#sessions-on-fable): it takes one issue whatever `issuesPerWorker` says, and after its report it gets no follow-up and is never resumed. Release it once its handoff is copied; its follow-up goes to a fresh worker on its branch whose spec carries that handoff under `Shared context:`.
 - Report each step with what was skipped or not checked.
 
 ## Names
@@ -42,7 +44,7 @@ These hold in every step and for every outcome.
 1. **Pick**:
    - The pickable issues are the numbers `node <skill folder>/precheck.mjs <project paths>` prints per project, run once with every project of the run (its head says what counts), never a listing of your own.
    - An issue it prints in a `several projects:` line starts nowhere: list it for the owner.
-   - Per project with a free slot, take up to `issuesPerWorker` of its numbers with no worker or outcome yet in this run, oldest first: the lowest. They are one worker's batch ([spec-template.md](spec-template.md#batches)).
+   - Per project with a free slot, take up to `issuesPerWorker` of its numbers with no worker or outcome yet in this run, oldest first: the lowest. Take one only where `models.worker` at the tier of any of them is `fable` ([Rules](#rules)). They are one worker's batch ([spec-template.md](spec-template.md#batches)).
    - Read the issue's comments and milestone before its spec: one that defers, supersedes or delivers the work is an outcome, so list the issue for the owner and start nothing.
    - An issue starts once per run (a failed one retries once, [Outcomes](#outcomes)), so a verified no-change issue that stays open without `closeIssue` is not picked again.
    - One coordinator runs per project: the precheck prints a batch's issue until its PR exists, so pick nothing in a project the handoff file names for another live terminal, or while an earlier session of its schedule is alive.
@@ -169,7 +171,7 @@ Take each project's policy from the reader, never from the JSON file: `node <ski
 - A skill folder copied without the plugin starts no worker ([spec-template.md](spec-template.md)).
 - Format: [orchestration.schema.json](orchestration.schema.json); example: [policy.example.json](policy.example.json).
 - A path entry names a file or folder from the repository root and covers it and everything below it; there are no globs.
-- `xhigh` runs only on the owner's request (policy or session).
+- `xhigh` runs only for the first review of a security or firmware-safety change (the default of `models.sensitive.security`, and the workflow skill's Review phase without a Flow line) and on the owner's request (policy or session).
 
 | Field | Meaning | Without the field |
 |---|---|---|
@@ -191,6 +193,7 @@ Take each project's policy from the reader, never from the JSON file: `node <ski
 | `review.sensitivePaths` | paths that make a change sensitive, besides the built-in classes ([review-and-merge.md](review-and-merge.md#sensitive-or-routine)) | none |
 | `models.worker` | model and effort of a worker session, printed as a table by tier (`quick`, `standard`, `full`, `research`) | quick `sonnet`, standard and full `opus`, research `fable`, all `high` |
 | `models.phases.<phase>` | model and effort of a worker's phase subagent (`plan`, `implement`, `test`, `review`, `research`), printed only for the phases the policy names; `inherit` is the worker's own model | the workflow skill's: plan, implement and review `opus`, test `sonnet`, research `fable`, each at `high` |
+| `models.sensitive.<use>` | model and effort for a sensitive change: `plan` and `review`, the worker's Plan and Review phases; `independent`, the coordinator's reviewer; `security`, that reviewer for a change to authentication, permissions, secrets, input validation or firmware safety. Each field the policy leaves out keeps its default; `inherit` as in `models.phases`. An older plugin refuses the key, so a policy that sets it names the first plugin version with it in `minPlugin` | plan, review and independent `fable` at `high`, security `fable` at `xhigh`; an account without `fable` sets each `model` |
 | `issues.repository`, `issues.labels` | the tracker (`owner/repo`) that holds the project's issues, and labels an issue must carry besides `startLabel` | the project's own repository, no further label |
 | `minPlugin` | the oldest plugin version that may run this policy; on an older plugin the reader exits 1 | any |
 

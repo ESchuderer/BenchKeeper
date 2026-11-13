@@ -26,15 +26,13 @@ const age = (ms) => {
 const data = (text) => { try { return JSON.parse(text); } catch { return null; } };
 // stdout of a command, or null when it failed.
 const read = (exec, cmd, args) => { try { return exec(cmd, args); } catch { return null; } };
-// undefined for a missing file, null for one that is no JSON; a link or a FIFO in the run folder is not followed. Windows has no O_NOFOLLOW: there the lstat of the path and the fstat of the opened file must name the same file.
+// undefined for a missing file, null for one that is no JSON; a link or a FIFO in the run folder is not followed. Windows has no O_NOFOLLOW: there the fstat of the opened file and the lstat of the path must name the same file.
 const file = (path) => {
   let fd;
   try {
-    const link = lstatSync(path, { bigint: true });
-    if (!link.isFile()) return null;
     fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    const opened = fstatSync(fd, { bigint: true });
-    return opened.isFile() && opened.dev === link.dev && opened.ino === link.ino ? data(readFileSync(fd, 'utf8')) : null;
+    const opened = fstatSync(fd, { bigint: true }), named = lstatSync(path, { bigint: true });
+    return opened.isFile() && named.isFile() && opened.dev === named.dev && opened.ino === named.ino ? data(readFileSync(fd, 'utf8')) : null;
   } catch (e) { return e.code === 'ENOENT' ? undefined : null; } finally { if (fd !== undefined) closeSync(fd); }
 };
 const money = (usd) => (typeof usd === 'number' ? usd.toFixed(2) : null);

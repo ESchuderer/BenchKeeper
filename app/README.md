@@ -62,7 +62,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 | `skills show <name>` | the SKILL.md of a library skill BenchKeeper ships or of your own; for any other skill its source |
 | `automations [list]`, `automations show <id>` | the [automation templates](../docs/automations.md) of both tiers and which are installed; one template with its fields, parameters and prompt |
 | `automations install <id> [--param name=value..] [--project dir] [--yes]`, `automations update\|remove <id> [--yes]` | an automation on the runner (Orca): install creates it, update edits it back to the template, remove deletes it, see [automations](#automations) |
-| `automations export <id> [--param name=value..] [--project dir]` | prints a sh script that runs the template without the runner and writes nothing ([Without Orca](../docs/automations.md#without-orca)), see [automations](#automations) |
+| `automations export <id> [--param name=value..] [--project dir]` | prints a sh script that runs the template without the runner; the command writes nothing ([Without Orca](../docs/automations.md#without-orca)), see [automations](#automations) |
 | `automations diff <id>`, `automations status` | the installed automation as the runner holds it against the template now; per installed automation `current`, `outdated` (the template changed), `modified` (changed on the runner: the fields), `removed` (gone from the runner) or `unknown` (runner or template unreadable), exit 1 when one is not current. Nothing is written |
 | `containers reconcile [--dry-run]` | stops and removes (`podman rm -f`, or Docker) each dev container whose workspace folder no longer exists while the folder above it does, see [containers](#containers) |
 | `webhook set\|remove\|status`, `webhook send --state finished\|failed\|needs-person [--run id] [--automation id] [--task id]` | the webhook a run calls when it finishes or needs a person, off until set, see [webhook](#webhook) |
@@ -112,7 +112,7 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
 - Plugin state is read from `~/.claude/plugins/` and `~/.codex/config.toml`, the agent CLIs only when those cannot be read.
 - A plugin whose marketplace was added at another ref than the pin is a step by hand, with the commands: moving the marketplace removes it, which deletes the plugin's data.
 - An installed pack plugin whose pack no registered project uses is offered for removal, not preselected (uninstalling deletes the plugin's data).
-  - One BenchKeeper did not install is kept unless you answer its own question (`--yes` and `--all` skip it), with the command that adds its pack to a project and the one that brings it back.
+  - A pack plugin BenchKeeper did not install is kept unless you answer its own question (`--yes` and `--all` skip it), with the command that adds its pack to a project and the one that brings it back.
 - `apply` takes `--json` (see [Machine-readable output](#machine-readable-output)).
 
 ### `history` and `undo`
@@ -143,10 +143,10 @@ Runtime dependencies, pinned: [jsonc-parser](https://github.com/microsoft/node-j
   - Other skills' entries stay; `<skill>=` takes the entry out.
   - A skill whose own `SKILL.md` sets `paths:` keeps its key: globs for it are refused, and an entry kept from before is not written, which the plan warns about.
 - `--tier`
-- `--share` or `--local`, see the list below.
+- `--share` or `--local`: see [Local and shared setup](#local-and-shared-setup).
 - `--caller lint-js|lint-python|sonar`: writes that [repo-standards](https://github.com/ESchuderer/repo-standards) caller workflow as a file in the checkout; one that differs from yours is offered, not preselected; no GitHub setting is ever changed.
 
-Local and shared setup:
+#### Local and shared setup
 
 - Local is the default. In a repository that commits `AGENTS.md`, the plan warns that it loads next to the local block.
 - Local: the block goes into `CLAUDE.local.md` and `AGENTS.override.md` (its block holds the text of `AGENTS.md` too, rebuilt on each apply; your lines outside it stay), the sandbox into `.claude/settings.local.json`, and every file written is listed in a marked block of `.git/info/exclude` (the repository's, shared by its worktrees).
@@ -155,7 +155,7 @@ Local and shared setup:
   - Local: the files written (`.benchkeeper/state.json`, not the folder) and the list itself, all git-ignored.
   - `--share`, committed: only `CLAUDE.local.md` and `AGENTS.override.md`.
 
-What `projects plan|apply` keeps and cleans up:
+What `projects plan|apply` keeps, cleans up and leaves to other commands:
 
 - `skills disable <name>` moves a skill to `.benchkeeper/disabled/`, `skills enable <name>` moves it back.
 - Answers and each community skill's commit are kept in `.benchkeeper/state.json`.
@@ -193,7 +193,7 @@ What `projects plan|apply` keeps and cleans up:
 
 `sessions list`:
 
-- Orchestrated runs are Orca workers, matched by the `Orca run:` line and the task id of the worker's first prompt.
+- A run is made of the sessions of its Orca workers, matched by the `Orca run:` line and the task id of each worker's first prompt.
 - Cost is API-equivalent; Codex estimated from its token counts and OpenAI's API prices.
 - It reads the same scan as `sessions board`.
 - `--run` adds a line per task of that run and exits 2 when no session has that run.
@@ -203,7 +203,7 @@ What `projects plan|apply` keeps and cleans up:
 - `show` counts the summaries with the retention.
 - `set --keep-days` (1 to 3650, `none`: for good) changes the retention, the next scan drops older ones.
 - `clear` removes every summary, those of deleted transcripts for good.
-- Both show the change and ask.
+- `set` and `clear` show the change and ask.
 - The command cannot see a scan the web UI runs, which writes the old summaries back: clear while none runs.
 
 ### `automations`
@@ -219,11 +219,12 @@ What `projects plan|apply` keeps and cleans up:
 
 - The script unpacks the helpers into a temporary folder, runs the precheck in the project folder (default: the current one) and starts `claude -p` or `codex exec` only when the precheck exits 0.
 - Its header has the crontab line of the template's schedule.
-- It refuses a template without a cron schedule, another agent or workspace `new-worktree`.
+- The command refuses a template without a cron schedule, another agent or workspace `new-worktree`.
 
 ### `containers`
 
-- The workspace folder is the container's `devcontainer.local_folder` label, so a worktree removed without its container is caught; volumes stay.
+- The workspace folder is read from the container's `devcontainer.local_folder` label.
+- So a worktree removed without its container is caught; volumes stay.
 - A container without that label, whose folder exists or cannot be read (permission denied), or whose label is not an absolute path inside the home folder (another user's folder, a Windows path, a folder on a remote engine's host) is never touched.
 - A missing parent folder (an unmounted drive) keeps the container.
 - `--dry-run` lists the containers it would remove.
@@ -311,9 +312,9 @@ Your own skills (`skills new`, `edit` and `delete`):
 - `edit` replaces the `SKILL.md`.
 - `delete` is refused while a registered project, own pack or preset names the skill.
 - `projects plan|apply --skill` refuses a name that is neither a library skill nor yours (exit 2); a stored pick that no longer resolves stays picked, and the plan warns.
-- Each is a plan with a diff, undone in History.
+- `new`, `edit` and `delete` are each a plan with a diff, undone in History.
 - `packs export` refuses an own pack that names your skills, naming them: a pack file carries library skills only.
-- Each takes `--yes` and `--json`.
+- `new`, `edit` and `delete` each take `--yes` and `--json`.
 
 ## Machine-readable output
 

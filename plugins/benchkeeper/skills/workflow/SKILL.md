@@ -20,9 +20,22 @@ Every tier:
    | standard | one behavior, or a refactor that keeps behavior, approach clear |
    | full | several behaviors, a new capability, an uncertain approach, or a risky change |
 
-   Risky: authentication, permissions, secrets, input validation, production data, deploy or production configuration, an irreversible action. The user's explicit tier for the task wins, then a session override from `/benchkeeper:tier` (a risky change still names the full tier and asks), then the [change-type table](#change-types), then a `Default tier:` line in `AGENTS.md`. Several requests in one prompt: tier each. Before the first edit or command, write the tier line `Tier: <tier> (<change type>)` with the change type's name from that table, or a few words when none fits (`Tier: research` and `Tier: <tier> (override)` stay as they are). The work grows past its tier: say so, write a new tier line, and run the skipped steps before the next edit.
+   - Risky: authentication, permissions, secrets, input validation, production data, deploy or production configuration, an irreversible action.
+   - Which tier wins, first match: the user's explicit tier for the task; a session override from `/benchkeeper:tier` (a risky change still names the full tier and asks); the [change-type table](#change-types); a `Default tier:` line in `AGENTS.md`.
+   - Several requests in one prompt: tier each.
+   - Before the first edit or command, write the tier line `Tier: <tier> (<change type>)`, with the change type's name from that table or a few words when none fits (`Tier: research` and `Tier: <tier> (override)` stay as they are).
+   - The work grows past its tier: say so, write a new tier line, and run the skipped steps before the next edit.
+
 2. **Settle.** Standard and full tier: when goal, scope or result is open, grill the user in rounds (each question with your recommendation, all open ones per round) until goal, scope, acceptance criteria and risks are settled; a settled request skips the grill. Then explore read-only, as the plan phase where [software.md](software.md#phases) runs phases (Claude Code: in plan mode, only while terminal questions are allowed). Without terminal questions: go on with the plan.
-3. **Run the playbook.** Software change at quick tier: this file is the whole playbook (the steps below, [Change types](#change-types), [Verify](#verify)). Standard and full tier, and any risky change: also [software.md](software.md), full tier also [full-tier.md](full-tier.md). Branches, commits and pull requests follow the project's own convention (`AGENTS.md`, a contributing guide, the history); a pull request body holds the key decisions (structure, storage, deployment, rejected options) and the sections Testing (commands and results), Risk (what could break, who is affected) and How to revert. Docs pass: [docs.md](docs.md). Research: [research.md](research.md). Two or more independent items that each need more than a few files or searches: one subagent per item in parallel, then one merged report; smaller items run in this session. The playbooks hold the detail; these are the steps, in order:
+3. **Run the playbook.**
+   - Software change at quick tier: this file is the whole playbook (the steps below, [Change types](#change-types), [Verify](#verify)).
+   - Standard and full tier, and any risky change: also [software.md](software.md), full tier also [full-tier.md](full-tier.md).
+   - Docs pass: [docs.md](docs.md). Research: [research.md](research.md).
+   - Branches, commits and pull requests follow the project's own convention (`AGENTS.md`, a contributing guide, the history).
+   - A pull request body holds the key decisions (structure, storage, deployment, rejected options) and the sections Testing (commands and results), Risk (what could break, who is affected) and How to revert.
+   - Two or more independent items that each need more than a few files or searches: one subagent per item in parallel, then one merged report. Smaller items run in this session.
+
+   The playbooks hold the detail; these are the steps, in order:
 
    | Tier | Steps |
    |---|---|
@@ -31,7 +44,14 @@ Every tier:
    | full | settle, spec with acceptance table; existing tests; ticket by ticket, a new test first only where the [test rule](#verify) calls for one; verify and run it; review in rounds ([full-tier.md](full-tier.md)) |
 
 4. **Batch** when the user asks for it or names several tasks for one branch: the tasks run one after another, each at quick tier with no per-task review. Tier each task first (step 1): a task that is risky or above quick tier is not batched and runs at its own tier. Step 5 and the reviews then run once for the whole branch.
-5. **Long checks last.** Fast checks (types, lint, the tests of the touched code) after each edit. The full suite, end-to-end and browser tests and builds run once, after the last edit, in a subagent that returns only failures and key lines. Reviews start then and follow the tier playbook, including its remediation and re-review rounds. A long check writes to a log file and is read by its failures and last lines. Mechanical reading (log and CI output, inventories, grep summaries) may run in a subagent on `haiku`, which edits no file. Fixes follow the project's commit convention, and failed checks rerun. Waiting for pull request checks: watch them in the background (GitHub: `gh pr checks --watch --interval 30`; a host without a watch command: one until-loop Monitor, 30 seconds or slower), never a leading `sleep`; load a deferred tool's schema (ToolSearch) before the first call.
+5. **Long checks last.**
+   - Fast checks (types, lint, the tests of the touched code) after each edit.
+   - The full suite, end-to-end and browser tests and builds run once, after the last edit, in a subagent that returns only failures and key lines.
+   - Reviews start then and follow the tier playbook, including its remediation and re-review rounds.
+   - A long check writes to a log file and is read by its failures and last lines.
+   - Mechanical reading (log and CI output, inventories, grep summaries) may run in a subagent on `haiku`, which edits no file.
+   - Fixes follow the project's commit convention, and failed checks rerun.
+   - Waiting for pull request checks: watch them in the background (GitHub: `gh pr checks --watch --interval 30`; a host without a watch command: one until-loop Monitor, 30 seconds or slower), never a leading `sleep`. Load a deferred tool's schema (ToolSearch) before the first call.
 6. **Report done** with each check's command and result, a "steps skipped" line naming the checklist steps not run (or "none") and what was not checked. After a merge or when the next task is unrelated, suggest a new session (`/clear` in Claude Code).
 
 ## Change types
@@ -64,6 +84,15 @@ A follow-up commit on an open pull request keeps its tier and needs no workflow 
 
 ## Verify
 
-The project's own build, types, lint and tests, run where `AGENTS.md` says. Run what you changed (Claude Code: `/verify`); UI changes also get a browser check next to the UI tests (the `webapp-testing` skill where installed). Diagnose a failing test first (code, test or environment) and fix the cause; edit a test only when it is wrong or the requirement changed, and say so in the pull request. Test rule: no tests by default; add one only when it fails if the change is reverted, hardcodes its expected values (never computed by production code, locale files or mocks) and runs at the single layer that owns the behavior; a `tdd` skill, too, writes a test only where this rule asks for one. Never test copy or translations, CSS classes, constants, third-party libraries, private state, timing or call counts; a test like that is deleted when touched, not updated. Coverage is no target. The project's own test rules in `AGENTS.md` win. Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
+- Run the project's own build, types, lint and tests where `AGENTS.md` says, and run what you changed (Claude Code: `/verify`). UI changes also get a browser check next to the UI tests (the `webapp-testing` skill where installed).
+- A failing test: diagnose first (code, test or environment) and fix the cause. Edit a test only when it is wrong or the requirement changed, and say so in the pull request.
+- Test rule: no tests by default. Add one only when it meets all three:
+  - it fails if the change is reverted;
+  - it hardcodes its expected values (never computed by production code, locale files or mocks);
+  - it runs at the single layer that owns the behavior.
+- A `tdd` skill, too, writes a test only where the test rule asks for one.
+- Leave untested: copy or translations, CSS classes, constants, third-party libraries, private state, timing and call counts. A test like that is deleted when touched, not updated. Coverage is no target.
+- The project's own test rules in `AGENTS.md` win.
+- Browser and build output (`test-results/`, screenshots) is git-ignored or deleted.
 
 After a compaction, read this skill and the playbook of the current tier again before the next step.

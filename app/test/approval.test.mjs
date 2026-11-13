@@ -159,3 +159,12 @@ test('approval: the command line refuses a file outside the run folder with exit
   symlinkSync(join(out, 'runs'), join(linkedRuns, '.benchkeeper/runs'));
   assert.equal(status(linkedRuns, '.benchkeeper/runs/r1/filled.md'), 2);
 });
+
+// The coordinator skill also works copied alone, without the questions skill, so it keeps its own copy of the hub rule.
+test('approval: approvals.md quotes the questions skill\'s hub rule word for word', () => {
+  const approvals = readFileSync(new URL(`${SKILL}approvals.md`, import.meta.url), 'utf8');
+  const questions = readFileSync(new URL('../../plugins/benchkeeper/skills/questions/SKILL.md', import.meta.url), 'utf8');
+  const quote = approvals.match(/as the `questions` skill reads it[^"]*"([^"]+)"/)?.[1];
+  assert.ok(quote?.startsWith('taken only from what CedarLoom writes'), 'approvals.md has no quote of the hub rule');
+  assert.ok(questions.includes(quote), 'the quote in approvals.md differs from the questions skill');
+});

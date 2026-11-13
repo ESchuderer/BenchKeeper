@@ -568,7 +568,7 @@ function onBranch(ctx, path, result, { branch, check = () => {}, work, title, bo
   const start = fetchBase(ctx, path, base) ? `origin/${base}` : base;
   check(start);
   // Per project path, so two projects with one folder name never share (and delete) a worktree.
-  const tree = join(ctx.home, '.cache/benchkeeper/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${branch.split('/').pop()}`);
+  const tree = join(ctx.home, '.cache/cedarloom-app/worktrees', `${basename(path)}-${hashText(path).slice(0, 8)}-${branch.split('/').pop()}`);
   // A relative core.hooksPath resolves in the worktree, which holds the fetched tree: the checkout's hooks run instead.
   const hooksPath = git(ctx, path, ['config', '--get', 'core.hooksPath']).stdout.trim();
   const hooks = hooksPath && !isAbsolute(hooksPath) && !hooksPath.startsWith('~') ? ['-c', `core.hooksPath=${resolve(path, hooksPath)}`] : [];

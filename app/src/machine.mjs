@@ -23,7 +23,7 @@ const DEVICE = 'https://github.com/login/device';
 // Every variable a machine setting may write into an agent settings file: removing the setting takes out these names only.
 const PAIRS = 8;
 export const VARS = ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'GH_CONFIG_DIR', 'GIT_CONFIG_COUNT',
-  ...Array.from({ length: PAIRS }, (_, i) => [`GIT_CONFIG_KEY_${i}`, `GIT_CONFIG_VALUE_${i}`]).flat(), 'BENCHKEEPER_MACHINE_EMAIL'];
+  ...Array.from({ length: PAIRS }, (_, i) => [`GIT_CONFIG_KEY_${i}`, `GIT_CONFIG_VALUE_${i}`]).flat(), 'CEDARLOOM_APP_MACHINE_EMAIL'];
 
 class MachineError extends Error {
   // A usage error carries 400, which the CLI's lookups read as exit 2.
@@ -218,7 +218,7 @@ export function machineEnv(ctx, c = ready(ctx)) {
   return {
     GIT_AUTHOR_NAME: id.name, GIT_AUTHOR_EMAIL: id.email, GIT_COMMITTER_NAME: id.name, GIT_COMMITTER_EMAIL: id.email, GH_CONFIG_DIR: ghDir(ctx),
     GIT_CONFIG_COUNT: String(pairs.length), ...Object.fromEntries(pairs.flatMap(([k, v], i) => [[`GIT_CONFIG_KEY_${i}`, k], [`GIT_CONFIG_VALUE_${i}`, v]])),
-    BENCHKEEPER_MACHINE_EMAIL: id.email,
+    CEDARLOOM_APP_MACHINE_EMAIL: id.email,
   };
 }
 
@@ -230,7 +230,7 @@ export function ownEnv(ctx) {
   const get = (k) => String(git(ctx, ctx.home, ['config', '--global', '--get', k], { env, timeout: 10e3 }).stdout ?? '').trim();
   const name = get('user.name'), email = get('user.email');
   if (!name || !email) throw new MachineError('your git identity is not set globally (git config --global user.name and user.email): the project cannot be given it back');
-  return { GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_COMMITTER_NAME: name, GIT_COMMITTER_EMAIL: email, GH_CONFIG_DIR: join(env.XDG_CONFIG_HOME || join(ctx.home, '.config'), 'gh'), GIT_CONFIG_COUNT: '0', BENCHKEEPER_MACHINE_EMAIL: '' };
+  return { GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_COMMITTER_NAME: name, GIT_COMMITTER_EMAIL: email, GH_CONFIG_DIR: join(env.XDG_CONFIG_HOME || join(ctx.home, '.config'), 'gh'), GIT_CONFIG_COUNT: '0', CEDARLOOM_APP_MACHINE_EMAIL: '' };
 }
 
 // A settings.json text with the machine variables replaced by vars (null: taken out); other env keys stay.
@@ -293,7 +293,7 @@ export function machineChecks(ctx) {
   if (s.renamed) out.push(issue('info', `the machine account was renamed from ${s.renamed[0]} to ${s.renamed[1]}: new sessions use the new login; earlier commits stay linked by its id`, 'benchkeeper machine enable --global again, and projects apply for a project with --machine on, to write the new address into the agent settings'));
   if (c.signing && !s.key) out.push(issue('warning', `signing is on, but the machine account's key ${keyPath(ctx)} is missing`, 'benchkeeper machine setup (creates and uploads a new key)'));
   const env = ctx.env ?? process.env;
-  if (env.BENCHKEEPER_MACHINE_EMAIL && Object.keys(env).some((k) => TOKENS.test(k))) out.push(issue('warning', 'a GitHub token variable is set in this environment: gh uses it instead of the machine account', 'unset GH_TOKEN and GITHUB_TOKEN where they are exported'));
+  if (env.CEDARLOOM_APP_MACHINE_EMAIL && Object.keys(env).some((k) => TOKENS.test(k))) out.push(issue('warning', 'a GitHub token variable is set in this environment: gh uses it instead of the machine account', 'unset GH_TOKEN and GITHUB_TOKEN where they are exported'));
   out.push(issue('info', `two-factor authentication of ${c.machine.login} cannot be checked from here`, `check it at https://github.com/settings/security signed in as ${c.machine.login}`));
   return out;
 }

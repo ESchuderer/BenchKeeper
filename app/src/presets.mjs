@@ -1,5 +1,5 @@
 // Presets: the start of a new project. A preset is the setup answers of a project (agents, environment, packs, single skills,
-// tier and the rest a profile keeps), saved under a name in ~/.config/benchkeeper/presets/<id>.json. A pack is a set of skills
+// tier and the rest a profile keeps), saved under a name in ~/.config/cedarloom-app/presets/<id>.json. A pack is a set of skills
 // switched on in a project; a preset names packs and starts a project with them.
 import { basename, dirname, join, sep } from 'node:path';
 import { exists, isDir, listDir, move, readText, writeAtomic } from './fsx.mjs';
@@ -24,7 +24,7 @@ const valid = (a) => list(a?.agents) && a.agents.length > 0 && ['packs', 'single
 export const listPresets = (ctx) => listDir(dir(ctx)).flatMap((file) => {
   try {
     const p = JSON.parse(readText(join(dir(ctx), file)));
-    return p.kind === 'benchkeeper-preset' && p.schemaVersion === PRESET_SCHEMA && file === `${p.id}.json` && ID.test(p.id) && valid(p.answers) ? [p] : [];
+    return p.kind === 'cedarloom-app-preset' && p.schemaVersion === PRESET_SCHEMA && file === `${p.id}.json` && ID.test(p.id) && valid(p.answers) ? [p] : [];
   } catch { return []; }
 });
 
@@ -44,7 +44,7 @@ export function savePreset(ctx, id, from) {
   if (exists(join(dir(ctx), `${id}.json`))) throw new Error(`preset ${id} exists (also a file that is not a valid preset): remove it first (benchkeeper presets remove ${id})`);
   const state = readState(from);
   if (!state) throw new Error(`${from} has no setup yet: benchkeeper projects apply --agents a,b`);
-  const p = { kind: 'benchkeeper-preset', schemaVersion: PRESET_SCHEMA, id, title: id, answers: savedAnswers(state) };
+  const p = { kind: 'cedarloom-app-preset', schemaVersion: PRESET_SCHEMA, id, title: id, answers: savedAnswers(state) };
   writeAtomic(join(dir(ctx), `${id}.json`), `${JSON.stringify(p, null, 2)}\n`);
   return p;
 }

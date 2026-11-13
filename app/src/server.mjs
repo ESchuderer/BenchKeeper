@@ -45,7 +45,7 @@ import { containerProjects, levelFor } from './level.mjs';
 import { LEVELS, declineUnselected, globalPlan, globalSkills } from './steps/global.mjs';
 import { ENVS, TIERS, chosenSkills, projectCtx, projectPlan, resolveAnswers, scopeCtx, suggest, tryState } from './steps/project.mjs';
 
-const HEADER = 'x-benchkeeper';
+const HEADER = 'x-cedarloom-app';
 // Per port: browsers send a 127.0.0.1 cookie to every port, so two servers must not overwrite each other's session.
 const cookieName = (port) => `bk_session_${port}`;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };

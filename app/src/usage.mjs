@@ -13,7 +13,7 @@ export const ROTATE = ['off', 'handover'];
 // The agents rotation can be turned on for. Codex is left out for now: a stored codex handover counts as off and the flag is
 // refused. Adding 'codex' here turns its rotation back on.
 export const ROTATABLE = ['claude'];
-export const STATE_DIR = 'benchkeeper';
+export const STATE_DIR = 'cedarloom-app';
 export const HOOK_SOURCE = readFileSync(new URL('./usage-hook.mjs', import.meta.url), 'utf8');
 const FAILURE_HOURS = 24;
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -119,7 +119,7 @@ p.stdout.on('data', (c) => {
   buf = lines.pop();
   for (const l of lines) { try { if (JSON.parse(l).id === 2) quit(l); } catch {} }
 });
-p.stdin.write([{ id: 1, method: 'initialize', params: { clientInfo: { name: 'benchkeeper', version: '0' } } }, { method: 'initialized' }, { id: 2, method: 'account/rateLimits/read' }].map((m) => JSON.stringify({ jsonrpc: '2.0', ...m }) + '\\n').join(''));`;
+p.stdin.write([{ id: 1, method: 'initialize', params: { clientInfo: { name: 'cedarloom-app', version: '0' } } }, { method: 'initialized' }, { id: 2, method: 'account/rateLimits/read' }].map((m) => JSON.stringify({ jsonrpc: '2.0', ...m }) + '\\n').join(''));`;
 const WINDOW_MINUTES = { 300: 'fiveHour', 10080: 'sevenDay' };
 // The answer as the usage state: windows by their length (a plan may have the weekly one only), used capped at 100.
 // Only the two windows are kept; the account id, plan and the rest of the answer are dropped.
@@ -166,7 +166,7 @@ const status = (script) => ({ type: 'command', command: `node "${script}" status
 const hook = (script, matcher = FAILURES.join('|')) => ({ matcher, hooks: [{ type: 'command', command: `node "${script}" failure` }] });
 // A status line that runs Ponytail's script and nothing else: the usage script draws its badge too (plugin option statusStyle).
 const PONYTAIL_LINE = /^[^;&|`()<>\n]*(?<![\w.-])ponytail-statusline\.(?:sh|ps1)["']?\s*$/;
-const REPLACED = 'benchkeeperReplacedStatusLine';
+const REPLACED = 'cedarloomAppReplacedStatusLine';
 // The account's settings.json with the status line and the StopFailure hook (remove: without them). An existing status line of
 // another kind is not replaced: the agent has one only. Ponytail's own is replaced and kept under REPLACED, which remove writes
 // back (undo restores it too; a container account has no undo). The hook is added to the user's own StopFailure entries.

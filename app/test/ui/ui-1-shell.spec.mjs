@@ -144,7 +144,7 @@ test.describe('views', () => {
     const runs = page.getByRole('navigation', { name: 'Runs' }).getByRole('link');
     await expect(runs).toHaveCount(100);
     await page.getByRole('button', { name: /^Show \d+ older runs$/ }).click();
-    await expect(runs).toHaveCount(await page.evaluate(async () => (await (await fetch('/api/history', { headers: { 'x-benchkeeper': localStorage.getItem('benchkeeper-key') } })).json()).length));
+    await expect(runs).toHaveCount(await page.evaluate(async () => (await (await fetch('/api/history', { headers: { 'x-cedarloom-app': localStorage.getItem('cedarloom-app-key') } })).json()).length));
     // Opened by its link, an old run is in the list from the start.
     await page.goto('/#/history?run=old-0');
     await page.reload();

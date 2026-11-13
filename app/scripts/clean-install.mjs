@@ -24,7 +24,7 @@ const FIXTURES = {
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'bk-clean-install-')));
 const home = join(root, 'home');
-const folders = { HOME: home, USERPROFILE: home, BENCHKEEPER_HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), XDG_CONFIG_HOME: join(home, '.config'), XDG_DATA_HOME: join(home, '.local/share'), XDG_STATE_HOME: join(home, '.local/state'), XDG_CACHE_HOME: join(home, '.cache'), TMPDIR: join(root, 'tmp') };
+const folders = { HOME: home, USERPROFILE: home, CEDARLOOM_APP_HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CODEX_HOME: join(home, '.codex'), XDG_CONFIG_HOME: join(home, '.config'), XDG_DATA_HOME: join(home, '.local/share'), XDG_STATE_HOME: join(home, '.local/state'), XDG_CACHE_HOME: join(home, '.cache'), TMPDIR: join(root, 'tmp') };
 // The folders of node and git alone: through the caller's PATH, setup would ask the caller's own claude and codex for their plugins, which answer from the real login.
 const gitFolder = (process.env.PATH ?? '').split(delimiter).filter(isAbsolute).find((folder) => existsSync(join(folder, 'git')));
 const PATH = [...new Set([dirname(process.execPath), gitFolder])].join(delimiter);

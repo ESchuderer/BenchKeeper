@@ -16,7 +16,7 @@ const ctxAt = () => { const h = mkdtempSync(join(TMP, 'bk-home-')); return conte
 test('own packs: save, export, import under a new id, remove', () => {
   const ctx = ctxAt();
   savePack(ctx, { id: 'ui', title: 'UI', skills: ['accessibility', 'designing-technical-uis'] });
-  assert.deepEqual(libraryWith(ctx).packs.at(-1), { kind: 'benchkeeper-pack', schemaVersion: 1, id: 'ui', title: 'UI', skills: ['accessibility', 'designing-technical-uis'], own: true });
+  assert.deepEqual(libraryWith(ctx).packs.at(-1), { kind: 'cedarloom-app-pack', schemaVersion: 1, id: 'ui', title: 'UI', skills: ['accessibility', 'designing-technical-uis'], own: true });
   const file = exportPack(ctx, 'ui');
   assert.equal(importPack(ctx, file, 'ui2').id, 'ui2');
   assert.equal(importPack(ctx, exportPack(ctx, 'frontend'), 'my-frontend').skills.length, 3);
@@ -36,7 +36,7 @@ test('a pack saved over an own pack of the same id leaves the old file in the ba
 
 test('pack files name library skills only and keep their schema', () => {
   const ctx = ctxAt();
-  const pack = (x) => JSON.stringify({ kind: 'benchkeeper-pack', schemaVersion: 1, id: 'p', skills: ['accessibility'], ...x });
+  const pack = (x) => JSON.stringify({ kind: 'cedarloom-app-pack', schemaVersion: 1, id: 'p', skills: ['accessibility'], ...x });
   assert.throws(() => importPack(ctx, pack({ skills: ['evil'] })), /not in the library: evil/);
   assert.throws(() => importPack(ctx, pack({ id: 'frontend' })), /library pack/);
   assert.throws(() => importPack(ctx, pack({ id: '../x' })), /pack id/);
@@ -82,7 +82,7 @@ test('pack files that are not packs are listed as invalid with the reason, and c
   assert.equal(savePack(ctx, { id: 'a'.repeat(64), title: 'x'.repeat(80), skills: ['accessibility'] }).title.length, 80);
   assert.throws(() => savePack(ctx, { id: 'a'.repeat(65), skills: ['accessibility'] }), /pack id/);
   assert.throws(() => importPack(ctx, 'null'), /^Error: not a BenchKeeper pack file$/);
-  assert.throws(() => importPack(ctx, JSON.stringify({ kind: 'benchkeeper-pack' })), /^Error: pack schemaVersion undefined, this app reads 1$/);
+  assert.throws(() => importPack(ctx, JSON.stringify({ kind: 'cedarloom-app-pack' })), /^Error: pack schemaVersion undefined, this app reads 1$/);
   assert.throws(() => importPack(ctx, '{'), /^Error: pack file: /);
 });
 

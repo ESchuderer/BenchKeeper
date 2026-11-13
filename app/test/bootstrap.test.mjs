@@ -44,7 +44,7 @@ function machine(source, { fail = false } = {}) {
 
 const profile = (projects) => {
   const file = join(tmp('bk-boot-file-'), 'profile.json');
-  writeFileSync(file, JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: [] }, projects }));
+  writeFileSync(file, JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: [] }, projects }));
   return file;
 };
 const cli = async (argv, ctx, lines = ['']) => {
@@ -131,7 +131,7 @@ test('profile export --origins lists the addresses before it writes the file; wi
 });
 
 test('a profile origin must be text', () => {
-  const base = { kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] } };
+  const base = { kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'] } };
   assert.throws(() => readProfile(JSON.stringify({ ...base, projects: [{ path: '/a/b', origin: 7 }] })), /origin of \/a\/b is not text/);
   assert.equal(readProfile(JSON.stringify({ ...base, projects: [{ path: '/a/b', origin: URL }] })).projects[0].origin, URL);
 });

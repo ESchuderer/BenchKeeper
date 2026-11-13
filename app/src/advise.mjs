@@ -53,7 +53,7 @@ function codexArgv(ctx, dir, q, out, { usage = false } = {}) {
   const read = [':minimal', ':workspace_roots', ...(home ? [home] : [])].map((p) => `${JSON.stringify(p)}="read"`).join(', ');
   // sandbox_mode read-only too: a Codex that ignores the profile still writes nothing. Codex 0.163 lets the profile win
   // over any sandbox_mode, also one from the user's config.
-  return ['codex', 'exec', '-c', 'sandbox_mode="read-only"', '-c', 'default_permissions="benchkeeper-advice"', '-c', `permissions.benchkeeper-advice.filesystem={${read}}`, '-c', 'web_search="disabled"',
+  return ['codex', 'exec', '-c', 'sandbox_mode="read-only"', '-c', 'default_permissions="cedarloom-app-advice"', '-c', `permissions.cedarloom-app-advice.filesystem={${read}}`, '-c', 'web_search="disabled"',
     ...off, '--skip-git-repo-check', ...noTrace(ctx, 'codex'), ...(usage ? ['--json'] : []), '-o', out, q];
 }
 

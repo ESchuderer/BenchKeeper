@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // Tests plan with the app's minimum skills CLI instead of asking the npm registry.
-process.env.BENCHKEEPER_SKILLS_CLI = '1.7.2';
+process.env.CEDARLOOM_APP_SKILLS_CLI = '1.7.2';
 
 // The folders the agents and the skills CLI read from these variables follow the test's fixture home, not the caller's
 // (an agent session that runs the tests has CLAUDE_CONFIG_DIR set, for example).

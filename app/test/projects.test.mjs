@@ -184,7 +184,7 @@ test('Update all commits the new setup on a branch in a worktree and leaves the 
   assert.equal(JSON.parse(p.git('show', `${r.branch}:${STATE}`)).contentVersion, appVersion);
   assert.equal(p.git('log', '--format=%s', '-1', r.branch).trim(), `chore: agent setup ${appVersion}`);
   assert.equal(p.git('worktree', 'list').trim().split('\n').length, 1);
-  assert.equal(existsSync(join(h, '.cache/benchkeeper/worktrees')) && p.git('worktree', 'list').includes('.cache'), false);
+  assert.equal(existsSync(join(h, '.cache/cedarloom-app/worktrees')) && p.git('worktree', 'list').includes('.cache'), false);
   // Its report diffs from the commit: the worktree is gone.
   const report = api(ctx)['GET /api/run'](new URLSearchParams({ id: r.run }));
   assert.match(report.entries.find((e) => e.path?.endsWith(STATE)).diff, new RegExp(`\\+  "contentVersion": "${appVersion}"`));

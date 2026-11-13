@@ -107,7 +107,7 @@ Usage: benchkeeper <command> [options]
                                     values, headers and secrets never appear; nothing is written
   evals cases add --target skill:<name>|rule:<name> --expected <text> [--should-not] [--run <session run>]
            [--project dir] [--scope project|user] [--transcript file] [--description text] [--query text]
-                                    records an observed miss as an eval case (~/.config/benchkeeper/evals/); a skill with
+                                    records an observed miss as an eval case (~/.config/cedarloom-app/evals/); a skill with
                                     no library counterpart is read from --project's or your skill folders (--scope picks one)
   evals plan|run [--agents a,b] [--model m] [--target t] [--all] [--yes]
                                     skill trigger evals with real agent sessions (subscription use, never in CI);
@@ -122,7 +122,7 @@ Usage: benchkeeper <command> [options]
                                     values masked; a recorded session's files between its snapshots, the first 50)
   undo <run> [--step <step>] [--unit <unit>]
                                     restores the files of a run or one of its steps or units
-  restore <name>                    restores a setup.sh backup (~/.config/benchkeeper/backup/<name>)
+  restore <name>                    restores a setup.sh backup (~/.config/cedarloom-app/backup/<name>)
   projects plan|apply [dir] [--project dir] [--agents a,b] [--env e] [--sandbox] [--guards|--no-guards] [--machine on|off|none] [--workflow-load|--no-workflow-load] [--pack p] [--skill s] [--tier t] [--yes]
                     [--share|--local] [--caller lint-js|lint-python|sonar] [--paths 'skill=glob,glob']
                                     project setup in dir (--project names it too; both must name the same folder); answers default to the project's .benchkeeper/state.json;
@@ -166,7 +166,7 @@ Usage: benchkeeper <command> [options]
   skills list --library             the library's skills with the number of registered projects that have each
   skills show <name>                the SKILL.md of a library skill BenchKeeper ships or of yours; any other names its source
   skills new <name> [--file path | --description text] [--yes]
-                                    a skill of your own in ~/.config/benchkeeper/skills/<name>/, picked in a project or own
+                                    a skill of your own in ~/.config/cedarloom-app/skills/<name>/, picked in a project or own
                                     pack like a library skill and copied there: from --file, or a SKILL.md with the name and
                                     --description. A plan with a diff (undo restores it), as are edit and delete
   skills edit <name> --file path [--yes]
@@ -214,7 +214,7 @@ Usage: benchkeeper <command> [options]
                                     --unattended skips a project whose git config that runs code differs from the
                                     one confirmed with projects confirm-git
   sessions board [--no-open]        sessions board of the Claude Code and Codex transcripts on this machine:
-                                    tier, setup, skills, tests, cost, pull requests (~/.config/benchkeeper/board.html);
+                                    tier, setup, skills, tests, cost, pull requests (~/.config/cedarloom-app/board.html);
                                     Ponytail's ledger, when present, is read beside them (read only)
   sessions list [--run id]          orchestrated runs with cost (API-equivalent USD; Codex estimated from its tokens and
                                     OpenAI API prices, unpriced models left out), tokens and the concrete models from the
@@ -323,7 +323,7 @@ Usage: benchkeeper <command> [options]
   webhook send --state finished|failed|needs-person [--run id] [--automation id] [--task id]
                                     one POST of these ids and the state, started detached with a 5 second limit and no
                                     retry; without a webhook nothing happens; a failure is one line in
-                                    ~/.cache/benchkeeper/webhook.log, without the URL
+                                    ~/.cache/cedarloom-app/webhook.log, without the URL
 
 --json (doctor, verify, plan, history, history show, projects plan|list|status|scan|audit|advise,
         automations list|show|diff|status|export, packs list|show|warnings, skills list|show,
@@ -426,7 +426,7 @@ function report(run, out) {
 }
 
 export function machineContext(env = process.env) {
-  const home = env.BENCHKEEPER_HOME || homedir();
+  const home = env.CEDARLOOM_APP_HOME || homedir();
   const ctx = context({ home, appVersion, refuse: () => contentRefusal(contentDir) ?? installedRefusal(ctx), undoable: undoableAutomation });
   return ctx;
 }
@@ -1752,7 +1752,7 @@ async function machineCommand(ctx, { o, positionals, out, ask }) {
       const s = machineStatus(ctx), c = s.config;
       if (!c) { say('no machine account is set up on this machine (benchkeeper machine setup)'); return 0; }
       const id = identity(c);
-      say(`machine account: ${c.machine.login} (id ${c.machine.id})${s.renamed ? `, renamed from ${s.renamed[0]}` : ''}\nyour account: ${c.main.login} (id ${c.main.id})\nsigned in: ${s.signedIn ? `${s.signedIn.login}${s.signedIn.id === c.machine.id ? '' : ' (not the machine account)'}` : 'no (benchkeeper machine setup)'}\ncommits as: ${id.name} <${id.email}>\nsigning: ${c.signing ? (s.key ? 'on' : 'on, but the key is missing (benchkeeper machine setup)') : 'off'}\nin agent sessions: ${(ctx.env ?? process.env).BENCHKEEPER_MACHINE_EMAIL === id.email ? 'yes, in this environment' : 'not in this environment'}`);
+      say(`machine account: ${c.machine.login} (id ${c.machine.id})${s.renamed ? `, renamed from ${s.renamed[0]}` : ''}\nyour account: ${c.main.login} (id ${c.main.id})\nsigned in: ${s.signedIn ? `${s.signedIn.login}${s.signedIn.id === c.machine.id ? '' : ' (not the machine account)'}` : 'no (benchkeeper machine setup)'}\ncommits as: ${id.name} <${id.email}>\nsigning: ${c.signing ? (s.key ? 'on' : 'on, but the key is missing (benchkeeper machine setup)') : 'off'}\nin agent sessions: ${(ctx.env ?? process.env).CEDARLOOM_APP_MACHINE_EMAIL === id.email ? 'yes, in this environment' : 'not in this environment'}`);
       return 0;
     }
     if (sub === 'enable' || sub === 'disable') {
@@ -1985,7 +1985,7 @@ async function accountsCommand(ctx, { o, positionals, out, err, ask }) {
     // The token goes first: after the registry change nothing would point to a token that failed to delete.
     if (sub === 'remove' && gone.token) {
       try { store(ctx).delete(gone.name); } catch (e) {
-        out.write(`${e.message}\nthe account ${gone.name} stays listed: delete the token by hand (service benchkeeper, account ${gone.name}) or fix the credential store, then run benchkeeper accounts remove ${gone.name} again\n`);
+        out.write(`${e.message}\nthe account ${gone.name} stays listed: delete the token by hand (service cedarloom-app, account ${gone.name}) or fix the credential store, then run benchkeeper accounts remove ${gone.name} again\n`);
         return 1;
       }
       out.write('deleted the stored token\n');
@@ -2053,7 +2053,7 @@ async function handoverFlow(ctx, a, { dir, yes, ask, out, after = false }) {
   if (after && !ask.tty) { out.write(`account ${a.name} is below its minimum: benchkeeper accounts handover ${a.name} hands the work to ${r.target.name}\n`); return null; }
   const h = handover(ctx, dir, { from: a, to: r.target });
   out.write(`current account: ${a.name}\ntarget account:  ${r.target.name} (pool ${a.pool})\n\n${h.text}\n${ROTATE_WARNING[a.agent]}\n`);
-  for (const k of loginVars(ctx, a.agent)) out.write(`warning: ${k} is set in this environment; the agent uses it instead of the account's login when it reaches the session (only when BENCHKEEPER_PASS_ENV names it)\n`);
+  for (const k of loginVars(ctx, a.agent)) out.write(`warning: ${k} is set in this environment; the agent uses it instead of the account's login when it reaches the session (only when CEDARLOOM_APP_PASS_ENV names it)\n`);
   const go = yes || settingsOf(registrySettings(ctx)).continueBelow || (await ask(`Write ${h.path} and start ${a.agent} as ${r.target.name} with it as the first prompt?`));
   // The agent reads the terminal next, and a declined question must not keep the input open.
   ask.close();

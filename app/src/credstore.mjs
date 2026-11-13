@@ -5,7 +5,7 @@
 // shortcut: macOS and Windows are untested here (Windows Credential Manager has no stdin form), refuse there until verified.
 import { childEnv } from './childenv.mjs';
 
-const SERVICE = 'benchkeeper';
+const SERVICE = 'cedarloom-app';
 // A token is one run of these characters: the shape lets it go into a quoted command without escaping.
 export const TOKEN = /^[A-Za-z0-9._~+/=-]{20,4096}$/;
 
@@ -56,7 +56,7 @@ export function credentialStore(run, { platform = process.platform, env = proces
         if (r.code !== 0) throw new StoreError('the secret service did not store the token (is a keyring running and unlocked?)');
       },
       ...lookup((name) => ['secret-tool', 'lookup', ...attrs(name)], (name) => ['secret-tool', 'clear', ...attrs(name)],
-        'the secret service did not delete the token: delete it there by hand (it is stored under the service name benchkeeper)'),
+        'the secret service did not delete the token: delete it there by hand (it is stored under the service name cedarloom-app)'),
     };
   }
   if (platform === 'darwin') {
@@ -70,7 +70,7 @@ export function credentialStore(run, { platform = process.platform, env = proces
         if (r.code !== 0) throw new StoreError('the keychain did not store the token');
       },
       ...lookup((name) => ['security', 'find-generic-password', '-s', SERVICE, '-a', name, '-w'], (name) => ['security', 'delete-generic-password', '-s', SERVICE, '-a', name],
-        'the keychain did not delete the token: delete it in Keychain Access (service benchkeeper)'),
+        'the keychain did not delete the token: delete it in Keychain Access (service cedarloom-app)'),
     };
   }
   return refuse(`no credential store is supported on ${platform}: the token is not kept (sign in with accounts login instead)`);

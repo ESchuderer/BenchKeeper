@@ -25,7 +25,7 @@ before(async () => {
 after(() => srv.close());
 
 const req = (method, path, headers, body) => httpRequest(port, method, path, headers, body, 3000);
-const auth = (h = {}) => ({ cookie, 'x-benchkeeper': key, ...h });
+const auth = (h = {}) => ({ cookie, 'x-cedarloom-app': key, ...h });
 const post = (path, body) => req('POST', path, auth({ 'content-type': 'application/json' }), typeof body === 'string' ? body : JSON.stringify(body));
 
 test('a request target the URL parser refuses is a 400 and the server keeps answering', async () => {

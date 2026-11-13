@@ -1,5 +1,5 @@
 // Eval cases: an observed miss becomes a regression case for a skill or rule. The app's sets ship in
-// <content>/evals/, the user's own go to ~/.config/benchkeeper/evals/; benchkeeper evals reads both.
+// <content>/evals/, the user's own go to ~/.config/cedarloom-app/evals/; benchkeeper evals reads both.
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
@@ -59,7 +59,7 @@ function readSet(path) {
   if (text == null) return null;
   let set;
   try { set = JSON.parse(text); } catch (e) { throw new Error(`${path}: not JSON (${e.message})`); }
-  if (set.kind !== 'benchkeeper-evals' || set.schemaVersion !== CASE_SCHEMA) throw new Error(`${path}: not a schemaVersion ${CASE_SCHEMA} eval set`);
+  if (set.kind !== 'cedarloom-app-evals' || set.schemaVersion !== CASE_SCHEMA) throw new Error(`${path}: not a schemaVersion ${CASE_SCHEMA} eval set`);
   // Target and case ids become folder and file names in a run.
   const own = typeof set.target === 'string' && scopeOf(set.target) === 'project';
   if (typeof set.target !== 'string' || !TARGET.test(set.target) || (own && !(typeof set.project === 'string' && isAbsolute(set.project) && set.target.endsWith(`-${projectId(set.project)}`))) || (!own && set.project != null) || !Array.isArray(set.cases) || !set.cases.every((c) => typeof c?.id === 'string' && /^[\w-]+$/.test(c.id))) throw new Error(`${path}: a target or case id with characters outside letters, digits, dash and underscore`);
@@ -108,7 +108,7 @@ export function addCase(ctx, { target: asked, scope, expected, should = true, pr
     source: Object.fromEntries(Object.entries({ project, transcript, description: description && mask(description, { keys: false }), run }).filter(([, v]) => v)) };
   const path = join(userEvals(ctx), fileName(target));
   const change = { id: 'case:0', step: 'case', title: `eval case for ${target}: ${should ? 'should' : 'should not'} ${expected}`, kind: 'write', path,
-    edit: (t) => { const set = t ? JSON.parse(t) : { kind: 'benchkeeper-evals', schemaVersion: CASE_SCHEMA, target, ...(own && { project: own }), cases: [] }; set.cases.push(c); return `${JSON.stringify(set, null, 2)}\n`; } };
+    edit: (t) => { const set = t ? JSON.parse(t) : { kind: 'cedarloom-app-evals', schemaVersion: CASE_SCHEMA, target, ...(own && { project: own }), cases: [] }; set.cases.push(c); return `${JSON.stringify(set, null, 2)}\n`; } };
   const [planned] = preview([change]);
   if (planned.error) throw new Error(`${path}: ${planned.error}`);
   const r = apply([planned], ctx, { scope: 'global', note: { case: c.id, target, ...(project ? { project } : {}), ...(run ? { run } : {}) } });

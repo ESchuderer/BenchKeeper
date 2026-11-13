@@ -13,7 +13,7 @@ test.describe('views', () => {
     await expect(entry).toHaveCount(0);
     await page.goto('/#/editors');
     await expect(page.getByRole('heading', { level: 2, name: 'Dashboard' })).toBeVisible();
-    expect(await page.evaluate(async () => (await fetch('/api/params?dir=x', { headers: { 'x-benchkeeper': localStorage.getItem('benchkeeper-key') } })).status)).toBe(404);
+    expect(await page.evaluate(async () => (await fetch('/api/params?dir=x', { headers: { 'x-cedarloom-app': localStorage.getItem('cedarloom-app-key') } })).status)).toBe(404);
     await nav(page, 'Preferences').click();
     await page.getByRole('tab', { name: 'Advanced' }).click();
     const editors = page.getByRole('switch', { name: 'Editors' });
@@ -263,7 +263,7 @@ test.describe('views', () => {
     await expect(select).toBeDisabled();
     answer();
     const changes = views.getByRole('region', { name: 'Changes' });
-    await expect(changes).toContainText('Why: You chose the status line style benchkeeper for account work in Preferences.');
+    await expect(changes).toContainText('Why: You chose the status line style cedarloom-app for account work in Preferences.');
     await page.unroute(/\/api\/status-style$/);
     await expect(changes).toContainText(file);
     await expect(select).toHaveValue('Usage only');

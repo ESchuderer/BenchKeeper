@@ -158,7 +158,7 @@ test('machine session variables: author, committer, gh\'s helper alone, signing,
   writeFileSync(join(m.bin, 'gh'), '#!/bin/sh\n[ "$GH_CONFIG_DIR" = "$EXPECT" ] && printf "username=x-access-token\\npassword=machine-token\\n"\n');
   assert.equal(runCommand(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', keyPath(m.ctx)]).code, 0);
   const env = machineEnv(m.ctx);
-  assert.deepEqual([env.GIT_AUTHOR_NAME, env.GIT_COMMITTER_EMAIL, env.GH_CONFIG_DIR, env.BENCHKEEPER_MACHINE_EMAIL], ['octo-agent', EMAIL, ghDir(m.ctx), EMAIL]);
+  assert.deepEqual([env.GIT_AUTHOR_NAME, env.GIT_COMMITTER_EMAIL, env.GH_CONFIG_DIR, env.CEDARLOOM_APP_MACHINE_EMAIL], ['octo-agent', EMAIL, ghDir(m.ctx), EMAIL]);
   assert.ok(Object.keys(env).every((k) => VARS.includes(k)), 'every variable is one removal takes out');
   assert.equal(env.GH_TOKEN, undefined);
   const dir = mkdtempSync(join(tmpdir(), 'bk-machine-repo-'));
@@ -183,7 +183,7 @@ test('machine session variables: author, committer, gh\'s helper alone, signing,
 test('a project set to off gets your own identity and gh back over the global machine variables', { skip: win && 'sh helpers' }, () => {
   const m = ready();
   const user = machineEnv(m.ctx), own = ownEnv(m.ctx);
-  assert.deepEqual(own, { GIT_AUTHOR_NAME: 'Octo Cat', GIT_AUTHOR_EMAIL: 'octo@example.com', GIT_COMMITTER_NAME: 'Octo Cat', GIT_COMMITTER_EMAIL: 'octo@example.com', GH_CONFIG_DIR: join(m.home, '.config/gh'), GIT_CONFIG_COUNT: '0', BENCHKEEPER_MACHINE_EMAIL: '' });
+  assert.deepEqual(own, { GIT_AUTHOR_NAME: 'Octo Cat', GIT_AUTHOR_EMAIL: 'octo@example.com', GIT_COMMITTER_NAME: 'Octo Cat', GIT_COMMITTER_EMAIL: 'octo@example.com', GH_CONFIG_DIR: join(m.home, '.config/gh'), GIT_CONFIG_COUNT: '0', CEDARLOOM_APP_MACHINE_EMAIL: '' });
   // Claude Code applies the local value of a variable over the user one (settings precedence): the session sees this.
   const session = { ...m.env, ...user, ...own };
   const dir = mkdtempSync(join(tmpdir(), 'bk-machine-off-'));
@@ -247,7 +247,7 @@ test('projects apply --machine on|off|none: the local settings only, kept in the
   assert.equal(readState(dir).machine, 'on');
   assert.match(readFileSync(join(dir, '.git/info/exclude'), 'utf8'), /\.claude\/settings\.local\.json/);
   go({ machine: 'off' });
-  assert.deepEqual([local().GIT_AUTHOR_EMAIL, local().GIT_CONFIG_COUNT, local().BENCHKEEPER_MACHINE_EMAIL], ['octo@example.com', '0', '']);
+  assert.deepEqual([local().GIT_AUTHOR_EMAIL, local().GIT_CONFIG_COUNT, local().CEDARLOOM_APP_MACHINE_EMAIL], ['octo@example.com', '0', '']);
   const gone = go({ machine: 'none' });
   assert.equal(local()?.GIT_AUTHOR_EMAIL, undefined);
   assert.equal(readState(dir).machine, undefined);
@@ -275,8 +275,8 @@ test('run --as-machine: the account\'s environment plus the machine\'s, Claude C
   await exec(['accounts', 'add', 'work', '--agent', 'claude', '--yes']);
   await exec(['accounts', 'login', 'work']);
   const before = am.calls().length;
-  // A GitHub token that BENCHKEEPER_PASS_ENV lets through does not reach a machine session.
-  m.ctx.env = { ...m.ctx.env, BENCHKEEPER_PASS_ENV: 'GH_TOKEN' };
+  // A GitHub token that CEDARLOOM_APP_PASS_ENV lets through does not reach a machine session.
+  m.ctx.env = { ...m.ctx.env, CEDARLOOM_APP_PASS_ENV: 'GH_TOKEN' };
   const r = await exec(['run', '--account', 'work', '--as-machine', '--', 'claude', '-p', 'hi']);
   assert.equal(r.code, 0, r.text);
   const launch = am.calls().slice(before).find((x) => x.args.includes('hi'));
@@ -284,12 +284,12 @@ test('run --as-machine: the account\'s environment plus the machine\'s, Claude C
   const { commit, ...rest } = JSON.parse(launch.args[1]).attribution;
   assert.match(commit, /^Agent-Host: [a-z0-9-]+\nAgent-Role: orchestrator$/);
   assert.deepEqual(rest, { pr: '', sessionUrl: false }, 'no built-in pull request text or session link');
-  assert.deepEqual([launch.env.GIT_AUTHOR_EMAIL, launch.env.GH_CONFIG_DIR, launch.env.GH_TOKEN, launch.env.CLAUDE_CONFIG_DIR], [EMAIL, ghDir(m.ctx), undefined, join(am.home, '.local/share/benchkeeper/accounts/work')]);
+  assert.deepEqual([launch.env.GIT_AUTHOR_EMAIL, launch.env.GH_CONFIG_DIR, launch.env.GH_TOKEN, launch.env.CLAUDE_CONFIG_DIR], [EMAIL, ghDir(m.ctx), undefined, join(am.home, '.local/share/cedarloom-app/accounts/work')]);
   const plain = am.calls().length;
   await exec(['run', '--account', 'work', '--', 'claude', '-p', 'plain']);
   const p = am.calls().slice(plain).find((x) => x.args.includes('plain'));
-  // The same variable passes to a session that is not a machine one, as BENCHKEEPER_PASS_ENV asks.
-  assert.deepEqual([p.args, p.env.GIT_AUTHOR_EMAIL, p.env.BENCHKEEPER_MACHINE_EMAIL, p.env.GH_TOKEN], [['-p', 'plain'], undefined, undefined, 'dummy-gh']);
+  // The same variable passes to a session that is not a machine one, as CEDARLOOM_APP_PASS_ENV asks.
+  assert.deepEqual([p.args, p.env.GIT_AUTHOR_EMAIL, p.env.CEDARLOOM_APP_MACHINE_EMAIL, p.env.GH_TOKEN], [['-p', 'plain'], undefined, undefined, 'dummy-gh']);
   assert.equal((await exec(['run', '--role', 'worker', '--', 'claude'])).code, 2);
   assert.equal((await exec(['run', '--account', 'work', '--as-machine', '--role', 'boss', '--', 'claude'])).code, 2);
   await exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']);
@@ -305,7 +305,7 @@ test('run --as-machine: the account\'s environment plus the machine\'s, Claude C
 });
 
 test('guard hook in a machine account session: denies another identity and an approving review, lets a commit as the machine pass', () => {
-  const env = { BENCHKEEPER_MACHINE_EMAIL: EMAIL, GIT_AUTHOR_EMAIL: EMAIL, GIT_COMMITTER_EMAIL: EMAIL };
+  const env = { CEDARLOOM_APP_MACHINE_EMAIL: EMAIL, GIT_AUTHOR_EMAIL: EMAIL, GIT_COMMITTER_EMAIL: EMAIL };
   const denied = ['git commit --author "Me <me@example.com>" -m x', 'git commit --author=me -m x', 'git -c user.email=me@example.com commit -m x', 'git -c credential.helper= push',
     'git --config-env=user.name=NAME commit -m x', 'git config user.email me@example.com', 'git config --global user.name Me', 'git config set user.email me@example.com', 'git config --unset user.email',
     'GIT_AUTHOR_EMAIL=me@example.com git commit -m x', 'env GIT_COMMITTER_NAME=me git commit -m x', 'export GIT_AUTHOR_EMAIL=me@example.com', 'unset GIT_CONFIG_COUNT', 'GH_CONFIG_DIR=~/.config/gh gh pr create',
@@ -354,7 +354,7 @@ test('machine status, doctor and remove: ids decide, a renamed login is informat
   assert.match(machineChecks(m.ctx)[0].message, /signed in as other, not the machine account/);
   m.gh.signedIn = false;
   assert.match(machineChecks(m.ctx)[0].message, /is not signed in/);
-  m.ctx.env.BENCHKEEPER_MACHINE_EMAIL = EMAIL;
+  m.ctx.env.CEDARLOOM_APP_MACHINE_EMAIL = EMAIL;
   assert.ok(machineChecks(m.ctx).some((f) => /a GitHub token variable is set/.test(f.message)));
   writeFileSync(join(m.ctx.config, 'machine', 'machine.json'), '{"version":1}');
   assert.match(machineChecks(m.ctx)[0].message, /is not a machine account config/);

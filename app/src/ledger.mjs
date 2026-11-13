@@ -67,9 +67,9 @@ export class Ledger {
   }
 
   // Backups hold the old text of settings files, tokens included: a rotated token must not stay in them for good. A run's
-  // backup folder goes after `days` (BENCHKEEPER_BACKUP_DAYS, default 90, 0 keeps them); undo of that run then reports the
+  // backup folder goes after `days` (CEDARLOOM_APP_BACKUP_DAYS, default 90, 0 keeps them); undo of that run then reports the
   // missing backup. Only folders named like a run id go: setup.sh backups are dated folders of another form.
-  prune(days = Number(process.env.BENCHKEEPER_BACKUP_DAYS ?? 90), now = Date.now()) {
+  prune(days = Number(process.env.CEDARLOOM_APP_BACKUP_DAYS ?? 90), now = Date.now()) {
     if (!(days > 0)) return [];
     const gone = [];
     let names = [];

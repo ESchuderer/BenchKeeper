@@ -51,7 +51,7 @@ export const bandChecks = (ctx) => (bandStacks(ctx) ? [{
 }] : []);
 
 // What BenchKeeper's status line prints per style (the plugin option statusStyle, read as usage-hook.mjs reads it).
-const SHOWS = { merged: "the usage windows and Ponytail's level", plugin: "Ponytail's level only", benchkeeper: 'the usage windows only', none: 'nothing' };
+const SHOWS = { merged: "the usage windows and Ponytail's level", plugin: "Ponytail's level only", 'cedarloom-app': 'the usage windows only', none: 'nothing' };
 
 // The host accounts whose status line is BenchKeeper's (accounts track wrote the usage script), each with the settings.json
 // its status line reads and the style set there (undefined when unset). A container account's folder is a volume, not read
@@ -73,7 +73,7 @@ export const styleChecks = (ctx) => trackedStyles(ctx).map(({ account: a, file, 
   return {
     level: 'info', check: 'statusline',
     message: `account ${a.name}: status line style ${style}${v === undefined ? ' (the default)' : ''}, prints ${SHOWS[style]}; the usage windows are recorded in every style`,
-    fix: `to change it, set the plugin option statusStyle (merged, plugin, benchkeeper or none) under pluginConfigs."benchkeeper@benchkeeper".options in ${file}`,
+    fix: `to change it, set the plugin option statusStyle (merged, plugin, cedarloom-app or none) under pluginConfigs."benchkeeper@benchkeeper".options in ${file}`,
   };
 });
 

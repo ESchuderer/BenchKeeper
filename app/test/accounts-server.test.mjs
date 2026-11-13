@@ -150,9 +150,9 @@ test('the page data carries the thresholds and the settings; status carries the 
   assert.deepEqual([list.settings.autoPick, list.settings.whenNone, list.settings.continueBelow], [false, 'stop', false]);
   assert.equal((await routes['GET /api/accounts-status'](q({ name: 'work' }))).usage.tracked, false);
   const dir = listAccounts(m.ctx)[0].dir;
-  mkdirSync(join(dir, 'benchkeeper'), { recursive: true });
+  mkdirSync(join(dir, 'cedarloom-app'), { recursive: true });
   const now = Date.now();
-  writeFileSync(join(dir, 'benchkeeper', 'usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 96, resetsAt: Math.floor(now / 1000) + 3600 } }));
+  writeFileSync(join(dir, 'cedarloom-app', 'usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 96, resetsAt: Math.floor(now / 1000) + 3600 } }));
   const s = await routes['GET /api/accounts-status'](q({ name: 'work' }));
   assert.deepEqual([s.usage.fiveHour.state, s.usage.fiveHour.remaining, s.usage.sevenDay.state], ['low', 4, 'unknown']);
   assert.ok(s.findings.some((f) => /5-hour window has 4% left/.test(f.message)));
@@ -173,7 +173,7 @@ test('add by sign-in: no question up front, the name from the identity with a nu
   assert.equal(await added('claude'), 'john-doe');
   assert.equal(await added('claude'), 'john-doe-2');
   assert.equal(await added('codex'), 'codex');
-  const base = join(m.home, '.local/share/benchkeeper/accounts');
+  const base = join(m.home, '.local/share/cedarloom-app/accounts');
   assert.deepEqual(listAccounts(m.ctx).map((a) => [a.name, a.agent, a.dir, !!a.default]), [['john-doe', 'claude', join(base, 'claude'), true], ['john-doe-2', 'claude', join(base, 'claude-2'), false], ['codex', 'codex', join(base, 'codex'), true]]);
   const s = await routes['GET /api/accounts-status'](q({ name: 'john-doe' }));
   assert.deepEqual([s.loggedIn, s.email, s.plan], [true, 'John.Doe@example.com', 'max']);

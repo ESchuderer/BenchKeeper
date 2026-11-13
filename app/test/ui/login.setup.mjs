@@ -12,7 +12,7 @@ test('the token becomes a cookie and an API key; both leave the address bar', as
   await page.goto(pathToFileURL(openBrowser(`http://127.0.0.1:4410/?token=${TOKEN}`, { open: () => {}, confined: () => false })).href);
   await page.waitForURL('http://127.0.0.1:4410/');
   const [cookie] = await context.cookies();
-  expect(await page.evaluate(() => localStorage.getItem('benchkeeper-key'))).toMatch(/^[\w-]{43}$/);
+  expect(await page.evaluate(() => localStorage.getItem('cedarloom-app-key'))).toMatch(/^[\w-]{43}$/);
   expect(cookie).toMatchObject({ name: "bk_session_4410", httpOnly: true, sameSite: 'Strict' });
   await expect(page.getByRole('heading', { level: 1, name: 'BenchKeeper' })).toBeVisible();
   await context.storageState({ path: STATE });

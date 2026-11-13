@@ -24,5 +24,5 @@ services:
     command: sleep infinity
     environment:
       DO_NOT_TRACK: "1"
-      BENCHKEEPER_SANDBOX_TEST: "1"
+      CEDARLOOM_APP_SANDBOX_TEST: "1"
       ASTRO_TELEMETRY_DISABLED: "1"

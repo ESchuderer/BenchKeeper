@@ -27,7 +27,7 @@ test('add, list, use and remove: plans with a diff, a ledger run each, undo rest
   assert.equal(await c.exec(['accounts', 'add', 'dev', '--agent', 'codex', '--yes']), 0);
   const list = listAccounts(m.ctx);
   assert.deepEqual(list.map((a) => [a.name, a.agent, !!a.default]), [['work', 'claude', true], ['home', 'claude', false], ['dev', 'codex', true]]);
-  assert.equal(list[0].dir, join(m.home, '.local/share/benchkeeper/accounts/work'));
+  assert.equal(list[0].dir, join(m.home, '.local/share/cedarloom-app/accounts/work'));
   assert.equal(list[1].label, 'private plan');
   assert.deepEqual(list[0].token, null);
   assert.equal(await c.exec(['accounts', 'use', 'home', '--yes']), 0);
@@ -224,7 +224,7 @@ test('token (Claude Code): setup-token kept in the credential store, recorded wi
   assert.match(findAccount(m.ctx, 'work').token.created, /^\d{4}-\d\d-\d\dT/);
   // The acceptance grep: no file of the state folder (registry, ledger, backups, everything under the config folder) or of
   // the home outside the agent's own account folder holds the token or the inherited ones.
-  const accountFolder = join(m.home, '.local/share/benchkeeper/accounts');
+  const accountFolder = join(m.home, '.local/share/cedarloom-app/accounts');
   for (const secret of [CLAUDE_TOKEN, 'inherited-oauth-token-dummy', 'dummy-api-key', 'dummy-gh']) {
     assert.deepEqual(grep(m.ctx.config, secret), [], secret);
     assert.deepEqual(grep(m.home, secret).filter((p) => !p.startsWith(accountFolder)), [], secret);
@@ -245,7 +245,7 @@ test('token (Claude Code): setup-token kept in the credential store, recorded wi
   m.ctx.credentials = { ...m.ctx.credentials, delete: () => { throw new Error('the keyring is locked'); } };
   const locked = cli(m);
   assert.equal(await locked.exec(['accounts', 'remove', 'work', '--yes']), 1);
-  assert.match(locked.text(), /the keyring is locked\nthe account work stays listed: delete the token by hand \(service benchkeeper, account work\)/);
+  assert.match(locked.text(), /the keyring is locked\nthe account work stays listed: delete the token by hand \(service cedarloom-app, account work\)/);
   assert.ok(findAccount(m.ctx, 'work').token);
   assert.equal(m.kept.get('work'), CLAUDE_TOKEN);
   m.ctx.credentials = { ...m.ctx.credentials, delete: deleteToken };
@@ -407,7 +407,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   const c = cli(m);
   assert.equal(await c.exec(['accounts', 'add', 'boxed', '--agent', 'claude', '--container', '--mount', '/data/accounts/boxed', '--yes']), 0);
   const a = findAccount(m.ctx, 'boxed');
-  assert.deepEqual([a.mode, a.volume, a.mount, a.dir], ['container', 'benchkeeper-claude-boxed', '/data/accounts/boxed', undefined]);
+  assert.deepEqual([a.mode, a.volume, a.mount, a.dir], ['container', 'cedarloom-app-claude-boxed', '/data/accounts/boxed', undefined]);
   // Not checked without a project: said so, nothing run.
   const s0 = cli(m);
   assert.equal(await s0.exec(['accounts', 'status', 'boxed']), 0);
@@ -418,7 +418,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   assert.equal(await l.exec(['accounts', 'login', 'boxed', '--project', project]), 0);
   const calls = m.calls().filter((x) => x.me === 'devcontainer');
   const up = calls.find((x) => x.args[0] === 'up');
-  assert.ok(up.args.includes('type=volume,source=benchkeeper-claude-boxed,target=/data/accounts/boxed'));
+  assert.ok(up.args.includes('type=volume,source=cedarloom-app-claude-boxed,target=/data/accounts/boxed'));
   assert.ok(up.args.includes('podman') || up.args.includes('docker'));
   const exec = calls.filter((x) => x.args[0] === 'exec').find((x) => x.args.includes('login'));
   assert.ok(exec.args.includes('CLAUDE_CONFIG_DIR=/data/accounts/boxed'));
@@ -430,7 +430,7 @@ test('dev container accounts: a volume per account, mounted at devcontainer up, 
   const miss = cli(m);
   assert.equal(await miss.exec(['accounts', 'login', 'boxed', '--project', project]), 1);
   assert.match(miss.text(), /is not mounted at \/data\/accounts\/boxed/);
-  assert.match(miss.text(), /devcontainer up .*--mount type=volume,source=benchkeeper-claude-boxed,target=\S+ --remove-existing-container/);
+  assert.match(miss.text(), /devcontainer up .*--mount type=volume,source=cedarloom-app-claude-boxed,target=\S+ --remove-existing-container/);
   // A project without a dev container, no engine.
   const bare = mkdtempSync(join(tmpdir(), 'bk-acct-bare-'));
   const nb = cli(m);
@@ -500,8 +500,8 @@ test('accountEnv: an inherited folder variable of either agent is replaced, neve
   assert.equal(host.CLAUDE_CONFIG_DIR, undefined);
   assert.equal(host.OPENAI_API_KEY, undefined);
   assert.equal(accountEnv(ctx, { agent: 'claude', mode: 'host', dir: '/acct' }, { token: 'tok-dummy' }).CLAUDE_CODE_OAUTH_TOKEN, 'tok-dummy');
-  // The launch that carries a token takes no endpoint from the shell, also when BENCHKEEPER_PASS_ENV names it.
-  const routed = { env: { PATH: '/bin', ANTHROPIC_BASE_URL: 'https://example.invalid', BENCHKEEPER_PASS_ENV: 'ANTHROPIC_BASE_URL' } };
+  // The launch that carries a token takes no endpoint from the shell, also when CEDARLOOM_APP_PASS_ENV names it.
+  const routed = { env: { PATH: '/bin', ANTHROPIC_BASE_URL: 'https://example.invalid', CEDARLOOM_APP_PASS_ENV: 'ANTHROPIC_BASE_URL' } };
   assert.equal(accountEnv(routed, { agent: 'claude', mode: 'host', dir: '/acct' }, { token: 'tok-dummy' }).ANTHROPIC_BASE_URL, undefined);
   assert.equal(accountEnv(routed, { agent: 'claude', mode: 'host', dir: '/acct' }).ANTHROPIC_BASE_URL, 'https://example.invalid');
   // In a container the account variable is a --remote-env of the command, not part of the host environment.

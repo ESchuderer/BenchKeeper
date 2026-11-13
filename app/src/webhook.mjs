@@ -19,7 +19,7 @@ const ID = /^[\w.-]{1,64}$/;
 const AUTOMATION = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const LOOPBACK = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/;
 
-export const logFile = (ctx) => join(ctx.home, '.cache/benchkeeper/webhook.log');
+export const logFile = (ctx) => join(ctx.home, '.cache/cedarloom-app/webhook.log');
 
 export class UsageError extends Error {}
 

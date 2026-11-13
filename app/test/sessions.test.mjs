@@ -94,7 +94,7 @@ test('pattern: a cached summary from before it was read is parsed again; one who
   const { home, ctx } = fixture();
   writePatternSessions(home);
   await scanSessions(ctx);
-  const cache = join(home, '.cache/benchkeeper/sessions.json');
+  const cache = join(home, '.cache/cedarloom-app/sessions.json');
   const saved = JSON.parse(readFileSync(cache, 'utf8'));
   const old = (x) => { const { loop, orca, run, ...d } = x.d; return { ...x, key: x.key.replace(/:\d+$/, ''), d }; };
   const file = join(home, '.claude/projects/-work-app/p1.jsonl');
@@ -120,7 +120,7 @@ test('turns and usage limit waits: turn lines, task_complete, the gap fallback, 
   assert.deepEqual(rows.t2.limits, [[S + 3600, null, null]]);
   assert.deepEqual([rows.x1.active, rows.x1.limits], [[[S + 60, S + 300], [S + 840, S + 900]], null]);
   // Cached before the fields were read, and the transcript gone since.
-  const cache = join(home, '.cache/benchkeeper/sessions.json');
+  const cache = join(home, '.cache/cedarloom-app/sessions.json');
   const saved = JSON.parse(readFileSync(cache, 'utf8'));
   const file = join(home, '.claude/projects/-work-act/t1.jsonl');
   const { active, limits, ...d } = saved.files[file].d;
@@ -136,7 +136,7 @@ test('an unchanged file comes from the cache; a changed one is read again; since
   const mtime = new Date('2026-10-21T10:00:00Z');
   utimesSync(file, mtime, mtime);
   await scanSessions(ctx);
-  assert.ok(JSON.parse(readFileSync(join(home, '.cache/benchkeeper/sessions.json'), 'utf8')).files);
+  assert.ok(JSON.parse(readFileSync(join(home, '.cache/cedarloom-app/sessions.json'), 'utf8')).files);
   const { size } = statSync(file);
   const text = readFileSync(file, 'utf8');
   writeFileSync(file, text.replace('Tier: quick', 'Tier: full '));
@@ -148,7 +148,7 @@ test('an unchanged file comes from the cache; a changed one is read again; since
   assert.deepEqual((await scanSessions(ctx, { since: '2026-10-21T00:00:00.000Z' })).map((r) => r.id).sort(), ['c1', 's2']);
 });
 
-const cacheFile = (home) => join(home, '.cache/benchkeeper/sessions.json');
+const cacheFile = (home) => join(home, '.cache/cedarloom-app/sessions.json');
 const removeS1 = (home) => { rmSync(join(home, '.claude/projects/-work-shop/s1.jsonl')); rmSync(join(home, '.claude/projects/-work-shop/s1'), { recursive: true }); };
 
 test('a transcript the agent deleted between two scans: its row, the board and the totals stay unchanged', async () => {
@@ -188,8 +188,8 @@ test('a cache file it cannot convert is moved aside with a note, not overwritten
     await scanSessions(ctx, { onNote: (n) => notes.push(n) });
     assert.equal(notes.length, i + 1);
     assert.match(notes[i], /session cache .* unreadable or of an unknown version/);
-    const aside = readdirSync(join(home, '.cache/benchkeeper')).filter((f) => /^sessions\.json\.\d+$/.test(f));
-    assert.ok(aside.some((f) => readFileSync(join(home, '.cache/benchkeeper', f), 'utf8') === text), text);
+    const aside = readdirSync(join(home, '.cache/cedarloom-app')).filter((f) => /^sessions\.json\.\d+$/.test(f));
+    assert.ok(aside.some((f) => readFileSync(join(home, '.cache/cedarloom-app', f), 'utf8') === text), text);
     assert.equal(JSON.parse(readFileSync(cacheFile(home), 'utf8')).schema, 1);
   }
 });

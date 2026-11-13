@@ -133,10 +133,10 @@ try {
       await page.goto(pathToFileURL(openBrowser(`http://127.0.0.1:${PORT}/?token=${TOKEN}`, { open: () => {}, confined: () => false })).href);
       await page.waitForURL(`http://127.0.0.1:${PORT}/`);
       [cookie] = await context.cookies();
-      key = await page.evaluate(() => localStorage.getItem('benchkeeper-key'));
+      key = await page.evaluate(() => localStorage.getItem('cedarloom-app-key'));
     } else {
       await context.addCookies([cookie]);
-      await context.addInitScript((k) => localStorage.setItem('benchkeeper-key', k), key);
+      await context.addInitScript((k) => localStorage.setItem('cedarloom-app-key', k), key);
     }
     for (const [name, steps, cut] of VIEWS) {
       await page.setViewportSize({ width: 1600, height: 900 });

@@ -1,5 +1,5 @@
-// Packs: the library's presets plus the user's own, saved in ~/.config/benchkeeper/packs/<id>.json. The user's own skills
-// (source 'user'), saved in ~/.config/benchkeeper/skills/<name>/, join the library's skills.
+// Packs: the library's presets plus the user's own, saved in ~/.config/cedarloom-app/packs/<id>.json. The user's own skills
+// (source 'user'), saved in ~/.config/cedarloom-app/skills/<name>/, join the library's skills.
 // A pack file names library skills only, so an imported pack cannot bring a source or ref the library does not pin; an own
 // pack may name the user's skills too, and is not exported then.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -144,7 +144,7 @@ function validate(pack, lib) {
 }
 
 export function savePack(ctx, { id, title, skills }) {
-  const pack = { kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id, title: title || id, skills: [...new Set(skills)] };
+  const pack = { kind: 'cedarloom-app-pack', schemaVersion: PACK_SCHEMA, id, title: title || id, skills: [...new Set(skills)] };
   const lib = library();
   validate(pack, { ...lib, skills: [...lib.skills, ...userSkills(ctx, lib)] });
   const file = join(dir(ctx), `${id}.json`);
@@ -175,13 +175,13 @@ export function exportPack(ctx, id) {
   if (!p.skills?.length) throw new Error(`${id} installs a plugin, not library skills`);
   const mine = userSkills(ctx).filter((s) => p.skills.includes(s.name)).map((s) => s.name);
   if (mine.length) throw new Error(`${id} names your own skills (${mine.join(', ')}): a pack file carries library skills only, so this pack stays on this machine`);
-  return `${JSON.stringify({ kind: 'benchkeeper-pack', schemaVersion: PACK_SCHEMA, id: p.id, title: p.title, skills: p.skills }, null, 2)}\n`;
+  return `${JSON.stringify({ kind: 'cedarloom-app-pack', schemaVersion: PACK_SCHEMA, id: p.id, title: p.title, skills: p.skills }, null, 2)}\n`;
 }
 
 export function importPack(ctx, text, id) {
   let pack;
   try { pack = JSON.parse(text); } catch (e) { throw new Error(`pack file: ${e.message}`); }
-  if (pack?.kind !== 'benchkeeper-pack') throw new Error('not a BenchKeeper pack file');
+  if (pack?.kind !== 'cedarloom-app-pack') throw new Error('not a BenchKeeper pack file');
   if (pack.schemaVersion !== PACK_SCHEMA) throw new Error(`pack schemaVersion ${pack.schemaVersion}, this app reads ${PACK_SCHEMA}`);
   return savePack(ctx, { id: id ?? pack.id, title: pack.title, skills: pack.skills });
 }

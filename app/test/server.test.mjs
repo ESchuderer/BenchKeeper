@@ -40,7 +40,7 @@ before(async () => {
 after(() => { if (srv.listening) srv.close(); });
 
 const req = (method, path, headers, body) => httpRequest(port, method, path, headers, body);
-const auth = (h = {}) => ({ cookie, 'x-benchkeeper': key, ...h });
+const auth = (h = {}) => ({ cookie, 'x-cedarloom-app': key, ...h });
 const post = (h) => req('POST', '/api/apply', auth({ 'content-type': 'application/json', ...h }), '{"planId":"x"}');
 
 test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', async () => {
@@ -68,7 +68,7 @@ test('the URL token works once and becomes an HttpOnly SameSite=Strict cookie', 
   // The session of a server on another port does not count here.
   assert.equal((await req('GET', '/api/overview', { cookie: cookie.replace(`bk_session_${port}=`, 'bk_session_1=') })).status, 401);
   // The cookie alone, as another server on 127.0.0.1 receives it, reaches no API route; the page still loads.
-  for (const k of [undefined, '1', 'x'.repeat(43)]) assert.equal((await req('GET', '/api/overview', { cookie, ...(k ? { 'x-benchkeeper': k } : {}) })).status, 403);
+  for (const k of [undefined, '1', 'x'.repeat(43)]) assert.equal((await req('GET', '/api/overview', { cookie, ...(k ? { 'x-cedarloom-app': k } : {}) })).status, 403);
   assert.equal((await req('GET', '/', { cookie })).status, 200);
 });
 
@@ -693,14 +693,14 @@ test('packs: a file that is no pack is listed by the catalog with its reason and
 test('profile import: a bad kind is a 400; register saves packs and projects, then returns the plans', async () => {
   const { routes } = fixture();
   const imp = routes['POST /api/profile-import'];
-  assert.equal(status(() => imp({ text: '{"kind":"benchkeeper-pack","schemaVersion":1}' })), 400);
+  assert.equal(status(() => imp({ text: '{"kind":"cedarloom-app-pack","schemaVersion":1}' })), 400);
   assert.equal(status(() => imp({ text: 'nope' })), 400);
   // An unknown agent fails before any pack or project is saved.
-  assert.equal(status(() => imp({ register: true, text: JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['nope'] }, packs: [{ id: 'early', skills: ['x'] }], projects: [] }) })), 400);
+  assert.equal(status(() => imp({ register: true, text: JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['nope'] }, packs: [{ id: 'early', skills: ['x'] }], projects: [] }) })), 400);
   assert.ok(!routes['GET /api/catalog']().packs.some((p) => p.id === 'early'));
   const dir = mkdtempSync(join(TMP, 'bk-prof-'));
   const skill = routes['GET /api/catalog']().skills[0].name;
-  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] }, packs: [{ id: 'own', skills: [skill] }],
+  const text = JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'], packs: [] }, packs: [{ id: 'own', skills: [skill] }],
     projects: [{ path: dir, answers: { agents: ['claude'], packs: ['own'] } }, { path: '/nowhere/x' }] });
   const preview = imp({ text });
   assert.deepEqual(preview.projects, [{ path: dir, here: true }, { path: '/nowhere/x', here: false }]);
@@ -708,12 +708,12 @@ test('profile import: a bad kind is a 400; register saves packs and projects, th
   const r = imp({ text, register: true });
   assert.deepEqual([r.packs, r.projects, r.missing], [['own'], [dir], ['/nowhere/x']]);
   assert.ok(r.global.planId && r.plans.length === 1 && r.plans[0].changes.some((c) => c.title.includes(skill)));
-  assert.match(routes['GET /api/profile-export'](new URLSearchParams({ agents: 'claude' })).text, /"benchkeeper-profile"/);
+  assert.match(routes['GET /api/profile-export'](new URLSearchParams({ agents: 'claude' })).text, /"cedarloom-app-profile"/);
 });
 
 test('profile import: a project that cannot be registered (the home folder) comes back as refused with the reason', () => {
   const { ctx, routes } = fixture();
-  const text = JSON.stringify({ kind: 'benchkeeper-profile', schemaVersion: 1, global: { agents: ['claude'] }, projects: [{ path: ctx.home }] });
+  const text = JSON.stringify({ kind: 'cedarloom-app-profile', schemaVersion: 1, global: { agents: ['claude'] }, projects: [{ path: ctx.home }] });
   const r = routes['POST /api/profile-import']({ text, register: true });
   assert.deepEqual(r.projects, []);
   assert.equal(r.refused.length, 1);
@@ -1090,5 +1090,5 @@ test('the status line style: per tracked host account, planned in the settings.j
   routes['POST /api/undo']({ run: run.id });
   assert.equal(style().accounts[0].value, 'merged');
   assert.throws(() => routes['POST /api/status-style']({ account: 'spare', value: 'none' }), /accounts track/);
-  assert.throws(() => routes['POST /api/status-style']({ account: 'work', value: 'bogus' }), /one of merged, plugin, benchkeeper, none/);
+  assert.throws(() => routes['POST /api/status-style']({ account: 'work', value: 'bogus' }), /one of merged, plugin, cedarloom-app, none/);
 });

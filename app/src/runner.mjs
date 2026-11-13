@@ -43,7 +43,7 @@ export const undoable = (argv) => Array.isArray(argv) && UNDO_FORMS.some((f) => 
 export const allowed = (path, ctx, follow = true) => ctx.roots.some((r) => inside(path, [r], follow) && !(ctx.deny ?? []).some((d) => inside(path, [d], follow) && !inside(r, [d])));
 
 // undoable: a check for undo commands of other forms than these (a scheduler's own), so this file names no such tool.
-export function context({ home, config = `${home}/.config/benchkeeper`, roots = [home], appVersion = '0.0.0', run = runCommand, refuse, undoable: more } = {}) {
+export function context({ home, config = `${home}/.config/cedarloom-app`, roots = [home], appVersion = '0.0.0', run = runCommand, refuse, undoable: more } = {}) {
   return { ...(refuse ? { refuse } : {}), ...(more ? { undoable: more } : {}), home: resolve(home), config: resolve(config), roots: roots.map((r) => resolve(r)), appVersion, run, ...(run === runCommand ? { runAsync: runCommandAsync } : {}), ledger: new Ledger(resolve(config), resolve(home)) };
 }
 

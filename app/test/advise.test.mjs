@@ -19,8 +19,8 @@ test('Codex answers through its output file; it reads only the project, without 
   } };
   assert.deepEqual(await adviseSetup(ctx, { dir: '/p', agent: 'codex', lib }), { env: null, packs: [], skills: [{ name: 'b', reason: 'x' }] });
   const config = argv.flatMap((a, i) => (argv[i - 1] === '-c' ? [a] : []));
-  assert.deepEqual(config.filter((c) => !c.startsWith('permissions.')), ['sandbox_mode="read-only"', 'default_permissions="benchkeeper-advice"', 'web_search="disabled"', 'mcp_servers.playwright.enabled=false']);
-  assert.match(config.find((c) => c.startsWith('permissions.')), /^permissions\.benchkeeper-advice\.filesystem=\{":minimal"="read", ":workspace_roots"="read"/);
+  assert.deepEqual(config.filter((c) => !c.startsWith('permissions.')), ['sandbox_mode="read-only"', 'default_permissions="cedarloom-app-advice"', 'web_search="disabled"', 'mcp_servers.playwright.enabled=false']);
+  assert.match(config.find((c) => c.startsWith('permissions.')), /^permissions\.cedarloom-app-advice\.filesystem=\{":minimal"="read", ":workspace_roots"="read"/);
   for (servers of [[{ name: 'a.b' }], [{}]]) await assert.rejects(adviseSetup(ctx, { dir: '/p', agent: 'codex', lib }), /cannot be turned off/);
   // No server list, no session: none of them could be turned off.
   await assert.rejects(adviseSetup({ run: (a) => (a[1] === 'mcp' ? { code: 1, stdout: '', stderr: 'unknown command' } : assert.fail('session started')) }, { dir: '/p', agent: 'codex', lib }), /codex mcp list --json failed \(1\): unknown command/);
@@ -105,7 +105,7 @@ test('an agent session gets its own agent\'s login variables and nothing else th
   assert.deepEqual(Object.keys(agentEnv('codex', env)).sort(), ['CODEX_HOME', 'HOME', 'OPENAI_API_KEY', 'PATH']);
   assert.deepEqual(Object.keys(agentEnv('gemini', env)).sort(), ['CODEX_HOME', 'GEMINI_API_KEY', 'HOME', 'PATH']);
   assert.ok(!('GH_TOKEN' in agentEnv('claude', env)) && !('OPENAI_API_KEY' in agentEnv('claude', env)) && !('ANTHROPIC_API_KEY' in agentEnv('codex', env)));
-  assert.ok('GH_TOKEN' in agentEnv('claude', { ...env, BENCHKEEPER_PASS_ENV: 'gh_token' }));
+  assert.ok('GH_TOKEN' in agentEnv('claude', { ...env, CEDARLOOM_APP_PASS_ENV: 'gh_token' }));
   // Both sessions pass it: advice through ctx.run, an eval case through the session runner.
   let seen;
   await adviseSetup({ run: (a, o) => { if (!a.includes('--help')) seen = o.env; return { code: 0, stdout: JSON.stringify({ result: '{}' }), stderr: '' }; } }, { dir: '/p', agent: 'claude', lib });

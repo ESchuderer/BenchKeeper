@@ -174,7 +174,7 @@ test('policy: the remote\'s HEAD is fetched into the reader\'s own ref and the f
   const calls = [];
   assert.equal(read('/p', remote('{ "startLabel": "go" }', calls)).policy.startLabel, 'go');
   // No name that the remote or the local origin/HEAD chooses is part of a command.
-  assert.ok(calls.some((call) => call.startsWith('git fetch ') && call.endsWith(' origin +HEAD:refs/benchkeeper/policy')));
+  assert.ok(calls.some((call) => call.startsWith('git fetch ') && call.endsWith(' origin +HEAD:refs/cedarloom-app/policy')));
   assert.ok(calls.includes(`git show ${HEAD}:docs/agents/orchestration.json`));
   // A worker that moves the reader's ref after the fetch changes nothing: the read names the remote's commit, not the ref.
   const moved = read('/p', (dir, cmd, args) => {
@@ -245,7 +245,7 @@ test('policy: the command line prints the policy of the default branch and exits
   assert.equal(JSON.parse(hooked.stdout).startLabel, 'go');
   // A worker shares the git directory: a replace ref that swaps the policy blob for a wider one changes nothing the reader prints.
   const blob = (...args) => spawnSync('git', ['-C', project, ...args], { encoding: 'utf8', input: '{ "startLabel": "go", "merge": { "allowed": true } }' }).stdout.trim();
-  blob('replace', blob('rev-parse', 'refs/benchkeeper/policy:docs/agents/orchestration.json'), blob('hash-object', '-w', '--stdin'));
+  blob('replace', blob('rev-parse', 'refs/cedarloom-app/policy:docs/agents/orchestration.json'), blob('hash-object', '-w', '--stdin'));
   const replaced = cli(project);
   assert.equal(replaced.status, 0, replaced.stderr);
   assert.equal(JSON.parse(replaced.stdout).merge.allowed, false);

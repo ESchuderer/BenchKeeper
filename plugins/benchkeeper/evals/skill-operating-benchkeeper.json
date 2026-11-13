@@ -1,5 +1,5 @@
 {
-  "kind": "benchkeeper-evals",
+  "kind": "cedarloom-app-evals",
   "schemaVersion": 1,
   "target": "skill:operating-benchkeeper",
   "cases": [

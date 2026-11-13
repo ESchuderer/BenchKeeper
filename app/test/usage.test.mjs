@@ -37,8 +37,8 @@ async function add(m, name, agent = 'claude', ...more) {
 }
 // What the status line script of the account would have written, for a given clock.
 const reading = (a, five, seven, now = Date.now()) => {
-  mkdirSync(join(a.dir, 'benchkeeper'), { recursive: true });
-  writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), JSON.stringify({ schemaVersion: 1, checkedAt: new Date(now).toISOString(), fiveHour: { used: five, resetsAt: epoch(now + 3 * HOUR) }, sevenDay: { used: seven, resetsAt: epoch(now + 48 * HOUR) } }));
+  mkdirSync(join(a.dir, 'cedarloom-app'), { recursive: true });
+  writeFileSync(join(a.dir, 'cedarloom-app', 'usage.json'), JSON.stringify({ schemaVersion: 1, checkedAt: new Date(now).toISOString(), fiveHour: { used: five, resetsAt: epoch(now + 3 * HOUR) }, sevenDay: { used: seven, resetsAt: epoch(now + 48 * HOUR) } }));
 };
 
 test('the hook keeps only the two windows and the error type: no token, path, message or session id reaches a file', () => {
@@ -65,7 +65,7 @@ test('the hook keeps only the two windows and the error type: no token, path, me
 
 test('the status line style: usage and Ponytail\'s level from the account folder, usage.json written in every style', () => {
   const account = mkdtempSync(join(tmpdir(), 'bk-style-'));
-  const dir = join(account, 'benchkeeper');
+  const dir = join(account, 'cedarloom-app');
   const env = { XDG_CONFIG_HOME: join(account, 'xdg') };
   const style = (v) => writeFileSync(join(account, 'settings.json'), JSON.stringify({ pluginConfigs: { 'benchkeeper@benchkeeper': { options: { statusStyle: v } } } }));
   const level = (v) => writeFileSync(join(account, '.ponytail-active'), `${v}\n`);
@@ -83,7 +83,7 @@ test('the status line style: usage and Ponytail\'s level from the account folder
   style('plugin');
   assert.equal(line(), '\x1b[38;5;108m[PONYTAIL:LITE]\x1b[0m');
   assert.equal(written(), true);
-  style('benchkeeper');
+  style('cedarloom-app');
   assert.equal(line(), usage);
   assert.equal(written(), true);
   style('none');
@@ -156,7 +156,7 @@ test('every documented StopFailure error type is kept and has a finding', () => 
 });
 
 test('settings.json: the status line and the hook are added next to the user\'s own and taken out again', () => {
-  const script = '/home/u/acct/benchkeeper/usage.mjs';
+  const script = '/home/u/acct/cedarloom-app/usage.mjs';
   const own = '{\n  "model": "x",\n  "hooks": { "StopFailure": [{ "matcher": "overloaded", "hooks": [{ "type": "command", "command": "echo hi" }] }] }\n}\n';
   const on = trackedSettings(own, script);
   const doc = JSON.parse(on);
@@ -202,7 +202,7 @@ test('track: a plan with a diff and an undo; the installed script writes what st
   const c = cli(m);
   assert.equal(await c.exec(['accounts', 'track', 'work', '--yes']), 0, c.text());
   assert.match(c.text(), /tracking starts with the next Claude Code session/);
-  const script = join(a.dir, 'benchkeeper', 'usage.mjs');
+  const script = join(a.dir, 'cedarloom-app', 'usage.mjs');
   assert.equal(readFileSync(script, 'utf8'), HOOK_SOURCE);
   const settings = JSON.parse(readFileSync(join(a.dir, 'settings.json'), 'utf8'));
   assert.equal(settings.statusLine.command, `node "${script}" statusline`);
@@ -285,7 +285,7 @@ test('track: a status line of the user\'s own is an error in the plan and nothin
   const c = cli(m);
   assert.equal(await c.exec(['accounts', 'track', 'work', '--yes']), 1);
   assert.match(c.text(), /already has a status line of its own/);
-  assert.equal(existsSync(join(a.dir, 'benchkeeper', 'usage.mjs')), false);
+  assert.equal(existsSync(join(a.dir, 'cedarloom-app', 'usage.mjs')), false);
   const x = await add(m, 'dev', 'codex');
   const t = cli(m);
   assert.equal(await t.exec(['accounts', 'track', 'dev', '--yes']), 1);
@@ -448,9 +448,9 @@ test('auto-pick with when-none wait: sleeps until the earliest reset, then start
   for (const n of ['work', 'home']) assert.equal(await cli(m).exec(['accounts', 'limits', n, '--pool', 'me', '--yes']), 0);
   assert.equal(await cli(m).exec(['accounts', 'limits', '--auto-pick', 'on', '--when-none', 'wait', '--yes']), 0);
   const now = Date.now();
-  mkdirSync(join(work.dir, 'benchkeeper'), { recursive: true });
-  mkdirSync(join(home.dir, 'benchkeeper'), { recursive: true });
-  const put = (a, resetsIn) => writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 99, resetsAt: epoch(now + resetsIn) }, sevenDay: { used: 10, resetsAt: epoch(now + 48 * HOUR) } }));
+  mkdirSync(join(work.dir, 'cedarloom-app'), { recursive: true });
+  mkdirSync(join(home.dir, 'cedarloom-app'), { recursive: true });
+  const put = (a, resetsIn) => writeFileSync(join(a.dir, 'cedarloom-app', 'usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 99, resetsAt: epoch(now + resetsIn) }, sevenDay: { used: 10, resetsAt: epoch(now + 48 * HOUR) } }));
   put(work, 3 * HOUR);
   put(home, 2 * HOUR);
   const slept = [];
@@ -492,12 +492,12 @@ test('a dev container account: usage and failures are read through devcontainer 
   assert.equal(await t.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0, t.text());
   assert.match(t.text(), /statusLine/);
   const settings = JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8'));
-  assert.equal(settings.statusLine.command, 'node "/data/boxed/benchkeeper/usage.mjs" statusline');
-  assert.equal(readFileSync(vol('/data/boxed/benchkeeper/usage.mjs'), 'utf8'), HOOK_SOURCE);
+  assert.equal(settings.statusLine.command, 'node "/data/boxed/cedarloom-app/usage.mjs" statusline');
+  assert.equal(readFileSync(vol('/data/boxed/cedarloom-app/usage.mjs'), 'utf8'), HOOK_SOURCE);
   const now = Date.now();
-  mkdirSync(vol('/data/boxed/benchkeeper'), { recursive: true });
-  writeFileSync(vol('/data/boxed/benchkeeper/usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 96, resetsAt: epoch(now + HOUR) }, sevenDay: { used: 5, resetsAt: epoch(now + 48 * HOUR) } }));
-  writeFileSync(vol('/data/boxed/benchkeeper/failures.jsonl'), `{"at":"${new Date(now).toISOString()}","error":"rate_limit"}\n`);
+  mkdirSync(vol('/data/boxed/cedarloom-app'), { recursive: true });
+  writeFileSync(vol('/data/boxed/cedarloom-app/usage.json'), JSON.stringify({ checkedAt: new Date(now).toISOString(), fiveHour: { used: 96, resetsAt: epoch(now + HOUR) }, sevenDay: { used: 5, resetsAt: epoch(now + 48 * HOUR) } }));
+  writeFileSync(vol('/data/boxed/cedarloom-app/failures.jsonl'), `{"at":"${new Date(now).toISOString()}","error":"rate_limit"}\n`);
   const s = cli(m);
   assert.equal(await s.exec(['accounts', 'status', 'boxed', '--project', project, '--json']), 0);
   const u = s.json().accounts[0].usage;
@@ -505,12 +505,12 @@ test('a dev container account: usage and failures are read through devcontainer 
   assert.ok(s.json().accounts[0].findings.some((f) => /5-hour window has 4% left/.test(f.message)));
   const off = cli(m);
   assert.equal(await off.exec(['accounts', 'track', 'boxed', '--off', '--project', project, '--yes']), 0, off.text());
-  assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
+  assert.equal(existsSync(vol('/data/boxed/cedarloom-app/usage.mjs')), false);
   assert.deepEqual(JSON.parse(readFileSync(vol('/data/boxed/settings.json'), 'utf8')), {});
   // Asked without --yes: no answer refuses and nothing is written.
   const no = cli(m);
   assert.equal(await no.exec(['accounts', 'track', 'boxed', '--project', project]), 2);
-  assert.equal(existsSync(vol('/data/boxed/benchkeeper/usage.mjs')), false);
+  assert.equal(existsSync(vol('/data/boxed/cedarloom-app/usage.mjs')), false);
 });
 
 test('the script runs from a folder reached through a link; a huge or non-regular state file is read as missing', skip, async () => {
@@ -519,15 +519,15 @@ test('the script runs from a folder reached through a link; a huge or non-regula
   assert.equal(await cli(m).exec(['accounts', 'track', 'work', '--yes']), 0);
   const link = join(m.root, 'link');
   symlinkSync(a.dir, link);
-  const r = runCommand([process.execPath, join(link, 'benchkeeper', 'usage.mjs'), 'statusline'], { input: JSON.stringify(windows(30, 50, Date.now())) });
+  const r = runCommand([process.execPath, join(link, 'cedarloom-app', 'usage.mjs'), 'statusline'], { input: JSON.stringify(windows(30, 50, Date.now())) });
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stdout, /5h 70% left/);
-  assert.equal(JSON.parse(readFileSync(join(a.dir, 'benchkeeper', 'usage.json'), 'utf8')).fiveHour.used, 30);
-  writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), ' '.repeat(70000));
+  assert.equal(JSON.parse(readFileSync(join(a.dir, 'cedarloom-app', 'usage.json'), 'utf8')).fiveHour.used, 30);
+  writeFileSync(join(a.dir, 'cedarloom-app', 'usage.json'), ' '.repeat(70000));
   assert.equal(accountStatus(m.ctx, a).usage.tracked, false);
-  writeFileSync(join(a.dir, 'benchkeeper', 'usage.json'), '{}');
+  writeFileSync(join(a.dir, 'cedarloom-app', 'usage.json'), '{}');
   assert.equal(accountStatus(m.ctx, a).usage.tracked, false);
-  mkdirSync(join(a.dir, 'benchkeeper', 'failures.jsonl'));
+  mkdirSync(join(a.dir, 'cedarloom-app', 'failures.jsonl'));
   assert.deepEqual(accountStatus(m.ctx, a).usage.failures, []);
 });
 
@@ -573,7 +573,7 @@ test('a dev container track twice or --off twice has nothing to change; the scri
   assert.match(off0.text(), /nothing to change/);
   assert.equal(await cli(m).exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0);
   const writes = m.calls().filter((x) => x.me === 'devcontainer' && x.args.includes('tee')).map((x) => x.args.at(-1));
-  assert.deepEqual(writes, ['/data/boxed/benchkeeper/usage.mjs', '/data/boxed/settings.json']);
+  assert.deepEqual(writes, ['/data/boxed/cedarloom-app/usage.mjs', '/data/boxed/settings.json']);
   const again = cli(m);
   assert.equal(await again.exec(['accounts', 'track', 'boxed', '--project', project, '--yes']), 0);
   assert.match(again.text(), /nothing to change/);
